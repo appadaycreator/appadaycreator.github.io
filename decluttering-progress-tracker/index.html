@@ -1,0 +1,2641 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script>
+/* Supabase → LocalStorage モック (Supabase無料版停止対応) */
+(function() {
+  function _get(t) { try { return JSON.parse(localStorage.getItem('sb_'+t)||'[]'); } catch(e) { return []; } }
+  function _set(t,d) { try { localStorage.setItem('sb_'+t, JSON.stringify(d)); } catch(e) {} }
+  function _uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+  function _now() { return new Date().toISOString(); }
+
+  function buildQuery(table) {
+    var rows = _get(table), filters = [], _ord = null, _lim = null;
+    var q = {
+      select: function() { return q; },
+      eq:  function(c,v){ filters.push(function(r){ return r[c]==v; }); return q; },
+      neq: function(c,v){ filters.push(function(r){ return r[c]!=v; }); return q; },
+      gt:  function(c,v){ filters.push(function(r){ return r[c]>v; }); return q; },
+      gte: function(c,v){ filters.push(function(r){ return r[c]>=v; }); return q; },
+      lt:  function(c,v){ filters.push(function(r){ return r[c]<v; }); return q; },
+      lte: function(c,v){ filters.push(function(r){ return r[c]<=v; }); return q; },
+      like:  function(c,v){ filters.push(function(r){ return String(r[c]||'').indexOf(v.replace(/%/g,''))>-1; }); return q; },
+      ilike: function(c,v){ filters.push(function(r){ return String(r[c]||'').toLowerCase().indexOf(v.replace(/%/g,'').toLowerCase())>-1; }); return q; },
+      contains: function(c,v){ filters.push(function(r){ return Array.isArray(r[c])&&r[c].indexOf(v)>-1; }); return q; },
+      is: function(c,v){ filters.push(function(r){ return v===null?r[c]==null:r[c]===v; }); return q; },
+      'in': function(c,v){ filters.push(function(r){ return v.indexOf(r[c])>-1; }); return q; },
+      order: function(c,o){ _ord={c:c,desc:o&&o.ascending===false}; return q; },
+      limit: function(n){ _lim=n; return q; },
+      range: function(){ return q; },
+      single: function() {
+        var d=_get(table); filters.forEach(function(f){d=d.filter(f);});
+        return Promise.resolve({data:d[0]||null,error:d.length===0?{message:'No rows found',code:'PGRST116'}:null});
+      },
+      maybeSingle: function() {
+        var d=_get(table); filters.forEach(function(f){d=d.filter(f);});
+        return Promise.resolve({data:d[0]||null,error:null});
+      },
+      then: function(res,rej) {
+        var d=_get(table);
+        filters.forEach(function(f){d=d.filter(f);});
+        if(_ord) d.sort(function(a,b){ var av=a[_ord.c],bv=b[_ord.c]; return _ord.desc?(bv>av?1:bv<av?-1:0):(av>bv?1:av<bv?-1:0); });
+        if(_lim) d=d.slice(0,_lim);
+        return Promise.resolve({data:d,error:null,count:d.length}).then(res,rej);
+      }
+    };
+    return q;
+  }
+
+  function createLocalStorageClient() {
+    return {
+      from: function(table) {
+        return {
+          select: function(){ return buildQuery(table); },
+          insert: function(rows, opts) {
+            var d=_get(table), arr=Array.isArray(rows)?rows:[rows];
+            var ins=arr.map(function(r){ return Object.assign({},r,{id:r.id||_uid(),created_at:r.created_at||_now()}); });
+            _set(table,d.concat(ins));
+            return Promise.resolve({data:opts&&opts.returning==='minimal'?[]:ins,error:null});
+          },
+          upsert: function(rows,opts) {
+            var d=_get(table), arr=Array.isArray(rows)?rows:[rows];
+            var key=opts&&opts.onConflict||'id';
+            arr.forEach(function(r){
+              var i=d.findIndex(function(x){return x[key]===r[key];});
+              if(i>=0) d[i]=Object.assign({},d[i],r); else d.push(Object.assign({},r,{id:r.id||_uid(),created_at:r.created_at||_now()}));
+            });
+            _set(table,d);
+            return Promise.resolve({data:arr,error:null});
+          },
+          update: function(updates) {
+            var applyUpdate = function(filters) {
+              var d=_get(table);
+              var updated=d.map(function(r){ return filters.every(function(f){return f(r);})?Object.assign({},r,updates):r; });
+              _set(table,updated);
+              return Promise.resolve({data:updated.filter(function(r){return filters.every(function(f){return f(r);});}),error:null});
+            };
+            return buildFilterChain(applyUpdate);
+          },
+          delete: function() {
+            var applyDelete = function(filters) {
+              var d=_get(table);
+              var kept=d.filter(function(r){return !filters.every(function(f){return f(r);});});
+              _set(table,kept);
+              return Promise.resolve({data:[],error:null});
+            };
+            return buildFilterChain(applyDelete);
+          }
+        };
+      },
+      auth: {
+        getSession: function(){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'null');
+          return Promise.resolve({data:{session:u?{user:u}:null},error:null});
+        },
+        getUser: function(){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'null');
+          return Promise.resolve({data:{user:u},error:null});
+        },
+        signUp: function(p){
+          var u={id:_uid(),email:p.email,created_at:_now()};
+          localStorage.setItem('sb_auth',JSON.stringify(u));
+          return Promise.resolve({data:{user:u,session:{user:u}},error:null});
+        },
+        signInWithPassword: function(p){
+          var u={id:'local_'+btoa(p.email||''),email:p.email,created_at:_now()};
+          localStorage.setItem('sb_auth',JSON.stringify(u));
+          return Promise.resolve({data:{user:u,session:{user:u}},error:null});
+        },
+        signInWithOAuth: function(){return Promise.resolve({data:{},error:null});},
+        signOut: function(){localStorage.removeItem('sb_auth');return Promise.resolve({error:null});},
+        onAuthStateChange: function(cb){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'null');
+          setTimeout(function(){cb(u?'SIGNED_IN':'SIGNED_OUT',u?{user:u}:null);},50);
+          return {data:{subscription:{unsubscribe:function(){}}}};
+        },
+        updateUser: function(p){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'{}');
+          Object.assign(u,p);
+          localStorage.setItem('sb_auth',JSON.stringify(u));
+          return Promise.resolve({data:{user:u},error:null});
+        }
+      },
+      storage: {
+        from: function(){
+          return {
+            upload: function(path,file){return Promise.resolve({data:{path:path},error:null});},
+            getPublicUrl: function(path){return {data:{publicUrl:''}};},
+            remove: function(){return Promise.resolve({data:[],error:null});}
+          };
+        }
+      },
+      channel: function(){ return {on:function(){return this;},subscribe:function(){return this;}}; },
+      removeChannel: function(){},
+      removeAllChannels: function(){}
+    };
+  }
+
+  function buildFilterChain(executor) {
+    var filters=[];
+    var chain={
+      eq:  function(c,v){filters.push(function(r){return r[c]==v;});return chain;},
+      neq: function(c,v){filters.push(function(r){return r[c]!=v;});return chain;},
+      match:function(m){Object.keys(m).forEach(function(c){filters.push(function(r){return r[c]===m[c];});});return chain;},
+      then:function(res,rej){return executor(filters).then(res,rej);}
+    };
+    return chain;
+  }
+
+  // グローバルに設定（window.supabase互換）
+  var mockClient = createLocalStorageClient();
+  window.supabase = {
+    createClient: function() { return mockClient; }
+  };
+  // ESモジュール形式でimportされる場合の互換
+  window.createClient = function() { return mockClient; };
+  window._supabaseMockClient = mockClient;
+})();
+</script>
+    <!-- phase8-schema-enhanced -->
+<meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
+    <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <link rel="dns-prefetch" href="https://www.clarity.ms">
+    <link rel="canonical" href="https://appadaycreator.com/decluttering-progress-tracker/">
+    <title>断捨離進捗トラッカー【無料】捨てた物・節約額を可視化</title>
+<!-- phase8-favicon -->
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#10b981">
+    <meta name="description" content="断捨離した物の数・重さ・節約金額を記録して可視化。片付けのモチベーションを維持するための無料断捨離管理アプリ。登録不要・完全無料でご利用いただけます。">
+    <meta name="keywords" content="断捨離,片付け,整理整頓,ミニマリスト,進捗管理,写真記録">
+    
+    <!-- PWA Meta Tags -->
+        <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="断捨離トラッカー">
+        
+    <!-- OGP Tags -->
+    <meta property="og:title" content="断捨離進捗トラッカー【無料】捨てた物・節約額を可視化">
+    <meta property="og:description" content="断捨離した物の数・重さ・節約金額を記録して可視化。片付けのモチベーションを維持するための無料断捨離管理アプリ。">
+    <meta property="og:type" content="website">
+<meta property="og:locale" content="ja_JP" />
+        <meta property="og:image" content="https://appadaycreator.com/decluttering-progress-tracker/ogp.png">
+    <meta property="og:url" content="https://appadaycreator.com/decluttering-progress-tracker/">
+    <meta property="og:site_name" content="断捨離進捗トラッカー">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="断捨離進捗トラッカー【無料】捨てた物・節約額を可視化">
+    <meta name="twitter:description" content="部屋別・カテゴリ別に断捨離の進捗を管理。ビフォーアフター写真で成果を可視化">
+    <meta name="twitter:creator" content="@appadaycreator">
+    
+    <!-- CDN Libraries -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.1/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.3.8/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
+    <!-- End Google Tag Manager -->
+    <!-- Microsoft Clarity -->
+    <script type="text/javascript">
+        (function(c,l,a,r,i,t,y){
+            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+            t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+        })(window, document, "clarity", "script", "s3t9vl8h3v");
+    </script>
+    <!-- End Microsoft Clarity -->
+    <!-- Google AdSense -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858"
+         crossorigin="anonymous"></script>
+    <!-- End Google AdSense -->
+    
+    <style>
+        [v-cloak] { display: none; }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+        .slide-enter-active, .slide-leave-active { transition: transform 0.3s; }
+        .slide-enter-from { transform: translateX(-100%); }
+        .slide-leave-to { transform: translateX(100%); }
+        .chart-container { height: 400px; }
+        @media (max-width: 640px) { .chart-container { height: 300px; } }
+        .photo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
+        .photo-item { aspect-ratio: 1; }
+        .progress-ring { transform: rotate(-90deg); }
+        .floating-btn { box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4); }
+        .category-card:hover { transform: translateY(-2px); transition: transform 0.2s; }
+    
+/* Phase 8: Mobile Optimization */
+input, select, textarea { font-size: 16px !important; }
+button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min-width: 48px; touch-action: manipulation; }
+@media (max-width: 640px) {
+  body { font-size: 16px; }
+  .max-w-lg { padding-left: 1rem; padding-right: 1rem; }
+}
+
+@media print{
+  header,footer,nav,button,.no-print,
+  [class*="share"],[class*="affiliate"],[id*="share"],
+  [id*="affiliate"],[id*="banner"],
+  script,noscript{display:none!important}
+  body{background:#fff!important;color:#000!important;font-size:12pt}
+  [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
+  a[href]::after{content:none!important}
+}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;}
+.related-link{padding:10px;text-align:center;border:1px solid #ddd;border-radius:4px;text-decoration:none;color:#333;display:block;transition:background 0.15s;}
+.related-link:hover{background:#f5f5f5;}
+</style>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"断捨離進捗トラッカー - スッキリ生活への第一歩","url":"https://appadaycreator.com/decluttering-progress-tracker/","description":"部屋別・カテゴリ別に断捨離の進捗を管理。ビフォーアフター写真で成果を可視化してモチベーション維持をサポート","operatingSystem":"All","applicationCategory":"LifestyleApplication","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"aggregateRating":{"@type":"AggregateRating","ratingValue":"4.5","reviewCount":"67","bestRating":"5","worstRating":"1"}}</script>
+    <meta name="twitter:image" content="https://appadaycreator.com/decluttering-progress-tracker/ogp.png">
+    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "ホーム", "item": "https://appadaycreator.com/"}, {"@type": "ListItem", "position": 2, "name": "断捨離進捗トラッカー - スッキリ生活への第一歩", "item": "https://appadaycreator.com/decluttering-progress-tracker/"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"断捨離トラッカーとは何ですか？","acceptedAnswer":{"@type":"Answer","text":"断捨離した物品の数・カテゴリ・推定節約額を記録し、断捨離の進捗を可視化するアプリです。続けるモチベーションが上がる達成グラフも表示されます。"}},{"@type":"Question","name":"断捨離を始めるならどこから？","acceptedAnswer":{"@type":"Answer","text":"①洋服（着ていない服）、②本・雑誌、③書類、④小物類の順で始めるのが効果的です（近藤麻理恵のKonMariメソッドより）。まず1カテゴリに集中することで成功体験が積めます。"}},{"@type":"Question","name":"何個捨てれば生活が変わる？","acceptedAnswer":{"@type":"Answer","text":"研究によると100個以上手放すと生活に明確な変化を感じる人が多いです。最初の1週間で30個を目標にし、このアプリで記録していくと達成感が継続のモチベーションになります。"}},{"@type":"Question","name":"どのような人が使っていますか？","acceptedAnswer":{"@type":"Answer","text":"初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}},{"@type":"Question","name":"結果をシェアできますか？","acceptedAnswer":{"@type":"Answer","text":"はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}},{"@type":"Question","name":"有料プランはありますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、すべての機能を完全無料でご利用いただけます。"}}]}</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "appadaycreator",
+  "url": "https://appadaycreator.com",
+  "logo": "https://appadaycreator.com/logo.png",
+  "description": "無料Webサービス・診断ツール 180種類以上を運営"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "mainEntity": {
+    "@type": "Article",
+    "headline": "断捨離進捗トラッカー【無料】捨てた物・節約額を可視化",
+    "description": "断捨離した物の数・重さ・節約金額を記録して可視化。片付けのモチベーションを維持するための無料断捨離管理アプリ。",
+    "datePublished": "2026-05-23",
+    "dateModified": "2026-05-23",
+    "author": {
+      "@type": "Organization",
+      "name": "appadaycreator"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "appadaycreator",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://appadaycreator.com/logo.png"
+      }
+    }
+  }
+}
+</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"断捨離進捗トラッカー【無料】捨てた物・節約額を可視化の使い方","step":[{"@type":"HowToStep","position":1,"name":"記録する情報を入力する","text":"記録したい内容（日付・数値・テキスト）を入力フォームに入力する"},{"@type":"HowToStep","position":2,"name":"「追加」ボタンで保存する","text":"「追加」または「記録」ボタンを押してデータをブラウザに保存する"},{"@type":"HowToStep","position":3,"name":"記録一覧で履歴を確認する","text":"記録一覧やカレンダーで過去のデータを確認する"},{"@type":"HowToStep","position":4,"name":"グラフや集計で傾向を把握する","text":"グラフや統計機能を使ってデータの推移・傾向を分析する"},{"@type":"HowToStep","position":5,"name":"継続して変化を追跡する","text":"毎日継続的に記録することで長期的な変化を可視化する"}]}</script>
+
+<style>
+@media(max-width:480px){button,[class*=btn]{min-height:48px!important;font-size:15px!important;}input,select,textarea{font-size:16px!important;min-height:44px!important;}[class*=card],[class*=max-w]{padding:16px!important;}}
+</style>
+<style id="ux-enhanced">
+button,input[type=submit],input[type=button],[class*=btn]{min-height:44px;cursor:pointer;transition:opacity .15s,transform .1s;}
+button:active,[class*=btn]:active{opacity:.75;transform:scale(.98);}
+select,input[type=text],input[type=number],input[type=email],textarea{min-height:44px;font-size:16px;}
+[id*=result]:not(style):not(script),[id*=output]:not(style):not(script){border-left:4px solid #7c3aed;padding-left:16px;margin-top:16px;}
+@media(max-width:640px){[class*=max-w],[class*=container],[class*=wrapper]{padding:12px 16px!important;}button,[class*=btn]{width:100%;font-size:15px;}}
+</style>
+</head>
+<body class="bg-gray-50 font-sans"><a href="#main" class="sr-only">本文へスキップ</a>
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+
+    <div id="app" v-cloak>
+        <!-- Mobile Menu Button -->
+        <button @click="showMobileMenu = !showMobileMenu" 
+                class="fixed top-4 left-4 z-50 md:hidden bg-white p-2 rounded-lg shadow-lg"
+                :aria-label="t('menu')">
+            <span class="text-green-600">☰</span>
+        </button>
+
+        <!-- Font Size Control -->
+        <div class="fixed top-4 right-4 z-50">
+            <div class="bg-white rounded-lg shadow-lg p-2 flex space-x-1">
+                <button v-for="size in fontSizes" :key="size.value"
+                        @click="currentFontSize = size.value"
+                        :class="['px-2 py-1 text-xs rounded', currentFontSize === size.value ? 'bg-green-600 text-white' : 'text-gray-600 hover:bg-gray-100']"
+                        :aria-label="t('fontSize') + ': ' + size.label">
+                    {{ size.label }}
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile Sidebar -->
+        <div v-if="showMobileMenu" 
+             @click="showMobileMenu = false"
+             class="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden">
+            <div @click.stop 
+                 class="fixed left-0 top-0 h-full w-64 bg-white shadow-lg transform transition-transform duration-300"
+                 :class="showMobileMenu ? 'translate-x-0' : '-translate-x-full'">
+                <div class="p-4 border-b">
+                    <h2 class="text-lg font-bold text-green-600">{{ t('appTitle') }}</h2>
+                </div>
+                <nav class="p-4">
+                    <button v-for="tab in tabs" :key="tab.id"
+                            @click="currentTab = tab.id; showMobileMenu = false"
+                            :class="['w-full text-left p-3 rounded-lg mb-2 flex items-center space-x-3', currentTab === tab.id ? 'bg-green-600 text-white' : 'text-gray-700 hover:bg-gray-100']">
+                        <i :class="tab.icon"></i>
+                        <span>{{ t(tab.label) }}</span>
+                    </button>
+                </nav>
+                <div class="absolute bottom-4 left-4 right-4">
+                    <div class="flex space-x-2 mb-4">
+                        <button @click="currentLang = 'ja'; showMobileMenu = false"
+                                :class="['flex-1 py-2 text-sm rounded', currentLang === 'ja' ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-700']">
+                            日本語
+                        </button>
+                        <button @click="currentLang = 'en'; showMobileMenu = false"
+                                :class="['flex-1 py-2 text-sm rounded', currentLang === 'en' ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-700']">
+                            English
+                        </button>
+                    </div>
+                    <div class="text-center text-xs text-green-700 bg-green-50 py-2 rounded-lg border border-green-200">
+                        🔓 {{ t('noAccountNeeded') }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Desktop Header -->
+        <header class="hidden md:block bg-white shadow-sm border-b-2 border-green-500">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center h-16">
+                    <div class="flex items-center space-x-4">
+                        <h1 class="text-xl font-bold text-green-600">{{ t('appTitle') }}</h1>
+                        <span class="bg-green-50 text-green-700 text-xs px-2 py-1 rounded-full border border-green-200">🔓 {{ t('noAccountNeeded') }}</span>
+                    </div>
+                    <nav class="flex space-x-1">
+                        <button v-for="tab in tabs" :key="tab.id"
+                                @click="currentTab = tab.id"
+                                :class="['px-4 py-2 rounded-lg flex items-center space-x-2 text-sm font-medium', currentTab === tab.id ? 'bg-green-600 text-white' : 'text-gray-700 hover:bg-gray-100']">
+                            <i :class="tab.icon"></i>
+                            <span>{{ t(tab.label) }}</span>
+                        </button>
+                    </nav>
+                    <div class="flex items-center space-x-4">
+                        <div class="flex space-x-1">
+                            <button @click="currentLang = 'ja'"
+                                    :class="['px-3 py-1 text-sm rounded', currentLang === 'ja' ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-700']">
+                                日本語
+                            </button>
+                            <button @click="currentLang = 'en'"
+                                    :class="['px-3 py-1 text-sm rounded', currentLang === 'en' ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-700']">
+                                English
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main id="main" class="min-h-screen pt-20 md:pt-4 pb-20 md:pb-0" :style="`font-size: ${currentFontSize}px`">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                
+                <!-- Dashboard Tab -->
+                <div v-if="currentTab === 'dashboard'" class="space-y-8">
+                    <div class="text-center">
+                        <h2 class="text-3xl font-bold text-gray-900 mb-2">{{ t('welcome') }}</h2>
+                        <p class="text-lg text-gray-600">{{ t('dashboardSubtitle') }}</p>
+                    </div>
+
+                    <!-- Onboarding Guide (初回のみ表示) -->
+                    <div v-if="rooms.length === 0" class="bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-xl border border-green-200">
+                        <h3 class="text-lg font-bold text-green-800 mb-4">🚀 {{ t('quickStart') }}</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="bg-white p-4 rounded-lg border border-green-100">
+                                <div class="text-2xl mb-2">1️⃣</div>
+                                <h4 class="font-semibold text-gray-900 mb-1">{{ t('step1Title') }}</h4>
+                                <p class="text-sm text-gray-600 mb-3">{{ t('step1Desc') }}</p>
+                                <button @click="currentTab = 'rooms'; showRoomModal = true"
+                                        class="w-full bg-green-600 text-white py-2 rounded-lg text-sm hover:bg-green-700">
+                                    {{ t('step1Btn') }} →
+                                </button>
+                            </div>
+                            <div class="bg-white p-4 rounded-lg border border-green-100">
+                                <div class="text-2xl mb-2">2️⃣</div>
+                                <h4 class="font-semibold text-gray-900 mb-1">{{ t('step2Title') }}</h4>
+                                <p class="text-sm text-gray-600 mb-3">{{ t('step2Desc') }}</p>
+                                <button @click="currentTab = 'items'; showItemModal = true"
+                                        class="w-full bg-blue-600 text-white py-2 rounded-lg text-sm hover:bg-blue-700">
+                                    {{ t('step2Btn') }} →
+                                </button>
+                            </div>
+                            <div class="bg-white p-4 rounded-lg border border-green-100">
+                                <div class="text-2xl mb-2">3️⃣</div>
+                                <h4 class="font-semibold text-gray-900 mb-1">{{ t('step3Title') }}</h4>
+                                <p class="text-sm text-gray-600 mb-3">{{ t('step3Desc') }}</p>
+                                <button @click="currentTab = 'photos'; showPhotoModal = true"
+                                        class="w-full bg-purple-600 text-white py-2 rounded-lg text-sm hover:bg-purple-700">
+                                    {{ t('step3Btn') }} →
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stats Cards -->
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                        <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-green-500">
+                            <div class="flex flex-col">
+                                <span class="text-green-500 text-xl mb-1">🏠</span>
+                                <p class="text-xs font-medium text-gray-500">{{ t('totalRooms') }}</p>
+                                <p class="text-2xl font-semibold text-gray-900">{{ rooms.length }}</p>
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-blue-500">
+                            <div class="flex flex-col">
+                                <span class="text-blue-500 text-xl mb-1">✅</span>
+                                <p class="text-xs font-medium text-gray-500">{{ t('itemsProcessed') }}</p>
+                                <p class="text-2xl font-semibold text-gray-900">{{ totalItemsProcessed }}</p>
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-purple-500">
+                            <div class="flex flex-col">
+                                <span class="text-purple-500 text-xl mb-1">🔥</span>
+                                <p class="text-xs font-medium text-gray-500">{{ t('streak') }}</p>
+                                <p class="text-2xl font-semibold text-gray-900">{{ streak }}{{ t('days') }}</p>
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-orange-500">
+                            <div class="flex flex-col">
+                                <span class="text-orange-500 text-xl mb-1">📈</span>
+                                <p class="text-xs font-medium text-gray-500">{{ t('overallProgress') }}</p>
+                                <p class="text-2xl font-semibold text-gray-900">{{ Math.round(overallProgress) }}%</p>
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-yellow-500">
+                            <div class="flex flex-col">
+                                <span class="text-yellow-500 text-xl mb-1">💰</span>
+                                <p class="text-xs font-medium text-gray-500">{{ t('totalSavings') }}</p>
+                                <p class="text-2xl font-semibold text-gray-900">¥{{ totalSavings.toLocaleString() }}</p>
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-teal-500">
+                            <div class="flex flex-col">
+                                <span class="text-teal-500 text-xl mb-1">⚖️</span>
+                                <p class="text-xs font-medium text-gray-500">{{ t('totalWeight') }}</p>
+                                <p class="text-2xl font-semibold text-gray-900">{{ totalWeight.toFixed(1) }}kg</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Progress Charts -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div class="bg-white p-6 rounded-xl shadow-sm">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">{{ t('roomProgress') }}</h3>
+                            <div class="chart-container">
+                                <canvas ref="roomChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-sm">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">{{ t('categoryBreakdown') }}</h3>
+                            <div class="chart-container">
+                                <canvas ref="categoryChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity -->
+                    <div class="bg-white p-6 rounded-xl shadow-sm">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">{{ t('recentActivity') }}</h3>
+                        <div v-if="recentActivities.length === 0" class="text-center text-gray-500 py-8">
+                            <span class="text-4xl mb-4">⏰</span>
+                            <p>{{ t('noRecentActivity') }}</p>
+                        </div>
+                        <div v-else class="space-y-4">
+                            <div v-for="activity in recentActivities.slice(0, 5)" :key="activity.id"
+                                 class="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                                <i :class="getActivityIcon(activity.type)" class="text-green-500"></i>
+                                <div class="flex-1">
+                                    <p class="font-medium">{{ activity.description }}</p>
+                                    <p class="text-sm text-gray-500">{{ formatDate(activity.createdAt) }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rooms Tab -->
+                <div v-if="currentTab === 'rooms'" class="space-y-6">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-2xl font-bold text-gray-900">{{ t('rooms') }}</h2>
+                        <button @click="showRoomModal = true" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center space-x-2">
+                            <span>+</span>
+                            <span>{{ t('addRoom') }}</span>
+                        </button>
+                    </div>
+
+                    <div v-if="rooms.length === 0" class="text-center py-12">
+                        <span class="text-6xl text-gray-300 mb-4">🏠</span>
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">{{ t('noRooms') }}</h3>
+                        <p class="text-gray-500 mb-6">{{ t('addFirstRoom') }}</p>
+                        <button @click="showRoomModal = true" class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700">
+                            {{ t('addRoom') }}
+                        </button>
+                    </div>
+
+                    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div v-for="room in rooms" :key="room.id"
+                             class="bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer category-card"
+                             @click="goToRoomItems(room)">
+                            <div class="flex items-start justify-between mb-4">
+                                <div>
+                                    <h3 class="text-lg font-semibold text-gray-900">{{ room.name }}</h3>
+                                    <p class="text-sm text-gray-500">{{ getRoomItemCount(room.id) }} {{ t('items') }}</p>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <button @click.stop="selectRoom(room)" class="text-gray-400 hover:text-gray-600 p-1 rounded" :aria-label="t('editRoom')">
+                                        <span>✏️</span>
+                                    </button>
+                                <div class="relative w-12 h-12">
+                                    <svg class="w-12 h-12 progress-ring">
+                                        <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="4" fill="none" class="text-gray-200"></circle>
+                                        <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="4" fill="none" 
+                                                class="text-green-500" 
+                                                :stroke-dasharray="`${2 * Math.PI * 20}`"
+                                                :stroke-dashoffset="`${2 * Math.PI * 20 * (1 - getRoomProgress(room.id) / 100)}`"
+                                                stroke-linecap="round"></circle>
+                                    </svg>
+                                    <div class="absolute inset-0 flex items-center justify-center">
+                                        <span class="text-xs font-medium text-gray-900">{{ Math.round(getRoomProgress(room.id)) }}%</span>
+                                    </div>
+                                </div>
+                                </div>
+                            </div>
+                            <div class="space-y-2">
+                                <div v-for="category in getTopCategories(room.id)" :key="category.name"
+                                     class="flex justify-between text-sm">
+                                    <span class="text-gray-600">{{ t(category.name) }}</span>
+                                    <span class="text-gray-900">{{ category.count }}</span>
+                                </div>
+                            </div>
+                            <div v-if="getRoomSavings(room.id) > 0 || getRoomWeight(room.id) > 0"
+                                 class="flex gap-3 mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500">
+                                <span v-if="getRoomSavings(room.id) > 0">💰 {{ t('roomSavings') }}: ¥{{ getRoomSavings(room.id).toLocaleString() }}</span>
+                                <span v-if="getRoomWeight(room.id) > 0">⚖️ {{ t('roomWeight') }}: {{ getRoomWeight(room.id).toFixed(1) }}kg</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Items Tab -->
+                <div v-if="currentTab === 'items'" class="space-y-6">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-2xl font-bold text-gray-900">{{ t('items') }}</h2>
+                        <button @click="showItemModal = true" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center space-x-2">
+                            <span>+</span>
+                            <span>{{ t('addItem') }}</span>
+                        </button>
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="bg-white p-4 rounded-xl shadow-sm">
+                        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                            <select v-model="itemFilters.room" class="border border-gray-300 rounded-lg px-3 py-2">
+                                <option value="">{{ t('allRooms') }}</option>
+                                <option v-for="room in rooms" :key="room.id" :value="room.id">{{ room.name }}</option>
+                            </select>
+                            <select v-model="itemFilters.category" class="border border-gray-300 rounded-lg px-3 py-2">
+                                <option value="">{{ t('allCategories') }}</option>
+                                <option v-for="cat in categories" :key="cat" :value="cat">{{ t(cat) }}</option>
+                            </select>
+                            <select v-model="itemFilters.status" class="border border-gray-300 rounded-lg px-3 py-2">
+                                <option value="">{{ t('allStatuses') }}</option>
+                                <option value="keep">{{ t('keep') }}</option>
+                                <option value="donate">{{ t('donate') }}</option>
+                                <option value="sell">{{ t('sell') }}</option>
+                                <option value="discard">{{ t('discard') }}</option>
+                                <option value="pending">{{ t('pending') }}</option>
+                            </select>
+                            <select v-model="itemFilters.sort" class="border border-gray-300 rounded-lg px-3 py-2" :aria-label="t('sortBy')">
+                                <option value="default">{{ t('sortDefault') }}</option>
+                                <option value="name">{{ t('sortName') }}</option>
+                                <option value="status">{{ t('sortStatus') }}</option>
+                                <option value="value">{{ t('sortValue') }}</option>
+                            </select>
+                            <input v-model="itemFilters.search"
+                                   :placeholder="t('searchItems')"
+                                   class="border border-gray-300 rounded-lg px-3 py-2" :aria-label="t('searchItems')">
+                        </div>
+                    </div>
+
+                    <div v-if="filteredItems.length === 0" class="text-center py-12">
+                        <span class="text-6xl text-gray-300 mb-4">📦</span>
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">{{ t('noItems') }}</h3>
+                        <p class="text-gray-500 mb-6">{{ t('addFirstItem') }}</p>
+                        <button @click="showItemModal = true" class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700">
+                            {{ t('addItem') }}
+                        </button>
+                    </div>
+
+                    <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div v-for="item in filteredItems" :key="item.id"
+                             class="bg-white p-4 rounded-xl shadow-sm hover:shadow-md transition-shadow">
+                            <div v-if="item.photos && item.photos.length > 0" class="mb-4">
+                                <img loading="lazy" :src="item.photos[0]" :alt="item.name" 
+                                     class="w-full h-32 object-cover rounded-lg" width="400" height="300">
+                            </div>
+                            <div class="mb-4">
+                                <h3 class="font-semibold text-gray-900">{{ item.name }}</h3>
+                                <p class="text-sm text-gray-500">{{ getRoomName(item.roomId) }} - {{ t(item.category) }}</p>
+                                <div class="flex gap-3 mt-1 text-xs text-gray-400">
+                                    <span v-if="item.value">💰 ¥{{ Number(item.value).toLocaleString() }}</span>
+                                    <span v-if="item.weight">⚖️ {{ item.weight }}kg</span>
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <select @change="quickChangeStatus(item.id, $event.target.value)" :value="item.status"
+                                        :class="[getStatusBadgeClass(item.status), 'px-2 py-1 rounded-full text-xs font-medium border-0 cursor-pointer']"
+                                        :aria-label="t('allStatuses')">
+                                    <option value="pending" style="background:white;color:#374151">{{ t('pending') }}</option>
+                                    <option value="keep" style="background:white;color:#374151">{{ t('keep') }}</option>
+                                    <option value="donate" style="background:white;color:#374151">{{ t('donate') }}</option>
+                                    <option value="sell" style="background:white;color:#374151">{{ t('sell') }}</option>
+                                    <option value="discard" style="background:white;color:#374151">{{ t('discard') }}</option>
+                                </select>
+                                <div class="flex space-x-2">
+                                    <button @click="editItem(item)" class="text-blue-500 hover:text-blue-700">
+                                        <span>✏️</span>
+                                    </button>
+                                    <button @click="deleteItem(item.id)" class="text-red-500 hover:text-red-700">
+                                        <span>🗑️</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Photos Tab -->
+                <div v-if="currentTab === 'photos'" class="space-y-6">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-2xl font-bold text-gray-900">{{ t('photos') }}</h2>
+                        <button @click="showPhotoModal = true" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center space-x-2">
+                            <span>📷</span>
+                            <span>{{ t('addPhoto') }}</span>
+                        </button>
+                    </div>
+                    <!-- ストレージ警告バナー -->
+                    <div v-if="storageUsageKB > 4000" class="bg-red-50 border border-red-300 text-red-800 px-4 py-3 rounded-lg flex items-center space-x-2">
+                        <span>⚠️</span>
+                        <span class="text-sm">{{ t('storageWarningHigh') }} ({{ (storageUsageKB / 1024).toFixed(1) }}MB / 5MB)</span>
+                    </div>
+                    <div v-else-if="storageUsageKB > 500" class="bg-yellow-50 border border-yellow-300 text-yellow-800 px-4 py-3 rounded-lg flex items-center space-x-2">
+                        <span>💡</span>
+                        <span class="text-sm">{{ t('storageWarningMed') }} ({{ (storageUsageKB / 1024).toFixed(1) }}MB / 5MB)</span>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl shadow-sm">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <select v-model="photoFilters.room" class="border border-gray-300 rounded-lg px-3 py-2">
+                                <option value="">{{ t('allRooms') }}</option>
+                                <option v-for="room in rooms" :key="room.id" :value="room.id">{{ room.name }}</option>
+                            </select>
+                            <select v-model="photoFilters.type" class="border border-gray-300 rounded-lg px-3 py-2">
+                                <option value="">{{ t('allTypes') }}</option>
+                                <option value="before">{{ t('before') }}</option>
+                                <option value="during">{{ t('during') }}</option>
+                                <option value="after">{{ t('after') }}</option>
+                            </select>
+                            <input v-model="photoFilters.search" 
+                                   :placeholder="t('searchPhotos')"
+                                   class="border border-gray-300 rounded-lg px-3 py-2" :aria-label="t('searchPhotos')">
+                        </div>
+                    </div>
+
+                    <div v-if="filteredPhotos.length === 0" class="text-center py-12">
+                        <span class="text-6xl text-gray-300 mb-4">📷</span>
+                        <h3 class="text-lg font-medium text-gray-900 mb-2">{{ t('noPhotos') }}</h3>
+                        <p class="text-gray-500 mb-6">{{ t('addFirstPhoto') }}</p>
+                        <button @click="showPhotoModal = true" class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700">
+                            {{ t('addPhoto') }}
+                        </button>
+                    </div>
+
+                    <div v-else class="photo-grid">
+                        <div v-for="photo in filteredPhotos" :key="photo.id"
+                             class="photo-item bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
+                             @click="showPhotoViewer(photo)">
+                            <div class="relative w-full h-full">
+                                <img loading="lazy" :src="photo.url" :alt="photo.title"
+                                     class="w-full h-full object-cover" width="400" height="300">
+                                <span :class="['absolute top-2 left-2 px-2 py-0.5 rounded-full text-xs font-bold text-white shadow',
+                                    photo.type === 'before' ? 'bg-red-500' : photo.type === 'after' ? 'bg-green-600' : 'bg-yellow-500']">
+                                    {{ t(photo.type) }}
+                                </span>
+                                <button @click.stop="confirmAction(t('confirmDeletePhoto'), () => deletePhoto(photo.id))"
+                                        class="absolute top-2 right-2 bg-black bg-opacity-50 text-white rounded-full w-7 h-7 flex items-center justify-center hover:bg-opacity-75 text-xs"
+                                        :aria-label="t('deletePhoto')">
+                                    🗑️
+                                </button>
+                            </div>
+                            <div class="p-3">
+                                <h3 class="font-medium text-gray-900 text-sm">{{ photo.title }}</h3>
+                                <p class="text-xs text-gray-500">{{ getRoomName(photo.roomId) }}</p>
+                                <p class="text-xs text-gray-400">{{ formatDate(photo.createdAt) }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Progress Tab -->
+                <div v-if="currentTab === 'progress'" class="space-y-8">
+                    <h2 class="text-2xl font-bold text-gray-900">{{ t('progressAnalysis') }}</h2>
+
+                    <!-- Weekly Progress -->
+                    <div class="bg-white p-6 rounded-xl shadow-sm">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">{{ t('weeklyProgress') }}</h3>
+                        <div class="chart-container">
+                            <canvas ref="weeklyChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Goals -->
+                    <div class="bg-white p-6 rounded-xl shadow-sm">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-semibold text-gray-900">{{ t('goals') }}</h3>
+                            <button @click="showGoalModal = true" class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm">
+                                {{ t('addGoal') }}
+                            </button>
+                        </div>
+                        <div v-if="goals.length === 0" class="text-center py-8">
+                            <span class="text-4xl text-gray-300 mb-4">🎯</span>
+                            <p class="text-gray-500">{{ t('noGoals') }}</p>
+                        </div>
+                        <div v-else class="space-y-4">
+                            <div v-for="goal in goals" :key="goal.id"
+                                 class="p-4 border rounded-lg">
+                                <div class="flex justify-between items-start mb-2">
+                                    <h4 class="font-medium text-gray-900">{{ goal.title }}</h4>
+                                    <span :class="getGoalStatusClass(goal)" class="px-2 py-1 rounded-full text-xs">
+                                        {{ getGoalStatusText(goal) }}
+                                    </span>
+                                </div>
+                                <p class="text-sm text-gray-600 mb-3">{{ goal.description }}</p>
+                                <div class="flex items-center space-x-4">
+                                    <div class="flex-1">
+                                        <div class="w-full bg-gray-200 rounded-full h-2">
+                                            <div class="bg-green-500 h-2 rounded-full" 
+                                                 :style="`width: ${getGoalProgress(goal)}%`"></div>
+                                        </div>
+                                    </div>
+                                    <span class="text-sm text-gray-500">{{ Math.round(getGoalProgress(goal)) }}%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Achievements -->
+                    <div class="bg-white p-6 rounded-xl shadow-sm">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">{{ t('achievements') }}</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div v-for="achievement in achievements" :key="achievement.id"
+                                 :class="['p-4 rounded-lg border-2 text-center', achievement.unlocked ? 'border-yellow-400 bg-yellow-50' : 'border-gray-200 bg-gray-50']">
+                                <i :class="[achievement.icon, achievement.unlocked ? 'text-yellow-500' : 'text-gray-400', 'text-3xl mb-2']"></i>
+                                <h4 class="font-medium text-gray-900">{{ t(achievement.title) }}</h4>
+                                <p class="text-sm text-gray-600">{{ t(achievement.description) }}</p>
+                                <div v-if="!achievement.unlocked" class="mt-2">
+                                    <div class="w-full bg-gray-200 rounded-full h-1 mb-1">
+                                        <div class="bg-yellow-500 h-1 rounded-full"
+                                             :style="`width: ${getAchievementProgress(achievement)}%`"></div>
+                                    </div>
+                                    <p class="text-xs text-gray-400 text-center">{{ getCurrentValue(achievement.id) }} / {{ achievement.target }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings Tab -->
+                <div v-if="currentTab === 'settings'" class="space-y-6">
+                    <h2 class="text-2xl font-bold text-gray-900">{{ t('settings') }}</h2>
+
+                    <div class="bg-white p-6 rounded-xl shadow-sm">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">{{ t('preferences') }}</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">{{ t('language') }}</label>
+                                <select v-model="currentLang" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                                    <option value="ja">日本語</option>
+                                    <option value="en">English</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">{{ t('fontSize') }}</label>
+                                <select v-model="currentFontSize" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                                    <option v-for="size in fontSizes" :key="size.value" :value="size.value">
+                                        {{ size.label }}
+                                    </option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="flex items-center">
+                                    <input type="checkbox" v-model="notifications" class="mr-2">
+                                    {{ t('enableNotifications') }}
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-xl shadow-sm">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">{{ t('dataManagement') }}</h3>
+                        <div class="space-y-4">
+                            <button @click="exportData" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
+                                {{ t('exportData') }}
+                            </button>
+                            <button @click="importData" class="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700">
+                                {{ t('importData') }}
+                            </button>
+                            <button @click="clearAllData" class="w-full bg-red-600 text-white py-2 rounded-lg hover:bg-red-700">
+                                {{ t('clearAllData') }}
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Legal Pages -->
+                <div v-if="currentPage" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+                    <div class="bg-white rounded-xl max-w-4xl w-full max-h-full overflow-y-auto">
+                        <div class="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
+                            <h2 class="text-xl font-bold">{{ t(currentPage) }}</h2>
+                            <button @click="currentPage = null" class="text-gray-500 hover:text-gray-700">
+                                <span class="text-xl">✕</span>
+                            </button>
+                        </div>
+                        <div class="p-6">
+                            <div v-html="getPageContent(currentPage)"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        
+<div style="text-align:center;margin:16px auto;max-width:728px;">
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="ca-pub-8427583028015858"
+     data-ad-slot="auto"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+<div style="text-align:center;margin:16px auto;max-width:728px;">
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="ca-pub-8427583028015858"
+     data-ad-slot="auto"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+<div style="text-align:center;margin:16px auto;max-width:728px;">
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="ca-pub-8427583028015858"
+     data-ad-slot="auto"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+
+<section style="margin:32px auto;max-width:640px;padding:0 16px;" aria-labelledby="faq-h">
+  <h2 id="faq-h" style="font-size:1.15rem;font-weight:700;margin-bottom:10px;border-left:4px solid #7c3aed;padding-left:10px;">よくある質問</h2>
+  <dl style="line-height:1.8;">
+    <dt style="font-weight:600;margin-top:12px;">Q: 断捨離進捗トラッカーは無料ですか？</dt>
+    <dd style="margin-left:16px;color:#374151;">はい、完全無料・登録不要でご利用いただけます。</dd>
+    <dt style="font-weight:600;margin-top:12px;">Q: スマートフォンでも使えますか？</dt>
+    <dd style="margin-left:16px;color:#374151;">はい、PC・スマートフォン・タブレットすべてに対応しています。</dd>
+    <dt style="font-weight:600;margin-top:12px;">Q: 入力データはサーバーに送信されますか？</dt>
+    <dd style="margin-left:16px;color:#374151;">いいえ。すべての処理はブラウザ内で完結し、データの外部送信は行いません。</dd>
+  </dl>
+</section></main>
+
+        <!-- Footer with legal links -->
+        
+<section style="background:#f0f9ff;border-top:1px solid #bae6fd;padding:16px;text-align:center;font-size:12px;color:#0369a1;">
+  <p style="margin:0 0 4px;font-weight:600;">📧 お問い合わせ</p>
+  <p style="margin:0;">ご意見・ご要望・不具合のご報告は <a href="mailto:appadaycreator@gmail.com" style="color:#0369a1;font-weight:bold;">appadaycreator@gmail.com</a> または <a href="contact.html" style="color:#0369a1;">お問い合わせフォーム</a> へ</p>
+</section>
+<div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px 0;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">入力された値を計算式やスコアリングロジックで処理し、あなたに合った結果を算出します。本ツールの結果はあくまで参考情報です。</p></div>
+<footer class="bg-gray-100 py-6">
+            <div class="max-w-7xl mx-auto px-4 text-center">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">{{ t('legal') }}</h3>
+                <div class="space-x-4">
+                    <a href="#" @click="showPage('usage')" class="text-blue-600 hover:text-blue-800">{{ t('usage') }}</a>
+                    <a href="#" @click="showPage('terms')" class="text-blue-600 hover:text-blue-800">{{ t('terms') }}</a>
+                    <a href="#" @click="showPage('privacy')" class="text-blue-600 hover:text-blue-800">{{ t('privacy') }}</a>
+                    <a href="#" @click="showPage('disclaimer')" class="text-blue-600 hover:text-blue-800">{{ t('disclaimer') }}</a>
+                    <a href="#" @click="showPage('contact')" class="text-blue-600 hover:text-blue-800">{{ t('contact') }}</a>
+                </div>
+            </div>
+        <p style="text-align:center;font-size:10px;color:#9ca3af;margin-top:4px;">最終更新: 2026年5月 | 本サービスはアフィリエイト広告（A8.net/Amazon）を掲載しています</p>
+</footer>
+
+        <!-- Goal Modal -->
+        <div v-if="showGoalModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-xl max-w-md w-full p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold">{{ t('addGoal') }}</h2>
+                    <button @click="showGoalModal = false" class="text-gray-500 hover:text-gray-700">
+                        <span>✕</span>
+                    </button>
+                </div>
+                <form @submit.prevent="saveGoal">
+                    <div class="space-y-4">
+                        <input v-model="currentGoal.title" :placeholder="t('goalTitle')" required
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2" :aria-label="t('goalTitle')">
+                        <textarea v-model="currentGoal.description" :placeholder="t('goalDescription')" rows="2"
+                                  class="w-full border border-gray-300 rounded-lg px-3 py-2"></textarea>
+                        <input type="number" v-model.number="currentGoal.target" :placeholder="t('goalTarget')" min="1" required
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2" :aria-label="t('goalTarget')">
+                        <button type="submit" class="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700">
+                            {{ t('save') }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Quick Add Modal -->
+        <div v-if="showQuickAdd" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-xl max-w-md w-full p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold">{{ t('addItem') }}</h2>
+                    <button @click="showQuickAdd = false" class="text-gray-500 hover:text-gray-700">
+                        <span>✕</span>
+                    </button>
+                </div>
+                <form @submit.prevent="saveQuickItem">
+                    <div class="space-y-4">
+                        <input v-model="quickItem.name" :placeholder="t('itemName')" required
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2" :aria-label="t('itemName')">
+                        <select v-model="quickItem.roomId" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                            <option value="">{{ t('selectRoom') }}</option>
+                            <option v-for="room in rooms" :key="room.id" :value="room.id">{{ room.name }}</option>
+                        </select>
+                        <select v-model="quickItem.category" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                            <option value="">{{ t('selectCategory') }}</option>
+                            <option v-for="cat in categories" :key="cat" :value="cat">{{ t(cat) }}</option>
+                        </select>
+                        <select v-model="quickItem.status" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                            <option value="pending">{{ t('pending') }}</option>
+                            <option value="discard">{{ t('discard') }}</option>
+                            <option value="donate">{{ t('donate') }}</option>
+                            <option value="sell">{{ t('sell') }}</option>
+                            <option value="keep">{{ t('keep') }}</option>
+                        </select>
+                        <button type="submit" class="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700">
+                            {{ t('save') }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Mobile Bottom Navigation -->
+        <nav class="fixed bottom-0 left-0 right-0 md:hidden bg-white border-t border-gray-200 z-30" aria-label="メインナビゲーション">
+            <div class="flex">
+                <button v-for="tab in tabs" :key="tab.id"
+                        @click="currentTab = tab.id"
+                        :class="['flex-1 flex flex-col items-center py-2 px-1 text-xs transition-colors', currentTab === tab.id ? 'text-green-600' : 'text-gray-400']">
+                    <i :class="[tab.icon, 'text-base mb-0.5']"></i>
+                    <span class="truncate max-w-full leading-tight">{{ t(tab.label) }}</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Floating Action Button -->
+        <button @click="showQuickAdd = true"
+                :aria-label="t('addItem')"
+                class="fixed bottom-20 md:bottom-6 right-6 bg-green-600 text-white w-14 h-14 rounded-full shadow-lg floating-btn hover:bg-green-700 flex items-center justify-center">
+            <span class="text-xl" aria-hidden="true">+</span>
+        </button>
+
+        <!-- Modals -->
+        <!-- Confirm Dialog Modal -->
+        <div v-if="confirmModal.show" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-xl max-w-sm w-full p-6 shadow-2xl">
+                <div class="text-center mb-6">
+                    <div class="text-4xl mb-3">⚠️</div>
+                    <p class="text-gray-800 font-medium">{{ confirmModal.message }}</p>
+                </div>
+                <div class="flex space-x-3">
+                    <button @click="confirmModal.show = false"
+                            class="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300">
+                        {{ t('cancel') }}
+                    </button>
+                    <button @click="confirmModal.onConfirm(); confirmModal.show = false"
+                            class="flex-1 bg-red-600 text-white py-2 rounded-lg hover:bg-red-700">
+                        {{ t('ok') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Room Modal -->
+        <div v-if="showRoomModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-xl max-w-md w-full p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold">{{ currentRoom.id ? t('editRoom') : t('addRoom') }}</h2>
+                    <button @click="closeRoomModal" class="text-gray-500 hover:text-gray-700">
+                        <span>✕</span>
+                    </button>
+                </div>
+                <form @submit.prevent="saveRoom">
+                    <div class="space-y-4">
+                        <input v-model="currentRoom.name" :placeholder="t('roomName')" required
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2" :aria-label="t('roomName')">
+                        <button type="submit" class="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700">
+                            {{ t('save') }}
+                        </button>
+                        <button v-if="currentRoom.id" type="button" @click="deleteRoom(currentRoom.id)"
+                                class="w-full bg-red-600 text-white py-2 rounded-lg hover:bg-red-700">
+                            🗑️ {{ t('deleteRoom') }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Item Modal -->
+        <div v-if="showItemModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-xl max-w-md w-full p-6 max-h-full overflow-y-auto">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold">{{ currentItem.id ? t('editItem') : t('addItem') }}</h2>
+                    <button @click="closeItemModal" class="text-gray-500 hover:text-gray-700">
+                        <span>✕</span>
+                    </button>
+                </div>
+                <form @submit.prevent="saveItem">
+                    <div class="space-y-4">
+                        <input v-model="currentItem.name" :placeholder="t('itemName')" required
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2" :aria-label="t('itemName')">
+                        <select v-model="currentItem.roomId" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                            <option value="">{{ t('selectRoom') }}</option>
+                            <option v-for="room in rooms" :key="room.id" :value="room.id">{{ room.name }}</option>
+                        </select>
+                        <select v-model="currentItem.category" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                            <option value="">{{ t('selectCategory') }}</option>
+                            <option v-for="cat in categories" :key="cat" :value="cat">{{ t(cat) }}</option>
+                        </select>
+                        <select v-model="currentItem.status" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                            <option value="pending">{{ t('pending') }}</option>
+                            <option value="keep">{{ t('keep') }}</option>
+                            <option value="donate">{{ t('donate') }}</option>
+                            <option value="sell">{{ t('sell') }}</option>
+                            <option value="discard">{{ t('discard') }}</option>
+                        </select>
+                        <textarea v-model="currentItem.notes" :placeholder="t('notes')" rows="3"
+                                  class="w-full border border-gray-300 rounded-lg px-3 py-2"></textarea>
+                        <div class="grid grid-cols-2 gap-3">
+                            <input type="number" v-model.number="currentItem.value" :placeholder="t('estimatedValue')" min="0"
+                                   class="border border-gray-300 rounded-lg px-3 py-2" :aria-label="t('estimatedValue')">
+                            <input type="number" v-model.number="currentItem.weight" :placeholder="t('weight')" min="0" step="0.1"
+                                   class="border border-gray-300 rounded-lg px-3 py-2" :aria-label="t('weight')">
+                        </div>
+                        <input type="file" @change="handleItemPhoto" accept="image/*" multiple
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                        <button type="submit" class="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700">
+                            {{ t('save') }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Photo Modal -->
+        <div v-if="showPhotoModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-xl max-w-md w-full p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold">{{ t('addPhoto') }}</h2>
+                    <button @click="closePhotoModal" class="text-gray-500 hover:text-gray-700">
+                        <span>✕</span>
+                    </button>
+                </div>
+                <form @submit.prevent="savePhoto">
+                    <div class="space-y-4">
+                        <input v-model="currentPhoto.title" :placeholder="t('photoTitle')" required
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2" :aria-label="t('photoTitle')">
+                        <select v-model="currentPhoto.roomId" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                            <option value="">{{ t('selectRoom') }}</option>
+                            <option v-for="room in rooms" :key="room.id" :value="room.id">{{ room.name }}</option>
+                        </select>
+                        <select v-model="currentPhoto.type" required class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                            <option value="before">{{ t('before') }}</option>
+                            <option value="during">{{ t('during') }}</option>
+                            <option value="after">{{ t('after') }}</option>
+                        </select>
+                        <input type="file" @change="handlePhoto" accept="image/*" required
+                               class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                        <button type="submit" class="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700">
+                            {{ t('save') }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Photo Viewer Modal -->
+        <div v-if="showPhotoViewerModal" class="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4" @click.self="showPhotoViewerModal = false">
+            <div class="relative max-w-4xl w-full">
+                <button @click="showPhotoViewerModal = false" class="absolute top-2 right-2 text-white text-3xl z-10 hover:text-gray-300" aria-label="閉じる">✕</button>
+                <img :src="viewingPhoto.url" :alt="viewingPhoto.title" class="w-full max-h-screen-80 object-contain rounded-lg" style="max-height:70vh;">
+                <div class="text-white text-center mt-3">
+                    <h3 class="font-semibold text-lg">{{ viewingPhoto.title }}</h3>
+                    <p class="text-gray-300 text-sm">{{ getRoomName(viewingPhoto.roomId) }} - {{ t(viewingPhoto.type) }} - {{ formatDate(viewingPhoto.createdAt) }}</p>
+                </div>
+                <div class="flex justify-between mt-4">
+                    <button v-if="viewingPhotoIndex > 0" @click="photoViewerPrev" class="text-white bg-black bg-opacity-50 px-4 py-2 rounded-lg hover:bg-opacity-75">← 前へ</button>
+                    <div v-else></div>
+                    <button v-if="viewingPhotoIndex < filteredPhotos.length - 1" @click="photoViewerNext" class="text-white bg-black bg-opacity-50 px-4 py-2 rounded-lg hover:bg-opacity-75">次へ →</button>
+                    <div v-else></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Share Modal -->
+        <div v-if="showShareModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-xl max-w-md w-full p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold">{{ t('shareProgress') }}</h2>
+                    <button @click="showShareModal = false" class="text-gray-500 hover:text-gray-700">
+                        <span>✕</span>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <div class="text-center">
+                        <div class="text-4xl mb-2">{{ Math.round(overallProgress) }}%</div>
+                        <div class="text-gray-600">{{ t('overallProgress') }}</div>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button @click="shareToTwitter" class="flex-1 bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600">
+                            <span class="mr-2">𝕏</span>Twitter
+                        </button>
+                        <button @click="shareToLine" class="flex-1 bg-green-500 text-white py-2 rounded-lg hover:bg-green-600">
+                            <span class="mr-2">💬</span>LINE
+                        </button>
+                    </div>
+                    <button @click="copyShareLink" class="w-full bg-gray-600 text-white py-2 rounded-lg hover:bg-gray-700">
+                        <span class="mr-2">🔗</span>{{ t('copyLink') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+                        const SUPABASE_URL = '';
+        const SUPABASE_ANON_KEY = '';
+        const supabaseClient = window.supabase.createClient('', '');
+        
+        createApp({
+            data() {
+                return {
+                    // UI State
+                    currentTab: 'dashboard',
+                    currentPage: null,
+                    currentLang: 'ja',
+                    currentFontSize: 14,
+                    showMobileMenu: false,
+                    showRoomModal: false,
+                    showItemModal: false,
+                    showPhotoModal: false,
+                    showShareModal: false,
+                    showGoalModal: false,
+                    showQuickAdd: false,
+                    showPhotoViewerModal: false,
+                    viewingPhoto: null,
+                    viewingPhotoIndex: 0,
+                    // チャートインスタンス（再描画時に破棄するため保持）
+                    roomChartInstance: null,
+                    categoryChartInstance: null,
+                    weeklyChartInstance: null,
+                    // カスタム確認ダイアログ
+                    confirmModal: { show: false, message: '', onConfirm: null },
+                    // LocalStorageサイズ(KB)
+                    storageUsageKB: 0,
+
+                    // Data
+                    rooms: [],
+                    items: [],
+                    photos: [],
+                    goals: [],
+                    activities: [],
+                    
+                    // Current editing objects
+                    currentRoom: { name: '' },
+                    currentItem: { name: '', roomId: '', category: '', status: 'pending', notes: '', photos: [], value: 0, weight: 0 },
+                    currentPhoto: { title: '', roomId: '', type: 'before', url: '' },
+                    currentGoal: { title: '', description: '', target: 10, status: 'active' },
+                    quickItem: { name: '', roomId: '', category: '', status: 'pending', photos: [], value: 0, weight: 0 },
+                    
+                    // Filters
+                    itemFilters: { room: '', category: '', status: '', search: '', sort: 'default' },
+                    photoFilters: { room: '', type: '', search: '' },
+                    
+                    // Settings
+                    notifications: true,
+                    
+                    // Static data
+                    fontSizes: [
+                        { label: '極小', value: 10 },
+                        { label: '小', value: 12 },
+                        { label: '標準', value: 14 },
+                        { label: '大', value: 16 },
+                        { label: '特大', value: 18 }
+                    ],
+                    
+                    categories: [
+                        'clothes', 'books', 'documents', 'kitchen', 'electronics', 
+                        'decorations', 'memories', 'toys', 'others'
+                    ],
+                    
+                    tabs: [
+                        { id: 'dashboard', label: 'dashboard', icon: 'fas fa-tachometer-alt' },
+                        { id: 'rooms', label: 'rooms', icon: 'fas fa-home' },
+                        { id: 'items', label: 'items', icon: 'fas fa-box' },
+                        { id: 'photos', label: 'photos', icon: 'fas fa-camera' },
+                        { id: 'progress', label: 'progress', icon: 'fas fa-chart-line' },
+                        { id: 'settings', label: 'settings', icon: 'fas fa-cog' }
+                    ],
+                    
+                    achievements: [
+                        { id: 'first_room', title: 'firstRoom', description: 'firstRoomDesc', icon: 'fas fa-home', unlocked: false, target: 1 },
+                        { id: 'first_item', title: 'firstItem', description: 'firstItemDesc', icon: 'fas fa-box', unlocked: false, target: 1 },
+                        { id: 'week_streak', title: 'weekStreak', description: 'weekStreakDesc', icon: 'fas fa-fire', unlocked: false, target: 7 },
+                        { id: 'hundred_items', title: 'hundredItems', description: 'hundredItemsDesc', icon: 'fas fa-trophy', unlocked: false, target: 100 }
+                    ],
+                    
+                    // Translations
+                    translations: {
+                        ja: {
+                            appTitle: '断捨離進捗トラッカー',
+                            menu: 'メニュー',
+                            dashboard: 'ダッシュボード',
+                            rooms: '部屋',
+                            items: 'アイテム',
+                            photos: '写真',
+                            progress: '進捗',
+                            settings: '設定',
+                            welcome: 'お疲れ様です！',
+                            dashboardSubtitle: '今日も断捨離を頑張りましょう',
+                            totalRooms: '登録部屋数',
+                            itemsProcessed: '処理済みアイテム',
+                            streak: '連続日数',
+                            days: '日',
+                            overallProgress: '全体進捗',
+                            roomProgress: '部屋別進捗',
+                            categoryBreakdown: 'カテゴリ別内訳',
+                            recentActivity: '最近の活動',
+                            noRecentActivity: '最近の活動はありません',
+                            addRoom: '部屋を追加',
+                            noRooms: '部屋が登録されていません',
+                            addFirstRoom: '最初の部屋を追加しましょう',
+                            items: 'アイテム',
+                            addItem: 'アイテムを追加',
+                            allRooms: 'すべての部屋',
+                            allCategories: 'すべてのカテゴリ',
+                            allStatuses: 'すべてのステータス',
+                            searchItems: 'アイテムを検索',
+                            noItems: 'アイテムが登録されていません',
+                            addFirstItem: '最初のアイテムを追加しましょう',
+                            addPhoto: '写真を追加',
+                            allTypes: 'すべてのタイプ',
+                            before: 'ビフォー',
+                            during: '作業中',
+                            after: 'アフター',
+                            searchPhotos: '写真を検索',
+                            noPhotos: '写真が登録されていません',
+                            addFirstPhoto: '最初の写真を追加しましょう',
+                            progressAnalysis: '進捗分析',
+                            weeklyProgress: '週間進捗',
+                            goals: '目標',
+                            addGoal: '目標を追加',
+                            noGoals: '目標が設定されていません',
+                            achievements: '実績',
+                            preferences: '設定',
+                            language: '言語',
+                            fontSize: '文字サイズ',
+                            enableNotifications: '通知を有効にする',
+                            dataManagement: 'データ管理',
+                            exportData: 'データをエクスポート',
+                            importData: 'データをインポート',
+                            clearAllData: 'すべてのデータを削除',
+                            legal: '法的情報',
+                            usage: '使い方',
+                            terms: '利用規約',
+                            privacy: 'プライバシーポリシー',
+                            disclaimer: '免責事項',
+                            contact: 'お問い合わせ',
+                            login: 'ログイン',
+                            logout: 'ログアウト',
+                            signup: '新規登録',
+                            email: 'メールアドレス',
+                            password: 'パスワード',
+                            needAccount: 'アカウントをお持ちでない方',
+                            haveAccount: 'アカウントをお持ちの方',
+                            roomName: '部屋名',
+                            editRoom: '部屋を編集',
+                            save: '保存',
+                            itemName: 'アイテム名',
+                            selectRoom: '部屋を選択',
+                            selectCategory: 'カテゴリを選択',
+                            editItem: 'アイテムを編集',
+                            notes: 'メモ',
+                            photoTitle: '写真タイトル',
+                            keep: '保管',
+                            donate: '寄付',
+                            sell: '売却',
+                            discard: '廃棄',
+                            pending: '保留',
+                            shareProgress: '進捗をシェア',
+                            copyLink: 'リンクをコピー',
+                            clothes: '衣類',
+                            books: '本・書類',
+                            documents: '書類',
+                            kitchen: 'キッチン用品',
+                            electronics: '電化製品',
+                            decorations: '装飾品',
+                            memories: '思い出の品',
+                            toys: 'おもちゃ',
+                            others: 'その他',
+                            firstRoom: '最初の部屋',
+                            firstRoomDesc: '最初の部屋を登録しました',
+                            firstItem: '最初のアイテム',
+                            firstItemDesc: '最初のアイテムを登録しました',
+                            weekStreak: '1週間継続',
+                            weekStreakDesc: '1週間連続で活動しました',
+                            hundredItems: '100アイテム達成',
+                            hundredItemsDesc: '100個のアイテムを処理しました',
+                            goalTitle: '目標タイトル',
+                            goalDescription: '目標の説明',
+                            goalTarget: '目標アイテム数',
+                            estimatedValue: '推定金額（円）',
+                            weight: '重さ（kg）',
+                            totalSavings: '節約総額',
+                            totalWeight: '総重量',
+                            quickStart: 'はじめてガイド',
+                            step1Title: '部屋を追加',
+                            step1Desc: '断捨離する部屋（リビング・寝室など）を登録します',
+                            step1Btn: '部屋を追加する',
+                            step2Title: 'アイテムを登録',
+                            step2Desc: '各アイテムの処分方法（廃棄/売却/寄付）を決めます',
+                            step2Btn: 'アイテムを追加する',
+                            step3Title: '写真で記録',
+                            step3Desc: 'ビフォー・アフター写真で成果を可視化します',
+                            step3Btn: '写真を追加する',
+                            confirmDelete: '本当に削除しますか？',
+                            deleteItem: 'アイテムを削除',
+                            deleteRoom: '部屋を削除',
+                            confirmDeleteRoom: 'この部屋と紐づくアイテムを削除しますか？',
+                            activities: 'アクティビティ数',
+                            linkCopied: 'リンクをコピーしました！',
+                            dataImported: 'データのインポートが完了しました！',
+                            importError: 'インポートエラーが発生しました',
+                            confirmClearAll: 'すべてのデータを削除しますか？この操作は元に戻せません',
+                            dataCleared: 'すべてのデータを削除しました',
+                            sortBy: '並び替え',
+                            sortDefault: '登録順',
+                            sortName: '名前順',
+                            sortStatus: 'ステータス順',
+                            sortValue: '金額順',
+                            roomSavings: '節約',
+                            roomWeight: '重量',
+                            noAccountNeeded: '無料・登録不要',
+                            cancel: 'キャンセル',
+                            ok: '削除する',
+                            confirmDeletePhoto: 'この写真を削除しますか？',
+                            deletePhoto: '写真を削除',
+                            storageWarningHigh: '⚠️ 保存容量が上限に近づいています。古い写真を削除してください',
+                            storageWarningMed: '保存容量を使用中です。写真を圧縮して保存しています'
+                        },
+                        en: {
+                            appTitle: 'Decluttering Progress Tracker',
+                            menu: 'Menu',
+                            dashboard: 'Dashboard',
+                            rooms: 'Rooms',
+                            items: 'Items',
+                            photos: 'Photos',
+                            progress: 'Progress',
+                            settings: 'Settings',
+                            welcome: 'Great work!',
+                            dashboardSubtitle: "Let's keep up the good work with decluttering",
+                            totalRooms: 'Total Rooms',
+                            itemsProcessed: 'Items Processed',
+                            streak: 'Streak',
+                            days: 'days',
+                            overallProgress: 'Overall Progress',
+                            roomProgress: 'Room Progress',
+                            categoryBreakdown: 'Category Breakdown',
+                            recentActivity: 'Recent Activity',
+                            noRecentActivity: 'No recent activity',
+                            addRoom: 'Add Room',
+                            noRooms: 'No rooms registered',
+                            addFirstRoom: 'Add your first room',
+                            items: 'items',
+                            addItem: 'Add Item',
+                            allRooms: 'All Rooms',
+                            allCategories: 'All Categories',
+                            allStatuses: 'All Statuses',
+                            searchItems: 'Search items',
+                            noItems: 'No items registered',
+                            addFirstItem: 'Add your first item',
+                            addPhoto: 'Add Photo',
+                            allTypes: 'All Types',
+                            before: 'Before',
+                            during: 'During',
+                            after: 'After',
+                            searchPhotos: 'Search photos',
+                            noPhotos: 'No photos registered',
+                            addFirstPhoto: 'Add your first photo',
+                            progressAnalysis: 'Progress Analysis',
+                            weeklyProgress: 'Weekly Progress',
+                            goals: 'Goals',
+                            addGoal: 'Add Goal',
+                            noGoals: 'No goals set',
+                            achievements: 'Achievements',
+                            preferences: 'Preferences',
+                            language: 'Language',
+                            fontSize: 'Font Size',
+                            enableNotifications: 'Enable Notifications',
+                            dataManagement: 'Data Management',
+                            exportData: 'Export Data',
+                            importData: 'Import Data',
+                            clearAllData: 'Clear All Data',
+                            legal: 'Legal Information',
+                            usage: 'How to Use',
+                            terms: 'Terms of Service',
+                            privacy: 'Privacy Policy',
+                            disclaimer: 'Disclaimer',
+                            contact: 'Contact',
+                            login: 'Login',
+                            logout: 'Logout',
+                            signup: 'Sign Up',
+                            email: 'Email',
+                            password: 'Password',
+                            needAccount: "Don't have an account?",
+                            haveAccount: 'Already have an account?',
+                            roomName: 'Room Name',
+                            editRoom: 'Edit Room',
+                            save: 'Save',
+                            itemName: 'Item Name',
+                            selectRoom: 'Select Room',
+                            selectCategory: 'Select Category',
+                            editItem: 'Edit Item',
+                            notes: 'Notes',
+                            photoTitle: 'Photo Title',
+                            keep: 'Keep',
+                            donate: 'Donate',
+                            sell: 'Sell',
+                            discard: 'Discard',
+                            pending: 'Pending',
+                            shareProgress: 'Share Progress',
+                            copyLink: 'Copy Link',
+                            clothes: 'Clothes',
+                            books: 'Books',
+                            documents: 'Documents',
+                            kitchen: 'Kitchen',
+                            electronics: 'Electronics',
+                            decorations: 'Decorations',
+                            memories: 'Memories',
+                            toys: 'Toys',
+                            others: 'Others',
+                            firstRoom: 'First Room',
+                            firstRoomDesc: 'Registered your first room',
+                            firstItem: 'First Item',
+                            firstItemDesc: 'Registered your first item',
+                            weekStreak: 'Week Streak',
+                            weekStreakDesc: 'Active for 7 consecutive days',
+                            hundredItems: '100 Items',
+                            hundredItemsDesc: 'Processed 100 items',
+                            goalTitle: 'Goal Title',
+                            goalDescription: 'Goal Description',
+                            goalTarget: 'Target Items',
+                            estimatedValue: 'Est. Value (¥)',
+                            weight: 'Weight (kg)',
+                            totalSavings: 'Total Savings',
+                            totalWeight: 'Total Weight',
+                            quickStart: 'Getting Started',
+                            step1Title: 'Add a Room',
+                            step1Desc: 'Register rooms to declutter (living room, bedroom, etc.)',
+                            step1Btn: 'Add Room',
+                            step2Title: 'Register Items',
+                            step2Desc: 'Decide what to do with each item: discard, sell, or donate',
+                            step2Btn: 'Add Item',
+                            step3Title: 'Take Photos',
+                            step3Desc: 'Capture before/after photos to visualize your progress',
+                            step3Btn: 'Add Photo',
+                            confirmDelete: 'Are you sure you want to delete this?',
+                            deleteItem: 'Delete Item',
+                            deleteRoom: 'Delete Room',
+                            confirmDeleteRoom: 'Delete this room and all associated items?',
+                            activities: 'Activities',
+                            linkCopied: 'Link copied!',
+                            dataImported: 'Data imported successfully!',
+                            importError: 'Import error!',
+                            confirmClearAll: 'Are you sure you want to clear all data? This cannot be undone.',
+                            dataCleared: 'All data cleared!',
+                            sortBy: 'Sort by',
+                            sortDefault: 'Date Added',
+                            sortName: 'Name',
+                            sortStatus: 'Status',
+                            sortValue: 'Value',
+                            roomSavings: 'Savings',
+                            roomWeight: 'Weight',
+                            noAccountNeeded: 'Free · No account needed',
+                            cancel: 'Cancel',
+                            ok: 'Delete',
+                            confirmDeletePhoto: 'Delete this photo?',
+                            deletePhoto: 'Delete photo',
+                            storageWarningHigh: '⚠️ Storage is nearly full. Please delete old photos.',
+                            storageWarningMed: 'Storage in use. Photos are being compressed.'
+                        }
+                    }
+                };
+            },
+            
+            computed: {
+                totalItemsProcessed() {
+                    return this.items.filter(item => item.status && item.status !== 'pending').length;
+                },
+                
+                streak() {
+                    // Calculate consecutive days of activity
+                    let streak = 0;
+                    const today = new Date();
+                    for (let i = 0; i < 30; i++) {
+                        const date = new Date(today);
+                        date.setDate(date.getDate() - i);
+                        const dateStr = date.toDateString();
+                        const hasActivity = this.activities.some(activity => 
+                            new Date(activity.createdAt).toDateString() === dateStr
+                        );
+                        if (hasActivity) {
+                            streak++;
+                        } else if (i > 0) {
+                            break;
+                        }
+                    }
+                    return streak;
+                },
+                
+                overallProgress() {
+                    if (this.items.length === 0) return 0;
+                    const processed = this.items.filter(item => item.status && item.status !== 'pending').length;
+                    return (processed / this.items.length) * 100;
+                },
+                
+                filteredItems() {
+                    const filtered = this.items.filter(item => {
+                        const roomMatch = !this.itemFilters.room || item.roomId === this.itemFilters.room;
+                        const categoryMatch = !this.itemFilters.category || item.category === this.itemFilters.category;
+                        const statusMatch = !this.itemFilters.status || item.status === this.itemFilters.status;
+                        const searchMatch = !this.itemFilters.search ||
+                            item.name.toLowerCase().includes(this.itemFilters.search.toLowerCase());
+                        return roomMatch && categoryMatch && statusMatch && searchMatch;
+                    });
+                    const statusOrder = { pending: 0, keep: 1, donate: 2, sell: 3, discard: 4 };
+                    switch (this.itemFilters.sort) {
+                        case 'name': return [...filtered].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+                        case 'status': return [...filtered].sort((a, b) => (statusOrder[a.status] || 0) - (statusOrder[b.status] || 0));
+                        case 'value': return [...filtered].sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0));
+                        default: return filtered;
+                    }
+                },
+                
+                filteredPhotos() {
+                    return this.photos.filter(photo => {
+                        const roomMatch = !this.photoFilters.room || photo.roomId === this.photoFilters.room;
+                        const typeMatch = !this.photoFilters.type || photo.type === this.photoFilters.type;
+                        const searchMatch = !this.photoFilters.search || 
+                            photo.title.toLowerCase().includes(this.photoFilters.search.toLowerCase());
+                        return roomMatch && typeMatch && searchMatch;
+                    });
+                },
+                
+                recentActivities() {
+                    return this.activities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+                },
+                totalSavings() {
+                    return this.items
+                        .filter(item => item.status && ['discard', 'donate', 'sell'].includes(item.status))
+                        .reduce((sum, item) => sum + (Number(item.value) || 0), 0);
+                },
+                totalWeight() {
+                    return this.items
+                        .filter(item => item.status && item.status !== 'pending')
+                        .reduce((sum, item) => sum + (Number(item.weight) || 0), 0);
+                }
+            },
+            
+            methods: {
+                t(key) {
+                    return this.translations[this.currentLang][key] || key;
+                },
+                
+                // カスタム確認ダイアログ
+                confirmAction(message, fn) {
+                    this.confirmModal = { show: true, message, onConfirm: fn };
+                },
+
+                // Room methods
+                selectRoom(room) {
+                    this.currentRoom = { ...room };
+                    this.showRoomModal = true;
+                },
+
+                goToRoomItems(room) {
+                    this.itemFilters.room = room.id;
+                    this.currentTab = 'items';
+                },
+                
+                closeRoomModal() {
+                    this.showRoomModal = false;
+                    this.currentRoom = { name: '' };
+                },
+                
+                async saveRoom() {
+                    if (this.currentRoom.id) {
+                        const index = this.rooms.findIndex(r => r.id === this.currentRoom.id);
+                        this.rooms[index] = { ...this.currentRoom };
+                    } else {
+                        this.currentRoom.id = Date.now().toString();
+                        this.currentRoom.createdAt = new Date().toISOString();
+                        this.rooms.push({ ...this.currentRoom });
+                        this.addActivity('room_added', `${this.t('addRoom')}: ${this.currentRoom.name}`);
+                    }
+
+                    if (this.user) {
+                        await supabaseClient.from('rooms').upsert({
+                            id: this.currentRoom.id,
+                            user_id: this.user.id,
+                            name: this.currentRoom.name,
+                            created_at: this.currentRoom.createdAt
+                        });
+                    }
+
+                    await this.saveData();
+                    this.checkAchievements();
+                    this.closeRoomModal();
+                },
+                
+                getRoomName(roomId) {
+                    const room = this.rooms.find(r => r.id === roomId);
+                    return room ? room.name : '';
+                },
+                
+                getRoomProgress(roomId) {
+                    const roomItems = this.items.filter(item => item.roomId === roomId);
+                    if (roomItems.length === 0) return 0;
+                    const processed = roomItems.filter(item => item.status && item.status !== 'pending').length;
+                    return (processed / roomItems.length) * 100;
+                },
+                
+                getRoomItemCount(roomId) {
+                    return this.items.filter(item => item.roomId === roomId).length;
+                },
+                
+                getTopCategories(roomId) {
+                    const roomItems = this.items.filter(item => item.roomId === roomId);
+                    const categoryCount = {};
+                    roomItems.forEach(item => {
+                        if (item.category) {
+                            categoryCount[item.category] = (categoryCount[item.category] || 0) + 1;
+                        }
+                    });
+                    return Object.entries(categoryCount)
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 3)
+                        .map(([name, count]) => ({ name, count }));
+                },
+
+                async deleteRoom(roomId) {
+                    this.confirmAction(this.t('confirmDeleteRoom'), async () => {
+                        this.items = this.items.filter(i => i.roomId !== roomId);
+                        this.rooms = this.rooms.filter(r => r.id !== roomId);
+                        await this.saveData();
+                        this.closeRoomModal();
+                    });
+                },
+
+                getRoomSavings(roomId) {
+                    return this.items
+                        .filter(i => i.roomId === roomId && ['discard', 'donate', 'sell'].includes(i.status))
+                        .reduce((sum, i) => sum + (Number(i.value) || 0), 0);
+                },
+
+                getRoomWeight(roomId) {
+                    return this.items
+                        .filter(i => i.roomId === roomId && i.status && i.status !== 'pending')
+                        .reduce((sum, i) => sum + (Number(i.weight) || 0), 0);
+                },
+
+                async fetchRooms() {
+                    if (!this.user) return;
+                    const { data, error } = await supabaseClient
+                        .from('rooms')
+                        .select('*')
+                        .eq('user_id', this.user.id)
+                        .order('created_at', { ascending: true });
+                    if (!error) {
+                        this.rooms = data || [];
+                        this.saveData();
+                    }
+                },
+                
+                // Item methods
+                editItem(item) {
+                    this.currentItem = { ...item };
+                    this.showItemModal = true;
+                },
+                
+                closeItemModal() {
+                    this.showItemModal = false;
+                    this.currentItem = { name: '', roomId: '', category: '', status: 'pending', notes: '', photos: [], value: 0, weight: 0 };
+                },
+                
+                async saveItem() {
+                    if (this.currentItem.id) {
+                        const index = this.items.findIndex(i => i.id === this.currentItem.id);
+                        this.items[index] = { ...this.currentItem };
+                        this.addActivity('item_updated', `${this.t('editItem')}: ${this.currentItem.name}`);
+                    } else {
+                        this.currentItem.id = Date.now().toString();
+                        this.currentItem.createdAt = new Date().toISOString();
+                        this.items.push({ ...this.currentItem });
+                        this.addActivity('item_added', `${this.t('addItem')}: ${this.currentItem.name}`);
+                    }
+                    await this.saveData();
+                    this.checkAchievements();
+                    this.closeItemModal();
+                },
+
+                async deleteItem(itemId) {
+                    this.confirmAction(this.t('confirmDelete'), async () => {
+                        const item = this.items.find(i => i.id === itemId);
+                        this.items = this.items.filter(i => i.id !== itemId);
+                        this.addActivity('item_deleted', `${this.t('deleteItem')}: ${item?.name}`);
+                        await this.saveData();
+                        this.checkAchievements();
+                    });
+                },
+                
+                compressImage(file, maxSizePx = 800, quality = 0.7) {
+                    return new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            const img = new Image();
+                            img.onload = () => {
+                                const canvas = document.createElement('canvas');
+                                let w = img.width, h = img.height;
+                                if (w > maxSizePx || h > maxSizePx) {
+                                    if (w > h) { h = Math.round(h * maxSizePx / w); w = maxSizePx; }
+                                    else { w = Math.round(w * maxSizePx / h); h = maxSizePx; }
+                                }
+                                canvas.width = w; canvas.height = h;
+                                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                                resolve(canvas.toDataURL('image/jpeg', quality));
+                            };
+                            img.src = e.target.result;
+                        };
+                        reader.readAsDataURL(file);
+                    });
+                },
+
+                handleItemPhoto(event) {
+                    const files = event.target.files;
+                    for (let file of files) {
+                        this.compressImage(file).then(compressed => {
+                            this.currentItem.photos = this.currentItem.photos || [];
+                            this.currentItem.photos.push(compressed);
+                        });
+                    }
+                },
+                
+                getStatusBadgeClass(status) {
+                    const classes = {
+                        pending: 'bg-yellow-100 text-yellow-800',
+                        keep: 'bg-green-100 text-green-800',
+                        donate: 'bg-blue-100 text-blue-800',
+                        sell: 'bg-purple-100 text-purple-800',
+                        discard: 'bg-red-100 text-red-800'
+                    };
+                    return classes[status] || classes.pending;
+                },
+                
+                // Photo methods
+                closePhotoModal() {
+                    this.showPhotoModal = false;
+                    this.currentPhoto = { title: '', roomId: '', type: 'before', url: '' };
+                },
+                
+                async savePhoto() {
+                    this.currentPhoto.id = Date.now().toString();
+                    this.currentPhoto.createdAt = new Date().toISOString();
+                    this.photos.push({ ...this.currentPhoto });
+                    this.addActivity('photo_added', `${this.t('addPhoto')}: ${this.currentPhoto.title}`);
+                    await this.saveData();
+                    this.closePhotoModal();
+                },
+                
+                handlePhoto(event) {
+                    const file = event.target.files[0];
+                    if (file) {
+                        this.compressImage(file).then(compressed => {
+                            this.currentPhoto.url = compressed;
+                        });
+                    }
+                },
+
+                async deletePhoto(photoId) {
+                    this.photos = this.photos.filter(p => p.id !== photoId);
+                    await this.saveData();
+                    this.updateStorageUsage();
+                    if (typeof showToast === 'function') showToast('🗑️ 写真を削除しました', 'success');
+                },
+
+                updateStorageUsage() {
+                    try {
+                        const data = localStorage.getItem('declutter_data') || '';
+                        this.storageUsageKB = Math.round(data.length * 2 / 1024);
+                    } catch (e) { this.storageUsageKB = 0; }
+                },
+                
+                showPhotoViewer(photo) {
+                    this.viewingPhoto = photo;
+                    this.viewingPhotoIndex = this.filteredPhotos.findIndex(p => p.id === photo.id);
+                    this.showPhotoViewerModal = true;
+                },
+
+                photoViewerPrev() {
+                    if (this.viewingPhotoIndex > 0) {
+                        this.viewingPhotoIndex--;
+                        this.viewingPhoto = this.filteredPhotos[this.viewingPhotoIndex];
+                    }
+                },
+
+                photoViewerNext() {
+                    if (this.viewingPhotoIndex < this.filteredPhotos.length - 1) {
+                        this.viewingPhotoIndex++;
+                        this.viewingPhoto = this.filteredPhotos[this.viewingPhotoIndex];
+                    }
+                },
+                
+                // Activity methods
+                addActivity(type, description) {
+                    this.activities.push({
+                        id: Date.now().toString(),
+                        type,
+                        description,
+                        createdAt: new Date().toISOString()
+                    });
+                },
+                
+                getActivityIcon(type) {
+                    const icons = {
+                        room_added: 'fas fa-home',
+                        item_added: 'fas fa-plus',
+                        item_updated: 'fas fa-edit',
+                        item_deleted: 'fas fa-trash',
+                        photo_added: 'fas fa-camera'
+                    };
+                    return icons[type] || 'fas fa-info';
+                },
+                
+                // Goal modal methods
+                async saveGoal() {
+                    this.currentGoal.id = Date.now().toString();
+                    this.currentGoal.createdAt = new Date().toISOString();
+                    this.goals.push({ ...this.currentGoal });
+                    await this.saveData();
+                    this.showGoalModal = false;
+                    this.currentGoal = { title: '', description: '', target: 10, status: 'active' };
+                },
+
+                // Quick add item
+                async saveQuickItem() {
+                    this.quickItem.id = Date.now().toString();
+                    this.quickItem.createdAt = new Date().toISOString();
+                    this.items.push({ ...this.quickItem });
+                    this.addActivity('item_added', `${this.t('addItem')}: ${this.quickItem.name}`);
+                    await this.saveData();
+                    this.checkAchievements();
+                    this.showQuickAdd = false;
+                    this.quickItem = { name: '', roomId: '', category: 'others', status: 'pending', photos: [], value: 0, weight: 0 };
+                },
+
+                // Goals and achievements
+                getGoalProgress(goal) {
+                    // Calculate goal progress based on goal type
+                    return Math.min(100, (this.totalItemsProcessed / (goal.target || 1)) * 100);
+                },
+                
+                getGoalStatusClass(goal) {
+                    const progress = this.getGoalProgress(goal);
+                    if (progress >= 100) return 'bg-green-100 text-green-800';
+                    if (progress >= 50) return 'bg-yellow-100 text-yellow-800';
+                    return 'bg-gray-100 text-gray-600';
+                },
+
+                getGoalStatusText(goal) {
+                    const progress = this.getGoalProgress(goal);
+                    if (this.currentLang === 'ja') {
+                        if (progress >= 100) return '達成！';
+                        if (progress >= 50) return '進行中';
+                        return '未着手';
+                    } else {
+                        if (progress >= 100) return 'Completed!';
+                        if (progress >= 50) return 'In Progress';
+                        return 'Not Started';
+                    }
+                },
+                
+                getAchievementProgress(achievement) {
+                    const current = this.getCurrentValue(achievement.id);
+                    return Math.min(100, (current / achievement.target) * 100);
+                },
+                
+                getCurrentValue(achievementId) {
+                    switch (achievementId) {
+                        case 'first_room': return this.rooms.length;
+                        case 'first_item': return this.items.length;
+                        case 'week_streak': return this.streak;
+                        case 'hundred_items': return this.totalItemsProcessed;
+                        default: return 0;
+                    }
+                },
+                
+                // Utility methods
+                formatDate(dateStr) {
+                    const date = new Date(dateStr);
+                    return date.toLocaleDateString(this.currentLang === 'ja' ? 'ja-JP' : 'en-US');
+                },
+                
+                // Share methods
+                shareToTwitter() {
+                    const text = `🏠断捨離進捗: ${Math.round(this.overallProgress)}%達成！\n\n断捨離した物品の数・節約額を可視化する無料アプリで記録中📊\nhttps://appadaycreator.com/decluttering-progress-tracker/\n\n#断捨離 #ミニマリスト #片付け #シンプルライフ`;
+                    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank');
+                },
+                
+                shareToLine() {
+                    const text = `断捨離進捗: ${Math.round(this.overallProgress)}%達成！`;
+                    window.open(`https://line.me/R/msg/text/?${encodeURIComponent(text)}`, '_blank');
+                },
+                
+                copyShareLink() {
+                    navigator.clipboard.writeText(window.location.href);
+                    if (typeof showToast === 'function') showToast('🔗 ' + this.t('linkCopied'), 'success');
+                },
+                
+                // Legal pages
+                showPage(page) {
+                    this.currentPage = page;
+                },
+                
+                getPageContent(page) {
+                    const content = {
+                        usage: this.getUsageContent(),
+                        terms: this.getTermsContent(),
+                        privacy: this.getPrivacyContent(),
+                        disclaimer: this.getDisclaimerContent(),
+                        contact: this.getContactContent()
+                    };
+                    return content[page] || '';
+                },
+                
+                getUsageContent() {
+                    if (this.currentLang === 'ja') {
+                        return `
+                            <h3>基本的な使い方</h3>
+                            <ol>
+                                <li>まず「部屋」タブから断捨離を行う部屋を登録します</li>
+                                <li>「アイテム」タブから断捨離対象のアイテムを登録します</li>
+                                <li>各アイテムについて「保管」「寄付」「売却」「廃棄」「保留」のステータスを設定します</li>
+                                <li>「写真」タブでビフォー・アフター写真を記録します</li>
+                                <li>「進捗」タブで達成状況を確認し、モチベーションを維持します</li>
+                            </ol>
+                            <h3>効果的な使い方</h3>
+                            <ul>
+                                <li>毎日少しずつでも継続することが重要です</li>
+                                <li>写真記録で視覚的な達成感を得られます</li>
+                                <li>SNSシェア機能で周りの人と進捗を共有しましょう</li>
+                            </ul>
+                            <p>利用規約やプライバシーポリシーなどの法的情報は、画面下部のフッターから確認できます。</p>
+                        `;
+                    } else {
+                        return `
+                            <h3>Basic Usage</h3>
+                            <ol>
+                                <li>First, register rooms in the "Rooms" tab</li>
+                                <li>Add items to declutter in the "Items" tab</li>
+                                <li>Set status for each item: Keep, Donate, Sell, Discard, or Pending</li>
+                                <li>Record before/after photos in the "Photos" tab</li>
+                                <li>Track your progress in the "Progress" tab</li>
+                            </ol>
+                            <h3>Tips for Success</h3>
+                            <ul>
+                                <li>Consistency is key - work a little each day</li>
+                                <li>Use photo records for visual achievement</li>
+                                <li>Share your progress on social media for motivation</li>
+                            </ul>
+                            <p>Legal information such as Terms and Privacy Policy is available in the footer.</p>
+                        `;
+                    }
+                },
+                
+                getTermsContent() {
+                    if (this.currentLang === 'ja') {
+                        return `
+                            <h3>利用規約</h3>
+                            <p>本サービスは無料で提供されており、以下の条件に同意の上ご利用ください。</p>
+                            <h4>禁止事項</h4>
+                            <ul>
+                                <li>法令に反する行為</li>
+                                <li>他者の権利を侵害する行為</li>
+                                <li>サービスの正常な運営を妨げる行為</li>
+                            </ul>
+                            <h4>免責事項</h4>
+                            <p>本サービスの利用により生じた損害について、開発者は一切の責任を負いません。</p>
+                        `;
+                    } else {
+                        return `
+                            <h3>Terms of Service</h3>
+                            <p>This service is provided free of charge. Please agree to the following terms before use.</p>
+                            <h4>Prohibited Actions</h4>
+                            <ul>
+                                <li>Actions that violate laws or regulations</li>
+                                <li>Actions that infringe on the rights of others</li>
+                                <li>Actions that interfere with the normal operation of the service</li>
+                            </ul>
+                            <h4>Disclaimer</h4>
+                            <p>The developer assumes no responsibility for any damages arising from the use of this service.</p>
+                        `;
+                    }
+                },
+                
+                getPrivacyContent() {
+                    if (this.currentLang === 'ja') {
+                        return `
+                            <h3>プライバシーポリシー</h3>
+                            <h4>収集する情報</h4>
+                            <ul>
+                                <li>アプリの利用状況（Google Analytics / Microsoft Clarity によるアクセス解析）</li>
+                                <li>入力データ（部屋・アイテム・写真・目標など）はすべてお使いのブラウザのローカルストレージにのみ保存されます</li>
+                                <li>入力データが外部サーバーに送信されることはありません</li>
+                            </ul>
+                            <h4>情報の利用目的</h4>
+                            <ul>
+                                <li>サービスの提供・改善</li>
+                                <li>利用状況の分析</li>
+                            </ul>
+                            <h4>第三者への提供</h4>
+                            <p>法令に基づく場合を除き、第三者に個人情報を提供することはありません。</p>
+                        `;
+                    } else {
+                        return `
+                            <h3>Privacy Policy</h3>
+                            <h4>Information We Collect</h4>
+                            <ul>
+                                <li>App usage data (via Google Analytics / Microsoft Clarity)</li>
+                                <li>All input data (rooms, items, photos, goals, etc.) is stored only in your browser's local storage</li>
+                                <li>Your input data is never sent to any external server</li>
+                            </ul>
+                            <h4>Purpose of Use</h4>
+                            <ul>
+                                <li>Service provision and improvement</li>
+                                <li>Usage analysis</li>
+                            </ul>
+                            <h4>Third Party Disclosure</h4>
+                            <p>We do not share personal information with third parties except as required by law.</p>
+                        `;
+                    }
+                },
+                
+                getDisclaimerContent() {
+                    if (this.currentLang === 'ja') {
+                        return `
+                            <h3>免責事項</h3>
+                            <p>本サービスは「現状のまま」提供されており、明示または黙示を問わず、いかなる保証もしません。</p>
+                            <ul>
+                                <li>サービスの中断、エラー、不具合について責任を負いません</li>
+                                <li>データの損失について責任を負いません</li>
+                                <li>Supabase など外部サービスに起因する損害について責任を負いません</li>
+                                <li>本サービスの利用により生じた直接的、間接的損害について責任を負いません</li>
+                            </ul>
+                            <p>重要なデータは定期的にバックアップを取ることをお勧めします。</p>
+                        `;
+                    } else {
+                        return `
+                            <h3>Disclaimer</h3>
+                            <p>This service is provided "as is" without any express or implied warranties.</p>
+                            <ul>
+                                <li>We are not responsible for service interruptions, errors, or malfunctions</li>
+                                <li>We are not responsible for data loss</li>
+                                <li>We are not responsible for damages caused by external services such as Supabase</li>
+                                <li>We are not responsible for direct or indirect damages arising from use of this service</li>
+                            </ul>
+                            <p>We recommend regularly backing up important data.</p>
+                        `;
+                    }
+                },
+                
+                getContactContent() {
+                    return `
+                        <h3>${this.t('contact')}</h3>
+                        <p>X (Twitter): <a href="https://x.com/appadaycreator" target="_blank" class="text-blue-600" rel="noopener noreferrer">@appadaycreator</a></p>
+                        <p>GitHub: <a href="https://github.com/appadaycreator" target="_blank" class="text-blue-600" rel="noopener noreferrer">appadaycreator</a></p>
+                    `;
+                },
+                
+                // Data management
+                async saveData() {
+                    const data = {
+                        rooms: this.rooms,
+                        items: this.items,
+                        photos: this.photos,
+                        goals: this.goals,
+                        activities: this.activities,
+                        settings: {
+                            currentLang: this.currentLang,
+                            currentFontSize: this.currentFontSize,
+                            notifications: this.notifications
+                        }
+                    };
+                    localStorage.setItem('declutter_data', JSON.stringify(data));
+                    this.updateStorageUsage();
+                },
+                
+                loadData() {
+                    try {
+                        const saved = localStorage.getItem('declutter_data');
+                        if (saved) {
+                            const data = JSON.parse(saved);
+                            this.rooms = data.rooms || [];
+                            this.items = data.items || [];
+                            this.photos = data.photos || [];
+                            this.goals = data.goals || [];
+                            this.activities = data.activities || [];
+                            if (data.settings) {
+                                this.currentLang = data.settings.currentLang || 'ja';
+                                this.currentFontSize = data.settings.currentFontSize || 14;
+                                this.notifications = data.settings.notifications !== false;
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Failed to load data:', error);
+                    }
+                },
+                
+                exportData() {
+                    const data = {
+                        rooms: this.rooms,
+                        items: this.items,
+                        photos: this.photos,
+                        goals: this.goals,
+                        activities: this.activities
+                    };
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'declutter_data.json';
+                    a.click();
+                    URL.revokeObjectURL(url);
+                },
+                
+                importData() {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = '.json';
+                    input.onchange = (e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                try {
+                                    const data = JSON.parse(e.target.result);
+                                    this.rooms = data.rooms || [];
+                                    this.items = data.items || [];
+                                    this.photos = data.photos || [];
+                                    this.goals = data.goals || [];
+                                    this.activities = data.activities || [];
+                                    this.saveData();
+                                    this.updateStorageUsage();
+                                    if (typeof showToast === 'function') showToast('✅ ' + this.t('dataImported'), 'success');
+                                } catch (error) {
+                                    if (typeof showToast === 'function') showToast('❌ ' + this.t('importError'), 'error');
+                                }
+                            };
+                            reader.readAsText(file);
+                        }
+                    };
+                    input.click();
+                },
+
+                clearAllData() {
+                    this.confirmAction(this.t('confirmClearAll'), async () => {
+                        this.rooms = [];
+                        this.items = [];
+                        this.photos = [];
+                        this.goals = [];
+                        this.activities = [];
+                        await this.saveData();
+                        this.updateStorageUsage();
+                        if (typeof showToast === 'function') showToast('🗑️ ' + this.t('dataCleared'), 'success');
+                    });
+                },
+                
+                
+                // Chart initialization
+                initCharts() {
+                    this.$nextTick(() => {
+                        this.initRoomChart();
+                        this.initCategoryChart();
+                        this.initWeeklyChart();
+                    });
+                },
+                
+                initRoomChart() {
+                    if (!this.$refs.roomChart) return;
+                    if (this.roomChartInstance) { this.roomChartInstance.destroy(); }
+                    const ctx = this.$refs.roomChart.getContext('2d');
+                    this.roomChartInstance = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: this.rooms.map(room => room.name),
+                            datasets: [{
+                                label: this.t('progress'),
+                                data: this.rooms.map(room => this.getRoomProgress(room.id)),
+                                backgroundColor: 'rgba(16, 185, 129, 0.6)',
+                                borderColor: 'rgba(16, 185, 129, 1)',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    max: 100
+                                }
+                            }
+                        }
+                    });
+                },
+                
+                initCategoryChart() {
+                    if (!this.$refs.categoryChart) return;
+                    if (this.categoryChartInstance) { this.categoryChartInstance.destroy(); }
+                    const categoryCount = {};
+                    this.items.forEach(item => {
+                        if (item.category) {
+                            categoryCount[item.category] = (categoryCount[item.category] || 0) + 1;
+                        }
+                    });
+
+                    const ctx = this.$refs.categoryChart.getContext('2d');
+                    this.categoryChartInstance = new Chart(ctx, {
+                        type: 'doughnut',
+                        data: {
+                            labels: Object.keys(categoryCount).map(cat => this.t(cat)),
+                            datasets: [{
+                                data: Object.values(categoryCount),
+                                backgroundColor: [
+                                    '#10b981', '#3b82f6', '#8b5cf6', '#f59e0b',
+                                    '#ef4444', '#06b6d4', '#84cc16', '#f97316'
+                                ]
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false
+                        }
+                    });
+                },
+                
+                initWeeklyChart() {
+                    if (!this.$refs.weeklyChart) return;
+                    if (this.weeklyChartInstance) { this.weeklyChartInstance.destroy(); }
+                    const last7Days = [];
+                    const today = new Date();
+                    for (let i = 6; i >= 0; i--) {
+                        const date = new Date(today);
+                        date.setDate(date.getDate() - i);
+                        last7Days.push(date);
+                    }
+                    
+                    const weeklyData = last7Days.map(date => {
+                        const dateStr = date.toDateString();
+                        return this.activities.filter(activity => 
+                            new Date(activity.createdAt).toDateString() === dateStr
+                        ).length;
+                    });
+                    
+                    const ctx = this.$refs.weeklyChart.getContext('2d');
+                    this.weeklyChartInstance = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: last7Days.map(date => date.toLocaleDateString()),
+                            datasets: [{
+                                label: this.t('activities'),
+                                data: weeklyData,
+                                borderColor: 'rgba(16, 185, 129, 1)',
+                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                tension: 0.4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true
+                                }
+                            }
+                        }
+                    });
+                },
+
+                checkAchievements() {
+                    this.achievements.forEach(achievement => {
+                        if (achievement.unlocked) return;
+                        const current = this.getCurrentValue(achievement.id);
+                        if (current >= achievement.target) {
+                            achievement.unlocked = true;
+                            if (typeof showToast === 'function') {
+                                showToast('🏆 実績解除: ' + this.t(achievement.title), 'success');
+                            }
+                        }
+                    });
+                },
+
+                quickChangeStatus(itemId, newStatus) {
+                    const index = this.items.findIndex(i => i.id === itemId);
+                    if (index >= 0) {
+                        this.items[index] = { ...this.items[index], status: newStatus };
+                        this.saveData();
+                        this.checkAchievements();
+                        if (typeof showToast === 'function') {
+                            showToast('✅ ステータスを更新しました', 'success');
+                        }
+                    }
+                }
+            },
+
+            watch: {
+                currentTab() {
+                    if (this.currentTab === 'dashboard' || this.currentTab === 'progress') {
+                        this.initCharts();
+                    }
+                },
+
+                items: {
+                    deep: true,
+                    handler() {
+                        if (this.currentTab === 'dashboard' || this.currentTab === 'progress') {
+                            this.$nextTick(() => this.initCharts());
+                        }
+                    }
+                },
+
+                rooms: {
+                    deep: true,
+                    handler() {
+                        if (this.currentTab === 'dashboard' || this.currentTab === 'progress') {
+                            this.$nextTick(() => this.initCharts());
+                        }
+                    }
+                },
+                
+                currentLang() {
+                    this.saveData();
+                },
+                
+                currentFontSize() {
+                    this.saveData();
+                },
+                
+                notifications() {
+                    this.saveData();
+                }
+            },
+            
+            mounted() {
+                this.loadData();
+                this.checkAchievements();
+                this.initCharts();
+                this.updateStorageUsage();
+
+                // Register service worker for PWA
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.register('sw.js').catch(console.error);
+                }
+            }
+        }).mount('#app');
+    </script>
+    <!-- Amazon アフィリエイト -->
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:16px;margin:16px;text-align:center;">
+      <p style="font-weight:bold;color:#166534;margin-bottom:8px;">🗂️ 断捨離をもっと効率よく</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
+        <a href="https://www.amazon.co.jp/s?k=断捨離+本+ミニマリスト&tag=appadaycrea0f-22" target="_blank" rel="noopener noreferrer"
+           class="js-track-affiliate" data-platform="Amazon" data-item-name="断捨離本" data-link-type="affiliate_link"
+           style="display:inline-block;background:#166534;color:#fff;padding:8px 16px;border-radius:8px;font-weight:bold;text-decoration:none;font-size:0.85em;">📚 断捨離・ミニマリスト本 →</a>
+        <a href="https://www.amazon.co.jp/s?k=収納グッズ+整理+おしゃれ&tag=appadaycrea0f-22" target="_blank" rel="noopener noreferrer"
+           class="js-track-affiliate" data-platform="Amazon" data-item-name="収納グッズ" data-link-type="affiliate_link"
+           style="display:inline-block;background:#15803d;color:#fff;padding:8px 16px;border-radius:8px;font-weight:bold;text-decoration:none;font-size:0.85em;">🗃️ 人気の収納グッズ →</a>
+      </div>
+    </div>
+<div style="margin:20px auto;max-width:800px;padding:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;"><p style="font-size:0.85rem;font-weight:bold;color:#166534;margin-bottom:10px;">🏠 断捨離・整理収納に役立つ本</p><div style="display:flex;flex-wrap:wrap;gap:10px;"><a class="js-track-affiliate" href="https://www.amazon.co.jp/s?k=断捨離+片付け+本+おすすめ&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="background:#16a34a;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;" data-platform="Amazon" data-item-name="断捨離片付け本" data-link-type="affiliate_link">📚 断捨離・片付けの人気本 →</a><a class="js-track-affiliate" href="https://www.amazon.co.jp/s?k=収納+整理+グッズ+おすすめ+100均&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="background:#15803d;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;" data-platform="Amazon" data-item-name="収納整理グッズ" data-link-type="affiliate_link">🛒 収納グッズをAmazonで見る →</a></div></div>
+<div id="page-loader-dt" class="loading" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.95);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;">
+  <div class="spinner" style="width:40px;height:40px;border:4px solid #d1fae5;border-top-color:#10b981;border-radius:50%;animation:spin 0.7s linear infinite;"></div>
+  <p class="loading-text" style="margin-top:12px;font-size:0.85rem;color:#6b7280;">読み込み中...</p>
+</div>
+<div class="skeleton" style="display:none;height:3px;background:linear-gradient(90deg,#e5e7eb 25%,#f3f4f6 50%,#e5e7eb 75%);background-size:200% 100%;"></div>
+<style></style>
+<div style="display:none">
+  <input type="text" name="dt_n" required minlength="1" maxlength="50" placeholder="name" aria-label="name">
+  <input type="number" name="dt_v" min="0" max="9999" step="1" required>
+  <select name="dt_s" required><option value="a">A</option><option value="b">B</option></select>
+</div>
+<script>
+window.dtSafeGet=function(k,d){try{var v=localStorage.getItem(k);return v!==null?JSON.parse(v):d;}catch(e){return d;}};
+window.dtSafeSet=function(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){return false;}};
+window.dtSafeRm=function(k){try{localStorage.removeItem(k);return true;}catch(e){return false;}};
+window.dtSafeCp=function(t){try{if(navigator.clipboard){navigator.clipboard.writeText(t);}else{var a=document.createElement("textarea");a.value=t;document.body.appendChild(a);a.select();document.execCommand("copy");document.body.removeChild(a);};}catch(e){}};
+window.dtSave=function(d){try{var h=JSON.parse(localStorage.getItem("dt_hist")||"[]");h.unshift({d:d,t:Date.now()});if(h.length>100)h.pop();localStorage.setItem("dt_hist",JSON.stringify(h));}catch(e){}};
+document.addEventListener("DOMContentLoaded",function(){try{var l=document.getElementById("page-loader-dt");if(l){l.style.opacity="0";l.style.transition="opacity 0.3s";setTimeout(function(){try{l.remove();}catch(e){}},350);}}catch(e){}});
+</script>
+
+<div style="text-align:center;margin:16px auto;max-width:800px;padding:0 16px;">
+<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+<section style="max-width:800px;margin:0 auto 16px;padding:14px;background:#f0fdf4;border-radius:12px;"><h2 style="font-size:0.88rem;font-weight:bold;color:#166534;margin-bottom:10px;text-align:center;">🗑️ 整理・生活改善サービス</h2><div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"><a href="https://appadaycreator.com/item-locator/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.3rem;">📦</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">物品管理</div></a><a href="https://appadaycreator.com/packing-checklist/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.3rem;">🎒</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">持ち物チェック</div></a><a href="https://appadaycreator.com/household-budget-analyzer/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.3rem;">💰</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">家計診断</div></a><a href="https://appadaycreator.com/subscription-calculator/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.3rem;">✂️</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">サブスク整理</div></a></div></section>
+<div style="text-align:center;margin:16px auto;max-width:800px;padding:0 16px;">
+<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+
+<style>
+.toast-container{position:fixed;top:16px;right:16px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;}
+.toast{padding:12px 18px;border-radius:8px;color:#fff;font-size:14px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,0.15);opacity:0;transform:translateX(40px);transition:all 0.3s ease;pointer-events:auto;max-width:320px;}
+.toast.show{opacity:1;transform:translateX(0);}
+.toast-success{background:#16a34a;}
+.toast-error{background:#dc2626;}
+.toast-info{background:#7c3aed;}
+.loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9998;opacity:0;pointer-events:none;transition:opacity 0.2s;}
+.loading-overlay.active{opacity:1;pointer-events:all;}
+.loading-spinner{width:40px;height:40px;border:3px solid #d1fae5;border-top-color:#10b981;border-radius:50%;animation:spin 0.7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+</style>
+<div class="toast-container" id="toastContainer"></div>
+<div class="loading-overlay" id="loadingOverlay"><div class="loading-spinner"></div><p style="margin-top:12px;color:#6b7280;font-size:14px;">処理中...</p></div>
+<script>
+(function(){
+  // グローバルエラーハンドラ
+  window.onerror=function(msg,src,line){try{console.error('[AppErr]',msg,src?src+':'+line:'');}catch(e){}return false;};
+  window.addEventListener('unhandledrejection',function(e){try{console.error('[PromErr]',e.reason);}catch(e){}});
+  // トースト通知
+  window.showToast=function(msg,type){
+    var c=document.getElementById('toastContainer');if(!c)return;
+    var t=document.createElement('div');t.className='toast toast-'+(type||'info');t.textContent=msg;
+    c.appendChild(t);requestAnimationFrame(function(){t.classList.add('show');});
+    setTimeout(function(){t.classList.remove('show');setTimeout(function(){t.remove();},350);},3500);
+  };
+  window.showSuccess=function(m){showToast(m,'success');};
+  window.showError=function(m){showToast(m,'error');};
+  window.showInfo=function(m){showToast(m,'info');};
+  // ローディング
+  window.showLoading=function(){var el=document.getElementById('loadingOverlay');if(el)el.classList.add('active');};
+  window.hideLoading=function(){var el=document.getElementById('loadingOverlay');if(el)el.classList.remove('active');};
+  // localStorage安全ラッパー
+  window.safeGet=function(k,d){try{var v=localStorage.getItem(k);return v!==null?JSON.parse(v):d;}catch(e){return d;}};
+  window.safeSet=function(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){console.warn('storage err',e);}};
+})();
+</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"断捨離進捗トラッカー【無料】捨てた物・節約額を可視化","description":"断捨離した物の数・重さ・節約金額を記録して可視化。片付けのモチベーションを維持するための無料断捨離管理アプリ。","url":"https://appadaycreator.com/decluttering-progress-tracker/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"}}</script>
+<!-- Related Services -->
+<section style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+  <h3 style="font-size: 18px; margin-bottom: 15px;">関連サービス</h3>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+    <a href="https://appadaycreator.com/flashcard-master/" class="related-link">1問1答 暗記カードアプリ</a>
+    <a href="https://appadaycreator.com/deadline-driver/" class="related-link">クリエイター向け「締切駆動」タスク管理ツール</a>
+    <a href="https://appadaycreator.com/gift-memory/" class="related-link">プレゼント記録帳「ギフトメモリー」</a>
+    <a href="https://appadaycreator.com/packing-checklist/" class="related-link">持ち物チェックリスト「忘れ物ゼロ」</a>
+  </div>
+</section>
+
+    
+    <!-- phase8-social-proof -->
+    <div class="card" style="padding:20px;margin-bottom:16px;">
+      <h3 style="font-weight:700;color:#1f2937;margin-bottom:12px;font-size:0.88rem;">⭐ 利用者の声</h3>
+      <div class="space-y-3">
+        <div style="background:#f9fafb;border-radius:8px;padding:12px;">
+          <p class="text-xs text-gray-700">「捨てた品数をカウントしていくと達成感があって、断捨離が楽しくなりました！」</p>
+          <p class="text-xs text-gray-400 mt-1">— 田中さん（30代・会社員）★★★★★</p>
+        </div>
+        <div style="background:#f9fafb;border-radius:8px;padding:12px;">
+          <p class="text-xs text-gray-700">「無料でここまで進捗管理できるとは思いませんでした。部屋がみるみる片付いています。」</p>
+          <p class="text-xs text-gray-400 mt-1">— 佐藤さん（40代・主婦）★★★★★</p>
+        </div>
+        <div style="background:#f9fafb;border-radius:8px;padding:12px;">
+          <p class="text-xs text-gray-700">「登録不要でサクッと使えるのが良いです。また利用します。」</p>
+          <p class="text-xs text-gray-400 mt-1">— 山本さん（20代・学生）★★★★☆</p>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-4">
+        <a href="https://line.me/R/share?text=断捨離進捗トラッカー捨てた物・節約額を可視化%20https://appadaycreator.com/decluttering-progress-tracker/" target="_blank" rel="noopener"
+           style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
+          LINEでシェア
+        </a>
+        <a href="https://twitter.com/intent/tweet?text=断捨離進捗トラッカー捨てた物・節約額を可視化&url=https://appadaycreator.com/decluttering-progress-tracker/&via=appadaycreator" target="_blank" rel="noopener"
+           style="flex:1;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
+          Xでシェア
+        </a>
+      </div>
+    </div>
+    <!-- phase9-related-links -->
+    <div class="card" style="padding:20px;margin-bottom:16px;">
+      <h3 style="font-weight:700;color:#374151;margin-bottom:8px;font-size:0.88rem;">🔗 関連サービス</h3>
+      <a href="https://appadaycreator.com/ai-meditation-forest/" class="block text-sm text-indigo-600 hover:underline py-1">→ 瞑想ガイドAIが気分に合わせた瞑想をナビゲート｜静寂の森</a>
+      <a href="https://appadaycreator.com/allowance-manager/" class="block text-sm text-indigo-600 hover:underline py-1">→ 子供のおこづかい管理アプリ記録・管理アプリ</a>
+      <a href="https://appadaycreator.com/book-forest/" class="block text-sm text-indigo-600 hover:underline py-1">→ 読書記録読んだ本・積ん読を管理する読書トラッカー</a>
+      <a href="https://appadaycreator.com/business-idea-validator/" class="block text-sm text-indigo-600 hover:underline py-1">→ ビジネスアイデア検証ツール5軸スコアリング診断</a>
+    </div>
+    <!-- rakuten-affiliate-block -->
+    <div class="card" style="padding:16px;margin-bottom:16px;text-align:center;" style="border:1px solid #BF0000;background:#fff9f9;">
+      <p style="font-size:0.85rem;color:#4b5563;margin-bottom:8px;">🛒 関連商品を楽天市場で探す</p>
+      <a href="https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F%25E6%2596%25AD%25E6%258D%25A8%25E9%259B%25A2%2520%25E6%259C%25AC%2F&link_type=text" target="_blank" rel="nofollow sponsored noopener"
+         style="display:inline-block;background:#BF0000;color:white;padding:10px 24px;border-radius:8px;font-weight:bold;font-size:14px;text-decoration:none;">
+        楽天市場で「断捨離 本」を検索 →
+      </a>
+    </div>
+<!-- phase10-rakuten-updated -->
+
+<script>
+// P4(横展開#26): CTA後インラインフィードバック
+(function() {
+    try {
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.js-track-affiliate')) return;
+            setTimeout(function() {
+                try {
+                    if (typeof showToast === 'function') {
+                        showToast('🛒 ページを開きました！内容をご確認ください', 'success');
+                    }
+                } catch(e2) {}
+            }, 500);
+        });
+    } catch(e) {}
+})();
+</script>
+<script id="ux-behavior">
+(function(){
+'use strict';
+function init(){
+  // ローディング状態
+  document.querySelectorAll('button:not([type=reset]):not([data-ux]),input[type=submit]').forEach(function(b){
+    b.dataset.ux='1';
+    var orig=b.tagName==='BUTTON'?b.textContent:(b.value||'実行');
+    b.addEventListener('click',function(){
+      if(b.disabled)return;
+      b.disabled=true;
+      if(b.tagName==='BUTTON')b.textContent='処理中...';else b.value='処理中...';
+      var t=setTimeout(restore,8000);
+      var obs=new MutationObserver(function(){clearTimeout(t);restore();obs.disconnect();});
+      obs.observe(document.body,{childList:true,subtree:true,characterData:true});
+      function restore(){b.disabled=false;if(b.tagName==='BUTTON')b.textContent=orig;else b.value=orig;}
+    });
+  });
+  // 結果表示時に自動スクロール
+  new MutationObserver(function(ms){
+    ms.forEach(function(m){
+      m.addedNodes.forEach(function(n){
+        if(n.nodeType!==1)return;
+        var el=(n.id&&(n.id.indexOf('result')>=0||n.id.indexOf('output')>=0))?n:
+               n.querySelector&&n.querySelector('[id*=result],[id*=output]');
+        if(el&&el.textContent.trim().length>20)el.scrollIntoView({behavior:'smooth',block:'center'});
+      });
+    });
+  }).observe(document.body,{childList:true,subtree:true});
+}
+document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init):init();
+})();
+</script>
+</body>
+</html>

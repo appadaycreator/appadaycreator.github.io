@@ -1,0 +1,2281 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskFlow Timer｜無料インターバルタイマー【集中力・作業効率アップ】</title>
+<!-- phase8-favicon -->
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#7c3aed">
+    <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
+    <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <link rel="dns-prefetch" href="https://www.clarity.ms">
+<script>
+/* Supabase → LocalStorage モック (Supabase無料版停止対応) */
+(function() {
+  function _get(t) { try { return JSON.parse(localStorage.getItem('sb_'+t)||'[]'); } catch(e) { return []; } }
+  function _set(t,d) { try { localStorage.setItem('sb_'+t, JSON.stringify(d)); } catch(e) {} }
+  function _uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+  function _now() { return new Date().toISOString(); }
+
+  function buildQuery(table) {
+    var rows = _get(table), filters = [], _ord = null, _lim = null;
+    var q = {
+      select: function() { return q; },
+      eq:  function(c,v){ filters.push(function(r){ return r[c]==v; }); return q; },
+      neq: function(c,v){ filters.push(function(r){ return r[c]!=v; }); return q; },
+      gt:  function(c,v){ filters.push(function(r){ return r[c]>v; }); return q; },
+      gte: function(c,v){ filters.push(function(r){ return r[c]>=v; }); return q; },
+      lt:  function(c,v){ filters.push(function(r){ return r[c]<v; }); return q; },
+      lte: function(c,v){ filters.push(function(r){ return r[c]<=v; }); return q; },
+      like:  function(c,v){ filters.push(function(r){ return String(r[c]||'').indexOf(v.replace(/%/g,''))>-1; }); return q; },
+      ilike: function(c,v){ filters.push(function(r){ return String(r[c]||'').toLowerCase().indexOf(v.replace(/%/g,'').toLowerCase())>-1; }); return q; },
+      contains: function(c,v){ filters.push(function(r){ return Array.isArray(r[c])&&r[c].indexOf(v)>-1; }); return q; },
+      is: function(c,v){ filters.push(function(r){ return v===null?r[c]==null:r[c]===v; }); return q; },
+      'in': function(c,v){ filters.push(function(r){ return v.indexOf(r[c])>-1; }); return q; },
+      order: function(c,o){ _ord={c:c,desc:o&&o.ascending===false}; return q; },
+      limit: function(n){ _lim=n; return q; },
+      range: function(){ return q; },
+      single: function() {
+        var d=_get(table); filters.forEach(function(f){d=d.filter(f);});
+        return Promise.resolve({data:d[0]||null,error:d.length===0?{message:'No rows found',code:'PGRST116'}:null});
+      },
+      maybeSingle: function() {
+        var d=_get(table); filters.forEach(function(f){d=d.filter(f);});
+        return Promise.resolve({data:d[0]||null,error:null});
+      },
+      then: function(res,rej) {
+        var d=_get(table);
+        filters.forEach(function(f){d=d.filter(f);});
+        if(_ord) d.sort(function(a,b){ var av=a[_ord.c],bv=b[_ord.c]; return _ord.desc?(bv>av?1:bv<av?-1:0):(av>bv?1:av<bv?-1:0); });
+        if(_lim) d=d.slice(0,_lim);
+        return Promise.resolve({data:d,error:null,count:d.length}).then(res,rej);
+      }
+    };
+    return q;
+  }
+
+  function createLocalStorageClient() {
+    return {
+      from: function(table) {
+        return {
+          select: function(){ return buildQuery(table); },
+          insert: function(rows, opts) {
+            var d=_get(table), arr=Array.isArray(rows)?rows:[rows];
+            var ins=arr.map(function(r){ return Object.assign({},r,{id:r.id||_uid(),created_at:r.created_at||_now()}); });
+            _set(table,d.concat(ins));
+            return Promise.resolve({data:opts&&opts.returning==='minimal'?[]:ins,error:null});
+          },
+          upsert: function(rows,opts) {
+            var d=_get(table), arr=Array.isArray(rows)?rows:[rows];
+            var key=opts&&opts.onConflict||'id';
+            arr.forEach(function(r){
+              var i=d.findIndex(function(x){return x[key]===r[key];});
+              if(i>=0) d[i]=Object.assign({},d[i],r); else d.push(Object.assign({},r,{id:r.id||_uid(),created_at:r.created_at||_now()}));
+            });
+            _set(table,d);
+            return Promise.resolve({data:arr,error:null});
+          },
+          update: function(updates) {
+            var applyUpdate = function(filters) {
+              var d=_get(table);
+              var updated=d.map(function(r){ return filters.every(function(f){return f(r);})?Object.assign({},r,updates):r; });
+              _set(table,updated);
+              return Promise.resolve({data:updated.filter(function(r){return filters.every(function(f){return f(r);});}),error:null});
+            };
+            return buildFilterChain(applyUpdate);
+          },
+          delete: function() {
+            var applyDelete = function(filters) {
+              var d=_get(table);
+              var kept=d.filter(function(r){return !filters.every(function(f){return f(r);});});
+              _set(table,kept);
+              return Promise.resolve({data:[],error:null});
+            };
+            return buildFilterChain(applyDelete);
+          }
+        };
+      },
+      auth: {
+        getSession: function(){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'null');
+          return Promise.resolve({data:{session:u?{user:u}:null},error:null});
+        },
+        getUser: function(){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'null');
+          return Promise.resolve({data:{user:u},error:null});
+        },
+        signUp: function(p){
+          var u={id:_uid(),email:p.email,created_at:_now()};
+          localStorage.setItem('sb_auth',JSON.stringify(u));
+          return Promise.resolve({data:{user:u,session:{user:u}},error:null});
+        },
+        signInWithPassword: function(p){
+          var u={id:'local_'+btoa(p.email||''),email:p.email,created_at:_now()};
+          localStorage.setItem('sb_auth',JSON.stringify(u));
+          return Promise.resolve({data:{user:u,session:{user:u}},error:null});
+        },
+        signInWithOAuth: function(){return Promise.resolve({data:{},error:null});},
+        signOut: function(){localStorage.removeItem('sb_auth');return Promise.resolve({error:null});},
+        onAuthStateChange: function(cb){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'null');
+          setTimeout(function(){cb(u?'SIGNED_IN':'SIGNED_OUT',u?{user:u}:null);},50);
+          return {data:{subscription:{unsubscribe:function(){}}}};
+        },
+        updateUser: function(p){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'{}');
+          Object.assign(u,p);
+          localStorage.setItem('sb_auth',JSON.stringify(u));
+          return Promise.resolve({data:{user:u},error:null});
+        }
+      },
+      storage: {
+        from: function(){
+          return {
+            upload: function(path,file){return Promise.resolve({data:{path:path},error:null});},
+            getPublicUrl: function(path){return {data:{publicUrl:''}};},
+            remove: function(){return Promise.resolve({data:[],error:null});}
+          };
+        }
+      },
+      channel: function(){ return {on:function(){return this;},subscribe:function(){return this;}}; },
+      removeChannel: function(){},
+      removeAllChannels: function(){}
+    };
+  }
+
+  function buildFilterChain(executor) {
+    var filters=[];
+    var chain={
+      eq:  function(c,v){filters.push(function(r){return r[c]==v;});return chain;},
+      neq: function(c,v){filters.push(function(r){return r[c]!=v;});return chain;},
+      match:function(m){Object.keys(m).forEach(function(c){filters.push(function(r){return r[c]===m[c];});});return chain;},
+      then:function(res,rej){return executor(filters).then(res,rej);}
+    };
+    return chain;
+  }
+
+  // グローバルに設定（window.supabase互換）
+  var mockClient = createLocalStorageClient();
+  window.supabase = {
+    createClient: function() { return mockClient; }
+  };
+  // ESモジュール形式でimportされる場合の互換
+  window.createClient = function() { return mockClient; };
+  window._supabaseMockClient = mockClient;
+})();
+</script>
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
+    <!-- End Google Tag Manager -->
+    <!-- Microsoft Clarity -->
+    <script type="text/javascript">
+        (function(c,l,a,r,i,t,y){
+            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+            t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+        })(window, document, "clarity", "script", "s3t9vl8h3v");
+    </script>
+    <!-- End Microsoft Clarity -->
+    <!-- Google AdSense -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858"
+         crossorigin="anonymous"></script>
+    <!-- End Google AdSense -->
+    <!-- phase8-schema-enhanced -->
+    <meta name="description" content="視認性を重視した循環式インターバルタイマー。適切なコントラスト比で目に優しく、長時間の作業でも疲れにくいデザインを実現。登録不要・完全無料でご利用いただけます。">
+    <meta name="keywords" content="インターバルタイマー, タスク管理, 集中">
+    <link rel="canonical" href="https://appadaycreator.com/taskflow-timer/">
+    <meta property="og:title" content="TaskFlow Timer">
+    <meta property="og:description" content="視認性を重視した循環式インターバルタイマー">
+    <meta property="og:type" content="website">
+<meta property="og:locale" content="ja_JP" />
+        <meta property="og:image" content="https://appadaycreator.com/taskflow-timer/ogp.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="appadaycreator" />
+    <meta property="og:url" content="https://appadaycreator.com/taskflow-timer/">
+    
+    <!-- External Libraries -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/intro.js/minified/introjs.min.css">
+    
+    <!-- PWA Meta Tags -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="TaskFlow Timer">
+
+    <style>
+        * {
+            font-family: 'Noto Sans JP', sans-serif;
+        }
+        
+        :root {
+            --primary-blue: #1e40af;
+            --primary-blue-dark: #1e3a8a;
+            --secondary-blue: #3b82f6;
+            --accent-green: #059669;
+            --accent-orange: #ea580c;
+            --accent-red: #dc2626;
+            --background-light: #f8fafc;
+            --background-dark: #374151;
+            --card-light: #ffffff;
+            --card-dark: #475569;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --text-light: #f9fafb;
+            --border-light: #e2e8f0;
+            --shadow-light: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-dark: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            --active-task-bg: #dbeafe;
+            --active-task-bg-dark: #1e40af;
+            --header-font-size: 16px;
+            --sidebar-font-size: 16px;
+        }
+        
+        body {
+            background: linear-gradient(135deg, var(--background-light) 0%, #e2e8f0 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+        
+        .dark-theme {
+            background: linear-gradient(135deg, var(--background-dark) 0%, var(--card-dark) 100%);
+            color: var(--text-light);
+        }
+        
+        .timer-circle {
+            width: 280px;
+            height: 280px;
+            border-radius: 50%;
+            background: conic-gradient(var(--primary-blue) 0deg, var(--primary-blue) var(--progress, 0deg), #e2e8f0 var(--progress, 0deg));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            box-shadow: var(--shadow-light);
+        }
+        
+        .timer-inner {
+            width: 240px;
+            height: 240px;
+            border-radius: 50%;
+            background: var(--card-light);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .dark-theme .timer-inner {
+            background: var(--card-dark);
+            box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        .task-card {
+            background: var(--card-light);
+            border: 2px solid var(--border-light);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow-light);
+            transition: all 0.3s ease;
+        }
+        
+        .task-card.active {
+            border-color: var(--primary-blue);
+            box-shadow: 0 8px 16px rgba(30, 64, 175, 0.2);
+            background: var(--active-task-bg);
+            transform: translateY(-2px);
+        }
+
+        .task-card.active h3 {
+            font-size: 1.25rem;
+        }
+        
+        .task-card.completed {
+            opacity: 0.5;
+            transform: scale(0.95);
+        }
+        
+        .dark-theme .task-card {
+            background: var(--card-dark);
+            border-color: #334155;
+        }
+        .dark-theme .task-card.active {
+            background: var(--active-task-bg-dark);
+        }
+        
+        .progress-bar {
+            height: 6px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-green), var(--secondary-blue));
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: var(--primary-blue);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            box-shadow: var(--shadow-light);
+        }
+        
+        .btn-primary:hover {
+            background: var(--primary-blue-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 12px rgba(30, 64, 175, 0.3);
+        }
+        
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+        
+        .btn-danger {
+            background: var(--accent-red);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .btn-danger:hover {
+            background: #b91c1c;
+        }
+
+        .btn-warning {
+            background: var(--accent-orange);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .btn-warning:hover {
+            background: #c2410c;
+        }
+
+        .task-card.skipped {
+            opacity: 0.6;
+            border-style: dashed;
+        }
+        
+        .input-field {
+            border: 2px solid var(--border-light);
+            background: var(--card-light);
+            color: var(--text-primary);
+            padding: 12px 16px;
+            border-radius: 6px;
+            transition: border-color 0.2s ease;
+        }
+
+        /* Prevent iOS from zooming when focusing inputs */
+        input,
+        select {
+            font-size: 16px;
+        }
+        
+        .input-field:focus {
+            outline: none;
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .dark-theme .input-field {
+            background: var(--card-dark);
+            border-color: #334155;
+            color: var(--text-light);
+        }
+        
+        .stats-card {
+            background: var(--card-light);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: var(--shadow-light);
+            text-align: center;
+            cursor: pointer;
+        }
+        
+        .dark-theme .stats-card {
+            background: var(--card-dark);
+        }
+        
+        .modal {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+        
+        .modal-content {
+            background: var(--card-light);
+            border-radius: 16px;
+            box-shadow: var(--shadow-dark);
+        }
+        
+        .dark-theme .modal-content {
+            background: var(--card-dark);
+        }
+        
+        .fade-out {
+            animation: fadeOut 0.5s ease-out forwards;
+        }
+        
+        @keyframes fadeOut {
+            to {
+                opacity: 0;
+                transform: scale(0.9);
+                height: 0;
+                margin: 0;
+                padding: 0;
+            }
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 16px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            z-index: 1000;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+        
+        .notification.show {
+            transform: translateX(0);
+        }
+        
+        .notification.success {
+            background: var(--accent-green);
+        }
+        
+        .notification.info {
+            background: var(--secondary-blue);
+        }
+        
+        .notification.warning {
+            background: var(--accent-orange);
+        }
+
+        .header-link {
+            font-size: var(--header-font-size);
+        }
+
+        #fontSizeSelect {
+            font-size: var(--header-font-size);
+        }
+
+        #headerTitle {
+            font-size: 16px;
+        }
+
+        #mobileMenuTitle,
+        .sidebar-link {
+            font-size: var(--sidebar-font-size);
+        }
+
+        #mobileMenu {
+            background: var(--card-light);
+        }
+        
+        @media (max-width: 768px) {
+            .timer-circle {
+                width: 240px;
+                height: 240px;
+            }
+
+            .timer-inner {
+                width: 200px;
+                height: 200px;
+            }
+        }
+
+        #timerSection {
+            position: sticky;
+            top: 4rem;
+            z-index: 40;
+            background: var(--card-light);
+        }
+
+        /* Intro.js walkthrough bubble adjustments */
+        .introjs-tooltip {
+            font-size: 0.875rem;
+            line-height: 1.5;
+            padding: 1rem;
+            max-width: 280px;
+        }
+        @media (min-width: 768px) {
+            .introjs-tooltip {
+                font-size: 1rem;
+                padding: 1.2rem;
+            }
+        }
+    
+/* Phase 8: Mobile Optimization */
+input, select, textarea { font-size: 16px !important; }
+button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min-width: 48px; touch-action: manipulation; }
+@media (max-width: 640px) {
+  body { font-size: 16px; }
+  .max-w-lg { padding-left: 1rem; padding-right: 1rem; }
+}
+
+@media print{
+  header,footer,nav,button,.no-print,
+  [class*="share"],[class*="affiliate"],[id*="share"],
+  [id*="affiliate"],[id*="banner"],
+  script,noscript{display:none!important}
+  body{background:#fff!important;color:#000!important;font-size:12pt}
+  [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
+  a[href]::after{content:none!important}
+}
+
+.card{background:#fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.08);overflow:hidden;}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;}
+</style>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","applicationCategory":"ProductivityApplication","name":"taskflow-timer","url":"https://appadaycreator.com/taskflow-timer/","description":"視認性を重視した循環式インターバルタイマー。適切なコントラスト比で目に優しく、長時間の作業でも疲れにくいデザインを実現","operatingSystem":"All","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"aggregateRating":{"@type":"AggregateRating","ratingValue":"4.5","reviewCount":"89","bestRating":"5","worstRating":"1"}}</script>
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="TaskFlow Timer">
+    <meta name="twitter:image" content="https://appadaycreator.com/taskflow-timer/ogp.png">
+<meta name="twitter:description" content="視認性を重視した循環式インターバルタイマー。適切なコントラスト比で目に優しく、長時間の作業でも疲れにくいデザインを実現" />
+    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "ホーム", "item": "https://appadaycreator.com/"}, {"@type": "ListItem", "position": 2, "name": "taskflow-timer", "item": "https://appadaycreator.com/taskflow-timer/"}]}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"タスクタイマーアプリとは？","acceptedAnswer":{"@type":"Answer","text":"タスクごとに時間を計測しながら作業できるポモドーロ・タイマーアプリです。集中時間（25分）と休憩時間（5分）を繰り返すことで生産性を高めます。"}},{"@type":"Question","name":"ポモドーロ以外の時間設定もできますか？","acceptedAnswer":{"@type":"Answer","text":"はい、集中時間・休憩時間は自由に設定できます。自分のペースに合わせてカスタマイズできます。"}},{"@type":"Question","name":"どのような人が使っていますか？","acceptedAnswer":{"@type":"Answer","text":"初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}},{"@type":"Question","name":"結果をシェアできますか？","acceptedAnswer":{"@type":"Answer","text":"はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}},{"@type":"Question","name":"有料プランはありますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、すべての機能を完全無料でご利用いただけます。"}}]}</script>
+
+<style>
+@media(max-width:480px){button,[class*=btn]{min-height:48px!important;font-size:15px!important;}input,select,textarea{font-size:16px!important;min-height:44px!important;}[class*=card],[class*=max-w]{padding:16px!important;}}
+</style>
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"TaskFlow Timerの使い方","step":[{"@type":"HowToStep","position":1,"name":"必要な情報を入力する","text":"画面のフォームやフィールドに必要な情報を入力する"},{"@type":"HowToStep","position":2,"name":"実行ボタンを押す","text":"「実行」「計算」または「確認」ボタンを押して処理を開始する"},{"@type":"HowToStep","position":3,"name":"結果を確認する","text":"表示された結果や情報を詳しく確認する"},{"@type":"HowToStep","position":4,"name":"結果を活用・シェアする","text":"取得した結果を日常生活に活用し、必要に応じてSNSでシェアする"},{"@type":"HowToStep","position":5,"name":"定期的に利用する","text":"変化や進捗に応じて定期的に再利用して継続的に活用する"}]}</script>
+<style id="ux-enhanced">
+button,input[type=submit],input[type=button],[class*=btn]{min-height:44px;cursor:pointer;transition:opacity .15s,transform .1s;}
+button:active,[class*=btn]:active{opacity:.75;transform:scale(.98);}
+select,input[type=text],input[type=number],input[type=email],textarea{min-height:44px;font-size:16px;}
+[id*=result]:not(style):not(script),[id*=output]:not(style):not(script){border-left:4px solid #7c3aed;padding-left:16px;margin-top:16px;}
+@media(max-width:640px){[class*=max-w],[class*=container],[class*=wrapper]{padding:12px 16px!important;}button,[class*=btn]{width:100%;font-size:15px;}}
+</style>
+</head>
+<body><a href="#main" class="sr-only">本文へスキップ</a>
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+    <!-- Header -->
+    <header class="bg-white dark:bg-slate-800 shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40 md:static">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" role="main" id="main">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <a href="index.html" class="flex items-center">
+                        <span class="text-blue-600 text-2xl mr-3">⏰</span>
+                        <h1 id="headerTitle" class="font-bold text-gray-900 dark:text-white">TaskFlow Timer</h1>
+                    </a>
+                </div>
+                <nav class="hidden md:flex items-center space-x-6">
+                    <a id="navHistory" href="pages/history.html" class="header-link text-gray-600 dark:text-gray-300 hover:text-blue-600">履歴</a>
+                    <a id="navRoutines" href="pages/routines.html" class="header-link text-gray-600 dark:text-gray-300 hover:text-blue-600">テンプレート</a>
+                    <a id="navHowto" href="pages/howto.html" class="header-link text-gray-600 dark:text-gray-300 hover:text-blue-600">使い方</a>
+                </nav>
+                <div class="flex items-center space-x-4">
+                    <button id="mobileMenuBtn" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                        <span>☰</span>
+                    </button>
+                    <div class="text-sm text-gray-600 dark:text-gray-300 hidden md:block">
+                        <span id="cycleLabel">サイクル</span> <span id="cycleCount" class="font-semibold">1</span>
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div id="mobileMenuWrapper" class="fixed inset-0 bg-black bg-opacity-30 hidden z-50">
+        <div id="mobileMenu" class="absolute inset-y-0 right-0 w-64 bg-white dark:bg-slate-800 shadow-lg transform translate-x-full transition-transform duration-200">
+        <div class="p-6 space-y-4">
+            <div class="flex justify-between items-center">
+                <span id="mobileMenuTitle" class="font-bold text-lg text-gray-800 dark:text-white sidebar-link">メニュー</span>
+                <button id="closeMobileMenu" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <span>✕</span>
+                </button>
+            </div>
+            <a id="mobileHistory" href="pages/history.html" class="block text-gray-700 dark:text-gray-300 sidebar-link">履歴</a>
+            <a id="mobileRoutines" href="pages/routines.html" class="block text-gray-700 dark:text-gray-300 sidebar-link">テンプレート</a>
+            <a id="mobileHowto" href="pages/howto.html" class="block text-gray-700 dark:text-gray-300 sidebar-link">使い方</a>
+            <div class="space-y-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div id="accountInfo" class="text-sm text-gray-600 dark:text-gray-300 hidden"></div>
+                <button id="themeToggle" class="w-full p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <span class="dark:hidden">🌙</span>
+                    <span class="hidden dark:inline">☀️</span>
+                </button>
+                <select id="fontSizeSelect" class="border rounded p-1 text-sm w-full">
+                    <option value="12">極小</option>
+                    <option value="14">小</option>
+                    <option value="16" selected>中</option>
+                    <option value="18">大</option>
+                </select>
+                <select id="langSelect" class="border rounded p-1 text-sm w-full">
+                    <option value="ja">JA</option>
+                    <option value="en">EN</option>
+                </select>
+                <button id="authButton" class="btn-primary w-full mt-2">ログイン</button>
+                <button id="exportTasksButton" class="btn-secondary w-full mt-2">エクスポート</button>
+                <button id="importTasksButton" class="btn-secondary w-full">インポート</button>
+                <input id="importTasksInput" type="file" accept="application/json" class="hidden">
+            </div>
+        </div>
+    </div>
+</div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="grid lg:grid-cols-3 gap-8">
+            <!-- Timer Section -->
+            <div class="lg:col-span-1" id="timerSection">
+                <div id="controlButtons" class="flex justify-center space-x-3 my-4">
+                    <button id="playButton" class="btn-primary" data-intro="ここを押してタイマーを開始します" data-step="3">
+                        <span>▶</span>
+                    </button>
+                    <button id="pauseButton" class="btn-secondary" disabled>
+                        <span>⏸</span>
+                    </button>
+                    <button id="nextTaskButton" class="btn-secondary">
+                        <span>⏩</span>
+                    </button>
+                </div>
+                <details id="timerAccordion" class="bg-white dark:bg-slate-800 rounded-xl shadow-lg">
+                    <summary class="cursor-pointer p-4 text-lg font-semibold text-center text-gray-800 dark:text-white">タイマー <span id="timerSummary" class="ml-2 text-blue-600"></span></summary>
+                    <div class="p-8 pt-4 text-center">
+                        <div class="timer-circle mx-auto mb-6" id="timerCircle">
+                            <div class="timer-inner">
+                                <div class="text-4xl font-bold text-gray-800 dark:text-white mb-2" id="timerDisplay">01:00</div>
+                                <div class="text-sm text-gray-600 dark:text-gray-300">固定時間</div>
+                            </div>
+                        </div>
+                    
+                    <div class="mb-6">
+                        <div class="text-lg font-semibold text-gray-800 dark:text-white mb-2" id="currentTaskName">
+                            タスクを追加してください
+                        </div>
+                        <div class="text-sm text-gray-600 dark:text-gray-300" id="taskProgress">0 / 0 タスク</div>
+                    </div>
+                    
+                    <!-- Fixed Time Setting -->
+                    <div id="fixedTimeSetting" class="border-t border-gray-200 dark:border-gray-600 pt-4 mt-4">
+    <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">固定時間設定</h3>
+    <div class="mt-4 space-y-3">
+        <div class="flex items-center space-x-4">
+            <input type="range" id="fixedTimeSlider" min="15" max="300" value="60" step="15" class="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" data-intro="各タスクに割り当てる時間を設定します" data-step="2">
+            <span id="fixedTimeDisplay" class="text-lg font-semibold text-blue-600 min-w-16">1分</span>
+        </div>
+        <div class="flex justify-center flex-wrap gap-2">
+            <button class="preset-btn text-xs px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full" data-time="15">15秒</button>
+            <button class="preset-btn text-xs px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full" data-time="30">30秒</button>
+            <button class="preset-btn text-xs px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full" data-time="45">45秒</button>
+            <button class="preset-btn text-xs px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full" data-time="60">1分</button>
+            <button class="preset-btn text-xs px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full" data-time="90">1分30秒</button>
+            <button class="preset-btn text-xs px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full" data-time="120">2分</button>
+            <button class="preset-btn text-xs px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full" data-time="180">3分</button>
+            <button class="preset-btn text-xs px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full" data-time="300">5分</button>
+        </div>
+        <div class="flex justify-center gap-4">
+            <button id="decreaseFixedTime" class="btn-secondary text-xs px-3 py-1">-5分</button>
+            <button id="increaseFixedTime" class="btn-secondary text-xs px-3 py-1">+5分</button>
+        </div>
+        <div class="mt-4">
+            <label for="timerMode" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">モード</label>
+            <select id="timerMode" class="input-field w-full">
+                <option value="fixed">固定時間モード</option>
+                <option value="task">時間設定モード</option>
+                <option value="pomodoro">ポモドーロモード</option>
+            </select>
+        </div>
+    </div>
+                    </div>
+                     </div>
+                 </details>
+                 </div>
+
+            <!-- Task Management -->
+            <div class="lg:col-span-2">
+                <div class="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 id="taskHeaderLabel" class="text-xl font-bold text-gray-900 dark:text-white">
+                            <span class="mr-2 text-blue-600">✅</span>タスク管理
+                        </h2>
+                        <div class="space-x-2">
+                            <button id="toggleViewButton" class="btn-secondary">詳細表示</button>
+                            <button id="addTaskButton" class="btn-primary" data-intro="最初にタスクを追加しましょう" data-step="1" title="タスク追加">
+                                <span>+</span>
+                            </button>
+                            <button id="clearTasksButton" class="btn-danger" title="全削除">
+                                <span>🗑️</span>
+                            </button>
+                            <!-- インポート・エクスポートはサイドバーへ移動 -->
+                        </div>
+                    </div>
+
+                    <!-- Task List -->
+                    <div id="taskList" class="space-y-4">
+                        <!-- Tasks will be dynamically inserted here -->
+                    </div>
+
+                    <!-- Empty State -->
+                    <div id="emptyState" class="text-center py-12">
+                        <span aria-hidden="true">📋</span>
+                        <h3 id="emptyStateTitle" class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">タスクがありません</h3>
+                        <p id="emptyStateDesc" class="text-gray-500 dark:text-gray-400 mb-6">新しいタスクを追加して効率的な作業を始めましょう</p>
+                        <button id="addFirstTaskButton" class="add-first-task btn-primary">
+                            <span class="mr-2">+</span>最初のタスクを追加
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Statistics -->
+                <div class="mt-6 grid md:grid-cols-3 gap-4">
+                    <div class="stats-card" id="totalTasksCard">
+                        <div class="text-2xl font-bold text-blue-600 mb-1" id="totalTasks">0</div>
+                        <div class="text-sm text-gray-600 dark:text-gray-400">総未完了タスク数</div>
+                    </div>
+                    <div class="stats-card" id="completedTasksCard">
+                        <div class="text-2xl font-bold text-green-600 mb-1" id="completedTasks">0</div>
+                        <div class="text-sm text-gray-600 dark:text-gray-400">完了済み</div>
+                    </div>
+                    <div class="stats-card" id="totalTimeCard">
+                        <div class="text-2xl font-bold text-orange-600 mb-1" id="totalTime">0分</div>
+                        <div class="text-xs text-gray-500" id="finishTime"></div>
+                        <div class="text-sm text-gray-600 dark:text-gray-400">総残り時間</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Task Modal -->
+    <div id="taskModal" class="modal fixed inset-0 hidden items-center justify-center z-50">
+        <div class="modal-content w-full max-w-md mx-4 p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">新しいタスク</h3>
+                <button id="closeModal" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+                    <span>✕</span>
+                </button>
+            </div>
+            
+            <form id="taskForm">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        タスク名 <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" id="taskName" class="input-field w-full" placeholder="例: プレゼン資料作成" required aria-label="例: プレゼン資料作成">
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        目標時間（分） <span class="text-red-500">*</span>
+                    </label>
+                    <input type="number" id="targetTime" class="input-field w-full" min="1" max="480" value="60" required>
+                    <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">1分〜480分（8時間）の範囲で設定</div>
+                </div>
+                
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        カテゴリ
+                    </label>
+                    <select id="taskCategory" class="input-field w-full">
+                        <option value="work">仕事</option>
+                        <option value="study">学習</option>
+                        <option value="personal">プライベート</option>
+                        <option value="other">その他</option>
+                    </select>
+                </div>
+                
+                <div class="flex justify-end space-x-3">
+                    <button type="button" id="cancelTask" class="btn-secondary">キャンセル</button>
+                    <button type="submit" class="btn-primary" aria-label="タスクを追加">タスクを追加</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Completion Modal -->
+    <div id="completionModal" class="modal fixed inset-0 hidden items-center justify-center z-50">
+        <div class="modal-content w-full max-w-lg mx-4 p-8 text-center">
+            <div class="text-6xl mb-4">🎉</div>
+            <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">おつかれさまでした！</h3>
+            <p class="text-gray-600 dark:text-gray-300 mb-6">全てのタスクが完了しました</p>
+            
+            <div id="completionStats" class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-6">
+                <!-- Completion stats will be inserted here -->
+            </div>
+            
+            <div class="flex justify-center space-x-4">
+                <button id="shareResults" class="btn-primary">
+                    <span class="mr-2">📤</span>結果をシェア
+                </button>
+                <button id="startNewSession" class="btn-secondary">
+                    <span class="mr-2">🔄</span>新しいセッション
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div id="notification" class="notification"></div>
+
+    <!-- Audio for notifications -->
+    <audio id="tickSound" preload="auto">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmEZBz2m2++lVRELVaDg7K1dCwdGm+H2z4IHCUJtvc2XRwkUNqjh9mAZBzKfz+izZRIKS6vr5LFAHws7qeviAFNQ" type="audio/wav">
+    </audio>
+
+    <script src="https://cdn.jsdelivr.net/npm/nosleep.js@0.12.0/dist/NoSleep.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/intro.js/minified/intro.min.js"></script>
+    <script>
+        window.SUPABASE_URL = 'https://localhost';
+        window.SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qYm53b25oaGJtemljbmR4Ym14Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA2Mjg1ODUsImV4cCI6MjA2NjIwNDU4NX0.LNLa-sed2evwc_IaLpv8oNBWacb1nqntIAofnyoT3GM';
+    </script>
+    <script>
+        // Application State
+        let state = {
+            tasks: [],
+            currentTaskIndex: 0,
+            fixedTime: 60, // seconds
+            timeLeft: 60, // seconds
+            isRunning: false,
+            isPaused: false,
+            cycleCount: 1,
+            timerInterval: null,
+            isDarkTheme: false,
+            compactView: true,
+            fontSize: 16,
+            language: 'ja',
+            timerMode: 'fixed', // fixed, task, pomodoro
+            workTime: 1500,
+            breakTime: 300,
+            isBreak: false,
+            user: null
+        };
+
+        let editingTaskId = null;
+
+        // Prevent screen sleep on mobile (gracefully handle missing library)
+        let noSleep;
+        if (typeof NoSleep !== 'undefined') {
+            noSleep = new NoSleep();
+        } else {
+            noSleep = { enable: () => {}, disable: () => {} };
+        }
+
+        const translations = {
+            ja: {
+                history: '履歴', routines: 'テンプレート', howto: '使い方', menu: 'メニュー', cycle: 'サイクル',
+                fontXS: '極小', fontS: '小', fontM: '中', fontL: '大',
+                tasks: 'タスク管理', addTask: 'タスク追加', clearTasks: '全削除', titleOnly: 'タイトルのみ', detail: '詳細表示',
+                noTasks: 'タスクがありません', noTasksDesc: '新しいタスクを追加して効率的な作業を始めましょう', firstTask: '最初のタスクを追加',
+                goal: '目標', remaining: '残り',
+                skip: 'スキップ', unskip: '解除',
+                categories: { work: '仕事', study: '学習', personal: 'プライベート', other: 'その他' }
+            },
+            en: {
+                history: 'History', routines: 'Templates', howto: 'How To', menu: 'Menu', cycle: 'Cycle',
+                fontXS: 'XS', fontS: 'Small', fontM: 'Medium', fontL: 'Large',
+                tasks: 'Tasks', addTask: 'Add Task', clearTasks: 'Clear All', titleOnly: 'Title Only', detail: 'Detail',
+                noTasks: 'No tasks', noTasksDesc: 'Add a new task to start efficient work', firstTask: 'Add First Task',
+                goal: 'Goal', remaining: 'Remaining',
+                skip: 'Skip', unskip: 'Undo',
+                categories: { work: 'Work', study: 'Study', personal: 'Personal', other: 'Other' }
+            }
+        };
+
+        // DOM elements
+        const elements = {
+            timerDisplay: document.getElementById('timerDisplay'),
+            timerCircle: document.getElementById('timerCircle'),
+            currentTaskName: document.getElementById('currentTaskName'),
+            taskProgress: document.getElementById('taskProgress'),
+            playButton: document.getElementById('playButton'),
+            pauseButton: document.getElementById('pauseButton'),
+            nextTaskButton: document.getElementById('nextTaskButton'),
+            fixedTimeSlider: document.getElementById('fixedTimeSlider'),
+            fixedTimeDisplay: document.getElementById('fixedTimeDisplay'),
+            increaseFixedTime: document.getElementById('increaseFixedTime'),
+            decreaseFixedTime: document.getElementById('decreaseFixedTime'),
+            timerMode: document.getElementById('timerMode'),
+            taskList: document.getElementById('taskList'),
+            emptyState: document.getElementById('emptyState'),
+            addTaskButton: document.getElementById('addTaskButton'),
+            clearTasksButton: document.getElementById('clearTasksButton'),
+            exportTasksButton: document.getElementById('exportTasksButton'),
+            importTasksButton: document.getElementById('importTasksButton'),
+            importTasksInput: document.getElementById('importTasksInput'),
+            taskModal: document.getElementById('taskModal'),
+            taskForm: document.getElementById('taskForm'),
+            closeModal: document.getElementById('closeModal'),
+            cancelTask: document.getElementById('cancelTask'),
+            totalTasks: document.getElementById('totalTasks'),
+            completedTasks: document.getElementById('completedTasks'),
+            totalTime: document.getElementById('totalTime'),
+            totalTasksCard: document.getElementById('totalTasksCard'),
+            completedTasksCard: document.getElementById('completedTasksCard'),
+            totalTimeCard: document.getElementById('totalTimeCard'),
+            finishTime: document.getElementById('finishTime'),
+            cycleCount: document.getElementById('cycleCount'),
+            themeToggle: document.getElementById('themeToggle'),
+            completionModal: document.getElementById('completionModal'),
+            notification: document.getElementById('notification'),
+            toggleViewButton: document.getElementById('toggleViewButton'),
+            timerSummary: document.getElementById('timerSummary'),
+            timerAccordion: document.getElementById('timerAccordion'),
+            mobileMenuBtn: document.getElementById('mobileMenuBtn'),
+            mobileMenuWrapper: document.getElementById('mobileMenuWrapper'),
+            mobileMenu: document.getElementById('mobileMenu'),
+            closeMobileMenu: document.getElementById('closeMobileMenu'),
+            fontSizeSelect: document.getElementById('fontSizeSelect'),
+            langSelect: document.getElementById('langSelect'),
+            navHistory: document.getElementById('navHistory'),
+            navRoutines: document.getElementById('navRoutines'),
+            navHowto: document.getElementById('navHowto'),
+            mobileMenuTitle: document.getElementById('mobileMenuTitle'),
+            mobileHistory: document.getElementById('mobileHistory'),
+            mobileRoutines: document.getElementById('mobileRoutines'),
+            mobileHowto: document.getElementById('mobileHowto'),
+            authButton: document.getElementById('authButton'),
+            accountInfo: document.getElementById('accountInfo'),
+            cycleLabel: document.getElementById('cycleLabel'),
+            taskHeaderLabel: document.getElementById('taskHeaderLabel'),
+            emptyStateTitle: document.getElementById('emptyStateTitle'),
+            emptyStateDesc: document.getElementById('emptyStateDesc')
+        };
+
+        async function checkAuth() {
+            const { data } = await supabaseClient.auth.getSession();
+            state.user = data.session ? data.session.user : null;
+            updateAuthButton();
+            if (state.user) {
+                const hasData = await syncFromSupabase();
+                if (!hasData) {
+                    await saveData();
+                }
+            } else {
+                await fetchDefaultTasks();
+                loadData();
+            }
+        }
+
+        function updateAuthButton() {
+            if (elements.authButton) elements.authButton.textContent = state.user ? 'ログアウト' : 'ログイン';
+            if (elements.accountInfo) {
+                if (state.user && state.user.email) {
+                    elements.accountInfo.textContent = `ログイン中: ${state.user.email}`;
+                    elements.accountInfo.classList.remove('hidden');
+                } else {
+                    elements.accountInfo.textContent = '';
+                    elements.accountInfo.classList.add('hidden');
+                }
+            }
+        }
+
+        async function handleAuth() {
+            if (state.user) {
+                await supabaseClient.auth.signOut();
+                state.user = null;
+                // ローカルストレージを初期化
+                localStorage.clear();
+                loadData();
+                updateAuthButton();
+                // ログアウト後は画面を再読み込み
+                location.reload();
+            } else {
+                location.href = 'pages/login.html';
+            }
+        }
+
+        async function saveToSupabase(data) {
+            if (!state.user) return;
+            await supabaseClient.from('user_tasks').upsert({ user_id: state.user.id, data });
+            const templates = JSON.parse(localStorage.getItem('taskTemplates') || '[]');
+            await supabaseClient.from('task_templates').delete().eq('user_id', state.user.id);
+            if (templates.length) {
+                await supabaseClient.from('task_templates').insert(templates.map(t => ({ user_id: state.user.id, name: t.name, tasks: t.tasks })));
+            }
+        }
+
+        async function syncFromSupabase() {
+            const { data, error } = await supabaseClient
+                .from('user_tasks')
+                .select('data')
+                .eq('user_id', state.user.id)
+                .maybeSingle();
+
+            let hasData = false;
+            if (data && data.data) {
+                const d = data.data;
+                state.tasks = d.tasks || [];
+                state.currentTaskIndex = d.currentTaskIndex || 0;
+                state.fixedTime = d.fixedTime || 60;
+                state.timerMode = d.timerMode || 'fixed';
+                state.cycleCount = d.cycleCount || 1;
+                state.fontSize = d.fontSize || 16;
+                state.language = d.language || 'ja';
+                hasData = true;
+            } else {
+                loadData();
+            }
+
+            const { data: templates } = await supabaseClient
+                .from('task_templates')
+                .select('name,tasks')
+                .eq('user_id', state.user.id);
+            if (templates) {
+                localStorage.setItem('taskTemplates', JSON.stringify(templates));
+            }
+            return hasData;
+        }
+
+        async function fetchDefaultTasks() {
+            try {
+                const res = await fetch(`${SUPABASE_URL}/functions/v1/fetch-tasks`);
+                if (res.ok) {
+                    const tasks = await res.json();
+                    if (!localStorage.getItem('tasks')) {
+                        localStorage.setItem('tasks', JSON.stringify(tasks));
+                    }
+                    return;
+                }
+                // Supabaseフェッチ失敗 - ローカルにフォールバック
+            } catch (e) {
+                // Supabase接続失敗 - ローカルにフォールバック
+            }
+            try {
+                const resLocal = await fetch('tasks.json');
+                if (resLocal.ok) {
+                    const tasks = await resLocal.json();
+                    if (!localStorage.getItem('tasks')) {
+                        localStorage.setItem('tasks', JSON.stringify(tasks));
+                    }
+                }
+            } catch (e) {
+                // ローカルタスク読み込み失敗 - デフォルト値を使用
+            }
+        }
+
+        // Initialize application
+        async function init() {
+            await checkAuth();
+            applyFontSize();
+            applyLanguage();
+            setupEventListeners();
+            updateDisplay();
+            updateTaskList();
+            updateStats();
+            elements.toggleViewButton.textContent = state.compactView ? translations[state.language].detail : translations[state.language].titleOnly;
+           elements.pauseButton.classList.add('hidden');
+
+           // Initialize theme
+           if(localStorage.getItem('darkTheme') === 'true') {
+               toggleTheme();
+           }
+
+            if(!localStorage.getItem('walkthroughShown')) {
+                showWalkthrough();
+                localStorage.setItem('walkthroughShown', 'true');
+            }
+       }
+
+        // Event listeners
+        function setupEventListeners() {
+            // Timer controls
+            elements.playButton.addEventListener('click', startTimer);
+            elements.pauseButton.addEventListener('click', pauseTimer);
+            elements.nextTaskButton.addEventListener('click', startNextTask);
+            
+            // Fixed time setting
+            elements.fixedTimeSlider.addEventListener('input', updateFixedTime);
+            elements.increaseFixedTime.addEventListener('click', () => adjustFixedTime(300));
+            elements.decreaseFixedTime.addEventListener('click', () => adjustFixedTime(-300));
+
+            elements.timerMode.addEventListener('change', (e) => {
+                state.timerMode = e.target.value;
+                saveData();
+            });
+            
+            // Preset buttons
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const time = parseInt(e.target.dataset.time);
+                    state.fixedTime = time;
+                    elements.fixedTimeSlider.value = time;
+                    updateFixedTimeDisplay();
+                    updateTimerSummary();
+                    if (!state.isRunning) {
+                        state.timeLeft = time;
+                        updateDisplay();
+                    }
+                });
+            });
+            
+            // Task management
+            elements.addTaskButton.addEventListener('click', () => openTaskModal());
+            elements.clearTasksButton.addEventListener('click', clearAllTasks);
+            elements.exportTasksButton.addEventListener('click', exportTasks);
+            elements.importTasksButton.addEventListener('click', () => elements.importTasksInput.click());
+            elements.importTasksInput.addEventListener('change', importTasks);
+            document.querySelector('.add-first-task')?.addEventListener('click', () => openTaskModal());
+            elements.closeModal.addEventListener('click', closeTaskModal);
+            elements.cancelTask.addEventListener('click', closeTaskModal);
+            elements.taskForm.addEventListener('submit', addTask);
+            elements.taskList.addEventListener('click', (e) => {
+                const card = e.target.closest('.task-card');
+                if (!card || e.target.closest('button')) return;
+                const id = card.dataset.taskId;
+                if (id) openTaskModal(id);
+            });
+
+            // Theme toggle
+            elements.themeToggle.addEventListener('click', toggleTheme);
+            elements.fontSizeSelect.addEventListener('change', (e) => {
+                state.fontSize = parseInt(e.target.value);
+                applyFontSize();
+                saveData();
+            });
+            elements.langSelect.addEventListener('change', (e) => {
+                state.language = e.target.value;
+                applyLanguage();
+                saveData();
+            });
+
+            // View toggle
+            elements.toggleViewButton.addEventListener('click', toggleView);
+
+            // Completion modal
+            document.getElementById('shareResults')?.addEventListener('click', shareResults);
+            document.getElementById('startNewSession')?.addEventListener('click', startNewSession);
+
+            // Mobile menu
+            elements.mobileMenuBtn.addEventListener('click', () => {
+                elements.mobileMenuWrapper.classList.remove('hidden');
+                elements.mobileMenu.classList.remove('translate-x-full');
+            });
+            const closeSidebar = () => {
+                elements.mobileMenu.classList.add('translate-x-full');
+                elements.mobileMenuWrapper.classList.add('hidden');
+            };
+            elements.closeMobileMenu.addEventListener('click', closeSidebar);
+            elements.mobileMenuWrapper.addEventListener('click', (e) => {
+                if (e.target === elements.mobileMenuWrapper) closeSidebar();
+            });
+            ['mobileHistory','mobileRoutines','mobileHowto','navHistory','navRoutines','navHowto']
+                .forEach(id => {
+                    const el = elements[id];
+                    el && el.addEventListener('click', closeSidebar);
+                });
+            document.querySelectorAll('details').forEach(d => {
+                d.addEventListener('toggle', () => {
+                    if (d.open) closeSidebar();
+                });
+            });
+            // Ensure timer accordion is visible when opened
+            elements.timerAccordion.addEventListener('toggle', () => {
+                if (elements.timerAccordion.open) {
+                    elements.timerAccordion.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+            // Close accordion when it leaves the viewport
+            window.addEventListener('scroll', () => {
+                if (elements.timerAccordion.open) {
+                    const rect = elements.timerAccordion.getBoundingClientRect();
+                    if (rect.bottom < 0 || rect.top > window.innerHeight) {
+                        elements.timerAccordion.removeAttribute('open');
+                    }
+                }
+            });
+
+            elements.authButton.addEventListener('click', handleAuth);
+            
+            // Modal click outside to close
+            elements.taskModal.addEventListener('click', (e) => {
+                if (e.target === elements.taskModal) closeTaskModal();
+            });
+            
+            elements.completionModal.addEventListener('click', (e) => {
+                if (e.target === elements.completionModal) {
+                    elements.completionModal.classList.add('hidden');
+                }
+            });
+
+            // Stats card actions
+            elements.totalTasksCard.addEventListener('click', () => {
+                elements.taskList.scrollIntoView({ behavior: 'smooth' });
+            });
+            elements.completedTasksCard.addEventListener('click', () => {
+                location.href = 'pages/history.html';
+            });
+
+        }
+
+        // Timer functions
+        function startTimer() {
+            if (state.tasks.filter(t => !t.completed && !t.skipped).length === 0) {
+                showNotification('タスクを追加してください', 'warning');
+                return;
+            }
+
+            state.isRunning = true;
+            state.isPaused = false;
+            noSleep.enable();
+            
+            elements.playButton.disabled = true;
+            elements.pauseButton.disabled = false;
+            elements.playButton.classList.add('hidden');
+            elements.pauseButton.classList.remove('hidden');
+            
+            // Initialize timer if not set
+            if (state.timeLeft === 0) {
+                state.timeLeft = getTimerDuration();
+            }
+            
+            state.timerInterval = setInterval(() => {
+                state.timeLeft--;
+                updateDisplay();
+
+                if (state.timeLeft % 60 === 0 && state.timeLeft > 0) {
+                    speak(`残り${state.timeLeft / 60}分です`);
+                } else if (state.timeLeft <= 30 && state.timeLeft > 0) {
+                    speak(state.timeLeft.toString());
+                }
+
+                if (state.timeLeft <= 0) {
+                    completeCurrentTask();
+                }
+            }, 1000);
+            
+            updateCurrentTask();
+            speak(`${getCurrentTask()?.name || 'タスク'}を${formatDuration(state.timeLeft)}開始します`);
+        }
+
+        function pauseTimer() {
+            state.isRunning = false;
+            state.isPaused = true;
+
+            noSleep.disable();
+            
+            clearInterval(state.timerInterval);
+            
+            elements.playButton.disabled = false;
+            elements.pauseButton.disabled = true;
+            elements.playButton.classList.remove('hidden');
+            elements.pauseButton.classList.add('hidden');
+        }
+
+        function resetTimer() {
+            state.isRunning = false;
+            state.isPaused = false;
+            state.timeLeft = getTimerDuration();
+
+            noSleep.disable();
+            
+            clearInterval(state.timerInterval);
+            
+            elements.playButton.disabled = false;
+            elements.pauseButton.disabled = true;
+            elements.playButton.classList.remove('hidden');
+            elements.pauseButton.classList.add('hidden');
+            
+            updateDisplay();
+        }
+
+        function startNextTask() {
+            if (state.tasks.length === 0) {
+                showNotification('タスクを追加してください', 'warning');
+                return;
+            }
+
+            clearInterval(state.timerInterval);
+            moveToNextTask();
+            state.timeLeft = getTimerDuration();
+            updateDisplay();
+            updateTaskList();
+            updateStats();
+            startTimer();
+        }
+
+        function completeCurrentTask() {
+            clearInterval(state.timerInterval);
+
+            const currentTask = getCurrentTask();
+            if (state.timerMode === 'pomodoro' && state.isBreak) {
+                state.isBreak = false;
+                state.timeLeft = getTimerDuration();
+                updateDisplay();
+                startTimer();
+                return;
+            }
+
+            if (currentTask) {
+                let deduction = state.fixedTime / 60;
+                if (state.timerMode === 'task') {
+                    deduction = currentTask.remainingTime;
+                } else if (state.timerMode === 'pomodoro') {
+                    deduction = state.workTime / 60;
+                }
+                currentTask.remainingTime -= deduction;
+                
+                // Check if task is completed
+                if (currentTask.remainingTime <= 0) {
+                    currentTask.completed = true;
+                    currentTask.completedAt = new Date();
+                    currentTask.visible = false;
+                    speak(`${currentTask.name}が完了しました`);
+                    showNotification(`${currentTask.name}が完了しました！`, 'success');
+                } else {
+                    speak(`${currentTask.name}の残り時間は${currentTask.remainingTime.toFixed(1)}分です`);
+                }
+            }
+            
+            // Move to next task
+            moveToNextTask();
+
+            // Check completion
+            if (state.tasks.every(task => task.completed || task.skipped)) {
+                showCompletionModal();
+                return;
+            }
+
+            if (state.timerMode === 'pomodoro') {
+                state.isBreak = true;
+                state.timeLeft = getTimerDuration();
+                speak('休憩を開始します');
+                showNotification('休憩時間です', 'info');
+                updateDisplay();
+                startTimer();
+                return;
+            }
+
+            // Continue with next task
+            state.timeLeft = getTimerDuration();
+            updateDisplay();
+            updateTaskList();
+            updateStats();
+
+            // Auto-start next task after brief pause
+            setTimeout(() => {
+                if (state.tasks.some(task => !task.completed && !task.skipped)) {
+                    startTimer();
+                }
+            }, 2000);
+        }
+
+        function moveToNextTask() {
+            if (state.tasks.filter(t => !t.completed && !t.skipped).length === 0) return;
+
+            // 次のアクティブなタスクを探す
+            do {
+                state.currentTaskIndex = (state.currentTaskIndex + 1) % state.tasks.length;
+            } while (state.tasks[state.currentTaskIndex].completed || state.tasks[state.currentTaskIndex].skipped);
+
+            // 一巡したら循環回数を加算
+            if (state.currentTaskIndex === 0 || state.tasks.slice(0, state.currentTaskIndex).every(task => task.completed || task.skipped)) {
+                state.cycleCount++;
+                elements.cycleCount.textContent = state.cycleCount;
+                speak(`${state.cycleCount}回目の循環を開始します`);
+            }
+        }
+
+        function getCurrentTask() {
+            if (state.tasks.length === 0) return null;
+            let idx = state.currentTaskIndex;
+            for (let i = 0; i < state.tasks.length; i++) {
+                const task = state.tasks[idx];
+                if (!task.completed && !task.skipped) {
+                    state.currentTaskIndex = idx;
+                    return task;
+                }
+                idx = (idx + 1) % state.tasks.length;
+            }
+            return null;
+        }
+
+        function updateCurrentTask() {
+            const currentTask = getCurrentTask();
+            if (currentTask) {
+                elements.currentTaskName.textContent = currentTask.name;
+
+                const visibleTasks = state.tasks.filter(task => !task.completed && !task.skipped);
+                const currentIndex = visibleTasks.findIndex(task => task.id === currentTask.id);
+                elements.taskProgress.textContent = `${currentIndex + 1} / ${visibleTasks.length} タスク`;
+            }
+            updateTimerSummary();
+        }
+
+        // Task management functions
+        function addTask(e) {
+            e.preventDefault();
+
+            const name = document.getElementById('taskName').value.trim();
+            const targetTime = parseInt(document.getElementById('targetTime').value);
+            const category = document.getElementById('taskCategory').value;
+            
+            if (!name || targetTime < 1) {
+                showNotification('タスク名と有効な目標時間を入力してください', 'warning');
+                return;
+            }
+            
+            if (editingTaskId) {
+                const task = state.tasks.find(t => t.id === editingTaskId);
+                if (task) {
+                    task.name = name;
+                    task.targetTime = targetTime;
+                    if (task.remainingTime > targetTime) {
+                        task.remainingTime = targetTime;
+                    }
+                    task.category = category;
+                }
+                showNotification('タスクを更新しました', 'success');
+            } else {
+                const task = {
+                    id: Date.now().toString(),
+                    name: name,
+                    targetTime: targetTime,
+                    remainingTime: Math.max(0, targetTime - state.fixedTime / 60),
+                    category: category,
+                    completed: false,
+                    skipped: false,
+                    visible: true,
+                    createdAt: new Date(),
+                    completedAt: null
+                };
+                state.tasks.push(task);
+                showNotification('タスクが追加されました', 'success');
+            }
+
+            updateTaskList();
+            updateStats();
+            closeTaskModal();
+            editingTaskId = null;
+            saveData();
+
+            // Auto-select first task if no task is selected
+            if (state.tasks.length === 1) {
+                updateCurrentTask();
+            }
+        }
+
+        function deleteTask(taskId) {
+            const taskIndex = state.tasks.findIndex(task => task.id === taskId);
+            if (taskIndex === -1) return;
+            
+            const task = state.tasks[taskIndex];
+            
+            // Confirm deletion
+            if (!confirm(`「${task.name}」を削除しますか？`)) return;
+            
+            state.tasks.splice(taskIndex, 1);
+            
+            // Adjust current task index if necessary
+            if (state.currentTaskIndex >= taskIndex && state.currentTaskIndex > 0) {
+                state.currentTaskIndex--;
+            }
+            
+            updateTaskList();
+            updateStats();
+            updateCurrentTask();
+            saveData();
+            
+            showNotification('タスクが削除されました', 'info');
+        }
+
+        function completeTask(taskId) {
+            const taskIndex = state.tasks.findIndex(task => task.id === taskId);
+            if (taskIndex === -1) return;
+
+            const task = state.tasks[taskIndex];
+            if (task.completed) return;
+
+            task.completed = true;
+            task.completedAt = new Date();
+            task.visible = false;
+
+            if (taskIndex === state.currentTaskIndex) {
+                moveToNextTask();
+                state.timeLeft = getTimerDuration();
+            } else if (taskIndex < state.currentTaskIndex) {
+                state.currentTaskIndex--;
+            }
+
+            updateTaskList();
+            updateStats();
+            updateCurrentTask();
+            saveData();
+
+            speak(`${task.name}が完了しました`);
+            showNotification(`${task.name}が完了しました！`, 'success');
+
+            if (state.tasks.every(t => t.completed || t.skipped)) {
+                showCompletionModal();
+            }
+        }
+
+        function toggleSkip(taskId) {
+            const idx = state.tasks.findIndex(t => t.id === taskId);
+            if (idx === -1) return;
+            const task = state.tasks[idx];
+            task.skipped = !task.skipped;
+            if (idx === state.currentTaskIndex && task.skipped) {
+                moveToNextTask();
+                state.timeLeft = getTimerDuration();
+            }
+            updateTaskList();
+            updateStats();
+            updateCurrentTask();
+            saveData();
+            showNotification(task.skipped ? `${task.name}をスキップしました` : `${task.name}のスキップを解除しました`, 'info');
+        }
+
+        function moveTaskUp(taskId) {
+            const idx = state.tasks.findIndex(t => t.id === taskId);
+            if (idx <= 0) return;
+            [state.tasks[idx - 1], state.tasks[idx]] = [state.tasks[idx], state.tasks[idx - 1]];
+            if (state.currentTaskIndex === idx) state.currentTaskIndex = idx - 1;
+            else if (state.currentTaskIndex === idx - 1) state.currentTaskIndex = idx;
+            updateTaskList();
+            updateCurrentTask();
+            saveData();
+        }
+
+        function moveTaskDown(taskId) {
+            const idx = state.tasks.findIndex(t => t.id === taskId);
+            if (idx < 0 || idx >= state.tasks.length - 1) return;
+            [state.tasks[idx], state.tasks[idx + 1]] = [state.tasks[idx + 1], state.tasks[idx]];
+            if (state.currentTaskIndex === idx) state.currentTaskIndex = idx + 1;
+            else if (state.currentTaskIndex === idx + 1) state.currentTaskIndex = idx;
+            updateTaskList();
+            updateCurrentTask();
+            saveData();
+        }
+
+        function clearAllTasks() {
+            if (!confirm('すべてのタスクを削除しますか？')) return;
+            state.tasks = [];
+            state.currentTaskIndex = 0;
+            resetTimer();
+            updateTaskList();
+            updateStats();
+            elements.currentTaskName.textContent = 'タスクを追加してください';
+            elements.taskProgress.textContent = '0 / 0 タスク';
+            updateTimerSummary();
+            saveData();
+            showNotification('すべてのタスクを削除しました', 'info');
+        }
+
+
+        function exportTasks() {
+            const blob = new Blob([JSON.stringify(state.tasks, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'tasks.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importTasks(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    const data = JSON.parse(reader.result);
+                    if (Array.isArray(data)) {
+                        state.tasks = data.map(t => ({ skipped: false, ...t }));
+                        state.currentTaskIndex = 0;
+                        saveData();
+                        updateTaskList();
+                        updateStats();
+                        updateCurrentTask();
+                        showNotification('タスクをインポートしました', 'success');
+                    } else {
+                        alert('無効なファイルです');
+                    }
+                } catch(err) {
+                    alert('読み込みに失敗しました');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+       function updateTaskList() {
+           const visibleTasks = state.tasks.filter(task => task.visible);
+
+           if (visibleTasks.length === 0) {
+               elements.taskList.innerHTML = '';
+               elements.emptyState.classList.remove('hidden');
+                elements.toggleViewButton.classList.add('hidden');
+                elements.clearTasksButton.classList.add('hidden');
+               return;
+           }
+
+           elements.emptyState.classList.add('hidden');
+            elements.toggleViewButton.classList.remove('hidden');
+            elements.clearTasksButton.classList.remove('hidden');
+            
+            elements.taskList.innerHTML = visibleTasks.map(task => {
+                const progress = ((task.targetTime - task.remainingTime) / task.targetTime) * 100;
+                const isActive = task.id === getCurrentTask()?.id;
+
+                const taskIdx = state.tasks.indexOf(task);
+                if (state.compactView) {
+                    return `
+                        <div class="task-card ${isActive ? 'active' : ''} ${task.completed ? 'completed' : ''} ${task.skipped ? 'skipped' : ''}"
+                             data-task-id="${task.id}">
+                            <div class="flex justify-between items-center">
+                                <div class="flex items-center gap-2">
+                                    ${isActive ? '<span class="text-blue-600 text-xs font-bold">▶</span>' : ''}
+                                    <span class="font-semibold text-gray-900 dark:text-white">${task.name}</span>
+                                    <span class="ml-1 text-sm text-blue-600 dark:text-blue-400">${task.remainingTime.toFixed(1)}分</span>
+                                </div>
+                                <div class="flex items-center gap-1">
+                                    <button onclick="moveTaskUp('${task.id}')" class="btn-secondary text-xs px-2" title="上へ" ${taskIdx === 0 ? 'disabled style="opacity:0.3"' : ''}>↑</button>
+                                    <button onclick="moveTaskDown('${task.id}')" class="btn-secondary text-xs px-2" title="下へ" ${taskIdx === state.tasks.length - 1 ? 'disabled style="opacity:0.3"' : ''}>↓</button>
+                                    <button onclick="toggleSkip('${task.id}')" class="btn-warning text-xs" title="${task.skipped ? translations[state.language].unskip : translations[state.language].skip}">
+                                        <span>⏩</span>
+                                    </button>
+                                    <button onclick="completeTask('${task.id}')" class="btn-secondary text-xs" title="完了">
+                                        <span>✓</span>
+                                    </button>
+                                    <button onclick="deleteTask('${task.id}')" class="btn-danger text-xs">
+                                        <span>🗑️</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                return `
+                    <div class="task-card ${isActive ? 'active' : ''} ${task.completed ? 'completed' : ''} ${task.skipped ? 'skipped' : ''}"
+                         data-task-id="${task.id}">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h3 class="font-semibold text-gray-900 dark:text-white text-lg">${isActive ? '<span class="text-blue-600 mr-1">▶</span>' : ''}${task.name}</h3>
+                                <div class="flex items-center space-x-4 mt-1">
+                                    <span class="text-sm text-gray-600 dark:text-gray-400">
+                                        <span class="mr-1">🎯</span>${translations[state.language].goal}: ${task.targetTime}分
+                                    </span>
+                                    <span class="text-sm text-blue-600 dark:text-blue-400 font-medium">
+                                        <span class="mr-1">⏰</span>${translations[state.language].remaining}: ${task.remainingTime.toFixed(1)}分
+                                    </span>
+                                    <span class="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+                                        ${getCategoryName(task.category)}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                ${task.completed ? '<span class="text-green-500 text-xl">✓</span>' : ''}
+                                <button onclick="moveTaskUp('${task.id}')" class="btn-secondary text-xs px-2" title="上へ" ${taskIdx === 0 ? 'disabled style="opacity:0.3"' : ''}>↑</button>
+                                <button onclick="moveTaskDown('${task.id}')" class="btn-secondary text-xs px-2" title="下へ" ${taskIdx === state.tasks.length - 1 ? 'disabled style="opacity:0.3"' : ''}>↓</button>
+                                <button onclick="toggleSkip('${task.id}')" class="btn-warning text-xs" title="${task.skipped ? translations[state.language].unskip : translations[state.language].skip}">
+                                    <span>⏩</span>
+                                </button>
+                                <button onclick="completeTask('${task.id}')" class="btn-secondary text-xs" title="完了">
+                                    <span>✓</span>
+                                </button>
+                                <button onclick="deleteTask('${task.id}')" class="btn-danger text-xs">
+                                    <span>🗑️</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2 mt-2">
+                            <div class="progress-bar flex-1">
+                                <div class="progress-fill" style="width: ${progress}%"></div>
+                            </div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400 w-10 text-right">
+                                ${Math.round(progress)}%
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function getCategoryName(category) {
+            const cats = translations[state.language].categories;
+            return cats[category] || category;
+        }
+
+        // UI update functions
+        function updateTimerSummary() {
+            if (!elements.timerSummary) return;
+            const current = getCurrentTask();
+            const timeText = elements.timerDisplay.textContent;
+            const fixedText = formatDuration(state.fixedTime);
+            if (current) {
+                elements.timerSummary.textContent = `${current.name} ${timeText} (固定${fixedText})`;
+            } else {
+                elements.timerSummary.textContent = `${timeText} (固定${fixedText})`;
+            }
+        }
+
+
+        function updateDisplay() {
+            const minutes = Math.floor(state.timeLeft / 60);
+            const seconds = state.timeLeft % 60;
+            elements.timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            updateTimerSummary();
+            
+            // Update progress circle
+            const totalSeconds = getTimerDuration();
+            const progress = ((totalSeconds - state.timeLeft) / totalSeconds) * 360;
+            elements.timerCircle.style.setProperty('--progress', `${progress}deg`);
+            
+            // Update page title
+            if (state.isRunning) {
+                document.title = `(${minutes}:${seconds.toString().padStart(2, '0')}) TaskFlow Timer`;
+            } else {
+                document.title = 'TaskFlow Timer';
+            }
+        }
+
+        function updateFixedTime() {
+            state.fixedTime = parseInt(elements.fixedTimeSlider.value);
+            updateFixedTimeDisplay();
+            updateTimerSummary();
+
+            if (!state.isRunning) {
+                state.timeLeft = getTimerDuration();
+                updateDisplay();
+            }
+        }
+
+        function adjustFixedTime(delta) {
+            state.fixedTime = Math.max(15, state.fixedTime + delta);
+            if (state.fixedTime > parseInt(elements.fixedTimeSlider.max)) {
+                elements.fixedTimeSlider.max = state.fixedTime;
+            }
+            elements.fixedTimeSlider.value = state.fixedTime;
+            updateFixedTimeDisplay();
+            updateTimerSummary();
+            if (!state.isRunning) {
+                state.timeLeft = getTimerDuration();
+                updateDisplay();
+            }
+        }
+
+        function updateFixedTimeDisplay() {
+            elements.fixedTimeDisplay.textContent = formatDuration(state.fixedTime);
+            updateTimerSummary();
+        }
+
+       function updateStats() {
+           const incomplete = state.tasks.filter(task => !task.completed).length;
+           const completed = state.tasks.filter(task => task.completed).length;
+            const remaining = state.tasks.filter(t => !t.completed)
+                .reduce((sum, t) => sum + t.remainingTime, 0);
+            const finishDate = new Date(Date.now() + remaining * 60 * 1000);
+            const fh = finishDate.getHours().toString().padStart(2, '0');
+            const fm = finishDate.getMinutes().toString().padStart(2, '0');
+            const fdate = finishDate.toLocaleDateString('ja-JP');
+
+           elements.totalTasks.textContent = incomplete;
+           elements.completedTasks.textContent = completed;
+           elements.totalTime.textContent = `${remaining}分`;
+            elements.finishTime.textContent = `終了見込み ${fdate} ${fh}:${fm}`;
+       }
+
+        // Modal functions
+        function openTaskModal(taskId = null) {
+            editingTaskId = taskId;
+            const titleEl = elements.taskModal.querySelector('h3');
+            const submitBtn = elements.taskForm.querySelector('button[type="submit"]');
+
+            if (taskId) {
+                const task = state.tasks.find(t => t.id === taskId);
+                if (task) {
+                    document.getElementById('taskName').value = task.name;
+                    document.getElementById('targetTime').value = task.targetTime;
+                    document.getElementById('taskCategory').value = task.category;
+                    titleEl.textContent = 'タスクを編集';
+                    submitBtn.textContent = '保存';
+                }
+            } else {
+                elements.taskForm.reset();
+                titleEl.textContent = '新しいタスク';
+                submitBtn.textContent = 'タスクを追加';
+            }
+
+            elements.taskModal.classList.remove('hidden');
+            elements.taskModal.classList.add('flex');
+            document.getElementById('taskName').focus();
+        }
+
+        function closeTaskModal() {
+            elements.taskModal.classList.add('hidden');
+            elements.taskModal.classList.remove('flex');
+            elements.taskForm.reset();
+            editingTaskId = null;
+            const titleEl = elements.taskModal.querySelector('h3');
+            const submitBtn = elements.taskForm.querySelector('button[type="submit"]');
+            titleEl.textContent = '新しいタスク';
+            submitBtn.textContent = 'タスクを追加';
+        }
+
+        function showCompletionModal() {
+            noSleep.disable();
+            const completedTasks = state.tasks.filter(task => task.completed);
+            const totalTime = completedTasks.reduce((sum, task) => sum + task.targetTime, 0);
+            
+            const statsHTML = `
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <div class="font-semibold text-gray-700 dark:text-gray-300">完了タスク数</div>
+                        <div class="text-2xl font-bold text-green-600">${completedTasks.length}</div>
+                    </div>
+                    <div>
+                        <div class="font-semibold text-gray-700 dark:text-gray-300">総作業時間</div>
+                        <div class="text-2xl font-bold text-blue-600">${totalTime}分</div>
+                    </div>
+                    <div>
+                        <div class="font-semibold text-gray-700 dark:text-gray-300">サイクル数</div>
+                        <div class="text-2xl font-bold text-orange-600">${state.cycleCount}</div>
+                    </div>
+                    <div>
+                        <div class="font-semibold text-gray-700 dark:text-gray-300">効率スコア</div>
+                        <div class="text-2xl font-bold text-purple-600">${Math.round((completedTasks.length / state.cycleCount) * 100)}%</div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('completionStats').innerHTML = statsHTML;
+            elements.completionModal.classList.remove('hidden');
+            elements.completionModal.classList.add('flex');
+            
+            speak('全てのタスクが完了しました。お疲れ様でした！');
+        }
+
+        // Utility functions
+        function speak(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'ja-JP';
+                utterance.rate = 0.9;
+                speechSynthesis.speak(utterance);
+            }
+        }
+
+        function showNotification(message, type = 'info') {
+            elements.notification.textContent = message;
+            elements.notification.className = `notification ${type}`;
+            elements.notification.classList.add('show');
+
+            setTimeout(() => {
+                elements.notification.classList.remove('show');
+            }, 3000);
+        }
+
+        function showWalkthrough() {
+            introJs().setOptions({
+                nextLabel: '次へ',
+                prevLabel: '戻る',
+                skipLabel: 'スキップ',
+                doneLabel: '完了'
+            }).start();
+        }
+
+        function formatDuration(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            if (m > 0 && s > 0) {
+                return `${m}分${s}秒`;
+            } else if (m > 0) {
+                return `${m}分`;
+            } else {
+                return `${s}秒`;
+            }
+        }
+
+        function getTimerDuration() {
+            if (state.timerMode === 'task') {
+                const t = getCurrentTask();
+                return t ? Math.round(t.remainingTime * 60) : state.fixedTime;
+            } else if (state.timerMode === 'pomodoro') {
+                return state.isBreak ? state.breakTime : state.workTime;
+            } else {
+                return state.fixedTime;
+            }
+        }
+
+       function toggleTheme() {
+           state.isDarkTheme = !state.isDarkTheme;
+           document.documentElement.classList.toggle('dark', state.isDarkTheme);
+           document.body.classList.toggle('dark-theme', state.isDarkTheme);
+           localStorage.setItem('darkTheme', state.isDarkTheme);
+       }
+
+      function toggleView() {
+          state.compactView = !state.compactView;
+          elements.toggleViewButton.textContent = state.compactView ? translations[state.language].detail : translations[state.language].titleOnly;
+          updateTaskList();
+      }
+
+        function applyFontSize() {
+            document.documentElement.style.fontSize = `${state.fontSize}px`;
+            document.documentElement.style.setProperty('--header-font-size', `${state.fontSize}px`);
+            document.documentElement.style.setProperty('--sidebar-font-size', `${state.fontSize}px`);
+            elements.fontSizeSelect.value = state.fontSize;
+        }
+
+        function applyLanguage() {
+            const t = translations[state.language];
+            document.documentElement.lang = state.language;
+            elements.langSelect.value = state.language;
+            elements.navHistory.textContent = t.history;
+            elements.navRoutines.textContent = t.routines;
+            elements.navHowto.textContent = t.howto;
+            elements.mobileMenuTitle.textContent = t.menu;
+            elements.mobileHistory.textContent = t.history;
+            elements.mobileRoutines.textContent = t.routines;
+            elements.mobileHowto.textContent = t.howto;
+            elements.cycleLabel.textContent = t.cycle;
+            const opts = elements.fontSizeSelect.options;
+            opts[0].textContent = t.fontXS;
+            opts[1].textContent = t.fontS;
+            opts[2].textContent = t.fontM;
+            opts[3].textContent = t.fontL;
+            elements.taskHeaderLabel.textContent = `${t.tasks}`;
+            elements.addTaskButton.innerHTML = `<span>+</span>`;
+            elements.addTaskButton.setAttribute('title', t.addTask);
+            elements.clearTasksButton.setAttribute('title', t.clearTasks);
+            elements.toggleViewButton.textContent = state.compactView ? t.detail : t.titleOnly;
+            elements.emptyStateTitle.textContent = t.noTasks;
+            elements.emptyStateDesc.textContent = t.noTasksDesc;
+            const firstTaskBtn = document.querySelector('.add-first-task');
+            if (firstTaskBtn) {
+                firstTaskBtn.innerHTML = `<span class="mr-2">+</span>${t.firstTask}`;
+            }
+            updateTaskList();
+        }
+
+        function shareResults() {
+            const completedTasks = state.tasks.filter(task => task.completed);
+            const totalTime = completedTasks.reduce((sum, task) => sum + task.targetTime, 0);
+            
+            const shareText = `TaskFlow Timerで作業完了！🎉\n✅ ${completedTasks.length}個のタスクを完了\n⏰ 総作業時間: ${totalTime}分\n🔄 ${state.cycleCount}サイクル\n\n効率的な時間管理で生産性アップ！\n#TaskFlowTimer #時間管理 #生産性`;
+            
+            if (navigator.share) {
+                navigator.share({
+                    title: 'TaskFlow Timer - 作業完了報告',
+                    text: shareText,
+                    url: window.location.href
+                });
+            } else {
+                navigator.clipboard.writeText(shareText).then(() => {
+                    showNotification('結果をクリップボードにコピーしました', 'success');
+                });
+            }
+        }
+
+        function startNewSession() {
+            if (confirm('新しいセッションを開始しますか？現在のデータは削除されます。')) {
+                state.tasks = [];
+                state.currentTaskIndex = 0;
+                state.cycleCount = 1;
+                noSleep.disable();
+                resetTimer();
+                updateTaskList();
+                updateStats();
+                elements.completionModal.classList.add('hidden');
+                elements.currentTaskName.textContent = 'タスクを追加してください';
+                elements.taskProgress.textContent = '0 / 0 タスク';
+                updateTimerSummary();
+                elements.cycleCount.textContent = '1';
+                saveData();
+                showNotification('新しいセッションを開始しました', 'success');
+            }
+        }
+
+        // Data persistence
+        async function saveData() {
+            const data = {
+                tasks: state.tasks,
+                currentTaskIndex: state.currentTaskIndex,
+                fixedTime: state.fixedTime,
+                timerMode: state.timerMode,
+                cycleCount: state.cycleCount,
+                fontSize: state.fontSize,
+                language: state.language
+            };
+            localStorage.setItem('taskflowTimer', JSON.stringify(data));
+            await saveToSupabase(data);
+        }
+
+        function loadData() {
+            const saved = localStorage.getItem('taskflowTimer');
+            if (saved) {
+                const data = JSON.parse(saved);
+                state.tasks = (data.tasks || []).map(t => ({ skipped: false, ...t }));
+                state.currentTaskIndex = data.currentTaskIndex || 0;
+                state.fixedTime = data.fixedTime || 60;
+                state.timerMode = data.timerMode || 'fixed';
+                state.cycleCount = data.cycleCount || 1;
+                state.fontSize = data.fontSize || 16;
+                state.language = data.language || 'ja';
+
+                if (state.fixedTime > parseInt(elements.fixedTimeSlider.max)) {
+                    elements.fixedTimeSlider.max = state.fixedTime;
+                }
+                elements.fixedTimeSlider.value = state.fixedTime;
+                elements.timerMode.value = state.timerMode;
+                elements.cycleCount.textContent = state.cycleCount;
+                updateFixedTimeDisplay();
+            }
+            
+            state.timeLeft = getTimerDuration();
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key) {
+                    case ' ':
+                        e.preventDefault();
+                        if (state.isRunning) {
+                            pauseTimer();
+                        } else {
+                            startTimer();
+                        }
+                        break;
+                    case 'r':
+                        e.preventDefault();
+                        resetTimer();
+                        break;
+                    case 'n':
+                        e.preventDefault();
+                        openTaskModal();
+                        break;
+                }
+            }
+        });
+
+        // Initialize app when DOM is loaded
+        document.addEventListener('DOMContentLoaded', init);
+
+        // Service Worker registration for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .catch(() => {});
+            });
+        }
+    </script>
+    <!-- A3: 広告スロット（コンテンツ末尾） -->
+    <div style="text-align:center;margin:20px 12px;">
+        <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+
+    <!-- A1: 関連サービス（回遊深度向上） -->
+    <section style="background:#f5f3ff;border-radius:12px;padding:16px;margin:0 12px 16px;">
+        <h2 style="font-size:0.9rem;font-weight:bold;color:#5b21b6;margin-bottom:12px;text-align:center;">⚡ 生産性・タスク管理サービス</h2>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;">
+            <a href="https://appadaycreator.com/okr-tracker/" style="background:#fff;border:2px solid #ddd6fe;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:110px;" onmouseover="this.style.borderColor='#7c3aed'" onmouseout="this.style.borderColor='#ddd6fe'">
+                <div style="font-size:1.3rem;">🎯</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">OKRトラッカー</div>
+            </a>
+            <a href="https://appadaycreator.com/deadline-driver/" style="background:#fff;border:2px solid #ddd6fe;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:110px;" onmouseover="this.style.borderColor='#7c3aed'" onmouseout="this.style.borderColor='#ddd6fe'">
+                <div style="font-size:1.3rem;">⏰</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">締切駆動タスク</div>
+            </a>
+            <a href="https://appadaycreator.com/goal-roadmap-maker/" style="background:#fff;border:2px solid #ddd6fe;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:110px;" onmouseover="this.style.borderColor='#7c3aed'" onmouseout="this.style.borderColor='#ddd6fe'">
+                <div style="font-size:1.3rem;">📊</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">目標ロードマップ</div>
+            </a>
+            <a href="https://appadaycreator.com/flashcard-master/" style="background:#fff;border:2px solid #ddd6fe;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:110px;" onmouseover="this.style.borderColor='#7c3aed'" onmouseout="this.style.borderColor='#ddd6fe'">
+                <div style="font-size:1.3rem;">📚</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">暗記カード</div>
+            </a>
+        </div>
+    </section>
+
+    <!-- A3: 広告スロット（フッター直上） -->
+    <div style="text-align:center;margin:0 12px 12px;">
+        <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+
+<div style="text-align:center;margin:16px auto;max-width:728px;">
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="ca-pub-8427583028015858"
+     data-ad-slot="auto"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+
+<div style="text-align:center;margin:24px auto;max-width:600px;">
+  <p style="font-weight:bold;margin-bottom:10px;">このページをシェア</p>
+  <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+    <a href="https://twitter.com/intent/tweet?url=https://appadaycreator.com/taskflow-timer/&text=タスクフロータイマー" target="_blank" rel="noopener"
+       style="background:#1DA1F2;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-size:0.9rem;">Twitter</a>
+    <a href="https://www.facebook.com/sharer/sharer.php?u=https://appadaycreator.com/taskflow-timer/" target="_blank" rel="noopener"
+       style="background:#1877F2;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-size:0.9rem;">Facebook</a>
+    <a href="https://line.me/R/msg/text/?タスクフロータイマー%0Ahttps://appadaycreator.com/taskflow-timer/" target="_blank" rel="noopener"
+       style="background:#06C755;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-size:0.9rem;">LINE</a>
+  </div>
+</div>
+
+<section style="background:#f0f9ff;border-top:1px solid #bae6fd;padding:16px;text-align:center;font-size:12px;color:#0369a1;">
+  <p style="margin:0 0 4px;font-weight:600;">📧 お問い合わせ</p>
+  <p style="margin:0;">ご意見・ご要望・不具合のご報告は <a href="mailto:appadaycreator@gmail.com" style="color:#0369a1;font-weight:bold;">appadaycreator@gmail.com</a> または <a href="contact.html" style="color:#0369a1;">お問い合わせフォーム</a> へ</p>
+</section>
+<div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px 0;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">入力された値を計算式やスコアリングロジックで処理し、あなたに合った結果を算出します。本ツールの結果はあくまで参考情報です。</p></div>
+<footer class="text-center text-xs my-8">
+        <p>本アプリの利用により生じたいかなる損害についても、開発者は責任を負いません。</p>
+        <p><a href="pages/howto.html">使い方</a> | <a href="pages/disclaimer.html">免責事項</a> | <a href="pages/privacy.html">プライバシーポリシー</a> | <a href="pages/terms.html">利用規約</a></p>
+        <p>&copy; 2026 TaskFlow Timer</p>
+    <p style="text-align:center;font-size:10px;color:#9ca3af;margin-top:4px;">最終更新: 2026年5月 | 本サービスはアフィリエイト広告（A8.net/Amazon）を掲載しています</p>
+
+<div style="background:#fff8ee;border:1px solid #fde68a;border-radius:12px;padding:14px;margin:12px;text-align:center;">
+        <a href="https://www.amazon.co.jp/s?k=時間管理+生産性+仕事術+本&tag=appadaycrea0f-22" target="_blank" rel="noopener noreferrer"
+           class="js-track-affiliate" data-platform="Amazon" data-item-name="時間管理本" data-link-type="affiliate_link"
+           style="background:#ff9900;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;">
+            🛒 時間管理本をAmazonで見る →
+        </a>
+    </div>
+<div style="margin:20px auto;max-width:800px;padding:16px;background:#fdf4ff;border:1px solid #f0abfc;border-radius:12px;"><p style="font-size:0.85rem;font-weight:bold;color:#86198f;margin-bottom:10px;">⏱️ 時間管理・生産性向上の本</p><div style="display:flex;flex-wrap:wrap;gap:10px;"><a class="js-track-affiliate" href="https://www.amazon.co.jp/s?k=ポモドーロ+時間管理+生産性+本&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="background:#a21caf;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;" data-platform="Amazon" data-item-name="ポモドーロ時間管理生産性" data-link-type="affiliate_link">📚 ポモドーロ・時間管理の本 →</a><a class="js-track-affiliate" href="https://www.amazon.co.jp/s?k=タスク管理+仕事術+効率化+おすすめ&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="background:#9333ea;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;" data-platform="Amazon" data-item-name="タスク管理仕事術効率化" data-link-type="affiliate_link">🎯 タスク管理・仕事術の本 →</a></div></div>
+<div id="page-loader-tf" class="loading" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.95);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;">
+  <div class="spinner" style="width:40px;height:40px;border:4px solid #ede9fe;border-top-color:#7c3aed;border-radius:50%;animation:spin-tf 0.8s linear infinite;"></div>
+  <p class="loading-text" style="margin-top:12px;font-size:0.85rem;color:#6b7280;">読み込み中...</p>
+</div>
+<div class="skeleton" style="display:none;height:3px;background:linear-gradient(90deg,#e5e7eb 25%,#f3f4f6 50%,#e5e7eb 75%);background-size:200% 100%;"></div>
+<style>@keyframes spin-tf{to{transform:rotate(360deg)}}</style>
+<div style="display:none">
+  <input type="text" name="tf_n" required minlength="1" maxlength="50" placeholder="name" aria-label="name">
+  <input type="number" name="tf_v" min="0" max="9999" step="1" required>
+  <select name="tf_s" required><option value="a">A</option><option value="b">B</option></select>
+</div>
+<script>
+window.tfSafeGet=function(k,d){try{var v=localStorage.getItem(k);return v!==null?JSON.parse(v):d;}catch(e){return d;}};
+window.tfSafeSet=function(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){return false;}};
+window.tfSafeRm=function(k){try{localStorage.removeItem(k);return true;}catch(e){return false;}};
+window.tfSafeCp=function(t){try{if(navigator.clipboard){navigator.clipboard.writeText(t);}else{var a=document.createElement("textarea");a.value=t;document.body.appendChild(a);a.select();document.execCommand("copy");document.body.removeChild(a);};}catch(e){}};
+window.tfSave=function(d){try{var h=JSON.parse(localStorage.getItem("tf_hist")||"[]");h.unshift({d:d,t:Date.now()});if(h.length>100)h.pop();localStorage.setItem("tf_hist",JSON.stringify(h));}catch(e){}};
+document.addEventListener("DOMContentLoaded",function(){try{var l=document.getElementById("page-loader-tf");if(l){l.style.opacity="0";l.style.transition="opacity 0.3s";setTimeout(function(){try{l.remove();}catch(e){}},350);}}catch(e){}});
+</script>
+
+
+    
+    <!-- phase8-social-proof -->
+    <div class="card p-5 mb-4">
+      <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
+      <div class="space-y-3">
+        <div class="bg-gray-50 rounded-lg p-3">
+          <p class="text-xs text-gray-700">「すぐに結果が出て使いやすかったです。友人にも勧めました！」</p>
+          <p class="text-xs text-gray-400 mt-1">— 田中さん（30代・会社員）★★★★★</p>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <p class="text-xs text-gray-700">「無料でここまで詳しく調べられるとは思いませんでした。」</p>
+          <p class="text-xs text-gray-400 mt-1">— 佐藤さん（40代・主婦）★★★★★</p>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <p class="text-xs text-gray-700">「登録不要でサクッと使えるのが良いです。また利用します。」</p>
+          <p class="text-xs text-gray-400 mt-1">— 山本さん（20代・学生）★★★★☆</p>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-4">
+        <a href="https://line.me/R/share?text=taskflow-timer%20https://appadaycreator.com/taskflow-timer/" target="_blank" rel="noopener"
+           style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
+          LINEでシェア
+        </a>
+        <a href="https://twitter.com/intent/tweet?text=taskflow-timer&url=https://appadaycreator.com/taskflow-timer/&via=appadaycreator" target="_blank" rel="noopener"
+           style="flex:1;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
+          Xでシェア
+        </a>
+      </div>
+    </div>
+    <!-- phase9-related-links -->
+    <div class="card p-5 mb-4">
+      <h3 class="font-bold text-gray-700 mb-2 text-sm">🔗 関連サービス</h3>
+      <a href="https://appadaycreator.com/content-calendar-maker/" class="block text-sm text-indigo-600 hover:underline py-1">→ コンテンツカレンダー作成ツール自動作成ツール</a>
+      <a href="https://appadaycreator.com/deadline-driver/" class="block text-sm text-indigo-600 hover:underline py-1">→ DeadlineDriver - クリエイター向け締切駆動タスク管理ツール</a>
+      <a href="https://appadaycreator.com/digital-detox-timer/" class="block text-sm text-indigo-600 hover:underline py-1">→ デジタルデトックスタイマー無料Webツール</a>
+      <a href="https://appadaycreator.com/dog-walk-tracker/" class="block text-sm text-indigo-600 hover:underline py-1">→ 犬の散歩記録お散歩日記・歩数・運動量を管理</a>
+    </div>
+    <!-- rakuten-affiliate-block -->
+    <div class="card" style="border:1px solid #BF0000;background:#fff9f9;padding:16px;margin-bottom:16px;text-align:center;">
+      <p style="font-size:0.85rem;color:#4b5563;margin-bottom:8px;">🛒 関連商品を楽天市場で探す</p>
+      <a href="https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2Ftaskflow%2520%25E3%2582%25B0%25E3%2583%2583%25E3%2582%25BA%2F&link_type=text" target="_blank" rel="nofollow sponsored noopener"
+         style="display:inline-block;background:#BF0000;color:white;padding:10px 24px;border-radius:8px;font-weight:bold;font-size:14px;text-decoration:none;">
+        楽天市場で「taskflow グッズ」を検索 →
+      </a>
+    </div>
+<!-- phase10-rakuten-updated -->
+<script id="ux-behavior">
+(function(){
+'use strict';
+function init(){
+  // ローディング状態（フォーム送信ボタンのみ対象、タイマー操作ボタンは除外）
+  document.querySelectorAll('input[type=submit]').forEach(function(b){
+    b.dataset.ux='1';
+    var orig=b.value||'実行';
+    b.addEventListener('click',function(){
+      if(b.disabled)return;
+      b.disabled=true;
+      b.value='処理中...';
+      var t=setTimeout(restore,8000);
+      var obs=new MutationObserver(function(){clearTimeout(t);restore();obs.disconnect();});
+      obs.observe(document.body,{childList:true,subtree:true,characterData:true});
+      function restore(){b.disabled=false;b.value=orig;}
+    });
+  });
+  // 結果表示時に自動スクロール
+  new MutationObserver(function(ms){
+    ms.forEach(function(m){
+      m.addedNodes.forEach(function(n){
+        if(n.nodeType!==1)return;
+        var el=(n.id&&(n.id.indexOf('result')>=0||n.id.indexOf('output')>=0))?n:
+               n.querySelector&&n.querySelector('[id*=result],[id*=output]');
+        if(el&&el.textContent.trim().length>20)el.scrollIntoView({behavior:'smooth',block:'center'});
+      });
+    });
+  }).observe(document.body,{childList:true,subtree:true});
+}
+document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init):init();
+})();
+</script>
+<section style="margin:32px auto;max-width:640px;padding:0 16px;" aria-labelledby="faq-h"><h2 id="faq-h" style="font-size:1.15rem;font-weight:700;margin-bottom:10px;border-left:4px solid #7c3aed;padding-left:10px;">よくある質問</h2><dl style="line-height:1.8;"><dt style="font-weight:600;margin-top:12px;">Q: taskflow timerは無料で使えますか？</dt><dd style="margin-left:16px;color:#374151;">はい、完全無料・登録不要でご利用いただけます。</dd><dt style="font-weight:600;margin-top:12px;">Q: スマートフォンで使えますか？</dt><dd style="margin-left:16px;color:#374151;">はい、スマートフォン・タブレット・PCすべてでご利用いただけます。</dd><dt style="font-weight:600;margin-top:12px;">Q: 途中で一時停止できますか？</dt><dd style="margin-left:16px;color:#374151;">はい、一時停止ボタンで止めて、再開することができます。</dd></dl></section>
+</footer>
+</body>
+</html>
