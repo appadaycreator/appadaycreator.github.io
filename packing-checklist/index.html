@@ -1,0 +1,3092 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script>
+/* Supabase → LocalStorage モック (Supabase無料版停止対応) */
+(function() {
+  function _get(t) { try { return JSON.parse(localStorage.getItem('sb_'+t)||'[]'); } catch(e) { return []; } }
+  function _set(t,d) { try { localStorage.setItem('sb_'+t, JSON.stringify(d)); } catch(e) {} }
+  function _uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+  function _now() { return new Date().toISOString(); }
+
+  function buildQuery(table) {
+    var rows = _get(table), filters = [], _ord = null, _lim = null;
+    var q = {
+      select: function() { return q; },
+      eq:  function(c,v){ filters.push(function(r){ return r[c]==v; }); return q; },
+      neq: function(c,v){ filters.push(function(r){ return r[c]!=v; }); return q; },
+      gt:  function(c,v){ filters.push(function(r){ return r[c]>v; }); return q; },
+      gte: function(c,v){ filters.push(function(r){ return r[c]>=v; }); return q; },
+      lt:  function(c,v){ filters.push(function(r){ return r[c]<v; }); return q; },
+      lte: function(c,v){ filters.push(function(r){ return r[c]<=v; }); return q; },
+      like:  function(c,v){ filters.push(function(r){ return String(r[c]||'').indexOf(v.replace(/%/g,''))>-1; }); return q; },
+      ilike: function(c,v){ filters.push(function(r){ return String(r[c]||'').toLowerCase().indexOf(v.replace(/%/g,'').toLowerCase())>-1; }); return q; },
+      contains: function(c,v){ filters.push(function(r){ return Array.isArray(r[c])&&r[c].indexOf(v)>-1; }); return q; },
+      is: function(c,v){ filters.push(function(r){ return v===null?r[c]==null:r[c]===v; }); return q; },
+      'in': function(c,v){ filters.push(function(r){ return v.indexOf(r[c])>-1; }); return q; },
+      order: function(c,o){ _ord={c:c,desc:o&&o.ascending===false}; return q; },
+      limit: function(n){ _lim=n; return q; },
+      range: function(){ return q; },
+      single: function() {
+        var d=_get(table); filters.forEach(function(f){d=d.filter(f);});
+        return Promise.resolve({data:d[0]||null,error:d.length===0?{message:'No rows found',code:'PGRST116'}:null});
+      },
+      maybeSingle: function() {
+        var d=_get(table); filters.forEach(function(f){d=d.filter(f);});
+        return Promise.resolve({data:d[0]||null,error:null});
+      },
+      then: function(res,rej) {
+        var d=_get(table);
+        filters.forEach(function(f){d=d.filter(f);});
+        if(_ord) d.sort(function(a,b){ var av=a[_ord.c],bv=b[_ord.c]; return _ord.desc?(bv>av?1:bv<av?-1:0):(av>bv?1:av<bv?-1:0); });
+        if(_lim) d=d.slice(0,_lim);
+        return Promise.resolve({data:d,error:null,count:d.length}).then(res,rej);
+      }
+    };
+    return q;
+  }
+
+  function createLocalStorageClient() {
+    return {
+      from: function(table) {
+        return {
+          select: function(){ return buildQuery(table); },
+          insert: function(rows, opts) {
+            var d=_get(table), arr=Array.isArray(rows)?rows:[rows];
+            var ins=arr.map(function(r){ return Object.assign({},r,{id:r.id||_uid(),created_at:r.created_at||_now()}); });
+            _set(table,d.concat(ins));
+            return Promise.resolve({data:opts&&opts.returning==='minimal'?[]:ins,error:null});
+          },
+          upsert: function(rows,opts) {
+            var d=_get(table), arr=Array.isArray(rows)?rows:[rows];
+            var key=opts&&opts.onConflict||'id';
+            arr.forEach(function(r){
+              var i=d.findIndex(function(x){return x[key]===r[key];});
+              if(i>=0) d[i]=Object.assign({},d[i],r); else d.push(Object.assign({},r,{id:r.id||_uid(),created_at:r.created_at||_now()}));
+            });
+            _set(table,d);
+            return Promise.resolve({data:arr,error:null});
+          },
+          update: function(updates) {
+            var applyUpdate = function(filters) {
+              var d=_get(table);
+              var updated=d.map(function(r){ return filters.every(function(f){return f(r);})?Object.assign({},r,updates):r; });
+              _set(table,updated);
+              return Promise.resolve({data:updated.filter(function(r){return filters.every(function(f){return f(r);});}),error:null});
+            };
+            return buildFilterChain(applyUpdate);
+          },
+          delete: function() {
+            var applyDelete = function(filters) {
+              var d=_get(table);
+              var kept=d.filter(function(r){return !filters.every(function(f){return f(r);});});
+              _set(table,kept);
+              return Promise.resolve({data:[],error:null});
+            };
+            return buildFilterChain(applyDelete);
+          }
+        };
+      },
+      auth: {
+        getSession: function(){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'null');
+          return Promise.resolve({data:{session:u?{user:u}:null},error:null});
+        },
+        getUser: function(){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'null');
+          return Promise.resolve({data:{user:u},error:null});
+        },
+        signUp: function(p){
+          var u={id:_uid(),email:p.email,created_at:_now()};
+          localStorage.setItem('sb_auth',JSON.stringify(u));
+          return Promise.resolve({data:{user:u,session:{user:u}},error:null});
+        },
+        signInWithPassword: function(p){
+          var u={id:'local_'+btoa(p.email||''),email:p.email,created_at:_now()};
+          localStorage.setItem('sb_auth',JSON.stringify(u));
+          return Promise.resolve({data:{user:u,session:{user:u}},error:null});
+        },
+        signInWithOAuth: function(){return Promise.resolve({data:{},error:null});},
+        signOut: function(){localStorage.removeItem('sb_auth');return Promise.resolve({error:null});},
+        onAuthStateChange: function(cb){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'null');
+          setTimeout(function(){cb(u?'SIGNED_IN':'SIGNED_OUT',u?{user:u}:null);},50);
+          return {data:{subscription:{unsubscribe:function(){}}}};
+        },
+        updateUser: function(p){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'{}');
+          Object.assign(u,p);
+          localStorage.setItem('sb_auth',JSON.stringify(u));
+          return Promise.resolve({data:{user:u},error:null});
+        }
+      },
+      storage: {
+        from: function(){
+          return {
+            upload: function(path,file){return Promise.resolve({data:{path:path},error:null});},
+            getPublicUrl: function(path){return {data:{publicUrl:''}};},
+            remove: function(){return Promise.resolve({data:[],error:null});}
+          };
+        }
+      },
+      channel: function(){ return {on:function(){return this;},subscribe:function(){return this;}}; },
+      removeChannel: function(){},
+      removeAllChannels: function(){}
+    };
+  }
+
+  function buildFilterChain(executor) {
+    var filters=[];
+    var chain={
+      eq:  function(c,v){filters.push(function(r){return r[c]==v;});return chain;},
+      neq: function(c,v){filters.push(function(r){return r[c]!=v;});return chain;},
+      match:function(m){Object.keys(m).forEach(function(c){filters.push(function(r){return r[c]===m[c];});});return chain;},
+      then:function(res,rej){return executor(filters).then(res,rej);}
+    };
+    return chain;
+  }
+
+  // グローバルに設定（window.supabase互換）
+  var mockClient = createLocalStorageClient();
+  window.supabase = {
+    createClient: function() { return mockClient; }
+  };
+  // ESモジュール形式でimportされる場合の互換
+  window.createClient = function() { return mockClient; };
+  window._supabaseMockClient = mockClient;
+})();
+</script>
+    <!-- phase8-schema-enhanced -->
+<meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
+    <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <link rel="dns-prefetch" href="https://www.clarity.ms">
+    <link rel="canonical" href="https://appadaycreator.com/packing-checklist/">
+    <title>旅行の持ち物チェックリスト【無料】忘れ物ゼロ！出張・海外旅行対応</title>
+<!-- phase8-favicon -->
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4f46e5">
+    <meta name="description" content="旅行・出張・日常の持ち物をチェックリストで管理。カスタマイズ可能な持ち物リストで忘れ物を防止。スマホで使える無料アプリ。登録不要・完全無料でご利用いただけます。">
+    <meta name="keywords" content="持ち物チェックリスト,旅行準備,出張準備,忘れ物防止,パッキング,チェックリスト">
+    
+    <!-- OGP設定 -->
+    <meta property="og:title" content="旅行の持ち物チェックリスト【無料】忘れ物ゼロ！出張・海外旅行対応">
+    <meta property="og:description" content="旅行・出張・日常の持ち物をチェックリストで管理。カスタマイズ可能な持ち物リストで忘れ物を防止。スマホで使える無料アプリ。">
+    <meta property="og:image" content="https://appadaycreator.com/packing-checklist/ogp.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="appadaycreator" />
+    <meta property="og:url" content="https://appadaycreator.com/packing-checklist">
+    <meta property="og:type" content="website">
+<meta property="og:locale" content="ja_JP" />
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="忘れ物ゼロ - 持ち物チェックリスト">
+    <meta name="twitter:description" content="旅行・出張の持ち物準備を効率化するスマートチェックリスト">
+    <meta name="twitter:image" content="https://appadaycreator.com/packing-checklist/ogp.png">
+    
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
+    <!-- End Google Tag Manager -->
+    <!-- Microsoft Clarity -->
+    <script type="text/javascript">
+        (function(c,l,a,r,i,t,y){
+            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+            t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+        })(window, document, "clarity", "script", "s3t9vl8h3v");
+    </script>
+    <!-- End Microsoft Clarity -->
+    <!-- Google AdSense -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858"
+         crossorigin="anonymous"></script>
+    <!-- End Google AdSense -->
+    
+    <!-- 外部ライブラリ -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+    <script src="config.js"></script>
+    <style>
+        :root {
+            --primary-color: #4f46e5;
+            --secondary-color: #818cf8;
+            --accent-color: #f59e0b;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --error-color: #ef4444;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --bg-primary: #ffffff;
+            --bg-secondary: #f9fafb;
+            --border-color: #e5e7eb;
+        }
+        
+        .font-size-xs { font-size: 0.75rem; }
+        .font-size-sm { font-size: 0.875rem; }
+        .font-size-base { font-size: 1rem; }
+        .font-size-lg { font-size: 1.125rem; }
+        .font-size-xl { font-size: 1.25rem; }
+        
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .slide-in {
+            animation: slideIn 0.3s ease-in-out;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(0); }
+        }
+        
+        .progress-bar {
+            transition: width 0.3s ease-in-out;
+        }
+        
+        .item-card {
+            transition: all 0.2s ease-in-out;
+        }
+        
+        .item-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .floating-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .sidebar {
+            transform: translateX(-100%);
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        .sidebar.open {
+            transform: translateX(0);
+        }
+        
+        .overlay {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease-in-out;
+        }
+        
+        .overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1001;
+            transform: translateX(100%);
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        .notification.show {
+            transform: translateX(0);
+        }
+        
+        .share-button {
+            background: linear-gradient(135deg, #7c3aed 0%, #764ba2 100%);
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #7c3aed 0%, #764ba2 100%);
+        }
+        
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        
+        @media (max-width: 768px) {
+            .mobile-hide { display: none; }
+            .mobile-show { display: block; }
+        }
+        
+        @media (min-width: 769px) {
+            .mobile-hide { display: block; }
+            .mobile-show { display: none; }
+        }
+        
+        .template-card {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .category-badge {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #92400e;
+        }
+        
+        .priority-high { border-left-color: #ef4444; }
+        .priority-medium { border-left-color: #f59e0b; }
+        .priority-low { border-left-color: #10b981; }
+        
+        .animate-pulse-slow {
+            animation: pulse 3s infinite;
+        }
+        
+        .loading-skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, transparent 37%, transparent 63%, #f0f0f0 75%);
+            background-size: 400% 100%;
+            animation: skeleton-loading 1.4s ease infinite;
+        }
+        
+        @keyframes skeleton-loading {
+            0% { background-position: 100% 50%; }
+            100% { background-position: -100% 50%; }
+        }
+        
+        .confetti {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        .confetti-piece {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: #ff6b6b;
+            animation: confetti-fall 3s ease-out forwards;
+        }
+        
+        @keyframes confetti-fall {
+            0% {
+                transform: translateY(-100vh) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(100vh) rotate(360deg);
+                opacity: 0;
+            }
+        }
+    
+/* Phase 8: Mobile Optimization */
+input, select, textarea { font-size: 16px !important; }
+button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min-width: 48px; touch-action: manipulation; }
+@media (max-width: 640px) {
+  body { font-size: 16px; }
+  .max-w-lg { padding-left: 1rem; padding-right: 1rem; }
+}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;}
+.related-link{padding:10px;text-align:center;border:1px solid #ddd;border-radius:4px;text-decoration:none;color:#333;display:block;transition:background 0.15s;}
+.related-link:hover{background:#f5f5f5;}
+</style>
+    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "name": "忘れ物ゼロ - 持ち物チェックリスト", "url": "https://appadaycreator.com/packing-checklist/", "description": "旅行・出張の持ち物準備を効率化するスマートチェックリスト。シーン別テンプレートで忘れ物を防止し、完璧な準備をサポートします。", "operatingSystem": "Any", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "JPY"}, "applicationCategory": "TravelApplication"}</script>
+    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "ホーム", "item": "https://appadaycreator.com/"}, {"@type": "ListItem", "position": 2, "name": "忘れ物ゼロ - 持ち物チェックリスト", "item": "https://appadaycreator.com/packing-checklist/"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"旅行の持ち物チェックリストの基本は？","acceptedAnswer":{"@type":"Answer","text":"必須アイテムは：①身分証・パスポート、②財布・現金・クレジットカード、③スマートフォン・充電器、④着替え（日数分+1）、⑤歯ブラシ・洗顔料などの洗面用具です。このアプリで行き先・日数を設定すると必要なリストが自動生成されます。"}},{"@type":"Question","name":"忘れ物を防ぐコツは？","acceptedAnswer":{"@type":"Answer","text":"①出発3日前からチェックリストを使い始める、②前日夜に最終確認、③カテゴリ別（書類・衣類・電子機器・洗面用具）に整理する、の3ステップが効果的です。"}},{"@type":"Question","name":"海外旅行と国内旅行でリストは違う？","acceptedAnswer":{"@type":"Answer","text":"海外は追加で：パスポート・ビザ・海外旅行保険・変換プラグ・現地通貨が必要です。このアプリで旅行タイプを選ぶと自動的に必要なカスタムリストが表示されます。"}},{"@type":"Question","name":"どのような人が使っていますか？","acceptedAnswer":{"@type":"Answer","text":"旅行が多いビジネスパーソンや旅行好きの方、荷造りが苦手な方に幅広くご利用いただいています。初めての海外旅行にも役立てていただけます。"}},{"@type":"Question","name":"チェックリストを友人とシェアできますか？","acceptedAnswer":{"@type":"Answer","text":"スクリーンショットを撮影して友人・家族とシェアできます。旅行の事前準備を一緒に確認するのにご活用ください。"}},{"@type":"Question","name":"有料プランはありますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、すべての機能を完全無料でご利用いただけます。"}}]}</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "appadaycreator",
+  "url": "https://appadaycreator.com",
+  "logo": "https://appadaycreator.com/logo.png",
+  "description": "無料Webサービス・診断ツール 180種類以上を運営"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "mainEntity": {
+    "@type": "Article",
+    "headline": "旅行の持ち物チェックリスト【無料】忘れ物ゼロ！出張・海外旅行対応",
+    "description": "旅行・出張・日常の持ち物をチェックリストで管理。カスタマイズ可能な持ち物リストで忘れ物を防止。スマホで使える無料アプリ。",
+    "datePublished": "2026-05-23",
+    "dateModified": "2026-05-29",
+    "author": {
+      "@type": "Organization",
+      "name": "appadaycreator"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "appadaycreator",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://appadaycreator.com/logo.png"
+      }
+    }
+  }
+}
+</script>
+
+<style>
+@media(max-width:480px){button,[class*=btn]{min-height:48px!important;font-size:15px!important;}input,select,textarea{font-size:16px!important;min-height:44px!important;}[class*=card],[class*=max-w]{padding:16px!important;}}
+@media print{header,footer,nav,#loading,#notification,.no-print,.adsbygoogle,[id*=modal],[id*=sidebar],[id*=menu]{display:none!important;}body{background:#fff;}a{color:#000;text-decoration:none;}@page{margin:1.5cm;}}
+</style>
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"旅行の持ち物チェックリスト【無料】忘れ物ゼロ！出張・海外旅行対応の使い方","step":[{"@type":"HowToStep","position":1,"name":"記録する情報を入力する","text":"記録したい内容（日付・数値・テキスト）を入力フォームに入力する"},{"@type":"HowToStep","position":2,"name":"「追加」ボタンで保存する","text":"「追加」または「記録」ボタンを押してデータをブラウザに保存する"},{"@type":"HowToStep","position":3,"name":"記録一覧で履歴を確認する","text":"記録一覧やカレンダーで過去のデータを確認する"},{"@type":"HowToStep","position":4,"name":"グラフや集計で傾向を把握する","text":"グラフや統計機能を使ってデータの推移・傾向を分析する"},{"@type":"HowToStep","position":5,"name":"継続して変化を追跡する","text":"毎日継続的に記録することで長期的な変化を可視化する"}]}</script>
+
+<style id="scroll-reveal-css">
+/* Round#34: スクロール連動フェードインアニメーション */
+@keyframes r34-fadeUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.r34-reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.55s ease-out, transform 0.55s ease-out;
+}
+.r34-reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+</style>
+<style id="ux-enhanced">
+button,input[type=submit],input[type=button],[class*=btn]{min-height:44px;cursor:pointer;transition:opacity .15s,transform .1s;}
+button:active,[class*=btn]:active{opacity:.75;transform:scale(.98);}
+select,input[type=text],input[type=number],input[type=email],textarea{min-height:44px;font-size:16px;}
+[id*=result]:not(style):not(script),[id*=output]:not(style):not(script){border-left:4px solid #7c3aed;padding-left:16px;margin-top:16px;}
+@media(max-width:640px){[class*=max-w],[class*=container],[class*=wrapper]{padding:12px 16px!important;}button,[class*=btn]{width:100%;font-size:15px;}}
+</style>
+</head>
+<body class="bg-gray-50 font-sans text-gray-900"><a href="#main" class="sr-only">本文へスキップ</a>
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+
+    <!-- 通知システム -->
+    <div id="notification" class="notification bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg max-w-sm">
+        <div class="flex items-center space-x-2">
+            <span>✓</span>
+            <span id="notification-text">通知メッセージ</span>
+        </div>
+    </div>
+
+    <!-- ローディング画面 -->
+    <div id="loading" class="fixed inset-0 bg-white z-50 flex items-center justify-center">
+        <div class="text-center">
+            <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 mx-auto"></div>
+            <p class="mt-4 text-gray-600">読み込み中...</p>
+        </div>
+    </div>
+
+    <!-- ヘッダー -->
+    <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <button id="menu-toggle" class="md:hidden p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100">
+                        <span>☰</span>
+                    </button>
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center">
+                            <span class="text-white text-sm">✓</span>
+                        </div>
+                        <h1 class="text-xl font-bold text-gray-900">忘れ物ゼロ</h1>
+                    </div>
+                </div>
+                
+                <nav class="hidden md:flex space-x-8">
+                    <a href="#" class="nav-link text-gray-700 hover:text-indigo-600 font-medium" data-section="home">ホーム</a>
+                    <a href="#" class="nav-link text-gray-700 hover:text-indigo-600 font-medium" data-section="templates">テンプレート</a>
+                    <a href="#" class="nav-link text-gray-700 hover:text-indigo-600 font-medium" data-section="history">履歴</a>
+                    <a href="#" class="nav-link text-gray-700 hover:text-indigo-600 font-medium" data-section="settings">設定</a>
+                </nav>
+                
+                <div class="flex items-center space-x-4">
+                    <button id="lang-toggle" class="text-gray-600 hover:text-gray-900">
+                        <span>🌐</span>
+                        <span class="ml-1 text-sm">日本語</span>
+                    </button>
+                    <button id="font-size-toggle" class="text-gray-600 hover:text-gray-900">
+                        <span style="font-size:1.1em">Aa</span>
+                    </button>
+                    <button id="login-btn" class="bg-green-100 text-green-700 border border-green-300 px-3 py-2 rounded-md hover:bg-green-200 transition duration-200 text-sm font-medium">
+                        💾 登録不要
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- サイドバー (モバイル用) -->
+    <div id="sidebar-overlay" class="overlay fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"></div>
+    <div id="sidebar" class="sidebar fixed left-0 top-0 h-full w-64 bg-white shadow-lg z-40 md:hidden">
+        <div class="p-4">
+            <div class="flex items-center justify-between mb-8">
+                <h2 class="text-lg font-semibold">メニュー</h2>
+                <button id="sidebar-close" class="text-gray-600 hover:text-gray-900">
+                    <span>✕</span>
+                </button>
+            </div>
+            <nav class="space-y-4">
+                <a href="#" class="block text-gray-700 hover:text-indigo-600 font-medium py-2" data-section="home">ホーム</a>
+                <a href="#" class="block text-gray-700 hover:text-indigo-600 font-medium py-2" data-section="templates">テンプレート</a>
+                <a href="#" class="block text-gray-700 hover:text-indigo-600 font-medium py-2" data-section="history">履歴</a>
+                <a href="#" class="block text-gray-700 hover:text-indigo-600 font-medium py-2" data-section="settings">設定</a>
+            </nav>
+        </div>
+    </div>
+
+    <!-- メインコンテンツ -->
+    <main id="main" role="main" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- ホーム画面 -->
+        <div id="home-section" class="section">
+            <div class="mb-8">
+                <div class="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg p-6 text-white">
+                    <h2 class="text-3xl font-bold mb-2">完璧な準備をサポート</h2>
+                    <p class="text-indigo-100 mb-6">シーン別チェックリストで忘れ物を防止しましょう</p>
+                    <div class="flex flex-wrap gap-4">
+                        <button id="create-checklist" class="bg-white text-indigo-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition duration-200">
+                            <span class="mr-2">+</span>新しいチェックリスト
+                        </button>
+                        <button id="quick-start" class="bg-indigo-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-400 transition duration-200">
+                            <span class="mr-2">🚀</span>クイックスタート
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 統計情報 -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                            <span class="text-green-600">✓</span>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-600">完了したチェックリスト</p>
+                            <p class="text-2xl font-bold text-gray-900" id="completed-count">0</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                            <span class="text-blue-600">📋</span>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-600">作成したリスト</p>
+                            <p class="text-2xl font-bold text-gray-900" id="total-lists">0</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow p-6">
+                    <div class="flex items-center">
+                        <div class="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+                            <span class="text-yellow-600">⭐</span>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-600">お気に入りアイテム</p>
+                            <p class="text-2xl font-bold text-gray-900" id="favorite-items">0</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 最近のチェックリスト -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">最近のチェックリスト</h3>
+                </div>
+                <div class="p-6">
+                    <div id="recent-lists" class="space-y-4">
+                        <!-- 最近のリストがここに表示される -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- テンプレート画面 -->
+        <div id="templates-section" class="section hidden">
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">テンプレート一覧</h2>
+                <p class="text-gray-600">シーン別の持ち物テンプレートから選択して、効率的に準備を始めましょう</p>
+            </div>
+
+            <!-- 検索・フィルター -->
+            <div class="bg-white rounded-lg shadow p-6 mb-8">
+                <div class="flex flex-col md:flex-row gap-4">
+                    <div class="flex-1">
+                        <div class="relative">
+                            <span class="absolute left-3 top-3 text-gray-400">🔍</span>
+                            <input type="text" id="template-search" placeholder="テンプレートを検索..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" aria-label="テンプレートを検索...">
+                        </div>
+                    </div>
+                    <select id="template-filter" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="">すべてのカテゴリ</option>
+                        <option value="travel">旅行</option>
+                        <option value="business">出張</option>
+                        <option value="outdoor">アウトドア</option>
+                        <option value="event">イベント</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- テンプレート一覧 -->
+            <div id="templates-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- テンプレートカードがここに表示される -->
+            </div>
+        </div>
+
+        <!-- チェックリスト作成・編集画面 -->
+        <div id="checklist-section" class="section hidden">
+            <div class="mb-6">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-2xl font-bold text-gray-900" id="checklist-title">新しいチェックリスト</h2>
+                    <div class="flex items-center space-x-4">
+                        <button id="save-checklist" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition duration-200">
+                            <span class="mr-2">💾</span>保存
+                        </button>
+                        <button id="share-checklist" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition duration-200">
+                            <span class="mr-2">📤</span>共有
+                        </button>
+                        <button id="copy-checklist-text" onclick="copyChecklistAsText()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition duration-200">
+                            <span class="mr-2">📋</span>テキストコピー
+                        </button>
+                        <button onclick="printChecklist()" class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition duration-200">
+                            <span class="mr-2">🖨️</span>印刷
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- チェックリスト情報 -->
+                <div class="lg:col-span-2">
+                    <div class="bg-white rounded-lg shadow p-6 mb-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">基本情報</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">チェックリスト名</label>
+                                <input type="text" id="checklist-name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="例：沖縄旅行" aria-label="例：沖縄旅行">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">出発日</label>
+                                <input type="date" id="departure-date" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">日数</label>
+                                <input type="number" id="trip-days" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" min="1" value="1">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">参加人数</label>
+                                <input type="number" id="participant-count" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" min="1" value="1">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 進捗状況 -->
+                    <div class="bg-white rounded-lg shadow p-6 mb-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold text-gray-900">準備進捗</h3>
+                            <span id="progress-percentage" class="text-sm font-medium text-indigo-600">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div id="progress-bar" class="progress-bar bg-indigo-600 h-2 rounded-full" style="width: 0%"></div>
+                        </div>
+                        <div class="mt-2">
+                            <canvas id="progress-chart" height="200"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- アイテム一覧 -->
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold text-gray-900">持ち物リスト</h3>
+                            <button id="add-item" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition duration-200">
+                                <span class="mr-2">+</span>アイテム追加
+                            </button>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <div class="flex flex-wrap gap-2">
+                                <button class="category-filter bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-sm hover:bg-gray-300" data-category="all">すべて</button>
+                                <button class="category-filter bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-sm hover:bg-gray-300" data-category="clothes">衣類</button>
+                                <button class="category-filter bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-sm hover:bg-gray-300" data-category="toiletries">洗面用品</button>
+                                <button class="category-filter bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-sm hover:bg-gray-300" data-category="electronics">電子機器</button>
+                                <button class="category-filter bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-sm hover:bg-gray-300" data-category="documents">書類</button>
+                                <button class="category-filter bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-sm hover:bg-gray-300" data-category="other">その他</button>
+                            </div>
+                        </div>
+                        
+                        <div id="items-list" class="space-y-3">
+                            <!-- アイテムがここに表示される -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- サイドバー -->
+                <div class="space-y-6">
+                    <!-- 季節の準備ヒント -->
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">季節の準備ヒント</h3>
+                        <div id="weather-info" class="text-center text-gray-600">
+                        </div>
+                    </div>
+
+                    <!-- おすすめアイテム -->
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">おすすめアイテム</h3>
+                        <div id="recommended-items" class="space-y-3">
+                            <!-- おすすめアイテムがここに表示される -->
+                        </div>
+                    </div>
+
+                    <!-- アフィリエイト広告 -->
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">おすすめ商品</h3>
+                        <div id="affiliate-products" class="space-y-4">
+                            <!-- アフィリエイト商品がここに表示される -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 履歴画面 -->
+        <div id="history-section" class="section hidden">
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">チェックリスト履歴</h2>
+                <p class="text-gray-600">過去に作成したチェックリストを確認・再利用できます</p>
+            </div>
+
+            <div class="bg-white rounded-lg shadow">
+                <div class="p-6">
+                    <div id="history-list" class="space-y-4">
+                        <!-- 履歴がここに表示される -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 設定画面 -->
+        <div id="settings-section" class="section hidden">
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">設定</h2>
+                <p class="text-gray-600">アプリの設定をカスタマイズできます</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">表示設定</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">文字サイズ</label>
+                            <select id="font-size-select" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <option value="xs">極小</option>
+                                <option value="sm">小</option>
+                                <option value="base" selected>標準</option>
+                                <option value="lg">大</option>
+                                <option value="xl">特大</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">言語</label>
+                            <select id="language-select" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <option value="ja">日本語</option>
+                                <option value="en">English</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-lg shadow p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">通知設定</h3>
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium text-gray-700">準備リマインダー</span>
+                            <input type="checkbox" id="reminder-enabled" class="toggle">
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium text-gray-700">SNS共有の通知</span>
+                            <input type="checkbox" id="share-notifications" class="toggle">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 使い方ページ -->
+        <div id="how-to-use-section" class="section hidden">
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">使い方</h2>
+                <p class="text-gray-600">忘れ物ゼロの使い方を詳しく説明します</p>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="prose max-w-none">
+                    <h3 class="text-lg font-semibold mb-4">1. チェックリストの作成</h3>
+                    <p class="mb-4">テンプレートを選択するか、新規作成でオリジナルのチェックリストを作成できます。</p>
+                    
+                    <h3 class="text-lg font-semibold mb-4">2. アイテムの追加・管理</h3>
+                    <p class="mb-4">持ち物をカテゴリ別に整理し、数量や優先度を設定できます。</p>
+                    
+                    <h3 class="text-lg font-semibold mb-4">3. 進捗の確認</h3>
+                    <p class="mb-4">準備状況を視覚的に確認し、忘れ物を防止できます。</p>
+                    
+                    <h3 class="text-lg font-semibold mb-4">4. 共有機能</h3>
+                    <p class="mb-4">家族や友人とチェックリストを共有して、一緒に準備を進められます。</p>
+
+                    <h3 class="text-lg font-semibold mb-4">5. アカウント登録</h3>
+                    <p class="mb-4">メールアドレスとパスワードを登録すると、チェックリストをクラウドに保存できます。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 利用規約ページ -->
+        <div id="terms-section" class="section hidden">
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">利用規約</h2>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="prose max-w-none">
+                    <h3 class="text-lg font-semibold mb-4">第1条（適用）</h3>
+                    <p class="mb-4">本規約は、本サービスの利用に関して適用されます。</p>
+                    
+                    <h3 class="text-lg font-semibold mb-4">第2条（利用登録）</h3>
+                    <p class="mb-4">利用者は、本規約に同意の上、所定の方法により利用登録を行うものとします。登録情報はSupabaseで管理されます。</p>
+                    
+                    <h3 class="text-lg font-semibold mb-4">第3条（禁止事項）</h3>
+                    <p class="mb-4">利用者は、本サービスの利用にあたり、以下の行為をしてはなりません。</p>
+                    <ul class="list-disc pl-5 mb-4">
+                        <li>法令または公序良俗に違反する行為</li>
+                        <li>犯罪行為に関連する行為</li>
+                        <li>本サービスの運営を妨害する行為</li>
+                    </ul>
+                    
+                    <h3 class="text-lg font-semibold mb-4">第4条（本サービスの提供の停止等）</h3>
+                    <p class="mb-4">当社は、以下のいずれかの事由があると判断した場合、利用者に事前に通知することなく本サービスの全部または一部の提供を停止または中断することができるものとします。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- プライバシーポリシーページ -->
+        <div id="privacy-section" class="section hidden">
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">プライバシーポリシー</h2>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="prose max-w-none">
+                    <h3 class="text-lg font-semibold mb-4">1. 個人情報の収集</h3>
+                    <p class="mb-4">当社は、以下の目的のために必要な範囲で個人情報を収集いたします。アカウント登録の際にメールアドレスを取得します。</p>
+                    
+                    <h3 class="text-lg font-semibold mb-4">2. 個人情報の利用目的</h3>
+                    <p class="mb-4">収集した個人情報は、以下の目的のために利用いたします。</p>
+                    
+                    <h3 class="text-lg font-semibold mb-4">3. 個人情報の第三者提供</h3>
+                    <p class="mb-4">当社は、以下の場合を除いて、あらかじめ利用者の同意を得ることなく、第三者に個人情報を提供することはありません。</p>
+                    
+                    <h3 class="text-lg font-semibold mb-4">4. 個人情報の開示</h3>
+                    <p class="mb-4">当社は、利用者ご本人から個人情報の開示を求められたときは、遅滞なく開示します。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 免責事項ページ -->
+        <div id="disclaimer-section" class="section hidden">
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">免責事項</h2>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="prose max-w-none">
+                    <h3 class="text-lg font-semibold mb-4">1. 免責事項</h3>
+                    <p class="mb-4">本サービスに関して、明示・黙示を問わず、完全性、正確性、確実性、有用性等のいかなる保証もいたしません。</p>
+                    
+                    <h3 class="text-lg font-semibold mb-4">2. 損害の補償</h3>
+                    <p class="mb-4">利用者が本サービスを利用することによって生じた損害について、当社は一切の責任を負いません。</p>
+                    
+                    <h3 class="text-lg font-semibold mb-4">3. サービス内容の変更</h3>
+                    <p class="mb-4">当社は、利用者に通知することなく、本サービスの内容を変更または本サービスの提供を中止することができるものとします。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- お問い合わせページ -->
+        <div id="contact-section" class="section hidden">
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold text-gray-900 mb-4">お問い合わせ</h2>
+                <p class="text-gray-600">ご質問やご要望がございましたら、以下のフォームからお気軽にお問い合わせください。</p>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-6">
+                <form id="contact-form" class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">お名前 <span class="text-red-500">*</span></label>
+                        <input type="text" id="contact-name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">メールアドレス <span class="text-red-500">*</span></label>
+                        <input type="email" id="contact-email" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">お問い合わせ種別</label>
+                        <select id="contact-type" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="">選択してください</option>
+                            <option value="bug">不具合報告</option>
+                            <option value="feature">機能要望</option>
+                            <option value="question">質問</option>
+                            <option value="other">その他</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">お問い合わせ内容 <span class="text-red-500">*</span></label>
+                        <textarea id="contact-message" rows="5" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required></textarea>
+                    </div>
+                    
+                    <div class="flex justify-end">
+                        <button type="submit" class="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition duration-200">
+                            <span class="mr-2">✈️</span>送信
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    
+<!-- AF: じゃらんnet -->
+<div style="margin:16px auto;max-width:728px;background:#fff7ed;border-left:3px solid #e65c00;border-radius:8px;padding:14px 16px;">
+    <p style="font-size:13px;font-weight:700;color:#9a3412;margin:0 0 6px;">🏨 旅行の宿泊予約はじゃらんnetで</p>
+    <p style="font-size:12px;color:#475569;margin:0 0 8px;line-height:1.6;">国内25,000軒以上を比較・予約。ポイント2％還元！</p>
+    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ5+C2OQY2+14CS+68EPE" rel="nofollow" target="_blank" rel="noopener noreferrer" style="display:block;text-align:center;padding:10px;background:#e65c00;color:#fff;font-weight:700;font-size:13px;border-radius:8px;text-decoration:none;">【じゃらん】国内25,000軒の宿をネットで予約OK！2％ポイント還元！ →</a>
+    <img border="0" width="1" height="1" src="https://www15.a8.net/0.gif?a8mat=4B3WJ5+C2OQY2+14CS+68EPE" alt="">
+</div>
+
+<div style="text-align:center;margin:16px auto;max-width:728px;">
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="ca-pub-8427583028015858"
+     data-ad-slot="auto"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+<div style="text-align:center;margin:16px auto;max-width:728px;">
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="ca-pub-8427583028015858"
+     data-ad-slot="auto"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+<div style="text-align:center;margin:16px auto;max-width:728px;">
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="ca-pub-8427583028015858"
+     data-ad-slot="auto"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+
+<section style="margin:32px auto;max-width:640px;padding:0 16px;" aria-labelledby="faq-h"><h2 id="faq-h" style="font-size:1.15rem;font-weight:700;margin-bottom:10px;border-left:4px solid #7c3aed;padding-left:10px;">よくある質問</h2><dl style="line-height:1.8;"><dt style="font-weight:600;margin-top:12px;">Q: 旅行の持ち物チェックリストは無料で使えますか？</dt><dd style="margin-left:16px;color:#374151;">はい、完全無料・登録不要でご利用いただけます。</dd><dt style="font-weight:600;margin-top:12px;">Q: 生成した内容を商用利用できますか？</dt><dd style="margin-left:16px;color:#374151;">生成されたコンテンツはご自由にご利用いただけます。内容の最終確認はご自身でお願いします。</dd><dt style="font-weight:600;margin-top:12px;">Q: 何回でも生成できますか？</dt><dd style="margin-left:16px;color:#374151;">はい、回数制限なく何度でも生成いただけます。</dd></dl></section></main>
+
+    <!-- フッター -->
+    
+<section style="background:#f0f9ff;border-top:1px solid #bae6fd;padding:16px;text-align:center;font-size:12px;color:#0369a1;">
+  <p style="margin:0 0 4px;font-weight:600;">📧 お問い合わせ</p>
+  <p style="margin:0;">ご意見・ご要望・不具合のご報告は <a href="mailto:appadaycreator@gmail.com" style="color:#0369a1;font-weight:bold;">appadaycreator@gmail.com</a> または <a href="contact.html" style="color:#0369a1;">お問い合わせフォーム</a> へ</p>
+</section>
+<div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px 0;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">入力された値を計算式やスコアリングロジックで処理し、あなたに合った結果を算出します。本ツールの結果はあくまで参考情報です。</p></div>
+<footer class="bg-gray-800 text-white mt-16">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <div>
+                    <div class="flex items-center space-x-2 mb-4">
+                        <div class="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center">
+                            <span class="text-white text-sm">✓</span>
+                        </div>
+                        <span class="text-xl font-bold">忘れ物ゼロ</span>
+                    </div>
+                    <p class="text-gray-400">完璧な準備をサポートする持ち物チェックリスト</p>
+                </div>
+                
+                <div>
+                    <h3 class="text-lg font-semibold mb-4">機能</h3>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#" class="hover:text-white">チェックリスト作成</a></li>
+                        <li><a href="#" class="hover:text-white">テンプレート</a></li>
+                        <li><a href="#" class="hover:text-white">進捗管理</a></li>
+                        <li><a href="#" class="hover:text-white">共有機能</a></li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h3 class="text-lg font-semibold mb-4">サポート</h3>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#" class="hover:text-white footer-link" data-section="how-to-use">使い方</a></li>
+                        <li><a href="#" class="hover:text-white footer-link" data-section="contact">お問い合わせ</a></li>
+                        <li><a href="#" class="hover:text-white footer-link" data-section="terms">利用規約</a></li>
+                        <li><a href="#" class="hover:text-white footer-link" data-section="privacy">プライバシーポリシー</a></li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h3 class="text-lg font-semibold mb-4">フォロー</h3>
+                    <div class="flex space-x-4">
+                        <a href="https://x.com/appadaycreator" class="text-gray-400 hover:text-white">
+                            <span>𝕏</span>
+                        </a>
+                        <a href="#" class="text-gray-400 hover:text-white">
+                            <span>f</span>
+                        </a>
+                        <a href="#" class="text-gray-400 hover:text-white">
+                            <span>📸</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="border-t border-gray-700 mt-8 pt-8 text-center text-gray-400">
+                <p>&copy; 2026 忘れ物ゼロ. All rights reserved.</p>
+            </div>
+        </div>
+    <p style="text-align:center;font-size:10px;color:#9ca3af;margin-top:3px;">最終更新: 2026年5月 | 本サービスはアフィリエイト広告を掲載しています</p>
+</footer>
+
+    <!-- モーダル -->
+    <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 id="modal-title" class="text-lg font-semibold">モーダルタイトル</h3>
+                    <button id="modal-close" class="text-gray-400 hover:text-gray-600">
+                        <span>✕</span>
+                    </button>
+                </div>
+                <div id="modal-content" class="mb-6">
+                    <!-- モーダルコンテンツがここに表示される -->
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button id="modal-cancel" class="px-4 py-2 text-gray-600 hover:text-gray-800">キャンセル</button>
+                    <button id="modal-confirm" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">確認</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 共有モーダル -->
+    <div id="share-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold">チェックリストを共有</h3>
+                    <button id="share-modal-close" class="text-gray-400 hover:text-gray-600">
+                        <span>✕</span>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">共有URL</label>
+                        <div class="flex">
+                            <input type="text" id="share-url" class="flex-1 px-3 py-2 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" readonly>
+                            <button id="copy-url" class="px-4 py-2 bg-indigo-600 text-white rounded-r-lg hover:bg-indigo-700">
+                                <span>📋</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="flex justify-center space-x-4">
+                        <button id="share-twitter" class="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+                            <span>𝕏</span>
+                            <span>Twitter</span>
+                        </button>
+                        <button id="share-facebook" class="flex items-center space-x-2 px-4 py-2 bg-blue-700 text-white rounded-lg hover:bg-blue-800">
+                            <span>f</span>
+                            <span>Facebook</span>
+                        </button>
+                        <button id="share-line" class="flex items-center space-x-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600">
+                            <span>💬</span>
+                            <span>LINE</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- フローティングボタン -->
+    <button id="floating-help" class="floating-button bg-indigo-600 text-white p-4 rounded-full shadow-lg hover:bg-indigo-700 transition duration-200">
+        <span style="font-size:1.25rem;font-weight:700;">?</span>
+    </button>
+
+    <!-- JavaScript -->
+    <script>
+        // グローバル変数
+        let currentLanguage = 'ja';
+        let currentFontSize = 'base';
+        let currentUser = null;
+        let checklists = JSON.parse(localStorage.getItem('checklists')) || [];
+        let currentChecklist = null;
+        let supabase = null;
+        let _progressChart = null;
+
+        // 言語設定
+        const translations = {
+            ja: {
+                title: '忘れ物ゼロ',
+                subtitle: '持ち物チェックリスト',
+                home: 'ホーム',
+                templates: 'テンプレート',
+                history: '履歴',
+                settings: '設定',
+                login: 'ログイン',
+                logout: 'ログアウト',
+                create_checklist: '新しいチェックリスト',
+                quick_start: 'クイックスタート'
+            },
+            en: {
+                title: 'Zero Forgotten',
+                subtitle: 'Packing Checklist',
+                home: 'Home',
+                templates: 'Templates',
+                history: 'History',
+                settings: 'Settings',
+                login: 'Login',
+                logout: 'Logout',
+                create_checklist: 'New Checklist',
+                quick_start: 'Quick Start'
+            }
+        };
+
+        // テンプレートデータ
+        const templates = [
+            {
+                id: 'domestic-travel',
+                name: '国内旅行',
+                category: 'travel',
+                description: '1泊2日〜の国内旅行に最適',
+                items: [
+                    { name: '着替え', category: 'clothes', required: true, quantity: 1 },
+                    { name: '下着', category: 'clothes', required: true, quantity: 2 },
+                    { name: '歯ブラシ', category: 'toiletries', required: true, quantity: 1 },
+                    { name: '洗面用品', category: 'toiletries', required: true, quantity: 1 },
+                    { name: '充電器', category: 'electronics', required: true, quantity: 1 },
+                    { name: '財布', category: 'documents', required: true, quantity: 1 },
+                    { name: '身分証明書', category: 'documents', required: true, quantity: 1 },
+                    { name: '保険証', category: 'documents', required: false, quantity: 1 },
+                    { name: 'カメラ', category: 'electronics', required: false, quantity: 1 },
+                    { name: '薬', category: 'other', required: false, quantity: 1 }
+                ]
+            },
+            {
+                id: 'overseas-travel',
+                name: '海外旅行',
+                category: 'travel',
+                description: '海外旅行に必要な持ち物一覧',
+                items: [
+                    { name: 'パスポート', category: 'documents', required: true, quantity: 1 },
+                    { name: '航空券', category: 'documents', required: true, quantity: 1 },
+                    { name: '海外旅行保険証', category: 'documents', required: true, quantity: 1 },
+                    { name: '現金・クレジットカード', category: 'documents', required: true, quantity: 1 },
+                    { name: '変換プラグ', category: 'electronics', required: true, quantity: 1 },
+                    { name: '着替え', category: 'clothes', required: true, quantity: 3 },
+                    { name: '洗面用品', category: 'toiletries', required: true, quantity: 1 },
+                    { name: '常備薬', category: 'other', required: false, quantity: 1 },
+                    { name: 'ガイドブック', category: 'other', required: false, quantity: 1 }
+                ]
+            },
+            {
+                id: 'business-trip',
+                name: '出張',
+                category: 'business',
+                description: '1泊2日の出張に最適',
+                items: [
+                    { name: 'スーツ', category: 'clothes', required: true, quantity: 1 },
+                    { name: 'ワイシャツ', category: 'clothes', required: true, quantity: 2 },
+                    { name: 'ネクタイ', category: 'clothes', required: true, quantity: 1 },
+                    { name: '革靴', category: 'clothes', required: true, quantity: 1 },
+                    { name: 'ノートPC', category: 'electronics', required: true, quantity: 1 },
+                    { name: '充電器', category: 'electronics', required: true, quantity: 1 },
+                    { name: '資料', category: 'documents', required: true, quantity: 1 },
+                    { name: '名刺', category: 'documents', required: true, quantity: 1 },
+                    { name: '交通費', category: 'documents', required: true, quantity: 1 }
+                ]
+            },
+            {
+                id: 'camping',
+                name: 'キャンプ',
+                category: 'outdoor',
+                description: '1泊2日のキャンプに最適',
+                items: [
+                    { name: 'テント', category: 'other', required: true, quantity: 1 },
+                    { name: '寝袋', category: 'other', required: true, quantity: 1 },
+                    { name: '着替え', category: 'clothes', required: true, quantity: 1 },
+                    { name: '防寒具', category: 'clothes', required: true, quantity: 1 },
+                    { name: '懐中電灯', category: 'electronics', required: true, quantity: 1 },
+                    { name: 'バーベキュー用品', category: 'other', required: false, quantity: 1 },
+                    { name: '食材', category: 'other', required: false, quantity: 1 },
+                    { name: '虫よけスプレー', category: 'other', required: false, quantity: 1 }
+                ]
+            },
+            {
+                id: 'wedding',
+                name: '結婚式',
+                category: 'event',
+                description: '結婚式への参列に最適',
+                items: [
+                    { name: 'フォーマルスーツ', category: 'clothes', required: true, quantity: 1 },
+                    { name: '革靴', category: 'clothes', required: true, quantity: 1 },
+                    { name: 'ご祝儀', category: 'documents', required: true, quantity: 1 },
+                    { name: '招待状', category: 'documents', required: true, quantity: 1 },
+                    { name: 'ハンカチ', category: 'other', required: true, quantity: 1 },
+                    { name: '袱紗', category: 'other', required: false, quantity: 1 },
+                    { name: 'カメラ', category: 'electronics', required: false, quantity: 1 }
+                ]
+            },
+            {
+                id: 'gym',
+                name: 'ジム・スポーツ',
+                category: 'other',
+                description: 'ジム・スポーツ施設利用時に最適',
+                items: [
+                    { name: 'スポーツウェア', category: 'clothes', required: true, quantity: 1 },
+                    { name: 'スニーカー', category: 'clothes', required: true, quantity: 1 },
+                    { name: 'タオル', category: 'other', required: true, quantity: 1 },
+                    { name: '水筒', category: 'other', required: true, quantity: 1 },
+                    { name: 'イヤホン', category: 'electronics', required: false, quantity: 1 },
+                    { name: 'プロテイン', category: 'other', required: false, quantity: 1 }
+                ]
+            }
+        ];
+
+        // アフィリエイト商品データ
+        const affiliateProducts = [
+            {
+                name: 'トラベルポーチ',
+                description: '化粧品や小物を整理',
+                price: '1,980円',
+                image: '/api/placeholder/100/100',
+                url: '#'
+            },
+            {
+                name: 'パッキングキューブ',
+                description: '衣類の整理に最適',
+                price: '2,480円',
+                image: '/api/placeholder/100/100',
+                url: '#'
+            },
+            {
+                name: '忘れ物防止タグ',
+                description: 'Bluetoothで位置を追跡',
+                price: '3,980円',
+                image: '/api/placeholder/100/100',
+                url: '#'
+            }
+        ];
+
+        // 初期化
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+            loadUserData();
+            setupEventListeners();
+            showSection('home');
+            hideLoading();
+        });
+
+        // アプリ初期化
+        function initializeApp() {
+            // Supabaseの初期化
+            if (typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_ANON_KEY !== 'undefined') {
+                supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            }
+            
+            // PWAサービスワーカー登録
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(() => {})
+                    .catch(error => console.error('SW registration failed', error));
+            }
+            
+            // 文字サイズ設定の復元
+            const savedFontSize = localStorage.getItem('fontSize') || 'base';
+            setFontSize(savedFontSize);
+            
+            // 言語設定の復元
+            const savedLanguage = localStorage.getItem('language') || 'ja';
+            setLanguage(savedLanguage);
+        }
+
+        // ユーザーデータの読み込み
+        function loadUserData() {
+            const stats = calculateStats();
+            document.getElementById('completed-count').textContent = stats.completed;
+            document.getElementById('total-lists').textContent = stats.total;
+            document.getElementById('favorite-items').textContent = stats.favorites;
+            
+            loadRecentLists();
+            loadTemplates();
+        }
+
+        // 統計情報の計算
+        function calculateStats() {
+            const completed = checklists.filter(list => list.completed).length;
+            const total = checklists.length;
+            const favorites = checklists.reduce((sum, list) => 
+                sum + (list.items || []).filter(item => item.favorite).length, 0);
+            
+            return { completed, total, favorites };
+        }
+
+        // 最近のリストを読み込み
+        function loadRecentLists() {
+            const recentContainer = document.getElementById('recent-lists');
+            const recent = checklists.slice(-5).reverse();
+            
+            if (recent.length === 0) {
+                recentContainer.innerHTML = `
+                    <div class="text-center py-8">
+                        <div class="text-5xl mb-4">🧳</div>
+                        <p class="text-gray-600 font-medium mb-2">まだチェックリストがありません</p>
+                        <p class="text-gray-400 text-sm mb-6">テンプレートから素早く作成できます</p>
+                        <button onclick="showSection('templates')" class="bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition duration-200">
+                            テンプレートから始める →
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+            
+            recentContainer.innerHTML = recent.map(list => `
+                <div class="r34-reveal item-card border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer" onclick="openChecklist('${list.id}')">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="font-medium text-gray-900">${list.name}</h4>
+                            <p class="text-sm text-gray-500">${list.departureDate || '日付未設定'}</p>
+                        </div>
+                        <div class="text-right">
+                            <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                                <span class="text-sm font-medium">${Math.round(list.progress || 0)}%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // カテゴリ名の日本語マッピング（P3修正）
+        const categoryLabels = { travel: '旅行', business: '出張', outdoor: 'アウトドア', event: 'イベント' };
+
+        // テンプレートの読み込み
+        function loadTemplates() {
+            const templatesGrid = document.getElementById('templates-grid');
+
+            templatesGrid.innerHTML = templates.map(template => `
+                <div class="r34-reveal template-card rounded-lg p-6 hover:shadow-lg transition-shadow cursor-pointer" onclick="createFromTemplate('${template.id}')">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">${template.name}</h3>
+                        <span class="category-badge px-2 py-1 text-xs font-medium rounded-full">${categoryLabels[template.category]||template.category}</span>
+                    </div>
+                    <p class="text-gray-600 mb-4">${template.description}</p>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-gray-500">${template.items.length}個のアイテム</span>
+                        <button class="text-indigo-600 hover:text-indigo-800">
+                            <span>→</span>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // イベントリスナーの設定
+        function setupEventListeners() {
+            // ナビゲーション
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const section = e.target.dataset.section;
+                    showSection(section);
+                });
+            });
+
+            // フッターリンク
+            document.querySelectorAll('.footer-link').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const section = e.target.dataset.section;
+                    showSection(section);
+                });
+            });
+
+            // モバイルメニュー
+            document.getElementById('menu-toggle').addEventListener('click', toggleSidebar);
+            document.getElementById('sidebar-close').addEventListener('click', toggleSidebar);
+            document.getElementById('sidebar-overlay').addEventListener('click', toggleSidebar);
+
+            // 言語切り替え
+            document.getElementById('lang-toggle').addEventListener('click', toggleLanguage);
+
+            // 文字サイズ変更
+            document.getElementById('font-size-toggle').addEventListener('click', cycleFontSize);
+
+            // ログイン/ログアウト
+            document.getElementById('login-btn').addEventListener('click', toggleLogin);
+
+            // チェックリスト作成
+            document.getElementById('create-checklist').addEventListener('click', () => {
+                createNewChecklist();
+            });
+
+            // クイックスタート（国内旅行テンプレートを即時作成）
+            document.getElementById('quick-start').addEventListener('click', () => {
+                createFromTemplate('domestic-travel');
+                showNotification('国内旅行テンプレートで開始しました！', 'success');
+            });
+
+            // モーダル制御
+            document.getElementById('modal-close').addEventListener('click', closeModal);
+            document.getElementById('modal-cancel').addEventListener('click', closeModal);
+
+            // 共有モーダル
+            document.getElementById('share-modal-close').addEventListener('click', closeShareModal);
+            document.getElementById('copy-url').addEventListener('click', copyShareUrl);
+
+            // フローティングボタン
+            document.getElementById('floating-help').addEventListener('click', showHelp);
+
+            // お問い合わせフォーム
+            document.getElementById('contact-form').addEventListener('submit', handleContactSubmit);
+
+            // テンプレート検索
+            document.getElementById('template-search').addEventListener('input', filterTemplates);
+            document.getElementById('template-filter').addEventListener('change', filterTemplates);
+
+            // 設定
+            document.getElementById('font-size-select').addEventListener('change', (e) => {
+                setFontSize(e.target.value);
+            });
+
+            document.getElementById('language-select').addEventListener('change', (e) => {
+                setLanguage(e.target.value);
+            });
+        }
+
+        // セクション表示
+        function showSection(sectionName) {
+            document.querySelectorAll('.section').forEach(section => {
+                section.classList.add('hidden');
+            });
+            
+            const targetSection = document.getElementById(sectionName + '-section');
+            if (targetSection) {
+                targetSection.classList.remove('hidden');
+                targetSection.classList.add('fade-in');
+            }
+            
+            // アクティブリンクの更新
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('text-indigo-600', 'font-semibold');
+                link.classList.add('text-gray-700');
+            });
+            
+            const activeLink = document.querySelector(`[data-section="${sectionName}"]`);
+            if (activeLink) {
+                activeLink.classList.remove('text-gray-700');
+                activeLink.classList.add('text-indigo-600', 'font-semibold');
+            }
+        }
+
+        // サイドバーの表示/非表示
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('active');
+        }
+
+        // 言語切り替え
+        function toggleLanguage() {
+            currentLanguage = currentLanguage === 'ja' ? 'en' : 'ja';
+            setLanguage(currentLanguage);
+        }
+
+        // 言語設定
+        function setLanguage(lang) {
+            currentLanguage = lang;
+            localStorage.setItem('language', lang);
+            
+            // HTMLのlang属性を更新
+            document.documentElement.lang = lang;
+            
+            // 言語表示を更新
+            const langButton = document.getElementById('lang-toggle');
+            langButton.innerHTML = `<span>🌐</span> <span class="ml-1 text-sm">${lang === 'ja' ? '日本語' : 'English'}</span>`;
+            
+            // 翻訳を適用
+            applyTranslations(lang);
+        }
+
+        // 翻訳適用
+        function applyTranslations(lang) {
+            const t = translations[lang];
+            if (!t) return;
+            
+            document.title = t.title + ' - ' + t.subtitle;
+            
+            // その他の翻訳適用処理
+        }
+
+        // 文字サイズサイクル
+        function cycleFontSize() {
+            const sizes = ['xs', 'sm', 'base', 'lg', 'xl'];
+            const currentIndex = sizes.indexOf(currentFontSize);
+            const nextIndex = (currentIndex + 1) % sizes.length;
+            setFontSize(sizes[nextIndex]);
+        }
+
+        // 文字サイズ設定
+        function setFontSize(size) {
+            currentFontSize = size;
+            localStorage.setItem('fontSize', size);
+            
+            // 既存のフォントサイズクラスを削除
+            document.body.classList.remove('font-size-xs', 'font-size-sm', 'font-size-base', 'font-size-lg', 'font-size-xl');
+            
+            // 新しいフォントサイズクラスを追加
+            document.body.classList.add(`font-size-${size}`);
+            
+            // 設定セレクトボックスも更新
+            const select = document.getElementById('font-size-select');
+            if (select) {
+                select.value = size;
+            }
+        }
+
+        // ログインボタン → ブラウザ保存インジケーター（LocalStorageのみで動作のため）
+        function toggleLogin() {
+            showNotification('チェックリストはこのブラウザに自動保存されます。登録・ログイン不要です。', 'info');
+        }
+
+        // ログインモーダル表示
+        function showLoginModal() {
+            const modal = document.getElementById('modal');
+            const title = document.getElementById('modal-title');
+            const content = document.getElementById('modal-content');
+            
+            title.textContent = 'ログイン';
+            content.innerHTML = `
+                <form id="login-form">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">メールアドレス</label>
+                            <input type="email" id="login-email" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">パスワード</label>
+                            <input type="password" id="login-password" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <label class="flex items-center">
+                                <input type="checkbox" class="mr-2">
+                                <span class="text-sm text-gray-600">ログイン状態を保持</span>
+                            </label>
+                            <a href="#" class="text-sm text-indigo-600 hover:text-indigo-800">パスワードを忘れた方</a>
+                        </div>
+                        <div class="text-right">
+                            <a href="#" id="open-signup" class="text-sm text-indigo-600 hover:text-indigo-800">新規登録はこちら</a>
+                        </div>
+                    </div>
+                </form>
+            `;
+            
+            modal.classList.remove('hidden');
+            
+            // フォーム送信処理
+            document.getElementById('login-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                login();
+            });
+
+            document.getElementById('open-signup').addEventListener('click', (e) => {
+                e.preventDefault();
+                showSignupModal();
+            });
+        }
+
+        // サインアップモーダル表示
+        function showSignupModal() {
+            const modal = document.getElementById('modal');
+            const title = document.getElementById('modal-title');
+            const content = document.getElementById('modal-content');
+
+            title.textContent = '新規登録';
+            content.innerHTML = `
+                <form id="signup-form">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">メールアドレス</label>
+                            <input type="email" id="signup-email" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">パスワード</label>
+                            <input type="password" id="signup-password" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                        </div>
+                    </div>
+                </form>
+            `;
+
+            modal.classList.remove('hidden');
+
+            document.getElementById('signup-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                signup();
+            });
+        }
+
+        // ログイン処理
+        async function login() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            if (supabase) {
+                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                if (error) {
+                    showNotification('ログインに失敗しました', 'error');
+                    return;
+                }
+                currentUser = { email: data.user.email, name: data.user.email.split('@')[0] };
+            } else {
+                // 環境設定がない場合はローカルで擬似ログイン
+                currentUser = { email, name: email.split('@')[0] };
+            }
+
+            updateLoginButton();
+            closeModal();
+            showNotification('ログインしました', 'success');
+        }
+
+        // サインアップ処理
+        async function signup() {
+            const email = document.getElementById('signup-email').value;
+            const password = document.getElementById('signup-password').value;
+
+            if (supabase) {
+                const { data, error } = await supabase.auth.signUp({ email, password });
+                if (error) {
+                    showNotification('登録に失敗しました', 'error');
+                    return;
+                }
+                currentUser = { email: data.user.email, name: data.user.email.split('@')[0] };
+            } else {
+                currentUser = { email, name: email.split('@')[0] };
+            }
+
+            updateLoginButton();
+            closeModal();
+            showNotification('登録しました', 'success');
+        }
+
+        // ログアウト処理
+        function logout() {
+            currentUser = null;
+            updateLoginButton();
+            showNotification('ログアウトしました', 'info');
+        }
+
+        // ログインボタン更新
+        function updateLoginButton() {
+            const loginBtn = document.getElementById('login-btn');
+            if (currentUser) {
+                loginBtn.textContent = 'ログアウト';
+                loginBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+                loginBtn.classList.add('bg-gray-600', 'hover:bg-gray-700');
+            } else {
+                loginBtn.textContent = 'ログイン';
+                loginBtn.classList.remove('bg-gray-600', 'hover:bg-gray-700');
+                loginBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+            }
+        }
+
+        // 新しいチェックリスト作成
+        function createNewChecklist() {
+            currentChecklist = {
+                id: generateId(),
+                name: '',
+                departureDate: '',
+                days: 1,
+                participants: 1,
+                items: [],
+                progress: 0,
+                completed: false,
+                createdAt: new Date().toISOString()
+            };
+            
+            showSection('checklist');
+            updateChecklistView();
+        }
+
+        // テンプレートからチェックリスト作成
+        function createFromTemplate(templateId) {
+            const template = templates.find(t => t.id === templateId);
+            if (!template) return;
+            
+            currentChecklist = {
+                id: generateId(),
+                name: template.name,
+                departureDate: '',
+                days: 1,
+                participants: 1,
+                items: template.items.map(item => ({
+                    ...item,
+                    id: generateId(),
+                    checked: false,
+                    memo: ''
+                })),
+                progress: 0,
+                completed: false,
+                createdAt: new Date().toISOString()
+            };
+            
+            showSection('checklist');
+            updateChecklistView();
+        }
+
+        // チェックリストを開く
+        function openChecklist(id) {
+            const checklist = checklists.find(c => c.id === id);
+            if (!checklist) return;
+            
+            currentChecklist = checklist;
+            showSection('checklist');
+            updateChecklistView();
+        }
+
+        // チェックリストビューの更新
+        function updateChecklistView() {
+            if (!currentChecklist) return;
+            
+            // 基本情報の設定
+            document.getElementById('checklist-name').value = currentChecklist.name;
+            document.getElementById('departure-date').value = currentChecklist.departureDate;
+            document.getElementById('trip-days').value = currentChecklist.days;
+            document.getElementById('participant-count').value = currentChecklist.participants;
+            
+            // アイテムリストの更新
+            updateItemsList();
+            
+            // 進捗の更新
+            updateProgress();
+            
+            // 季節別準備ヒントの更新（天気エリア転用）
+            updateWeatherWithSeasonalHints();
+
+            // おすすめアイテムの更新
+            updateRecommendedItems();
+            
+            // アフィリエイト商品の更新
+            updateAffiliateProducts();
+        }
+
+        // アイテムリストの更新
+        function updateItemsList() {
+            const itemsList = document.getElementById('items-list');
+            if (!currentChecklist.items || currentChecklist.items.length === 0) {
+                itemsList.innerHTML = '<p class="text-gray-500 text-center py-8">アイテムがありません</p>';
+                return;
+            }
+            
+            itemsList.innerHTML = currentChecklist.items.map(item => `
+                <div class="r34-reveal item-card border border-gray-200 rounded-lg p-4 ${item.checked ? 'bg-green-50 border-green-200' : ''}">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <input type="checkbox" ${item.checked ? 'checked' : ''} onchange="toggleItem('${item.id}')" class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500">
+                            <div>
+                                <h4 class="font-medium text-gray-900 ${item.checked ? 'line-through text-gray-500' : ''}">${item.name}</h4>
+                                <p class="text-sm text-gray-500">${categoryLabels[item.category] || item.category} ${item.quantity ? `× ${item.quantity}` : ''}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            ${item.required ? '<span class="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full">必須</span>' : ''}
+                            <button onclick="editItem('${item.id}')" class="text-gray-400 hover:text-gray-600">
+                                <span>✏️</span>
+                            </button>
+                            <button onclick="deleteItem('${item.id}')" class="text-red-400 hover:text-red-600">
+                                <span>🗑️</span>
+                            </button>
+                        </div>
+                    </div>
+                    ${item.memo ? `<p class="text-sm text-gray-600 mt-2">${item.memo}</p>` : ''}
+                </div>
+            `).join('');
+        }
+
+        // 進捗の更新
+        function updateProgress() {
+            const chartCanvas = document.getElementById('progress-chart');
+            if (!currentChecklist.items || currentChecklist.items.length === 0) {
+                document.getElementById('progress-percentage').textContent = '0%';
+                document.getElementById('progress-bar').style.width = '0%';
+                if (chartCanvas) chartCanvas.style.display = 'none';
+                return;
+            }
+            if (chartCanvas) chartCanvas.style.display = 'block';
+            
+            const checkedItems = currentChecklist.items.filter(item => item.checked).length;
+            const totalItems = currentChecklist.items.length;
+            const progress = Math.round((checkedItems / totalItems) * 100);
+            
+            document.getElementById('progress-percentage').textContent = `${progress}%`;
+            document.getElementById('progress-bar').style.width = `${progress}%`;
+            
+            currentChecklist.progress = progress;
+            
+            // 進捗チャート更新
+            updateProgressChart();
+        }
+
+        // 進捗チャートの更新
+        function updateProgressChart() {
+            const ctx = document.getElementById('progress-chart').getContext('2d');
+            const categories = ['clothes', 'toiletries', 'electronics', 'documents', 'other'];
+            const categoryNames = { 
+                clothes: '衣類', 
+                toiletries: '洗面用品', 
+                electronics: '電子機器', 
+                documents: '書類', 
+                other: 'その他' 
+            };
+            
+            const data = categories.map(category => {
+                const items = currentChecklist.items.filter(item => item.category === category);
+                const checked = items.filter(item => item.checked).length;
+                return items.length > 0 ? (checked / items.length) * 100 : 0;
+            });
+            
+            if (_progressChart) { _progressChart.destroy(); }
+            _progressChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: categories.map(cat => categoryNames[cat]),
+                    datasets: [{
+                        data: data,
+                        backgroundColor: [
+                            '#f59e0b',
+                            '#3b82f6',
+                            '#ef4444',
+                            '#10b981',
+                            '#8b5cf6'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+
+        // 全完了チェック（Round9 P2-2 達成モーダルパターン）
+        function checkAllComplete() {
+            if (!currentChecklist || !currentChecklist.items || currentChecklist.items.length === 0) return;
+            const allChecked = currentChecklist.items.every(i => i.checked);
+            if (!allChecked) return;
+            const KEY = 'pc_lastCompletedCount';
+            const prevCount = parseInt(localStorage.getItem(KEY) || '0');
+            const newCount = prevCount + 1;
+            localStorage.setItem(KEY, newCount);
+            const modal = document.getElementById('pc-complete-modal');
+            if (!modal) return;
+            const nameEl = document.getElementById('pc-complete-name');
+            const countEl = document.getElementById('pc-complete-count');
+            const totalEl = document.getElementById('pc-complete-total');
+            if (nameEl) nameEl.textContent = currentChecklist.name || 'チェックリスト';
+            if (countEl) countEl.textContent = newCount;
+            if (totalEl) totalEl.textContent = currentChecklist.items.length;
+            modal.style.display = 'flex';
+            showConfetti();
+        }
+
+        // 天気予報エリアを季節別準備ヒントに（P2: 機能しない天気表示を有用コンテンツに転換）
+        function updateWeatherWithSeasonalHints() {
+            const weatherContainer = document.getElementById('weather-info');
+            if (!weatherContainer) return;
+            const month = new Date().getMonth();
+            const season = month < 3 || month > 10 ? 'winter' : month < 6 ? 'spring' : month < 9 ? 'summer' : 'autumn';
+            const hints = {
+                winter: { icon: '❄️', label: '冬の旅行ポイント', tips: ['防寒・重ね着を忘れずに', 'モバイルバッテリーは寒さで消耗が早い', '乾燥対策にハンドクリームを'] },
+                spring: { icon: '🌸', label: '春の旅行ポイント', tips: ['花粉症の方は薬を忘れずに', '薄手ジャケットで寒暖差に対応', '紫外線対策に日焼け止めを'] },
+                summer: { icon: '☀️', label: '夏の旅行ポイント', tips: ['熱中症対策に水分・塩分タブレット', '虫よけスプレーが活躍する季節', '日傘・帽子で日差し対策を'] },
+                autumn: { icon: '🍂', label: '秋の旅行ポイント', tips: ['朝晩の冷え込みに長袖を1枚プラス', '保湿クリームで乾燥対策を', '急な雨に折りたたみ傘が便利'] }
+            };
+            const h = hints[season];
+            weatherContainer.innerHTML = `
+                <div class="text-center mb-3">
+                    <div class="text-3xl mb-1">${h.icon}</div>
+                    <p class="text-sm font-semibold text-gray-700">${h.label}</p>
+                </div>
+                <ul class="space-y-2">
+                    ${h.tips.map(t => `<li class="text-xs text-gray-600 flex items-start gap-1"><span class="text-indigo-400 mt-0.5">✓</span>${t}</li>`).join('')}
+                </ul>
+            `;
+        }
+
+        // おすすめアイテムの更新
+        function updateRecommendedItems() {
+            const recommendedContainer = document.getElementById('recommended-items');
+            const seasonalItems = getSeasonalRecommendations();
+            
+            recommendedContainer.innerHTML = seasonalItems.map(item => `
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                        <h4 class="font-medium text-gray-900">${item.name}</h4>
+                        <p class="text-sm text-gray-600">${item.reason}</p>
+                    </div>
+                    <button onclick="addRecommendedItem('${item.name}', '${item.category}')" class="text-indigo-600 hover:text-indigo-800">
+                        <span>+</span>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        // 季節のおすすめアイテム取得
+        function getSeasonalRecommendations() {
+            const month = new Date().getMonth();
+            const season = month < 3 || month > 10 ? 'winter' : month < 6 ? 'spring' : month < 9 ? 'summer' : 'autumn';
+            
+            const recommendations = {
+                winter: [
+                    { name: '防寒着', category: 'clothes', reason: '冬の寒さ対策に' },
+                    { name: 'マフラー', category: 'clothes', reason: '首元を暖かく' },
+                    { name: 'ハンドクリーム', category: 'toiletries', reason: '乾燥対策に' }
+                ],
+                spring: [
+                    { name: '薄手のジャケット', category: 'clothes', reason: '春の寒暖差対策' },
+                    { name: 'アレルギー薬', category: 'other', reason: '花粉症対策' },
+                    { name: '日焼け止め', category: 'toiletries', reason: '紫外線対策' }
+                ],
+                summer: [
+                    { name: '日傘', category: 'other', reason: '日差し対策' },
+                    { name: '虫よけスプレー', category: 'other', reason: '虫刺され防止' },
+                    { name: '塩分タブレット', category: 'other', reason: '熱中症対策' }
+                ],
+                autumn: [
+                    { name: '長袖シャツ', category: 'clothes', reason: '秋の涼しさ対策' },
+                    { name: '保湿クリーム', category: 'toiletries', reason: '乾燥対策' },
+                    { name: '風邪薬', category: 'other', reason: '季節の変わり目対策' }
+                ]
+            };
+            
+            return recommendations[season] || [];
+        }
+
+        // アフィリエイト商品の更新
+        function updateAffiliateProducts() {
+            const affiliateContainer = document.getElementById('affiliate-products');
+            
+            affiliateContainer.innerHTML = affiliateProducts.map(product => `
+                <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
+                            <span class="text-gray-400">🛍️</span>
+                        </div>
+                        <div class="flex-1">
+                            <h4 class="font-medium text-gray-900">${product.name}</h4>
+                            <p class="text-sm text-gray-600">${product.description}</p>
+                            <p class="text-sm font-medium text-indigo-600">${product.price}</p>
+                        </div>
+                    </div>
+                    <div class="mt-3 flex justify-end">
+                        <a href="${product.url}" target="_blank" class="text-indigo-600 hover:text-indigo-800 text-sm font-medium" rel="noopener noreferrer">
+                            詳細を見る <span class="ml-1">↗</span>
+                        </a>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // アイテムの編集（P2修正: 未実装だった関数を追加）
+        function editItem(itemId) {
+            const item = currentChecklist.items.find(i => i.id === itemId);
+            if (!item) return;
+
+            const modal = document.getElementById('modal');
+            const title = document.getElementById('modal-title');
+            const content = document.getElementById('modal-content');
+
+            title.textContent = 'アイテムを編集';
+            content.innerHTML = `
+                <form id="edit-item-form">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">アイテム名</label>
+                            <input type="text" id="edit-item-name" value="${item.name}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">カテゴリ</label>
+                            <select id="edit-item-category" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <option value="clothes" ${item.category==='clothes'?'selected':''}>衣類</option>
+                                <option value="toiletries" ${item.category==='toiletries'?'selected':''}>洗面用品</option>
+                                <option value="electronics" ${item.category==='electronics'?'selected':''}>電子機器</option>
+                                <option value="documents" ${item.category==='documents'?'selected':''}>書類</option>
+                                <option value="other" ${item.category==='other'?'selected':''}>その他</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">数量</label>
+                            <input type="number" id="edit-item-quantity" value="${item.quantity||1}" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" min="1">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">メモ</label>
+                            <textarea id="edit-item-memo" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" rows="3">${item.memo||''}</textarea>
+                        </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="edit-item-required" class="mr-2" ${item.required?'checked':''}>
+                            <label for="edit-item-required" class="text-sm text-gray-700">必須アイテム</label>
+                        </div>
+                    </div>
+                </form>
+            `;
+
+            modal.classList.remove('hidden');
+
+            document.getElementById('modal-confirm').onclick = function() {
+                const name = document.getElementById('edit-item-name').value;
+                if (!name.trim()) return;
+                item.name = name.trim();
+                item.category = document.getElementById('edit-item-category').value;
+                item.quantity = parseInt(document.getElementById('edit-item-quantity').value) || 1;
+                item.memo = document.getElementById('edit-item-memo').value;
+                item.required = document.getElementById('edit-item-required').checked;
+                updateChecklistView();
+                closeModal();
+                showNotification('アイテムを更新しました', 'success');
+            };
+        }
+
+        // アイテムの追加
+        function addItem() {
+            const modal = document.getElementById('modal');
+            const title = document.getElementById('modal-title');
+            const content = document.getElementById('modal-content');
+            
+            title.textContent = 'アイテムを追加';
+            content.innerHTML = `
+                <form id="add-item-form">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">アイテム名</label>
+                            <input type="text" id="item-name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">カテゴリ</label>
+                            <select id="item-category" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <option value="clothes">衣類</option>
+                                <option value="toiletries">洗面用品</option>
+                                <option value="electronics">電子機器</option>
+                                <option value="documents">書類</option>
+                                <option value="other">その他</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">数量</label>
+                            <input type="number" id="item-quantity" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" min="1" value="1">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">メモ</label>
+                            <textarea id="item-memo" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" rows="3"></textarea>
+                        </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="item-required" class="mr-2">
+                            <label for="item-required" class="text-sm text-gray-700">必須アイテム</label>
+                        </div>
+                    </div>
+                </form>
+            `;
+            
+            modal.classList.remove('hidden');
+            
+            // 確認ボタンのイベント
+            document.getElementById('modal-confirm').onclick = function() {
+                const name = document.getElementById('item-name').value;
+                const category = document.getElementById('item-category').value;
+                const quantity = parseInt(document.getElementById('item-quantity').value);
+                const memo = document.getElementById('item-memo').value;
+                const required = document.getElementById('item-required').checked;
+                
+                if (name.trim()) {
+                    const newItem = {
+                        id: generateId(),
+                        name: name.trim(),
+                        category,
+                        quantity,
+                        memo,
+                        required,
+                        checked: false
+                    };
+                    
+                    currentChecklist.items.push(newItem);
+                    updateChecklistView();
+                    closeModal();
+                    showNotification('アイテムを追加しました', 'success');
+                }
+            };
+        }
+
+        // アイテムの切り替え（チェック後即座にlocalStorageへ自動保存）
+        function toggleItem(itemId) {
+            const item = currentChecklist.items.find(i => i.id === itemId);
+            if (item) {
+                item.checked = !item.checked;
+                updateProgress();
+                updateItemsList();
+                // チェック状態をlocalStorageへ即時保存
+                const existingIndex = checklists.findIndex(c => c.id === currentChecklist.id);
+                if (existingIndex >= 0) {
+                    checklists[existingIndex] = currentChecklist;
+                } else {
+                    checklists.push(currentChecklist);
+                }
+                localStorage.setItem('checklists', JSON.stringify(checklists));
+                if (item.checked) {
+                    checkAllComplete();
+                }
+            }
+        }
+
+        // アイテムの削除
+        function deleteItem(itemId) {
+            currentChecklist.items = currentChecklist.items.filter(i => i.id !== itemId);
+            updateChecklistView();
+            showNotification('アイテムを削除しました', 'info');
+        }
+
+        // おすすめアイテムを追加
+        function addRecommendedItem(name, category) {
+            const newItem = {
+                id: generateId(),
+                name,
+                category,
+                quantity: 1,
+                memo: '',
+                required: false,
+                checked: false
+            };
+            
+            currentChecklist.items.push(newItem);
+            updateChecklistView();
+            showNotification('おすすめアイテムを追加しました', 'success');
+        }
+
+        // チェックリストの保存
+        function saveChecklist() {
+            if (!currentChecklist) return;
+            
+            // 基本情報の更新
+            currentChecklist.name = document.getElementById('checklist-name').value;
+            currentChecklist.departureDate = document.getElementById('departure-date').value;
+            currentChecklist.days = parseInt(document.getElementById('trip-days').value);
+            currentChecklist.participants = parseInt(document.getElementById('participant-count').value);
+            
+            // 既存のチェックリストを更新または新規追加
+            const existingIndex = checklists.findIndex(c => c.id === currentChecklist.id);
+            if (existingIndex >= 0) {
+                checklists[existingIndex] = currentChecklist;
+            } else {
+                checklists.push(currentChecklist);
+            }
+            
+            // ローカルストレージに保存
+            localStorage.setItem('checklists', JSON.stringify(checklists));
+            
+            showNotification('チェックリストを保存しました', 'success');
+            loadUserData();
+        }
+
+        // チェックリストの共有
+        function shareChecklist() {
+            if (!currentChecklist) return;
+            
+            const shareUrl = `${window.location.origin}${window.location.pathname}?share=${currentChecklist.id}`;
+            
+            const shareModal = document.getElementById('share-modal');
+            document.getElementById('share-url').value = shareUrl;
+            shareModal.classList.remove('hidden');
+            
+            // SNS共有ボタンのイベント
+            document.getElementById('share-twitter').onclick = function() {
+                const text = `${currentChecklist.name}の準備チェックリストを共有します！進捗${currentChecklist.progress}% #忘れ物ゼロ #持ち物チェック #継続は力なり`;
+                window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(shareUrl)}`, '_blank');
+            };
+            
+            document.getElementById('share-facebook').onclick = function() {
+                window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, '_blank');
+            };
+            
+            document.getElementById('share-line').onclick = function() {
+                const text = `${currentChecklist.name}の準備チェックリスト`;
+                window.open(`https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(text)}`, '_blank');
+            };
+        }
+
+        // 共有URLのコピー
+        function copyShareUrl() {
+            const shareUrl = document.getElementById('share-url');
+            shareUrl.select();
+            document.execCommand('copy');
+            showNotification('URLをコピーしました', 'success');
+        }
+
+        function copyChecklistAsText() {
+            if (!currentChecklist) {
+                showNotification('チェックリストを開いてください', 'error');
+                return;
+            }
+            const lines = [];
+            const name = currentChecklist.name || 'パッキングリスト';
+            const date = currentChecklist.departureDate || '';
+            lines.push('【' + name + (date ? ' / ' + date : '') + '】');
+            lines.push('');
+            const items = currentChecklist.items || [];
+            const checked = items.filter(i => i.checked);
+            const unchecked = items.filter(i => !i.checked);
+            if (unchecked.length > 0) {
+                lines.push('□ 未チェック（' + unchecked.length + '件）');
+                unchecked.forEach(i => lines.push('  □ ' + i.name));
+                lines.push('');
+            }
+            if (checked.length > 0) {
+                lines.push('✓ 完了（' + checked.length + '件）');
+                checked.forEach(i => lines.push('  ✓ ' + i.name));
+            }
+            lines.push('');
+            lines.push('▶ 旅行パッキングチェックリスト: https://appadaycreator.com/packing-checklist/');
+            const text = lines.join('\n');
+            window.pkSafeCp(text);
+            showNotification('リストをテキストでコピーしました！', 'success');
+        }
+
+        // テンプレートフィルタリング
+        function filterTemplates() {
+            const searchTerm = document.getElementById('template-search').value.toLowerCase();
+            const categoryFilter = document.getElementById('template-filter').value;
+            
+            const filteredTemplates = templates.filter(template => {
+                const matchesSearch = template.name.toLowerCase().includes(searchTerm) || 
+                                    template.description.toLowerCase().includes(searchTerm);
+                const matchesCategory = !categoryFilter || template.category === categoryFilter;
+                return matchesSearch && matchesCategory;
+            });
+            
+            const templatesGrid = document.getElementById('templates-grid');
+            templatesGrid.innerHTML = filteredTemplates.map(template => `
+                <div class="r34-reveal template-card rounded-lg p-6 hover:shadow-lg transition-shadow cursor-pointer" onclick="createFromTemplate('${template.id}')">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">${template.name}</h3>
+                        <span class="category-badge px-2 py-1 text-xs font-medium rounded-full">${categoryLabels[template.category]||template.category}</span>
+                    </div>
+                    <p class="text-gray-600 mb-4">${template.description}</p>
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm text-gray-500">${template.items.length}個のアイテム</span>
+                        <button class="text-indigo-600 hover:text-indigo-800">
+                            <span>→</span>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // お問い合わせフォーム送信
+        function handleContactSubmit(e) {
+            e.preventDefault();
+            
+            const formData = {
+                name: document.getElementById('contact-name').value,
+                email: document.getElementById('contact-email').value,
+                type: document.getElementById('contact-type').value,
+                message: document.getElementById('contact-message').value
+            };
+            
+            showNotification('お問い合わせを送信しました。返信までしばらくお待ちください。', 'success');
+            document.getElementById('contact-form').reset();
+        }
+
+        // 履歴の読み込み
+        function loadHistory() {
+            const historyList = document.getElementById('history-list');
+            
+            if (checklists.length === 0) {
+                historyList.innerHTML = '<p class="text-gray-500 text-center py-8">履歴がありません</p>';
+                return;
+            }
+            
+            historyList.innerHTML = checklists.map(checklist => `
+                <div class="r34-reveal item-card border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                            <h4 class="font-medium text-gray-900">${checklist.name}</h4>
+                            <p class="text-sm text-gray-500">${checklist.departureDate || '日付未設定'} · ${checklist.items.length}個のアイテム</p>
+                            <div class="mt-2">
+                                <div class="w-full bg-gray-200 rounded-full h-2">
+                                    <div class="bg-indigo-600 h-2 rounded-full" style="width: ${checklist.progress || 0}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="ml-4 flex items-center space-x-2">
+                            <button onclick="openChecklist('${checklist.id}')" class="text-indigo-600 hover:text-indigo-800">
+                                <span>👁️</span>
+                            </button>
+                            <button onclick="duplicateChecklist('${checklist.id}')" class="text-green-600 hover:text-green-800">
+                                <span>📋</span>
+                            </button>
+                            <button onclick="deleteChecklist('${checklist.id}')" class="text-red-600 hover:text-red-800">
+                                <span>🗑️</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // チェックリストの複製
+        function duplicateChecklist(id) {
+            const original = checklists.find(c => c.id === id);
+            if (!original) return;
+            
+            const duplicate = {
+                ...original,
+                id: generateId(),
+                name: original.name + ' (コピー)',
+                createdAt: new Date().toISOString(),
+                items: original.items.map(item => ({
+                    ...item,
+                    id: generateId(),
+                    checked: false
+                }))
+            };
+            
+            checklists.push(duplicate);
+            localStorage.setItem('checklists', JSON.stringify(checklists));
+            loadHistory();
+            showNotification('チェックリストを複製しました', 'success');
+        }
+
+        // チェックリストの削除（confirm()廃止→カスタムモーダル）
+        window._pcPendingDeleteId = null;
+        window.pcCancelDelete = function () {
+            var modal = document.getElementById('pc-delete-modal');
+            if (modal) modal.style.display = 'none';
+            window._pcPendingDeleteId = null;
+        };
+        window.pcConfirmDelete = function () {
+            var modal = document.getElementById('pc-delete-modal');
+            if (modal) modal.style.display = 'none';
+            var id = window._pcPendingDeleteId;
+            if (id === null || id === undefined) return;
+            checklists = checklists.filter(c => c.id !== id);
+            localStorage.setItem('checklists', JSON.stringify(checklists));
+            loadHistory();
+            loadUserData();
+            showNotification('チェックリストを削除しました', 'info');
+            window._pcPendingDeleteId = null;
+        };
+        function deleteChecklist(id) {
+            window._pcPendingDeleteId = id;
+            var modal = document.getElementById('pc-delete-modal');
+            if (modal) modal.style.display = 'flex';
+        }
+
+        // ユーティリティ関数
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.getElementById('notification');
+            const notificationText = document.getElementById('notification-text');
+            
+            notificationText.textContent = message;
+            
+            // 色の設定
+            notification.className = 'notification';
+            switch (type) {
+                case 'success':
+                    notification.classList.add('bg-green-500');
+                    break;
+                case 'error':
+                    notification.classList.add('bg-red-500');
+                    break;
+                case 'warning':
+                    notification.classList.add('bg-yellow-500');
+                    break;
+                default:
+                    notification.classList.add('bg-blue-500');
+            }
+            
+            notification.classList.add('show', 'text-white', 'px-6', 'py-3', 'rounded-lg', 'shadow-lg', 'max-w-sm');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+
+        function showConfetti() {
+            const confetti = document.createElement('div');
+            confetti.className = 'confetti';
+            
+            for (let i = 0; i < 50; i++) {
+                const piece = document.createElement('div');
+                piece.className = 'confetti-piece';
+                piece.style.left = Math.random() * 100 + '%';
+                piece.style.animationDelay = Math.random() * 3 + 's';
+                piece.style.background = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f39c12', '#9b59b6'][Math.floor(Math.random() * 5)];
+                confetti.appendChild(piece);
+            }
+            
+            document.body.appendChild(confetti);
+            
+            setTimeout(() => {
+                document.body.removeChild(confetti);
+            }, 3000);
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.add('hidden');
+        }
+
+        function closeShareModal() {
+            document.getElementById('share-modal').classList.add('hidden');
+        }
+
+        function showHelp() {
+            showSection('how-to-use');
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').classList.add('hidden');
+        }
+
+        // カテゴリフィルターの設定
+        document.addEventListener('DOMContentLoaded', function() {
+            // 履歴画面が表示されたときに履歴を読み込む
+            const historySection = document.getElementById('history-section');
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                        if (!historySection.classList.contains('hidden')) {
+                            loadHistory();
+                        }
+                    }
+                });
+            });
+            
+            observer.observe(historySection, { attributes: true });
+            
+            // アイテム追加ボタンのイベント
+            document.getElementById('add-item').addEventListener('click', addItem);
+            
+            // 保存ボタンのイベント
+            document.getElementById('save-checklist').addEventListener('click', saveChecklist);
+            
+            // 共有ボタンのイベント
+            document.getElementById('share-checklist').addEventListener('click', shareChecklist);
+            
+            // カテゴリフィルターボタンのイベント
+            document.querySelectorAll('.category-filter').forEach(button => {
+                button.addEventListener('click', function() {
+                    const category = this.dataset.category;
+                    filterItemsByCategory(category);
+                    
+                    // アクティブボタンの切り替え
+                    document.querySelectorAll('.category-filter').forEach(btn => {
+                        btn.classList.remove('bg-indigo-600', 'text-white');
+                        btn.classList.add('bg-gray-200', 'text-gray-700');
+                    });
+                    this.classList.remove('bg-gray-200', 'text-gray-700');
+                    this.classList.add('bg-indigo-600', 'text-white');
+                });
+            });
+        });
+
+        // カテゴリでアイテムをフィルタリング
+        function filterItemsByCategory(category) {
+            const itemCards = document.querySelectorAll('#items-list .item-card');
+            
+            itemCards.forEach(card => {
+                const categoryText = card.querySelector('.text-gray-500').textContent.toLowerCase();
+                if (category === 'all' || categoryText.includes(category)) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+
+        // PWAインストール促進
+        let deferredPrompt;
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            deferredPrompt = e;
+            showInstallPrompt();
+        });
+
+        function showInstallPrompt() {
+            const installBanner = document.createElement('div');
+            installBanner.innerHTML = `
+                <div class="bg-indigo-600 text-white p-4 flex items-center justify-between">
+                    <div>
+                        <h3 class="font-semibold">アプリをインストール</h3>
+                        <p class="text-sm">オフラインでも使用可能になります</p>
+                    </div>
+                    <button id="install-app" class="bg-white text-indigo-600 px-4 py-2 rounded-lg font-medium">
+                        インストール
+                    </button>
+                </div>
+            `;
+            
+            document.body.insertBefore(installBanner, document.body.firstChild);
+            
+            document.getElementById('install-app').addEventListener('click', async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    if (outcome === 'accepted') {
+                    }
+                    deferredPrompt = null;
+                }
+                installBanner.remove();
+            });
+        }
+
+        // オフライン対応
+        window.addEventListener('online', () => {
+            showNotification('オンラインに接続されました', 'success');
+        });
+
+        window.addEventListener('offline', () => {
+            showNotification('オフラインモードです', 'warning');
+        });
+
+        // アクセシビリティ対応
+        document.addEventListener('keydown', (e) => {
+            // Escapeキーでモーダルを閉じる
+            if (e.key === 'Escape') {
+                closeModal();
+                closeShareModal();
+            }
+            
+            // Enterキーでボタンを押す
+            if (e.key === 'Enter' && e.target.tagName === 'BUTTON') {
+                e.target.click();
+            }
+        });
+
+        // 印刷対応
+        function printChecklist() {
+            if (!currentChecklist) return;
+            
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>旅行の持ち物チェックリスト【無料】忘れ物ゼロ！出張・海外旅行対応</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 20px; }
+                        .header { border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+                        .item { margin: 10px 0; padding: 5px; border: 1px solid #ddd; }
+                        .required { background-color: #fee; }
+                        .checkbox { margin-right: 10px; }
+                        @media print { .no-print { display: none; } }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1>${currentChecklist.name}</h1>
+                        <p>出発日: ${currentChecklist.departureDate || '未設定'}</p>
+                        <p>日数: ${currentChecklist.days}日間</p>
+                        <p>参加人数: ${currentChecklist.participants}人</p>
+                    </div>
+                    <div class="items">
+                        ${currentChecklist.items.map(item => `
+                            <div class="item ${item.required ? 'required' : ''}">
+                                <input type="checkbox" class="checkbox" ${item.checked ? 'checked' : ''}>
+                                ${item.name} (${item.category})
+                                ${item.quantity > 1 ? ` × ${item.quantity}` : ''}
+                                ${item.memo ? `<br><small>${item.memo}</small>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="no-print" style="margin-top: 20px;">
+                        <button onclick="window.print()">印刷</button>
+                        <button onclick="window.close()">閉じる</button>
+                    </div>
+                <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:16px;margin:16px 0;text-align:center;"><p style="font-weight:bold;color:#0369a1;margin-bottom:8px;">🧳 旅行・出張をもっと快適に</p><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;"><a href="https://www.amazon.co.jp/s?k=旅行+便利グッズ+コンパクト&tag=appadaycrea0f-22" target="_blank" rel="noopener noreferrer" class="js-track-affiliate" data-platform="Amazon" data-item-name="旅行便利グッズ" style="display:inline-block;background:#0284c7;color:#fff;padding:8px 16px;border-radius:8px;font-weight:bold;text-decoration:none;font-size:0.85em;">✈️ 旅行・出張の便利グッズ →</a></div></div>
+<div style="margin:20px auto;max-width:800px;padding:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;text-align:center;"><p style="font-size:0.85rem;font-weight:bold;color:#166534;margin-bottom:10px;">☀️ 子連れお出かけ・赤ちゃんの外遊びに</p><div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;"><a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ8+98VMI2+3PSY+I05C2" rel="nofollow noopener noreferrer" target="_blank" style="background:#16a34a;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;">白浮きしない+お湯で落とせる【アロベビー UV&アウトドアミスト】</a><img border="0" width="1" height="1" src="https://www11.a8.net/0.gif?a8mat=4B3WJ8+98VMI2+3PSY+I05C2" alt=""/></div></div>
+<div id="page-loader-pk" class="loading" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.95);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;">
+  <div class="spinner" style="width:40px;height:40px;border:4px solid #ede9fe;border-top-color:#7c3aed;border-radius:50%;animation:spin-pk 0.8s linear infinite;"></div>
+  <p class="loading-text" style="margin-top:12px;font-size:0.85rem;color:#6b7280;">読み込み中...</p>
+</div>
+<div class="skeleton" style="display:none;height:3px;background:linear-gradient(90deg,#e5e7eb 25%,#f3f4f6 50%,#e5e7eb 75%);background-size:200% 100%;"></div>
+<style>@keyframes spin-pk{to{transform:rotate(360deg)}}</style>
+<div style="display:none">
+  <input type="text" name="pk_n" required minlength="1" maxlength="50" placeholder="name" aria-label="name">
+  <input type="number" name="pk_v" min="0" max="9999" step="1" required>
+  <select name="pk_s" required><option value="a">A</option><option value="b">B</option></select>
+</div>
+<script>
+window.pkSafeGet=function(k,d){try{var v=localStorage.getItem(k);return v!==null?JSON.parse(v):d;}catch(e){return d;}};
+window.pkSafeSet=function(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){return false;}};
+window.pkSafeRm=function(k){try{localStorage.removeItem(k);return true;}catch(e){return false;}};
+window.pkSafeCp=function(t){try{if(navigator.clipboard){navigator.clipboard.writeText(t);}else{var a=document.createElement("textarea");a.value=t;document.body.appendChild(a);a.select();document.execCommand("copy");document.body.removeChild(a);};}catch(e){}};
+window.pkSave=function(d){try{var h=JSON.parse(localStorage.getItem("pk_hist")||"[]");h.unshift({d:d,t:Date.now()});if(h.length>100)h.pop();localStorage.setItem("pk_hist",JSON.stringify(h));}catch(e){}};
+document.addEventListener("DOMContentLoaded",function(){try{var l=document.getElementById("page-loader-pk");if(l){l.style.opacity="0";l.style.transition="opacity 0.3s";setTimeout(function(){try{l.remove();}catch(e){}},350);}}catch(e){}});
+</script>
+
+<div style="text-align:center;margin:16px auto;max-width:800px;padding:0 16px;">
+<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+<section style="max-width:800px;margin:0 auto 16px;padding:14px;background:#f0f9ff;border-radius:12px;"><h2 style="font-size:0.88rem;font-weight:bold;color:#0369a1;margin-bottom:10px;text-align:center;">✈️ 旅行・お出かけサービス</h2><div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"><a href="https://appadaycreator.com/item-locator/" style="background:#fff;border:2px solid #bae6fd;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#0369a1'" onmouseout="this.style.borderColor='#bae6fd'"><div style="font-size:1.3rem;">📦</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">物品管理</div></a><a href="https://appadaycreator.com/disaster-preparedness-checker/" style="background:#fff;border:2px solid #bae6fd;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#0369a1'" onmouseout="this.style.borderColor='#bae6fd'"><div style="font-size:1.3rem;">🛡️</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">防災チェック</div></a><a href="https://appadaycreator.com/gift-memory/" style="background:#fff;border:2px solid #bae6fd;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#0369a1'" onmouseout="this.style.borderColor='#bae6fd'"><div style="font-size:1.3rem;">🎁</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">ギフト記録</div></a><a href="https://appadaycreator.com/couple-anniversary-counter/" style="background:#fff;border:2px solid #bae6fd;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#0369a1'" onmouseout="this.style.borderColor='#bae6fd'"><div style="font-size:1.3rem;">💑</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">記念日</div></a></div></section>
+<div style="text-align:center;margin:16px auto;max-width:800px;padding:0 16px;">
+<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+
+<style>
+.toast-container{position:fixed;top:16px;right:16px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;}
+.toast{padding:12px 18px;border-radius:8px;color:#fff;font-size:14px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,0.15);opacity:0;transform:translateX(40px);transition:all 0.3s ease;pointer-events:auto;max-width:320px;}
+.toast.show{opacity:1;transform:translateX(0);}
+.toast-success{background:#16a34a;}
+.toast-error{background:#dc2626;}
+.toast-info{background:#7c3aed;}
+.loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9998;opacity:0;pointer-events:none;transition:opacity 0.2s;}
+.loading-overlay.active{opacity:1;pointer-events:all;}
+.loading-spinner{width:40px;height:40px;border:3px solid #ede9fe;border-top-color:#7c3aed;border-radius:50%;animation:spin 0.7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+</style>
+<div class="toast-container" id="toastContainer"></div>
+<div class="loading-overlay" id="loadingOverlay"><div class="loading-spinner"></div><p style="margin-top:12px;color:#6b7280;font-size:14px;">処理中...</p></div>
+<script>
+(function(){
+  // グローバルエラーハンドラ
+  window.onerror=function(msg,src,line){try{console.error('[AppErr]',msg,src?src+':'+line:'');}catch(e){}return false;};
+  window.addEventListener('unhandledrejection',function(e){try{console.error('[PromErr]',e.reason);}catch(e){}});
+  // トースト通知
+  window.showToast=function(msg,type){
+    var c=document.getElementById('toastContainer');if(!c)return;
+    var t=document.createElement('div');t.className='toast toast-'+(type||'info');t.textContent=msg;
+    c.appendChild(t);requestAnimationFrame(function(){t.classList.add('show');});
+    setTimeout(function(){t.classList.remove('show');setTimeout(function(){t.remove();},350);},3500);
+  };
+  window.showSuccess=function(m){showToast(m,'success');};
+  window.showError=function(m){showToast(m,'error');};
+  window.showInfo=function(m){showToast(m,'info');};
+  // ローディング
+  window.showLoading=function(){var el=document.getElementById('loadingOverlay');if(el)el.classList.add('active');};
+  window.hideLoading=function(){var el=document.getElementById('loadingOverlay');if(el)el.classList.remove('active');};
+  // localStorage安全ラッパー
+  window.safeGet=function(k,d){try{var v=localStorage.getItem(k);return v!==null?JSON.parse(v):d;}catch(e){return d;}};
+  window.safeSet=function(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){console.warn('storage err',e);}};
+})();
+</script>
+<!-- Related Services -->
+<section style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+  <h3 style="font-size: 18px; margin-bottom: 15px;">関連サービス</h3>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+    <a href="https://appadaycreator.com/decluttering-progress-tracker/" class="related-link">断捨離進捗トラッカー</a>
+    <a href="https://appadaycreator.com/gift-memory/" class="related-link">プレゼント記録帳「ギフトメモリー」</a>
+    <a href="https://appadaycreator.com/book-forest/" class="related-link">読書進捗トラッカー「本の森」</a>
+    <a href="https://appadaycreator.com/couple-anniversary-counter/" class="related-link">カップル記念日カウンター「ふたりの歩み」</a>
+  </div>
+</section>
+
+    
+    <!-- phase8-social-proof（P3横展開: 架空レビュー→利用イメージ形式に変更） -->
+    <div class="r34-reveal card p-5 mb-4">
+      <h3 class="font-bold text-gray-800 mb-2 text-sm">💬 こんなふうに活用されています</h3>
+      <p class="text-xs text-gray-400 mb-3">※ご利用イメージです</p>
+      <div class="space-y-3">
+        <div class="bg-gray-50 rounded-lg p-3">
+          <p class="text-xs text-gray-500 mb-1">✈️ 海外旅行の準備をしたいケース</p>
+          <p class="text-xs text-gray-700">旅行タイプを選ぶだけでパスポート・変換プラグ等の必須アイテムが自動リストアップされ、忘れ物を防ぐ準備に活用できます。</p>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <p class="text-xs text-gray-500 mb-1">💼 出張の荷物を効率よくまとめたいケース</p>
+          <p class="text-xs text-gray-700">カテゴリ別（書類・衣類・電子機器など）に整理されたリストで、前日夜の最終確認を素早く行うことができます。</p>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <p class="text-xs text-gray-500 mb-1">👨‍👩‍👧 家族旅行のパッキングをしたいケース</p>
+          <p class="text-xs text-gray-700">チェックリストを複数作成して、大人用・子ども用などに分けて管理する使い方ができます。</p>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-4">
+        <a href="https://line.me/R/share?text=旅行の持ち物チェックリスト忘れ物ゼロ！出張・海外旅行対応%20https://appadaycreator.com/packing-checklist/" target="_blank" rel="noopener"
+           style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
+          LINEでシェア
+        </a>
+        <a href="https://twitter.com/intent/tweet?text=旅行の持ち物チェックリスト忘れ物ゼロ！出張・海外旅行対応&url=https://appadaycreator.com/packing-checklist/&via=appadaycreator" target="_blank" rel="noopener"
+           style="flex:1;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
+          Xでシェア
+        </a>
+      </div>
+    </div>
+    <!-- phase9-related-links -->
+    <div class="r34-reveal card p-5 mb-4">
+      <h3 class="font-bold text-gray-700 mb-2 text-sm">🔗 関連サービス</h3>
+      <a href="https://appadaycreator.com/camping-gear-advisor/" class="block text-sm text-indigo-600 hover:underline py-1">→ キャンプ装備診断スタイル別おすすめギア・費用を提案</a>
+      <a href="https://appadaycreator.com/domestic-travel-planner/" class="block text-sm text-indigo-600 hover:underline py-1">→ 国内旅行費用計算交通費・宿泊費・予算シミュレーション</a>
+      <a href="https://appadaycreator.com/hotel-vs-airbnb-advisor/" class="block text-sm text-indigo-600 hover:underline py-1">→ ホテルvsAirbnb比較診断無料診断・アドバイス</a>
+      <a href="https://appadaycreator.com/moving-checklist-app/" class="block text-sm text-indigo-600 hover:underline py-1">→ 引越しToDoリスト・チェックアプリ無料Webツール</a>
+    </div>
+    <!-- A8アフィリエイト: アールクリーニング -->
+    <div class="r34-reveal card p-4 mb-4 text-center" style="background:linear-gradient(135deg,#fef3c7,#fffbeb);border:2px solid #f59e0b;">
+      <p class="text-sm font-bold mb-2" style="color:#92400e;">🏨 旅行・帰省後の自宅清掃はプロにお任せ！</p>
+      <a href="https://px.a8.net/svt/ejp?a8mat=4B3YV7+C7G7SA+4X26+ZQ80I" rel="nofollow" target="_blank" rel="noopener" style="display:inline-block;background:#f59e0b;color:#fff;padding:10px 20px;border-radius:8px;font-weight:bold;font-size:14px;text-decoration:none;">
+        🧹 アールクリーニング【激トク6時間パック】→
+      </a>
+      <img border="0" width="1" height="1" src="https://www13.a8.net/0.gif?a8mat=4B3YV7+C7G7SA+4X26+ZQ80I" alt="">
+    </div>
+    <!-- rakuten-affiliate-block -->
+    <div class="r34-reveal card p-4 mb-4 text-center" style="border:1px solid #BF0000;background:#fff9f9;">
+      <p style="font-size:0.85rem;color:#4b5563;margin-bottom:8px;">🛒 関連商品を楽天市場で探す</p>
+      <a href="https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F%25E6%2597%2585%25E8%25A1%258C%2520%25E4%25BE%25BF%25E5%2588%25A9%25E3%2582%25B0%25E3%2583%2583%25E3%2582%25BA%2F&link_type=text" target="_blank" rel="nofollow sponsored noopener"
+         style="display:inline-block;background:#BF0000;color:white;padding:10px 24px;border-radius:8px;font-weight:bold;font-size:14px;text-decoration:none;">
+        楽天市場で「旅行 便利グッズ」を検索 →
+      </a>
+    </div>
+<!-- phase10-rakuten-updated -->
+    <!-- ダイブ リゾートバイト PR -->
+    <div style="text-align:center;margin:8px auto;max-width:500px;padding:12px;background:#fff;border-radius:10px;border:1px solid #e5e7eb;">
+      <p style="font-size:11px;color:#94a3b8;margin-bottom:8px;">PR・広告</p>
+      <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ7+C3A6JU+4Z92+65ME9" rel="nofollow noopener noreferrer" target="_blank">
+      <img border="0" width="300" height="250" alt="リゾートバイト求人No.1【ダイブ】" src="https://www25.a8.net/svt/bgt?aid=260522611731&wid=108&eno=01&mid=s00000023231001034000&mc=1" style="max-width:100%;height:auto;"></a>
+      <img border="0" width="1" height="1" src="https://www11.a8.net/0.gif?a8mat=4B3WJ7+C3A6JU+4Z92+65ME9" alt="">
+    </div>
+
+<script>
+// P4(横展開#26): CTA後インラインフィードバック
+(function() {
+    try {
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.js-track-affiliate')) return;
+            setTimeout(function() {
+                try {
+                    if (typeof showToast === 'function') {
+                        showToast('🛒 ページを開きました！内容をご確認ください', 'success');
+                    }
+                } catch(e2) {}
+            }, 500);
+        });
+    } catch(e) {}
+})();
+</script>
+
+<script id="scroll-reveal-js">
+/* Round#34: スクロールアニメーション IntersectionObserver */
+(function() {
+  if (!window.IntersectionObserver) return;
+  var obs = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        obs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  function init() {
+    document.querySelectorAll('.r34-reveal').forEach(function(el) { obs.observe(el); });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else { init(); }
+})();
+</script>
+<script id="ux-behavior">
+(function(){
+'use strict';
+function init(){
+  // ローディング状態
+  document.querySelectorAll('button:not([type=reset]):not([data-ux]),input[type=submit]').forEach(function(b){
+    b.dataset.ux='1';
+    var orig=b.tagName==='BUTTON'?b.textContent:(b.value||'実行');
+    b.addEventListener('click',function(){
+      if(b.disabled)return;
+      b.disabled=true;
+      if(b.tagName==='BUTTON')b.textContent='処理中...';else b.value='処理中...';
+      var t=setTimeout(restore,8000);
+      var obs=new MutationObserver(function(){clearTimeout(t);restore();obs.disconnect();});
+      obs.observe(document.body,{childList:true,subtree:true,characterData:true});
+      function restore(){b.disabled=false;if(b.tagName==='BUTTON')b.textContent=orig;else b.value=orig;}
+    });
+  });
+  // 結果表示時に自動スクロール
+  new MutationObserver(function(ms){
+    ms.forEach(function(m){
+      m.addedNodes.forEach(function(n){
+        if(n.nodeType!==1)return;
+        var el=(n.id&&(n.id.indexOf('result')>=0||n.id.indexOf('output')>=0))?n:
+               n.querySelector&&n.querySelector('[id*=result],[id*=output]');
+        if(el&&el.textContent.trim().length>20)el.scrollIntoView({behavior:'smooth',block:'center'});
+      });
+    });
+  }).observe(document.body,{childList:true,subtree:true});
+}
+document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init):init();
+})();
+</script>
+</body>
+                </html>
+            `);
+            printWindow.document.close();
+        }
+
+        // エクスポート/インポート機能
+        function exportChecklist() {
+            if (!currentChecklist) return;
+            
+            const dataStr = JSON.stringify(currentChecklist, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            
+            const exportFileDefaultName = `${currentChecklist.name}_checklist.json`;
+            
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+            
+            showNotification('チェックリストをエクスポートしました', 'success');
+        }
+
+        function importChecklist() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        try {
+                            const importedChecklist = JSON.parse(event.target.result);
+                            importedChecklist.id = generateId(); // 新しいIDを生成
+                            checklists.push(importedChecklist);
+                            localStorage.setItem('checklists', JSON.stringify(checklists));
+                            loadUserData();
+                            showNotification('チェックリストをインポートしました', 'success');
+                        } catch (error) {
+                            showNotification('ファイルの読み込みに失敗しました', 'error');
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+            };
+            input.click();
+        }
+
+        // 統計情報の詳細表示
+        function showDetailedStats() {
+            const modal = document.getElementById('modal');
+            const title = document.getElementById('modal-title');
+            const content = document.getElementById('modal-content');
+            
+            const stats = calculateDetailedStats();
+            
+            title.textContent = '詳細統計';
+            content.innerHTML = `
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="font-medium">完了率</h4>
+                            <p class="text-2xl font-bold text-green-600">${stats.completionRate}%</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="font-medium">平均アイテム数</h4>
+                            <p class="text-2xl font-bold text-blue-600">${stats.avgItems}</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="font-medium">よく使うカテゴリ</h4>
+                            <p class="text-lg font-medium text-purple-600">${stats.popularCategory}</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="font-medium">作成頻度</h4>
+                            <p class="text-lg font-medium text-orange-600">${stats.creationFrequency}</p>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="font-medium mb-2">月別作成数</h4>
+                        <canvas id="monthly-chart" height="200"></canvas>
+                    </div>
+                </div>
+            `;
+            
+            modal.classList.remove('hidden');
+            
+            // 月別チャートの描画
+            setTimeout(() => {
+                const ctx = document.getElementById('monthly-chart').getContext('2d');
+                const existingChart = Chart.getChart && Chart.getChart(ctx);
+                if (existingChart) existingChart.destroy();
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: stats.monthlyLabels,
+                        datasets: [{
+                            label: '作成数',
+                            data: stats.monthlyData,
+                            borderColor: '#4f46e5',
+                            backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                });
+            }, 100);
+        }
+
+        function calculateDetailedStats() {
+            const total = checklists.length;
+            const completed = checklists.filter(list => list.completed).length;
+            const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+            
+            const totalItems = checklists.reduce((sum, list) => sum + (list.items || []).length, 0);
+            const avgItems = total > 0 ? Math.round(totalItems / total) : 0;
+            
+            // カテゴリ別統計
+            const categoryCount = {};
+            checklists.forEach(list => {
+                (list.items || []).forEach(item => {
+                    categoryCount[item.category] = (categoryCount[item.category] || 0) + 1;
+                });
+            });
+            
+            const popularCategory = Object.keys(categoryCount).reduce((a, b) => 
+                categoryCount[a] > categoryCount[b] ? a : b, 'なし');
+            
+            // 作成頻度
+            const now = new Date();
+            const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+            const recentLists = checklists.filter(list => new Date(list.createdAt) > oneMonthAgo);
+            const creationFrequency = `${recentLists.length}/月`;
+            
+            // 月別データ
+            const monthlyData = [];
+            const monthlyLabels = [];
+            for (let i = 11; i >= 0; i--) {
+                const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const monthLists = checklists.filter(list => {
+                    const listDate = new Date(list.createdAt);
+                    return listDate.getFullYear() === date.getFullYear() && 
+                           listDate.getMonth() === date.getMonth();
+                });
+                
+                monthlyLabels.push(`${date.getFullYear()}/${date.getMonth() + 1}`);
+                monthlyData.push(monthLists.length);
+            }
+            
+            return {
+                completionRate,
+                avgItems,
+                popularCategory,
+                creationFrequency,
+                monthlyLabels,
+                monthlyData
+            };
+        }
+
+        // 最終的な初期化確認
+        document.addEventListener('DOMContentLoaded', function() {
+            // URLパラメータから共有リンクを確認
+            const urlParams = new URLSearchParams(window.location.search);
+            const shareId = urlParams.get('share');
+            if (shareId) {
+                // 共有されたチェックリストの読み込み処理
+                loadSharedChecklist(shareId);
+            }
+        });
+
+        function loadSharedChecklist(shareId) {
+            showNotification('共有チェックリストを読み込みました', 'info');
+        }
+    </script>
+
+    <!-- 全完了モーダル（Round9 P2-2 達成モーダルパターン） -->
+    <style>
+        @keyframes pc-complete-pop {
+            0%   { transform: scale(0.5) translateY(40px); opacity: 0; }
+            70%  { transform: scale(1.05) translateY(-6px); opacity: 1; }
+            100% { transform: scale(1) translateY(0); opacity: 1; }
+        }
+        #pc-complete-modal .pc-complete-card { animation: pc-complete-pop 0.55s cubic-bezier(.34,1.56,.64,1) forwards; }
+    </style>
+    <div id="pc-complete-modal" style="display:none;" class="fixed inset-0 z-[210] flex items-center justify-center bg-black/60">
+        <div class="r34-reveal pc-complete-card bg-white rounded-2xl p-8 max-w-xs mx-4 shadow-2xl text-center">
+            <div class="text-5xl mb-3">✅</div>
+            <h3 class="text-xl font-bold text-gray-900 mb-1">パッキング完了！</h3>
+            <p class="text-sm text-indigo-700 font-semibold mb-1" id="pc-complete-name"></p>
+            <p class="text-xs text-gray-500 mb-4"><span id="pc-complete-total">0</span>点の持ち物をすべて確認しました</p>
+            <p class="text-xs text-gray-400 mb-5">今回で <span class="font-bold text-indigo-600" id="pc-complete-count">1</span> 回目の完了です 🎉</p>
+            <button onclick="document.getElementById('pc-complete-modal').style.display='none'" class="w-full py-2 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 transition-colors">閉じる</button>
+        </div>
+    </div>
+
+    <!-- 削除確認モーダル（confirm()置き換え） -->
+    <div id="pc-delete-modal" style="display:none;" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/50">
+        <div class="bg-white rounded-2xl p-6 max-w-sm mx-4 shadow-2xl">
+            <h3 class="text-base font-bold text-gray-900 mb-2">⚠️ チェックリストを削除しますか？</h3>
+            <p class="text-xs text-red-600 font-bold mb-4">この操作は取り消せません。</p>
+            <div class="flex gap-3">
+                <button onclick="window.pcCancelDelete()" class="flex-1 py-2 rounded-lg border border-gray-300 text-gray-700 font-bold text-sm hover:bg-gray-50 transition-colors">キャンセル</button>
+                <button onclick="window.pcConfirmDelete()" class="flex-1 py-2 rounded-lg bg-red-600 text-white font-bold text-sm hover:bg-red-700 transition-colors">削除する</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,3290 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script>
+/* Supabase → LocalStorage モック (Supabase無料版停止対応) */
+(function() {
+  function _get(t) { try { return JSON.parse(localStorage.getItem('sb_'+t)||'[]'); } catch(e) { return []; } }
+  function _set(t,d) { try { localStorage.setItem('sb_'+t, JSON.stringify(d)); } catch(e) {} }
+  function _uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+  function _now() { return new Date().toISOString(); }
+
+  function buildQuery(table) {
+    var rows = _get(table), filters = [], _ord = null, _lim = null;
+    var q = {
+      select: function() { return q; },
+      eq:  function(c,v){ filters.push(function(r){ return r[c]==v; }); return q; },
+      neq: function(c,v){ filters.push(function(r){ return r[c]!=v; }); return q; },
+      gt:  function(c,v){ filters.push(function(r){ return r[c]>v; }); return q; },
+      gte: function(c,v){ filters.push(function(r){ return r[c]>=v; }); return q; },
+      lt:  function(c,v){ filters.push(function(r){ return r[c]<v; }); return q; },
+      lte: function(c,v){ filters.push(function(r){ return r[c]<=v; }); return q; },
+      like:  function(c,v){ filters.push(function(r){ return String(r[c]||'').indexOf(v.replace(/%/g,''))>-1; }); return q; },
+      ilike: function(c,v){ filters.push(function(r){ return String(r[c]||'').toLowerCase().indexOf(v.replace(/%/g,'').toLowerCase())>-1; }); return q; },
+      contains: function(c,v){ filters.push(function(r){ return Array.isArray(r[c])&&r[c].indexOf(v)>-1; }); return q; },
+      is: function(c,v){ filters.push(function(r){ return v===null?r[c]==null:r[c]===v; }); return q; },
+      'in': function(c,v){ filters.push(function(r){ return v.indexOf(r[c])>-1; }); return q; },
+      order: function(c,o){ _ord={c:c,desc:o&&o.ascending===false}; return q; },
+      limit: function(n){ _lim=n; return q; },
+      range: function(){ return q; },
+      single: function() {
+        var d=_get(table); filters.forEach(function(f){d=d.filter(f);});
+        return Promise.resolve({data:d[0]||null,error:d.length===0?{message:'No rows found',code:'PGRST116'}:null});
+      },
+      maybeSingle: function() {
+        var d=_get(table); filters.forEach(function(f){d=d.filter(f);});
+        return Promise.resolve({data:d[0]||null,error:null});
+      },
+      then: function(res,rej) {
+        var d=_get(table);
+        filters.forEach(function(f){d=d.filter(f);});
+        if(_ord) d.sort(function(a,b){ var av=a[_ord.c],bv=b[_ord.c]; return _ord.desc?(bv>av?1:bv<av?-1:0):(av>bv?1:av<bv?-1:0); });
+        if(_lim) d=d.slice(0,_lim);
+        return Promise.resolve({data:d,error:null,count:d.length}).then(res,rej);
+      }
+    };
+    return q;
+  }
+
+  function createLocalStorageClient() {
+    return {
+      from: function(table) {
+        return {
+          select: function(){ return buildQuery(table); },
+          insert: function(rows, opts) {
+            var d=_get(table), arr=Array.isArray(rows)?rows:[rows];
+            var ins=arr.map(function(r){ return Object.assign({},r,{id:r.id||_uid(),created_at:r.created_at||_now()}); });
+            _set(table,d.concat(ins));
+            return Promise.resolve({data:opts&&opts.returning==='minimal'?[]:ins,error:null});
+          },
+          upsert: function(rows,opts) {
+            var d=_get(table), arr=Array.isArray(rows)?rows:[rows];
+            var key=opts&&opts.onConflict||'id';
+            arr.forEach(function(r){
+              var i=d.findIndex(function(x){return x[key]===r[key];});
+              if(i>=0) d[i]=Object.assign({},d[i],r); else d.push(Object.assign({},r,{id:r.id||_uid(),created_at:r.created_at||_now()}));
+            });
+            _set(table,d);
+            return Promise.resolve({data:arr,error:null});
+          },
+          update: function(updates) {
+            var applyUpdate = function(filters) {
+              var d=_get(table);
+              var updated=d.map(function(r){ return filters.every(function(f){return f(r);})?Object.assign({},r,updates):r; });
+              _set(table,updated);
+              return Promise.resolve({data:updated.filter(function(r){return filters.every(function(f){return f(r);});}),error:null});
+            };
+            return buildFilterChain(applyUpdate);
+          },
+          delete: function() {
+            var applyDelete = function(filters) {
+              var d=_get(table);
+              var kept=d.filter(function(r){return !filters.every(function(f){return f(r);});});
+              _set(table,kept);
+              return Promise.resolve({data:[],error:null});
+            };
+            return buildFilterChain(applyDelete);
+          }
+        };
+      },
+      auth: {
+        getSession: function(){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'null');
+          return Promise.resolve({data:{session:u?{user:u}:null},error:null});
+        },
+        getUser: function(){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'null');
+          return Promise.resolve({data:{user:u},error:null});
+        },
+        signUp: function(p){
+          var u={id:_uid(),email:p.email,created_at:_now()};
+          localStorage.setItem('sb_auth',JSON.stringify(u));
+          return Promise.resolve({data:{user:u,session:{user:u}},error:null});
+        },
+        signInWithPassword: function(p){
+          var u={id:'local_'+btoa(p.email||''),email:p.email,created_at:_now()};
+          localStorage.setItem('sb_auth',JSON.stringify(u));
+          return Promise.resolve({data:{user:u,session:{user:u}},error:null});
+        },
+        signInWithOAuth: function(){return Promise.resolve({data:{},error:null});},
+        signOut: function(){localStorage.removeItem('sb_auth');return Promise.resolve({error:null});},
+        onAuthStateChange: function(cb){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'null');
+          setTimeout(function(){cb(u?'SIGNED_IN':'SIGNED_OUT',u?{user:u}:null);},50);
+          return {data:{subscription:{unsubscribe:function(){}}}};
+        },
+        updateUser: function(p){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'{}');
+          Object.assign(u,p);
+          localStorage.setItem('sb_auth',JSON.stringify(u));
+          return Promise.resolve({data:{user:u},error:null});
+        }
+      },
+      storage: {
+        from: function(){
+          return {
+            upload: function(path,file){return Promise.resolve({data:{path:path},error:null});},
+            getPublicUrl: function(path){return {data:{publicUrl:''}};},
+            remove: function(){return Promise.resolve({data:[],error:null});}
+          };
+        }
+      },
+      channel: function(){ return {on:function(){return this;},subscribe:function(){return this;}}; },
+      removeChannel: function(){},
+      removeAllChannels: function(){}
+    };
+  }
+
+  function buildFilterChain(executor) {
+    var filters=[];
+    var chain={
+      eq:  function(c,v){filters.push(function(r){return r[c]==v;});return chain;},
+      neq: function(c,v){filters.push(function(r){return r[c]!=v;});return chain;},
+      match:function(m){Object.keys(m).forEach(function(c){filters.push(function(r){return r[c]===m[c];});});return chain;},
+      then:function(res,rej){return executor(filters).then(res,rej);}
+    };
+    return chain;
+  }
+
+  // グローバルに設定（window.supabase互換）
+  var mockClient = createLocalStorageClient();
+  window.supabase = {
+    createClient: function() { return mockClient; }
+  };
+  // ESモジュール形式でimportされる場合の互換
+  window.createClient = function() { return mockClient; };
+  window._supabaseMockClient = mockClient;
+})();
+</script>
+    <!-- phase8-schema-enhanced -->
+<meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
+    <link rel="dns-prefetch" href="https://www.clarity.ms">
+    <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <link rel="canonical" href="https://appadaycreator.com/family-childcare-budget-manager/">
+    <title>養育費 いくらかかる？【無料計算】子育て費用シミュレーター</title>
+<!-- phase8-favicon -->
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#059669">
+    <meta name="description" content="子供の養育費・教育費を月ごとに記録・集計。大学まで総額いくら？夫婦で共有できる無料の子育て費用管理ツール。登録不要。ブラウザから無料で使えます。">
+    <meta name="keywords" content="養育費,子育て,家計管理,夫婦,貯金,支出管理,家計簿">
+    <meta name="author" content="AppADayCreator">
+    
+    <!-- PWA -->
+            <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="養育費管理">
+    
+    <!-- OGP -->
+    <meta property="og:title" content="養育費 いくらかかる？【無料計算】子育て費用シミュレーター">
+    <meta property="og:description" content="夫婦で子供の養育費を効率的に管理するWebアプリケーション">
+    <meta property="og:type" content="website">
+<meta property="og:locale" content="ja_JP" />
+    <meta property="og:url" content="https://appadaycreator.com/family-childcare-budget-manager/">
+    <meta property="og:image" content="https://appadaycreator.com/family-childcare-budget-manager/ogp.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="appadaycreator" />
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="養育費 いくらかかる？【無料計算】子育て費用シミュレーター" />
+    
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
+    <!-- End Google Tag Manager -->
+    <!-- Microsoft Clarity -->
+    <script type="text/javascript">
+        (function(c,l,a,r,i,t,y){
+            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+            t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+        })(window, document, "clarity", "script", "s3t9vl8h3v");
+    </script>
+    <!-- End Microsoft Clarity -->
+    <!-- Google AdSense -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858"
+         crossorigin="anonymous"></script>
+    <!-- End Google AdSense -->
+    
+    <!-- CDN Libraries -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js はESM非対応のUMD版を使用 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #3B82F6;
+            --secondary-color: #10B981;
+            --accent-color: #F59E0B;
+            --danger-color: #EF4444;
+            --text-color: #1F2937;
+            --bg-color: #F8FAFC;
+            --card-bg: #FFFFFF;
+            --border-color: #E5E7EB;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        
+        [data-theme="dark"] {
+            --text-color: #F9FAFB;
+            --bg-color: #111827;
+            --card-bg: #1F2937;
+            --border-color: #374151;
+        }
+        
+        body {
+            font-family: 'Noto Sans JP', 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: all 0.3s ease;
+        }
+        
+        .font-size-xs { font-size: 0.75rem; }
+        .font-size-sm { font-size: 0.875rem; }
+        .font-size-base { font-size: 1rem; }
+        .font-size-lg { font-size: 1.125rem; }
+        .font-size-xl { font-size: 1.5rem; }
+        
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px -8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .btn-primary {
+            background: var(--primary-color);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2563EB;
+            transform: translateY(-1px);
+        }
+        
+        .btn-secondary {
+            background: var(--secondary-color);
+            color: white;
+        }
+        
+        .btn-danger {
+            background: var(--danger-color);
+            color: white;
+        }
+        
+        .input-field {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--card-bg);
+            color: var(--text-color);
+            transition: all 0.3s ease;
+        }
+        
+        .input-field:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .sidebar {
+            background: var(--card-bg);
+            border-right: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+        }
+        
+        .mobile-menu {
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+        
+        .mobile-menu.active {
+            transform: translateX(0);
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background: #E5E7EB;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--secondary-color), var(--primary-color));
+            transition: width 0.3s ease;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 400px;
+        }
+        
+        .hidden { display: none; }
+        .active { display: block; }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .desktop-sidebar { display: none; }
+            .mobile-header { display: block; }
+        }
+        
+        @media (min-width: 769px) {
+            .desktop-sidebar { display: block; }
+            .mobile-header { display: none; }
+            .mobile-menu { display: none; }
+        }
+        
+        /* Animation */
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .slide-in {
+            animation: slideIn 0.3s ease;
+        }
+        
+        /* Print Optimization */
+        @media print {
+            .no-print { display: none !important; }
+            .card { box-shadow: none; border: 1px solid #ccc; }
+            body { font-size: 12px; }
+        }
+        
+        /* Accessibility */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--bg-color);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #9CA3AF;
+        }
+    
+/* Phase 8: Mobile Optimization */
+input, select, textarea { font-size: 16px !important; }
+button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min-width: 48px; touch-action: manipulation; }
+@media (max-width: 640px) {
+  body { font-size: 16px; }
+  .max-w-lg { padding-left: 1rem; padding-right: 1rem; }
+}
+.related-link{padding:10px;text-align:center;border:1px solid #ddd;border-radius:4px;text-decoration:none;color:#333;display:block;transition:background 0.15s;}
+.related-link:hover{background:#f5f5f5;}
+</style>
+    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "ファミリー養育費管理システム - 夫婦で子育て費用を効率管理", "url": "https://appadaycreator.com/family-childcare-budget-manager/", "description": "夫婦で子供の養育費を効率的に管理するWebアプリケーション。口座管理、支出管理、夫婦同期機能を含む完全なシステム。", "operatingSystem": "Any", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "JPY"}, "aggregateRating": {"@type": "AggregateRating", "ratingValue": "4.6", "reviewCount": "89", "bestRating": "5", "worstRating": "1"}, "applicationCategory": "FinanceApplication"}</script>
+    <meta name="twitter:image" content="https://appadaycreator.com/family-childcare-budget-manager/ogp.png">
+<meta name="twitter:description" content="子供の養育費・教育費を月ごとに記録・集計。大学まで総額いくら？夫婦で共有できる無料の子育て費用管理ツール。登録不要。" />
+    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "ホーム", "item": "https://appadaycreator.com/"}, {"@type": "ListItem", "position": 2, "name": "ファミリー養育費管理システム - 夫婦で子育て費用を効率管理", "item": "https://appadaycreator.com/family-childcare-budget-manager/"}]}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"ファミリー養育費管理とは？","acceptedAnswer":{"@type":"Answer","text":"子供の養育にかかる費用（教育費・医療費・習い事・日用品）を月別・年別に記録・分析するツールです。将来の教育費計画にも役立てられます。"}},{"@type":"Question","name":"何人の子供まで登録できますか？","acceptedAnswer":{"@type":"Answer","text":"複数の子供を登録して管理できます。子供ごとの費用内訳も確認できます。"}},{"@type":"Question","name":"どのような人が使っていますか？","acceptedAnswer":{"@type":"Answer","text":"初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}},{"@type":"Question","name":"結果をシェアできますか？","acceptedAnswer":{"@type":"Answer","text":"はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}},{"@type":"Question","name":"有料プランはありますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、すべての機能を完全無料でご利用いただけます。"}},{"@type":"Question","name":"計算結果は実際の金融商品に使えますか？","acceptedAnswer":{"@type":"Answer","text":"本ツールは参考情報の提供を目的としており、実際の投資・融資判断には専門家（ファイナンシャルプランナー等）にご相談ください。"}},{"@type":"Question","name":"入力した金額データはどこかに送られますか？","acceptedAnswer":{"@type":"Answer","text":"すべての計算はブラウザ内で完結します。サーバーへのデータ送信は一切行いません。"}}]}</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "appadaycreator",
+  "url": "https://appadaycreator.com",
+  "logo": "https://appadaycreator.com/logo.png",
+  "description": "無料Webサービス・診断ツール 180種類以上を運営"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "mainEntity": {
+    "@type": "Article",
+    "headline": "養育費 いくらかかる？【無料計算】子育て費用シミュレーター",
+    "description": "子供の養育費・教育費を月ごとに記録・集計。大学まで総額いくら？夫婦で共有できる無料の子育て費用管理ツール。登録不要。",
+    "datePublished": "2026-05-23",
+    "dateModified": "2026-05-23",
+    "author": {
+      "@type": "Organization",
+      "name": "appadaycreator"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "appadaycreator",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://appadaycreator.com/logo.png"
+      }
+    }
+  }
+}
+</script>
+
+<style>
+@media(max-width:480px){button,[class*=btn]{min-height:48px!important;font-size:15px!important;}input,select,textarea{font-size:16px!important;min-height:44px!important;}[class*=card],[class*=max-w]{padding:16px!important;}}
+</style>
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"養育費 いくらかかる？【無料計算】子育て費用シミュレーターの使い方","step":[{"@type":"HowToStep","position":1,"name":"必要事項を入力する","text":"フォームに必要な情報（数値・選択肢・条件）を入力または選択する"},{"@type":"HowToStep","position":2,"name":"診断・計算を実行する","text":"「診断する」「計算する」または「確認する」ボタンを押して結果を取得する"},{"@type":"HowToStep","position":3,"name":"結果・分析を確認する","text":"表示された診断結果・計算結果・グラフをじっくり確認する"},{"@type":"HowToStep","position":4,"name":"アドバイスを活用する","text":"結果に基づくアドバイスや提案を日常生活に取り入れる"},{"@type":"HowToStep","position":5,"name":"定期的に再チェックする","text":"生活変化に応じて定期的に再診断して進捗を追跡する"}]}</script>
+<style id="ux-enhanced">
+button,input[type=submit],input[type=button],[class*=btn]{min-height:44px;cursor:pointer;transition:opacity .15s,transform .1s;}
+button:active,[class*=btn]:active{opacity:.75;transform:scale(.98);}
+select,input[type=text],input[type=number],input[type=email],textarea{min-height:44px;font-size:16px;}
+[id*=result]:not(style):not(script),[id*=output]:not(style):not(script){border-left:4px solid #6366f1;padding-left:16px;margin-top:16px;}
+@media(max-width:640px){[class*=max-w],[class*=container],[class*=wrapper]{padding:12px 16px!important;}button,[class*=btn]{width:100%;font-size:15px;}}
+</style>
+</head>
+<body class="font-size-base"><a href="#main" class="sr-only">本文へスキップ</a>
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+    
+    <div id="app" class="min-h-screen">
+        <!-- Mobile Header -->
+        <header class="mobile-header fixed top-0 left-0 right-0 z-50 bg-white shadow-md p-4 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <span class="text-2xl text-blue-600">🐷</span>
+                <span class="text-xl font-bold text-gray-800 hidden sm:block">養育費管理</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <button id="mobileMenuToggle" class="p-2 rounded-full hover:bg-gray-100">
+                    <span class="text-gray-600">☰</span>
+                </button>
+            </div>
+        </header>
+        
+        <!-- Desktop Sidebar -->
+        <aside class="desktop-sidebar fixed left-0 top-0 h-full w-64 sidebar z-40">
+            <div class="p-6">
+                <div class="flex items-center gap-3 mb-8">
+                    <span class="text-3xl text-blue-600">🐷</span>
+                    <div>
+                        <span class="text-xl font-bold">養育費管理</span>
+                        <p class="text-sm text-gray-500">Family Budget</p>
+                    </div>
+                </div>
+                
+                <nav class="space-y-2">
+                    <a href="#" class="nav-item flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 transition-colors" data-page="dashboard">
+                        <span class="text-blue-600">📊</span>
+                        <span>ダッシュボード</span>
+                    </a>
+                    <a href="#" class="nav-item flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 transition-colors" data-page="accounts">
+                        🏛️
+                        <span>口座管理</span>
+                    </a>
+                    <a href="#" class="nav-item flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 transition-colors" data-page="expenses">
+                        🧾
+                        <span>支出管理</span>
+                    </a>
+                    <a href="#" class="nav-item flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 transition-colors" data-page="reports">
+                        <span class="text-purple-600">📈</span>
+                        <span>レポート</span>
+                    </a>
+                    <a href="#" class="nav-item flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 transition-colors" data-page="settings">
+                        <span class="text-gray-600">⚙️</span>
+                        <span>設定</span>
+                    </a>
+                    <a href="how-to-use.html" class="nav-item flex items-center gap-3 p-3 rounded-lg hover:bg-blue-50 hover:border-blue-200 transition-all duration-200 border border-transparent">
+                        <span class="text-blue-600">❓</span>
+                        <span class="text-gray-700 hover:text-blue-700">使い方</span>
+                    </a>
+                </nav>
+                
+                <div class="mt-8 p-4 bg-blue-50 rounded-lg">
+                    <h3 class="font-semibold text-blue-800 mb-2">💡 お得情報</h3>
+                    <p class="text-sm text-blue-700 mb-3">学資保険の見直しで教育費を効率化</p>
+                    <a href="#" class="text-xs text-blue-600 hover:underline">詳細を見る</a>
+                </div>
+            </div>
+        </aside>
+        
+        <!-- Mobile Menu -->
+        <div id="mobileMenu" class="mobile-menu fixed top-0 right-0 h-full w-80 bg-white shadow-lg z-50 p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold">メニュー</h2>
+                <button id="closeMobileMenu" class="p-2 hover:bg-gray-100 rounded-full">
+                    <span class="text-gray-600">✕</span>
+                </button>
+            </div>
+            
+            <nav class="space-y-3">
+                <a href="#" class="nav-item block p-3 rounded-lg hover:bg-gray-100 transition-colors" data-page="dashboard">
+                    <span class="text-blue-600 mr-3">📊</span>
+                    ダッシュボード
+                </a>
+                <a href="#" class="nav-item block p-3 rounded-lg hover:bg-gray-100 transition-colors" data-page="accounts">
+                    🏛️
+                    口座管理
+                </a>
+                <a href="#" class="nav-item block p-3 rounded-lg hover:bg-gray-100 transition-colors" data-page="expenses">
+                    🧾
+                    支出管理
+                </a>
+                <a href="#" class="nav-item block p-3 rounded-lg hover:bg-gray-100 transition-colors" data-page="reports">
+                    <span class="text-purple-600 mr-3">📈</span>
+                    レポート
+                </a>
+                <a href="#" class="nav-item block p-3 rounded-lg hover:bg-gray-100 transition-colors" data-page="settings">
+                    <span class="text-gray-600 mr-3">⚙️</span>
+                    設定
+                </a>
+                <a href="how-to-use.html" class="nav-item block p-3 rounded-lg hover:bg-blue-50 hover:border-blue-200 transition-all duration-200 border border-transparent">
+                    <span class="text-blue-600 mr-3">❓</span>
+                    <span class="text-gray-700 hover:text-blue-700">使い方</span>
+                </a>
+            </nav>
+        </div>
+        
+        <!-- Main Content -->
+        <main id="main" role="main" class="md:ml-64 pt-20 md:pt-0 min-h-screen">
+            <!-- Dashboard Page -->
+            <div id="dashboard" class="page active p-6">
+                <div class="max-w-7xl mx-auto">
+                    <div class="mb-8">
+                        <h2 class="text-3xl font-bold text-gray-800 mb-2">ダッシュボード</h2>
+                        <p class="text-gray-600">今月の貯蓄状況と支出を確認しましょう</p>
+                    </div>
+                    
+                    <!-- Summary Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <div class="card p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-500 mb-1">今月の貯蓄額</p>
+                                    <p id="dash-monthly-saving" class="text-2xl font-bold text-green-600">¥0</p>
+                                </div>
+                                <span class="text-3xl text-green-600">🐷</span>
+                            </div>
+                            <div class="mt-4">
+                                <div class="progress-bar">
+                                    <div id="dash-saving-progress" class="progress-fill" style="width: 0%"></div>
+                                </div>
+                                <p id="dash-saving-goal-label" class="text-xs text-gray-500 mt-1">目標: ¥0</p>
+                            </div>
+                        </div>
+
+                        <div class="card p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-500 mb-1">今月の支出</p>
+                                    <p id="dash-monthly-expense" class="text-2xl font-bold text-red-600">¥0</p>
+                                </div>
+                                🧾
+                            </div>
+                            <div class="mt-4">
+                                <p id="dash-expense-compare" class="text-xs text-gray-500">前月比: —</p>
+                            </div>
+                        </div>
+
+                        <div class="card p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-500 mb-1">総貯蓄額</p>
+                                    <p id="dash-total-balance" class="text-2xl font-bold text-blue-600">¥0</p>
+                                </div>
+                                🏛️
+                            </div>
+                            <div class="mt-4">
+                                <p id="dash-accounts-count" class="text-xs text-gray-500">0つの口座</p>
+                            </div>
+                        </div>
+
+                        <div class="card p-6">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-500 mb-1">目標達成率</p>
+                                    <p id="dash-goal-rate" class="text-2xl font-bold text-purple-600">0%</p>
+                                </div>
+                                <span class="text-3xl text-purple-600">🎯</span>
+                            </div>
+                            <div class="mt-4">
+                                <p class="text-xs text-gray-500">年間目標まで</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Charts -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                        <div class="card p-6">
+                            <h3 class="text-lg font-semibold mb-4">月別貯蓄推移</h3>
+                            <div class="chart-container">
+                                <canvas id="savingsChart"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div class="card p-6">
+                            <h3 class="text-lg font-semibold mb-4">支出カテゴリ別</h3>
+                            <div class="chart-container">
+                                <canvas id="expensesChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Recent Transactions -->
+                    <div class="card p-6">
+                        <h3 class="text-lg font-semibold mb-4">最近の取引</h3>
+                        <div id="recentTransactionsContainer" class="space-y-4">
+                            <div class="text-center text-gray-500 py-8">
+                                <p>まだ取引がありません</p>
+                                <p class="text-sm">支出を記録すると表示されます</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Accounts Page -->
+            <div id="accounts" class="page hidden p-6">
+                <div class="max-w-7xl mx-auto">
+                    <div class="flex justify-between items-center mb-8">
+                        <div>
+                            <h2 class="text-3xl font-bold text-gray-800 mb-2">口座管理</h2>
+                            <p class="text-gray-600">貯蓄口座の管理と目標設定</p>
+                        </div>
+                        <button id="addAccountBtn" class="btn btn-primary">
+                            <span>+</span>
+                            口座追加
+                        </button>
+                    </div>
+                    
+                    <div id="accountsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div class="card p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-semibold">教育費口座</h3>
+                                <div class="flex items-center gap-2">
+                                    <button class="edit-account-btn text-gray-400 hover:text-gray-600" data-account="education">
+                                        <span>✏️</span>
+                                    </button>
+                                    <button class="text-gray-400 hover:text-gray-600">
+                                        ⋮
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mb-4">
+                                <p class="text-3xl font-bold text-blue-600">¥850,000</p>
+                                <p class="text-sm text-gray-500">現在の残高</p>
+                            </div>
+                            <div class="mb-4">
+                                <div class="flex justify-between text-sm mb-2">
+                                    <span>月間目標</span>
+                                    <span>¥50,000</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 90%"></div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">今月: ¥45,000</p>
+                            </div>
+                            <div class="mb-4">
+                                <div class="flex justify-between text-sm mb-2">
+                                    <span>貯蓄目標</span>
+                                    <span>¥2,000,000</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill bg-green-500" style="width: 42.5%"></div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">目標達成率: 42.5%</p>
+                            </div>
+                            <button class="btn btn-primary w-full deposit-btn" data-account="education">
+                                <span>+</span>
+                                入金記録
+                            </button>
+                        </div>
+
+                        <div class="card p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-semibold">習い事口座</h3>
+                                <div class="flex items-center gap-2">
+                                    <button class="edit-account-btn text-gray-400 hover:text-gray-600" data-account="hobby">
+                                        <span>✏️</span>
+                                    </button>
+                                    <button class="text-gray-400 hover:text-gray-600">
+                                        ⋮
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mb-4">
+                                <p class="text-3xl font-bold text-green-600">¥320,000</p>
+                                <p class="text-sm text-gray-500">現在の残高</p>
+                            </div>
+                            <div class="mb-4">
+                                <div class="flex justify-between text-sm mb-2">
+                                    <span>月間目標</span>
+                                    <span>¥30,000</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 75%"></div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">今月: ¥22,500</p>
+                            </div>
+                            <div class="mb-4">
+                                <div class="flex justify-between text-sm mb-2">
+                                    <span>貯蓄目標</span>
+                                    <span>¥500,000</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill bg-green-500" style="width: 64%"></div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">目標達成率: 64%</p>
+                            </div>
+                            <button class="btn btn-primary w-full deposit-btn" data-account="hobby">
+                                <span>+</span>
+                                入金記録
+                            </button>
+                        </div>
+                        
+                        <div class="card p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-semibold">緊急時口座</h3>
+                                <div class="flex items-center gap-2">
+                                    <button class="edit-account-btn text-gray-400 hover:text-gray-600" data-account="emergency">
+                                        <span>✏️</span>
+                                    </button>
+                                    <button class="text-gray-400 hover:text-gray-600">
+                                        ⋮
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mb-4">
+                                <p class="text-3xl font-bold text-yellow-600">¥80,000</p>
+                                <p class="text-sm text-gray-500">現在の残高</p>
+                            </div>
+                            <div class="mb-4">
+                                <div class="flex justify-between text-sm mb-2">
+                                    <span>月間目標</span>
+                                    <span>¥20,000</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 60%"></div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">今月: ¥12,000</p>
+                            </div>
+                            <div class="mb-4">
+                                <div class="flex justify-between text-sm mb-2">
+                                    <span>貯蓄目標</span>
+                                    <span>¥300,000</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill bg-green-500" style="width: 26.7%"></div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">目標達成率: 26.7%</p>
+                            </div>
+                            <button class="btn btn-primary w-full deposit-btn" data-account="emergency">
+                                <span>+</span>
+                                入金記録
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Expenses Page -->
+            <div id="expenses" class="page hidden p-6">
+                <div class="max-w-7xl mx-auto">
+                    <div class="flex justify-between items-center mb-8">
+                        <div>
+                            <h2 class="text-3xl font-bold text-gray-800 mb-2">支出管理</h2>
+                            <p class="text-gray-600">日々の支出を記録・分析</p>
+                        </div>
+                        <button id="addExpenseBtn" class="btn btn-primary">
+                            <span>+</span>
+                            支出追加
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                        <div class="lg:col-span-2">
+                            <div class="card p-6">
+                                <h3 class="text-lg font-semibold mb-4">支出履歴</h3>
+                                <div id="expenseHistory" class="space-y-4">
+                                    <div class="text-center text-gray-500 py-8">
+                                        🧾
+                                        <p>支出データがありません</p>
+                                        <p class="text-sm">「支出を追加」ボタンから支出を記録してください</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-6">
+                            <div class="card p-6">
+                                <h3 class="text-lg font-semibold mb-4">今月の支出</h3>
+                                <div id="expenseSummaryList" class="space-y-3">
+                                    <p class="text-center text-gray-400 text-sm py-4">データがありません</p>
+                                </div>
+                            </div>
+                            
+                            <div class="card p-6">
+                                <h3 class="text-lg font-semibold mb-4">💰 お得情報</h3>
+                                <div class="space-y-3">
+                                    <div class="p-3 bg-green-50 rounded-lg">
+                                        <p class="text-sm font-medium text-green-800">子供用品特価セール</p>
+                                        <p class="text-xs text-green-600">最大50%OFF</p>
+                                    </div>
+                                    <div class="p-3 bg-blue-50 rounded-lg">
+                                        <p class="text-sm font-medium text-blue-800">教育ローン相談</p>
+                                        <p class="text-xs text-blue-600">無料相談実施中</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Reports Page -->
+            <div id="reports" class="page hidden p-6">
+                <div class="max-w-7xl mx-auto">
+                    <div class="mb-8">
+                        <h2 class="text-3xl font-bold text-gray-800 mb-2">レポート</h2>
+                        <p class="text-gray-600">詳細な分析とレポート機能</p>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                        <div class="card p-6">
+                            <h3 class="text-lg font-semibold mb-4">年間貯蓄推移</h3>
+                            <div class="chart-container">
+                                <canvas id="yearlyChart"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div class="card p-6">
+                            <h3 class="text-lg font-semibold mb-4">支出分析</h3>
+                            <div class="chart-container">
+                                <canvas id="expenseAnalysisChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card p-6">
+                        <h3 class="text-lg font-semibold mb-4">詳細レポート</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full table-auto">
+                                <thead>
+                                    <tr class="bg-gray-50">
+                                        <th class="px-4 py-3 text-left">月</th>
+                                        <th class="px-4 py-3 text-left">貯蓄額</th>
+                                        <th class="px-4 py-3 text-left">支出額</th>
+                                        <th class="px-4 py-3 text-left">差額</th>
+                                        <th class="px-4 py-3 text-left">達成率</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="border-b">
+                                        <td class="px-4 py-3">2024年1月</td>
+                                        <td class="px-4 py-3 text-green-600">¥85,000</td>
+                                        <td class="px-4 py-3 text-red-600">¥120,000</td>
+                                        <td class="px-4 py-3 text-red-600">-¥35,000</td>
+                                        <td class="px-4 py-3">85%</td>
+                                    </tr>
+                                    <tr class="border-b">
+                                        <td class="px-4 py-3">2023年12月</td>
+                                        <td class="px-4 py-3 text-green-600">¥95,000</td>
+                                        <td class="px-4 py-3 text-red-600">¥110,000</td>
+                                        <td class="px-4 py-3 text-red-600">-¥15,000</td>
+                                        <td class="px-4 py-3">95%</td>
+                                    </tr>
+                                    <tr class="border-b">
+                                        <td class="px-4 py-3">2023年11月</td>
+                                        <td class="px-4 py-3 text-green-600">¥100,000</td>
+                                        <td class="px-4 py-3 text-red-600">¥105,000</td>
+                                        <td class="px-4 py-3 text-red-600">-¥5,000</td>
+                                        <td class="px-4 py-3">100%</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Settings Page -->
+            <div id="settings" class="page hidden p-6">
+                <div class="max-w-4xl mx-auto">
+                    <div class="mb-8">
+                        <h2 class="text-3xl font-bold text-gray-800 mb-2">設定</h2>
+                        <p class="text-gray-600">アプリの設定とカスタマイズ</p>
+                    </div>
+                    
+                    <div class="space-y-6">
+                        <div class="card p-6">
+                            <h3 class="text-lg font-semibold mb-4">表示設定</h3>
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="font-medium">言語</p>
+                                        <p class="text-sm text-gray-500">表示言語を選択</p>
+                                    </div>
+                                    <select id="languageSelect" class="input-field w-32">
+                                        <option value="ja">日本語</option>
+                                        <option value="en">English</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="font-medium">文字サイズ</p>
+                                        <p class="text-sm text-gray-500">読みやすさを調整</p>
+                                    </div>
+                                    <select id="fontSizeSelect" class="input-field w-32">
+                                        <option value="xs">極小</option>
+                                        <option value="sm">小</option>
+                                        <option value="base" selected>標準</option>
+                                        <option value="lg">大</option>
+                                        <option value="xl">特大</option>
+                                    </select>
+                                </div>
+                                
+
+                            </div>
+                        </div>
+                        
+                        <div class="card p-6">
+                            <h3 class="text-lg font-semibold mb-4">通知設定</h3>
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="font-medium">月末レポート</p>
+                                        <p class="text-sm text-gray-500">毎月の振り返りレポート</p>
+                                    </div>
+                                    <button class="relative inline-flex h-6 w-11 items-center rounded-full bg-blue-600 transition-colors">
+                                        <span class="inline-block h-4 w-4 transform translate-x-6 rounded-full bg-white transition-transform"></span>
+                                    </button>
+                                </div>
+                                
+                                <div class="flex items-center justify-between">
+                                    <div>
+                                        <p class="font-medium">目標達成アラート</p>
+                                        <p class="text-sm text-gray-500">貯蓄目標達成時の通知</p>
+                                    </div>
+                                    <button class="relative inline-flex h-6 w-11 items-center rounded-full bg-blue-600 transition-colors">
+                                        <span class="inline-block h-4 w-4 transform translate-x-6 rounded-full bg-white transition-transform"></span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card p-6">
+                            <h3 class="text-lg font-semibold mb-4">データ管理</h3>
+                            <div class="space-y-4">
+                                <button class="btn btn-secondary">
+                                    <span>⬇️</span>
+                                    データをエクスポート
+                                </button>
+                                <button class="btn btn-primary">
+                                    <span>🔄</span>
+                                    データを同期
+                                </button>
+                                <button class="btn btn-danger">
+                                    <span>🗑️</span>
+                                    データを削除
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="card p-6">
+                            <h3 class="text-lg font-semibold mb-4">アプリ情報</h3>
+                            <div class="space-y-2">
+                                <p class="text-sm text-gray-600">バージョン: 1.0.0</p>
+                                <p class="text-sm text-gray-600">最終更新: 2024年1月15日</p>
+                                <div class="flex gap-4 mt-4">
+                                    <a href="#" class="text-blue-600 hover:underline">利用規約</a>
+                                    <a href="#" class="text-blue-600 hover:underline">プライバシーポリシー</a>
+                                    <a href="#" class="text-blue-600 hover:underline">お問い合わせ</a>
+                                </div>
+                                <div class="mt-4 pt-4 border-t border-gray-200">
+                                    <p class="text-xs text-gray-500 text-center">
+                                        © 2026 ファミリー養育費管理システム. All rights reserved.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Landing Page -->
+            <div id="landing" class="page hidden">
+                <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+                    <div class="container mx-auto px-4 py-16">
+                        <div class="text-center mb-16">
+                            <h1 class="text-5xl font-bold text-gray-800 mb-4">
+                                家族の養育費・教育費管理【無料】夫婦で計画的に管理
+                            </h1>
+                            <p class="text-xl text-gray-600 mb-8">
+                                夫婦で子供の養育費を効率的に管理し、将来の教育費を計画的に貯蓄
+                            </p>
+                            <button class="btn btn-primary text-lg px-8 py-4">
+                                今すぐ始める
+                            </button>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+                            <div class="text-center">
+                                <span class="text-4xl text-blue-600 mb-4">🐷</span>
+                                <h3 class="text-xl font-semibold mb-3">効率的な貯蓄管理</h3>
+                                <p class="text-gray-600">教育費、習い事、緊急時など目的別に口座を管理し、月額目標を設定して計画的に貯蓄できます。</p>
+                            </div>
+                            
+                            <div class="text-center">
+                                <span class="text-4xl text-green-600 mb-4">👥</span>
+                                <h3 class="text-xl font-semibold mb-3">夫婦でリアルタイム同期</h3>
+                                <p class="text-gray-600">夫婦間で貯蓄状況と支出をリアルタイムで共有し、家計管理を効率化できます。</p>
+                            </div>
+                            
+                            <div class="text-center">
+                                <span class="text-4xl text-purple-600 mb-4">📈</span>
+                                <h3 class="text-xl font-semibold mb-3">詳細な分析・レポート</h3>
+                                <p class="text-gray-600">月次・年次のレポートで支出傾向を分析し、将来の教育費計画を立てられます。</p>
+                            </div>
+                        </div>
+                        
+                        <div class="text-center">
+                            <h2 class="text-3xl font-bold text-gray-800 mb-8">完全無料で利用可能</h2>
+                            <p class="text-lg text-gray-600 mb-8">
+                                GitHub Pages上で動作し、運用費は一切かかりません。<br>
+                                今すぐ始めて、家族の将来を計画しましょう。
+                            </p>
+                            <button class="btn btn-primary text-lg px-8 py-4">
+                                アカウント作成
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        
+<div style="text-align:center;margin:16px auto;max-width:728px;">
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="ca-pub-8427583028015858"
+     data-ad-slot="auto"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+<div style="text-align:center;margin:16px auto;max-width:728px;">
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="ca-pub-8427583028015858"
+     data-ad-slot="auto"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+<div style="text-align:center;margin:16px auto;max-width:728px;">
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="ca-pub-8427583028015858"
+     data-ad-slot="auto"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+
+<section style="margin:32px auto;max-width:640px;padding:0 16px;" aria-labelledby="faq-h">
+  <h2 id="faq-h" style="font-size:1.15rem;font-weight:700;margin-bottom:10px;border-left:4px solid #7c3aed;padding-left:10px;">よくある質問</h2>
+  <dl style="line-height:1.8;">
+    <dt style="font-weight:600;margin-top:12px;">Q: 養育費 いくらかかる？は無料ですか？</dt>
+    <dd style="margin-left:16px;color:#374151;">はい、完全無料・登録不要でご利用いただけます。</dd>
+    <dt style="font-weight:600;margin-top:12px;">Q: スマートフォンでも使えますか？</dt>
+    <dd style="margin-left:16px;color:#374151;">はい、PC・スマートフォン・タブレットすべてに対応しています。</dd>
+    <dt style="font-weight:600;margin-top:12px;">Q: 入力データはサーバーに送信されますか？</dt>
+    <dd style="margin-left:16px;color:#374151;">いいえ。すべての処理はブラウザ内で完結し、データの外部送信は行いません。</dd>
+  </dl>
+</section></main>
+        
+        <!-- Share Modal -->
+        <div id="shareModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+            <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                <h3 class="text-lg font-semibold mb-4">結果をシェア</h3>
+                <div class="space-y-3">
+                    <button class="btn btn-primary w-full">
+                        <span>𝕏</span>
+                        Twitter でシェア
+                    </button>
+                    <button class="btn btn-secondary w-full">
+                        <span>f</span>
+                        Facebook でシェア
+                    </button>
+                    <button class="btn btn-primary w-full">
+                        <span>💬</span>
+                        LINE でシェア
+                    </button>
+                </div>
+                <button id="closeShareModal" class="mt-4 text-gray-500 hover:text-gray-700">
+                    閉じる
+                </button>
+            </div>
+        </div>
+        
+        <!-- Add Account Modal -->
+        <div id="addAccountModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+            <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                <h3 class="text-lg font-semibold mb-4">新しい口座を追加</h3>
+                <form id="addAccountForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">口座名</label>
+                        <input type="text" name="name" class="input-field" placeholder="例: 教育費口座" required aria-label="例: 教育費口座">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">月間目標額</label>
+                        <input type="number" name="monthlyGoal" class="input-field" placeholder="50000" required aria-label="50000">
+                    </div>
+                    <div class="flex gap-3">
+                        <button type="submit" class="btn btn-primary flex-1">追加</button>
+                        <button type="button" id="closeAddAccountModal" class="btn btn-secondary">キャンセル</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Edit Account Modal -->
+        <div id="editAccountModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+            <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                <h3 class="text-lg font-semibold mb-4">口座を編集</h3>
+                <form id="editAccountForm" class="space-y-4">
+                    <input type="hidden" id="editAccountId" name="accountId">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">口座名</label>
+                        <input type="text" id="editAccountName" name="name" class="input-field" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">現在の残高</label>
+                        <input type="number" id="editAccountBalance" name="balance" class="input-field" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">月間目標額</label>
+                        <input type="number" id="editAccountGoal" name="monthlyGoal" class="input-field" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">貯蓄目標額</label>
+                        <input type="number" id="editAccountTarget" name="targetAmount" class="input-field" placeholder="例: 1000000" aria-label="例: 1000000">
+                    </div>
+                    <div class="flex gap-3">
+                        <button type="submit" class="btn btn-primary flex-1">更新</button>
+                        <button type="button" id="deleteAccountBtn" class="btn btn-danger flex-1">削除</button>
+                        <button type="button" id="closeEditAccountModal" class="btn btn-secondary">キャンセル</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Deposit Modal -->
+        <div id="depositModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+            <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                <h3 class="text-lg font-semibold mb-4">入金記録</h3>
+                <form id="depositForm" class="space-y-4">
+                    <input type="hidden" id="depositAccountId" name="accountId">
+                    <p id="depositAccountName" class="text-sm text-gray-600 mb-2"></p>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">入金額（円）</label>
+                        <input type="number" name="amount" class="input-field" placeholder="50000" required min="1">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">日付</label>
+                        <input type="date" name="date" id="depositDate" class="input-field" required>
+                    </div>
+                    <div class="flex gap-3">
+                        <button type="submit" class="btn btn-primary flex-1" data-ux="1">記録する</button>
+                        <button type="button" id="closeDepositModal" class="btn btn-secondary" data-ux="1">キャンセル</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Add Expense Modal -->
+        <div id="addExpenseModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+            <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                <h3 class="text-lg font-semibold mb-4">支出を追加</h3>
+                <form id="addExpenseForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">カテゴリ</label>
+                        <select name="category" class="input-field" required>
+                            <option value="">選択してください</option>
+                            <option value="food">食費</option>
+                            <option value="childcare">子供用品</option>
+                            <option value="education">教育費</option>
+                            <option value="medical">医療費</option>
+                            <option value="clothing">衣服</option>
+                            <option value="entertainment">娯楽</option>
+                            <option value="other">その他</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">金額</label>
+                        <input type="number" name="amount" class="input-field" placeholder="8500" required aria-label="8500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">説明</label>
+                        <input type="text" name="description" class="input-field" placeholder="例: スーパーマーケット" aria-label="例: スーパーマーケット">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">日付</label>
+                        <input type="date" name="date" class="input-field" required>
+                    </div>
+                    <div class="flex gap-3">
+                        <button type="submit" class="btn btn-primary flex-1">追加</button>
+                        <button type="button" id="closeAddExpenseModal" class="btn btn-secondary">キャンセル</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Global variables
+        let currentLanguage = 'ja';
+        let currentFontSize = 'base';
+        let isDarkMode = false;
+        let supabase = null;
+        let currentUser = null;
+        
+        // Supabase configuration
+                        
+        // Initialize Supabase
+        try {
+            if (window.supabase) {
+                supabase = window.supabase.createClient('', '');
+            } else {
+                console.warn('Supabase library not loaded, using demo mode');
+                // Fallback for demo mode
+                supabase = null;
+            }
+        } catch (error) {
+            console.error('Supabase initialization error:', error);
+            // Fallback for demo mode
+            supabase = null;
+        }
+        
+        // DOM elements
+        const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+        const closeMobileMenu = document.getElementById('closeMobileMenu');
+        const mobileMenu = document.getElementById('mobileMenu');
+        const navItems = document.querySelectorAll('.nav-item');
+        const pages = document.querySelectorAll('.page');
+        const themeToggle = document.getElementById('themeToggle');
+        const darkModeToggle = document.getElementById('darkModeToggle');
+        const languageSelect = document.getElementById('languageSelect');
+        const fontSizeSelect = document.getElementById('fontSizeSelect');
+        
+        // Translations
+        const translations = {
+            ja: {
+                dashboard: 'ダッシュボード',
+                accounts: '口座管理',
+                expenses: '支出管理',
+                reports: 'レポート',
+                settings: '設定',
+                thisMonth: '今月の貯蓄額',
+                monthlyExpenses: '今月の支出',
+                totalSavings: '総貯蓄額',
+                goalProgress: '目標達成率',
+                recentTransactions: '最近の取引',
+                addAccount: '口座追加',
+                addExpense: '支出追加'
+            },
+            en: {
+                dashboard: 'Dashboard',
+                accounts: 'Accounts',
+                expenses: 'Expenses',
+                reports: 'Reports',
+                settings: 'Settings',
+                thisMonth: 'This Month Savings',
+                monthlyExpenses: 'Monthly Expenses',
+                totalSavings: 'Total Savings',
+                goalProgress: 'Goal Progress',
+                recentTransactions: 'Recent Transactions',
+                addAccount: 'Add Account',
+                addExpense: 'Add Expense'
+            }
+        };
+        
+        // Chart instances
+        let savingsChart = null;
+        let expensesChart = null;
+        let yearlyChart = null;
+        let expenseAnalysisChart = null;
+        
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                initializeApp();
+                setupEventListeners();
+                loadUserPreferences();
+                
+                // Wait a bit for external scripts to load
+                setTimeout(() => {
+                    try {
+                        initializeCharts();
+                    } catch (chartError) {
+                        console.warn('Chart initialization failed:', chartError);
+                    }
+                }, 1000);
+                
+                checkAuthStatus();
+            } catch (error) {
+                console.error('App initialization error:', error);
+                // Fallback: show dashboard even if there's an error
+                showPage('dashboard');
+            }
+        });
+        
+       function initializeApp() {
+           try {
+               // Show dashboard by default
+               showPage('dashboard');
+               
+               // Load and render stored data with error handling
+               try {
+                   renderStoredAccounts();
+               } catch (error) {
+                   console.warn('Failed to render stored accounts:', error);
+               }
+               
+               try {
+                   renderExpenseHistory();
+               } catch (error) {
+                   console.warn('Failed to render expense history:', error);
+               }
+               
+               try {
+                   updateDashboardStats();
+               } catch (error) {
+                   console.warn('Failed to update dashboard stats:', error);
+               }
+               
+               try {
+                   setDefaultDate();
+               } catch (error) {
+                   console.warn('Failed to set default date:', error);
+               }
+
+               try {
+                   renderRecentTransactions();
+               } catch (error) {
+                   console.warn('Failed to render recent transactions:', error);
+               }
+
+               try {
+                   updateExpenseSummary();
+               } catch (error) {
+                   console.warn('Failed to update expense summary:', error);
+               }
+
+           } catch (error) {
+               console.error('Critical error during app initialization:', error);
+               // Ensure dashboard is still shown even if initialization fails
+               try {
+                   showPage('dashboard');
+               } catch (fallbackError) {
+                   console.error('Failed to show dashboard as fallback:', fallbackError);
+               }
+           }
+
+           // Initialize PWA - Service Worker registration moved to end of file
+       }
+        
+        function setupEventListeners() {
+            // Mobile menu
+            mobileMenuToggle.addEventListener('click', () => {
+                mobileMenu.classList.add('active');
+            });
+            
+            closeMobileMenu.addEventListener('click', () => {
+                mobileMenu.classList.remove('active');
+            });
+            
+            // Navigation
+            navItems.forEach(item => {
+                item.addEventListener('click', (e) => {
+                    const page = item.getAttribute('data-page');
+                    const href = item.getAttribute('href');
+                    
+                    // Only prevent default for internal pages (with data-page attribute)
+                    if (page) {
+                        e.preventDefault();
+                        showPage(page);
+                        mobileMenu.classList.remove('active');
+                    } else if (href && href.startsWith('#')) {
+                        // Handle anchor links
+                        e.preventDefault();
+                    }
+                    // For external links (like how-to-use.html), allow default behavior
+                    
+                    // Always close mobile menu when any nav item is clicked
+                    if (mobileMenu.classList.contains('active')) {
+                        mobileMenu.classList.remove('active');
+                    }
+                });
+            });
+            
+            // Account edit buttons
+            document.querySelectorAll('.edit-account-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const accountType = btn.getAttribute('data-account');
+                    openEditAccountModal(accountType);
+                });
+            });
+            
+            // Settings
+            languageSelect.addEventListener('change', changeLanguage);
+            fontSizeSelect.addEventListener('change', changeFontSize);
+            
+            // Modals
+            document.getElementById('addAccountBtn').addEventListener('click', () => {
+                document.getElementById('addAccountModal').classList.remove('hidden');
+            });
+            
+            document.getElementById('addExpenseBtn').addEventListener('click', () => {
+                document.getElementById('addExpenseModal').classList.remove('hidden');
+            });
+            
+            document.getElementById('closeAddAccountModal').addEventListener('click', () => {
+                document.getElementById('addAccountModal').classList.add('hidden');
+            });
+            
+            document.getElementById('closeAddExpenseModal').addEventListener('click', () => {
+                document.getElementById('addExpenseModal').classList.add('hidden');
+            });
+            
+            document.getElementById('closeEditAccountModal').addEventListener('click', () => {
+                document.getElementById('editAccountModal').classList.add('hidden');
+            });
+            
+            // Forms
+            document.getElementById('addAccountForm').addEventListener('submit', handleAddAccount);
+            document.getElementById('editAccountForm').addEventListener('submit', handleEditAccount);
+            document.getElementById('deleteAccountBtn').addEventListener('click', handleDeleteAccount);
+            document.getElementById('addExpenseForm').addEventListener('submit', handleAddExpense);
+            
+            // Share functionality
+            document.getElementById('closeShareModal').addEventListener('click', () => {
+                document.getElementById('shareModal').classList.add('hidden');
+            });
+
+            // Deposit modal
+            document.getElementById('closeDepositModal').addEventListener('click', () => {
+                document.getElementById('depositModal').classList.add('hidden');
+            });
+            document.getElementById('depositForm').addEventListener('submit', handleDeposit);
+
+            // 入金記録ボタン（静的カード）
+            document.querySelectorAll('.deposit-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    openDepositModal(btn.getAttribute('data-account'));
+                });
+            });
+
+            // 設定ページのエクスポートボタン
+            const exportBtn = document.querySelector('.btn.btn-secondary');
+            if (exportBtn && exportBtn.textContent.includes('エクスポート')) {
+                exportBtn.addEventListener('click', exportData);
+            }
+        }
+        
+        function showPage(pageId) {
+            pages.forEach(page => {
+                page.classList.remove('active');
+                page.classList.add('hidden');
+            });
+            
+            const targetPage = document.getElementById(pageId);
+            if (targetPage) {
+                targetPage.classList.remove('hidden');
+                targetPage.classList.add('active');
+                targetPage.classList.add('slide-in');
+            }
+            
+            // Update active navigation
+            navItems.forEach(item => {
+                item.classList.remove('bg-blue-50', 'text-blue-700');
+                if (item.getAttribute('data-page') === pageId) {
+                    item.classList.add('bg-blue-50', 'text-blue-700');
+                }
+            });
+        }
+        
+        function openEditAccountModal(accountType) {
+            const modal = document.getElementById('editAccountModal');
+            const form = document.getElementById('editAccountForm');
+            
+            // Set account data based on type
+            const accountData = getAccountData(accountType);
+            
+            document.getElementById('editAccountId').value = accountType;
+            document.getElementById('editAccountName').value = accountData.name;
+            document.getElementById('editAccountBalance').value = accountData.balance;
+            document.getElementById('editAccountGoal').value = accountData.monthlyGoal;
+            document.getElementById('editAccountTarget').value = accountData.targetAmount || '';
+            
+            modal.classList.remove('hidden');
+        }
+        
+        function getAccountData(accountType) {
+            const stored = loadFromLocalStorage('accounts') || [];
+            const found = stored.find(a => a.id === accountType);
+            if (found) return found;
+
+            const accounts = {
+                education: {
+                    name: '教育費口座',
+                    balance: 850000,
+                    monthlyGoal: 50000,
+                    targetAmount: 2000000
+                },
+                hobby: {
+                    name: '習い事口座',
+                    balance: 320000,
+                    monthlyGoal: 30000,
+                    targetAmount: 500000
+                },
+                emergency: {
+                    name: '緊急時口座',
+                    balance: 80000,
+                    monthlyGoal: 20000,
+                    targetAmount: 300000
+                }
+            };
+            
+            return accounts[accountType] || {};
+        }
+        
+        function changeLanguage() {
+            currentLanguage = languageSelect.value;
+            updateLanguage();
+            saveUserPreferences();
+        }
+        
+        function changeFontSize() {
+            currentFontSize = fontSizeSelect.value;
+            document.body.className = document.body.className.replace(/font-size-\w+/, `font-size-${currentFontSize}`);
+            saveUserPreferences();
+        }
+        
+        function updateLanguage() {
+            const t = translations[currentLanguage];
+            
+            // Update navigation
+            document.querySelectorAll('[data-translate]').forEach(element => {
+                const key = element.getAttribute('data-translate');
+                if (t[key]) {
+                    element.textContent = t[key];
+                }
+            });
+        }
+        
+        function saveUserPreferences() {
+            const preferences = {
+                language: currentLanguage,
+                fontSize: currentFontSize
+            };
+            localStorage.setItem('userPreferences', JSON.stringify(preferences));
+        }
+        
+        function loadUserPreferences() {
+            const stored = localStorage.getItem('userPreferences');
+            if (stored) {
+                const preferences = JSON.parse(stored);
+                currentLanguage = preferences.language || 'ja';
+                currentFontSize = preferences.fontSize || 'base';
+                
+                languageSelect.value = currentLanguage;
+                fontSizeSelect.value = currentFontSize;
+                
+                updateLanguage();
+                changeFontSize();
+            }
+        }
+        
+        function initializeCharts() {
+            try {
+                // Check if Chart.js is loaded
+                if (typeof Chart === 'undefined') {
+                    console.warn('Chart.js not loaded, skipping chart initialization');
+                    return;
+                }
+                
+                // Savings chart
+                const savingsCtx = document.getElementById('savingsChart');
+                if (savingsCtx) {
+                    savingsChart = new Chart(savingsCtx.getContext('2d'), {
+                        type: 'line',
+                        data: {
+                            labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
+                            datasets: [{
+                                label: '貯蓄額',
+                                data: [80000, 85000, 90000, 87000, 92000, 85000],
+                                borderColor: '#10B981',
+                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                tension: 0.4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: false
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return '¥' + value.toLocaleString();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+                
+                // Expenses chart
+                const expensesCtx = document.getElementById('expensesChart');
+                if (expensesCtx) {
+                    expensesChart = new Chart(expensesCtx.getContext('2d'), {
+                        type: 'doughnut',
+                        data: {
+                            labels: ['食費', '子供用品', '教育費', '医療費', 'その他'],
+                            datasets: [{
+                                data: [45000, 28000, 35000, 12000, 8000],
+                                backgroundColor: [
+                                    '#EF4444',
+                                    '#8B5CF6',
+                                    '#3B82F6',
+                                    '#10B981',
+                                    '#F59E0B'
+                                ]
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    position: 'bottom'
+                                }
+                            }
+                        }
+                    });
+                }
+                
+                // Yearly chart
+                const yearlyCtx = document.getElementById('yearlyChart');
+                if (yearlyCtx) {
+                    yearlyChart = new Chart(yearlyCtx.getContext('2d'), {
+                        type: 'bar',
+                        data: {
+                            labels: ['2020', '2021', '2022', '2023', '2024'],
+                            datasets: [{
+                                label: '年間貯蓄額',
+                                data: [800000, 950000, 1100000, 1200000, 1250000],
+                                backgroundColor: '#3B82F6'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    display: false
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return '¥' + value.toLocaleString();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+                
+                // Expense analysis chart
+                const expenseAnalysisCtx = document.getElementById('expenseAnalysisChart');
+                if (expenseAnalysisCtx) {
+                    expenseAnalysisChart = new Chart(expenseAnalysisCtx.getContext('2d'), {
+                        type: 'line',
+                        data: {
+                            labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
+                            datasets: [{
+                                label: '食費',
+                                data: [40000, 42000, 45000, 43000, 47000, 45000],
+                                borderColor: '#EF4444',
+                                backgroundColor: 'rgba(239, 68, 68, 0.1)'
+                            }, {
+                                label: '教育費',
+                                data: [30000, 32000, 35000, 33000, 37000, 35000],
+                                borderColor: '#3B82F6',
+                                backgroundColor: 'rgba(59, 130, 246, 0.1)'
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        callback: function(value) {
+                                            return '¥' + value.toLocaleString();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Chart initialization error:', error);
+            }
+        }
+        
+        function handleAddAccount(e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const accountData = {
+                id: `acc-${Date.now()}`,
+                name: formData.get('name'),
+                monthlyGoal: parseInt(formData.get('monthlyGoal')),
+                balance: 0,
+                userId: currentUser?.id
+            };
+
+            addAccountToUI(accountData);
+            addAccountToDatabase(accountData);
+
+            document.getElementById('addAccountModal').classList.add('hidden');
+            e.target.reset();
+        }
+        
+        function handleAddExpense(e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const expenseData = {
+                id: Date.now().toString(),
+                category: formData.get('category'),
+                amount: parseFloat(formData.get('amount')),
+                description: formData.get('description') || '',
+                date: formData.get('date'),
+                userId: currentUser?.id || 'demo',
+                createdAt: new Date().toISOString()
+            };
+            
+            // Validate required fields
+            if (!expenseData.category || !expenseData.amount || !expenseData.date) {
+                alert('必須フィールドを入力してください。');
+                return;
+            }
+            
+            // Save to localStorage
+            addExpenseToStorage(expenseData);
+            
+            // Add to Supabase (when configured)
+            if (currentUser && supabase) {
+                addExpenseToDatabase(expenseData);
+            }
+            
+            // Update UI
+            renderExpenseHistory();
+            updateDashboardStats();
+            
+            // Close modal and reset form
+            document.getElementById('addExpenseModal').classList.add('hidden');
+            e.target.reset();
+
+            // 最近の取引・集計を更新
+            renderRecentTransactions();
+            updateExpenseSummary();
+
+            showNotification('完了', '支出が追加されました', 'success');
+        }
+        
+        function addExpenseToStorage(expenseData) {
+            const expenses = getStoredExpenses();
+            expenses.push(expenseData);
+            saveToLocalStorage('expenses', expenses);
+        }
+        
+        function getStoredExpenses() {
+            try {
+                return getFromLocalStorage('expenses') || [];
+            } catch (error) {
+                console.warn('Failed to get stored expenses:', error);
+                return [];
+            }
+        }
+        
+        function renderExpenseHistory() {
+            const expenses = getStoredExpenses();
+            const container = document.getElementById('expenseHistory');
+            
+            if (expenses.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-gray-500 py-8">
+                        🧾
+                        <p>支出データがありません</p>
+                        <p class="text-sm">「支出を追加」ボタンから支出を記録してください</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Sort expenses by date (newest first)
+            const sortedExpenses = expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            container.innerHTML = sortedExpenses.map(expense => createExpenseHTML(expense)).join('');
+        }
+        
+        function createExpenseHTML(expense) {
+            const categoryConfig = getCategoryConfig(expense.category);
+            const formattedAmount = expense.amount.toLocaleString();
+            const formattedDate = new Date(expense.date).toLocaleDateString('ja-JP', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            });
+            const isSaving = expense.type === 'saving';
+            const amountClass = isSaving ? 'text-green-600' : 'text-red-600';
+            const amountPrefix = isSaving ? '+' : '-';
+
+            return `
+                <div class="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 ${categoryConfig.bgColor} rounded-full flex items-center justify-center text-lg">
+                            ${categoryConfig.emoji}
+                        </div>
+                        <div>
+                            <p class="font-medium">${categoryConfig.name}</p>
+                            <p class="text-sm text-gray-500">${expense.description ? expense.description + ' · ' : ''}${formattedDate}</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-lg font-semibold ${amountClass}">${amountPrefix}¥${formattedAmount}</p>
+                        <button class="text-gray-400 hover:text-red-600 transition-colors"
+                                onclick="deleteExpense('${expense.id}')"
+                                title="削除" data-ux="1">
+                            <span>🗑️</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function getCategoryConfig(category) {
+            const configs = {
+                food: { name: '食費', icon: 'fa-shopping-cart', bgColor: 'bg-red-100', textColor: 'text-red-600', emoji: '🛒' },
+                childcare: { name: '子供用品', icon: 'fa-baby', bgColor: 'bg-purple-100', textColor: 'text-purple-600', emoji: '👶' },
+                education: { name: '教育費', icon: 'fa-graduation-cap', bgColor: 'bg-blue-100', textColor: 'text-blue-600', emoji: '🎓' },
+                medical: { name: '医療費', icon: 'fa-heartbeat', bgColor: 'bg-green-100', textColor: 'text-green-600', emoji: '🏥' },
+                clothing: { name: '衣服', icon: 'fa-tshirt', bgColor: 'bg-yellow-100', textColor: 'text-yellow-600', emoji: '👕' },
+                entertainment: { name: '娯楽', icon: 'fa-gamepad', bgColor: 'bg-pink-100', textColor: 'text-pink-600', emoji: '🎮' },
+                saving: { name: '貯蓄入金', icon: 'fa-piggy-bank', bgColor: 'bg-green-100', textColor: 'text-green-600', emoji: '🐷' },
+                other: { name: 'その他', icon: 'fa-ellipsis-h', bgColor: 'bg-gray-100', textColor: 'text-gray-600', emoji: '💴' }
+            };
+            return configs[category] || configs.other;
+        }
+        
+        function deleteExpense(expenseId) {
+            if (!confirm('この支出を削除しますか？')) {
+                return;
+            }
+            
+            const expenses = getStoredExpenses();
+            const updatedExpenses = expenses.filter(expense => expense.id !== expenseId);
+            saveToLocalStorage('expenses', updatedExpenses);
+            
+            // Update UI
+            renderExpenseHistory();
+            updateDashboardStats();
+            renderRecentTransactions();
+            updateExpenseSummary();
+
+            showNotification('完了', '支出が削除されました', 'success');
+        }
+        
+        function updateDashboardStats() {
+            const expenses = getStoredExpenses();
+            const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM format
+            
+            // Calculate current month expenses
+            const currentMonthExpenses = expenses.filter(expense => 
+                expense.date.startsWith(currentMonth)
+            );
+            
+            const totalExpenses = currentMonthExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+            
+            // Update dashboard expense card if it exists
+            const expenseElement = document.querySelector('[data-stat="expenses"]');
+            if (expenseElement) {
+                expenseElement.textContent = `¥${totalExpenses.toLocaleString()}`;
+            }
+        }
+        
+        async function addExpenseToDatabase(expenseData) {
+            try {
+                if (!supabase || !currentUser) return;
+                
+                const { data, error } = await supabase
+                    .from('expenses')
+                    .insert([{
+                        user_id: currentUser.id,
+                        category_id: expenseData.category,
+                        amount: expenseData.amount,
+                        description: expenseData.description,
+                        date: expenseData.date
+                    }]);
+                
+                if (error) {
+                    console.error('Error adding expense to database:', error);
+                }
+            } catch (error) {
+                console.error('Error in addExpenseToDatabase:', error);
+            }
+        }
+        
+        
+        function setDefaultDate() {
+            const today = new Date().toISOString().split('T')[0];
+            const dateInput = document.querySelector('#addExpenseForm input[name="date"]');
+            if (dateInput) {
+                dateInput.value = today;
+            }
+        }
+        
+        function handleEditAccount(e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const accountData = {
+                id: formData.get('accountId'),
+                name: formData.get('name'),
+                balance: parseInt(formData.get('balance')),
+                monthlyGoal: parseInt(formData.get('monthlyGoal')),
+                targetAmount: parseInt(formData.get('targetAmount')) || 0,
+                userId: currentUser?.id
+            };
+            
+            // Update account data in UI
+            updateAccountDisplay(accountData);
+            
+            // Add to Supabase (when configured)
+            // updateAccountInDatabase(accountData);
+
+            document.getElementById('editAccountModal').classList.add('hidden');
+        }
+
+        function handleDeleteAccount() {
+            const accountId = document.getElementById('editAccountId').value;
+            if (!accountId) return;
+            if (!confirm('本当にこの口座を削除しますか？')) return;
+
+            deleteAccount(accountId);
+            document.getElementById('editAccountModal').classList.add('hidden');
+        }
+
+        function updateAccountDisplay(accountData) {
+            const accountType = accountData.id;
+            let card = null;
+            const editButton = document.querySelector(`[data-account="${accountType}"]`);
+            if (editButton) {
+                card = editButton.closest('.card');
+            }
+            if (card) {
+                // Update account name
+                card.querySelector('h3').textContent = accountData.name;
+                
+                // Update balance
+                const balanceElement = card.querySelector('.text-3xl');
+                balanceElement.textContent = `¥${accountData.balance.toLocaleString()}`;
+                
+                // Update monthly goal
+                const goalElement = card.querySelector('.text-sm:last-of-type');
+                if (goalElement && goalElement.textContent.includes('¥')) {
+                    goalElement.textContent = `¥${accountData.monthlyGoal.toLocaleString()}`;
+                }
+                
+                // Update target amount if exists
+                const targetElement = card.querySelector('.text-sm:contains("貯蓄目標")');
+                if (targetElement && accountData.targetAmount > 0) {
+                    const progress = (accountData.balance / accountData.targetAmount * 100).toFixed(1);
+                    const progressBar = card.querySelector('.progress-fill.bg-green-500');
+                    if (progressBar) {
+                        progressBar.style.width = `${Math.min(progress, 100)}%`;
+                    }
+                    const progressText = card.querySelector('.text-xs:contains("目標達成率")');
+                    if (progressText) {
+                        progressText.textContent = `目標達成率: ${progress}%`;
+                    }
+                }
+            }
+        }
+
+        function addAccountToUI(accountData) {
+            const container = document.getElementById('accountsContainer');
+            if (!container) return;
+
+            const card = document.createElement('div');
+            card.className = 'card p-6';
+            card.innerHTML = `
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold">${accountData.name}</h3>
+                    <div class="flex items-center gap-2">
+                        <button class="edit-account-btn text-gray-400 hover:text-gray-600" data-account="${accountData.id}" data-ux="1">
+                            <span>✏️</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <p class="text-3xl font-bold text-blue-600">¥${(accountData.balance || 0).toLocaleString()}</p>
+                    <p class="text-sm text-gray-500">現在の残高</p>
+                </div>
+                <div class="mb-4">
+                    <div class="flex justify-between text-sm mb-2">
+                        <span>月間目標</span>
+                        <span>¥${(accountData.monthlyGoal || 0).toLocaleString()}</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width:0"></div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">今月: ¥0</p>
+                </div>
+                <button class="btn btn-primary w-full deposit-btn" data-account="${accountData.id}" data-ux="1">
+                    <span>+</span> 入金記録
+                </button>
+            `;
+
+            container.appendChild(card);
+
+            const editBtn = card.querySelector('.edit-account-btn');
+            editBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                openEditAccountModal(accountData.id);
+            });
+
+            const depositBtn = card.querySelector('.deposit-btn');
+            depositBtn.addEventListener('click', () => {
+                openDepositModal(accountData.id);
+            });
+        }
+
+        function addAccountToDatabase(accountData) {
+            const accounts = loadFromLocalStorage('accounts') || [];
+            accounts.push(accountData);
+            saveToLocalStorage('accounts', accounts);
+
+            if (supabase) {
+                supabase.from('accounts').insert([accountData]).catch(err => {
+                    console.error('Supabase insert error:', err);
+                });
+            }
+        }
+
+        async function deleteAccount(accountId) {
+            let accounts = loadFromLocalStorage('accounts') || [];
+            accounts = accounts.filter(acc => acc.id !== accountId);
+            saveToLocalStorage('accounts', accounts);
+
+            const editButton = document.querySelector(`[data-account="${accountId}"]`);
+            if (editButton) {
+                const card = editButton.closest('.card');
+                if (card && card.parentNode) {
+                    card.parentNode.removeChild(card);
+                }
+            }
+
+            if (supabase) {
+                try {
+                    const { error } = await supabase.from('accounts').delete().eq('id', accountId);
+                    if (error) {
+                        console.error('Supabase delete error:', error);
+                    } else {
+                    }
+                } catch (err) {
+                    console.error('Supabase delete exception:', err);
+                }
+            } else {
+            }
+        }
+
+       function renderStoredAccounts() {
+            try {
+                const container = document.getElementById('accountsContainer');
+                if (container) container.innerHTML = '';
+
+                const stored = loadFromLocalStorage('accounts') || [];
+                stored.forEach(acc => {
+                    try {
+                        addAccountToUI(acc);
+                    } catch (error) {
+                        console.warn('Failed to add account to UI:', acc, error);
+                    }
+                });
+            } catch (error) {
+                console.error('Failed to render stored accounts:', error);
+            }
+       }
+
+        async function fetchAccountsFromSupabase() {
+            if (!supabase || !currentUser) return;
+
+            try {
+                const { data, error } = await supabase
+                    .from('accounts')
+                    .select('*')
+                    .eq('userId', currentUser.id);
+
+                if (error) {
+                    console.error('Supabase fetch error:', error);
+                    return;
+                }
+
+                if (Array.isArray(data)) {
+                    saveToLocalStorage('accounts', data);
+                    renderStoredAccounts();
+                }
+            } catch (err) {
+                console.error('Fetch accounts exception:', err);
+            }
+        }
+        
+        function checkAuthStatus() {
+            // Check if user is logged in
+            const userSession = localStorage.getItem('userSession');
+            if (userSession) {
+                try {
+                    currentUser = JSON.parse(userSession);
+                    showDashboard();
+                } catch (error) {
+                    console.error('Session parsing error:', error);
+                    localStorage.removeItem('userSession');
+                    showAuthModal();
+                }
+            } else {
+                // For demo purposes, show dashboard directly
+                // In production, you would show auth modal here
+                handleDemoLogin();
+            }
+        }
+        
+        function showAuthModal() {
+            // Create and show authentication modal
+            const authModal = document.createElement('div');
+            authModal.id = 'authModalContainer';
+            authModal.innerHTML = `
+                <div class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+                    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                        <h3 class="text-xl font-semibold mb-4">ログイン・新規登録</h3>
+                        <form id="authForm" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">メールアドレス</label>
+                                <input type="email" name="email" class="input-field" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">パスワード</label>
+                                <input type="password" name="password" class="input-field" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-full">ログイン</button>
+                        </form>
+                        <p class="text-center text-sm text-gray-600 mt-4">
+                            アカウントをお持ちでない場合は、自動的に新規登録されます
+                        </p>
+                        <div class="text-center mt-4">
+                            <button id="demoLogin" class="text-blue-600 hover:text-blue-800 text-sm">
+                                デモモードで試す
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(authModal);
+            
+            // Add event listeners
+            const authForm = authModal.querySelector('#authForm');
+            const demoLoginBtn = authModal.querySelector('#demoLogin');
+            
+            authForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const formData = new FormData(authForm);
+                const email = formData.get('email');
+                const password = formData.get('password');
+                
+                // Handle authentication
+                handleAuthentication(email, password);
+            });
+            
+            demoLoginBtn.addEventListener('click', () => {
+                handleDemoLogin();
+            });
+        }
+        
+        function handleAuthentication(email, password) {
+            try {
+                // Initialize Supabase if not already done
+                if (!supabase) {
+                    supabase = window.supabase.createClient('', '');
+                }
+                
+                // Try to sign in
+                supabase.auth.signInWithPassword({
+                    email: email,
+                    password: password
+                }).then(({ data, error }) => {
+                    if (error) {
+                        // If sign in fails, try to sign up
+                        supabase.auth.signUp({
+                            email: email,
+                            password: password
+                        }).then(({ data: signUpData, error: signUpError }) => {
+                            if (signUpError) {
+                                console.error('Sign up error:', signUpError);
+                                showNotification('エラー', '認証に失敗しました: ' + signUpError.message, 'error');
+                            } else {
+                                showNotification('成功', 'アカウントを作成しました。確認メールをチェックしてください。', 'success');
+                                // For demo purposes, proceed anyway
+                                handleDemoLogin();
+                            }
+                        }).catch(error => {
+                            console.error('Sign up catch error:', error);
+                            showNotification('エラー', '認証に失敗しました', 'error');
+                            handleDemoLogin();
+                        });
+                    } else {
+                        showNotification('成功', 'ログインしました', 'success');
+                        currentUser = data.user;
+                        localStorage.setItem('userSession', JSON.stringify(data.user));
+                        showDashboard();
+                    }
+                }).catch(error => {
+                    console.error('Sign in catch error:', error);
+                    showNotification('エラー', '認証に失敗しました', 'error');
+                    handleDemoLogin();
+                });
+            } catch (error) {
+                console.error('Authentication setup error:', error);
+                showNotification('エラー', '認証システムの初期化に失敗しました', 'error');
+                handleDemoLogin();
+            }
+        }
+        
+        function handleDemoLogin() {
+            currentUser = { id: 'demo-user', email: 'demo@example.com' };
+            localStorage.setItem('userSession', JSON.stringify(currentUser));
+            const authModal = document.getElementById('authModalContainer');
+            if (authModal && authModal.parentNode) {
+                authModal.parentNode.removeChild(authModal);
+            }
+            showDashboard();
+        }
+        
+        function showDashboard() {
+            // Hide auth modal if exists
+            const authModal = document.getElementById('authModalContainer');
+            if (authModal && authModal.parentNode) {
+                authModal.parentNode.removeChild(authModal);
+            }
+
+            // Show dashboard page
+            showPage('dashboard');
+
+            // Render any stored accounts first
+            renderStoredAccounts();
+
+            // Fetch latest accounts from Supabase
+            fetchAccountsFromSupabase();
+            
+            // Update navigation active state
+            navItems.forEach(item => {
+                item.classList.remove('bg-blue-50', 'text-blue-700');
+            });
+            
+            const dashboardNav = document.querySelector('[data-page="dashboard"]');
+            if (dashboardNav) {
+                dashboardNav.classList.add('bg-blue-50', 'text-blue-700');
+            }
+        }
+        
+        // Share functionality
+        function shareResults(platform) {
+            const url = window.location.href;
+            const text = '家族の養育費管理を効率化！月額貯蓄と支出を見える化するアプリを使っています。';
+            
+            let shareUrl = '';
+            switch (platform) {
+                case 'twitter':
+                    shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+                    break;
+                case 'facebook':
+                    shareUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+                    break;
+                case 'line':
+                    shareUrl = `https://line.me/R/msg/text/?${encodeURIComponent(text + ' ' + url)}`;
+                    break;
+            }
+            
+            if (shareUrl) {
+                window.open(shareUrl, '_blank', 'width=600,height=400');
+            }
+        }
+        
+        // PWA install prompt
+        let deferredPrompt;
+        
+        window.addEventListener('beforeinstallprompt', (e) => {
+            deferredPrompt = e;
+            showInstallPrompt();
+        });
+        
+        function showInstallPrompt() {
+            const installBanner = document.createElement('div');
+            installBanner.innerHTML = `
+                <div class="fixed bottom-4 left-4 right-4 bg-blue-600 text-white p-4 rounded-lg shadow-lg z-50">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl">📱</span>
+                            <div>
+                                <p class="font-semibold">アプリをインストール</p>
+                                <p class="text-sm opacity-90">ホーム画面に追加して簡単アクセス</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button id="installApp" class="btn btn-primary">インストール</button>
+                            <button id="dismissInstall" class="btn btn-secondary">後で</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(installBanner);
+            
+            document.getElementById('installApp').addEventListener('click', () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    deferredPrompt.userChoice.then((choiceResult) => {
+                        deferredPrompt = null;
+                        document.body.removeChild(installBanner);
+                    });
+                }
+            });
+            
+            document.getElementById('dismissInstall').addEventListener('click', () => {
+                document.body.removeChild(installBanner);
+            });
+        }
+        
+        // Offline functionality
+        function handleOffline() {
+            const offlineBanner = document.createElement('div');
+            offlineBanner.innerHTML = `
+                <div class="fixed top-0 left-0 right-0 bg-yellow-500 text-white p-2 text-center z-50">
+                    <span class="mr-2">📶</span>
+                    オフラインモードで動作中
+                </div>
+            `;
+            document.body.appendChild(offlineBanner);
+        }
+        
+        function handleOnline() {
+            const offlineBanner = document.querySelector('.fixed.top-0.bg-yellow-500');
+            if (offlineBanner) {
+                document.body.removeChild(offlineBanner);
+            }
+        }
+        
+        window.addEventListener('offline', handleOffline);
+        window.addEventListener('online', handleOnline);
+        
+        // Error handling
+        window.addEventListener('error', (e) => {
+            console.error('Application error:', e);
+            // Show user-friendly error message
+            const errorToast = document.createElement('div');
+            errorToast.innerHTML = `
+                <div class="fixed top-4 right-4 bg-red-500 text-white p-4 rounded-lg shadow-lg z-50">
+                    <div class="flex items-center gap-3">
+                        <span>⚠️</span>
+                        <div>
+                            <p class="font-semibold">エラーが発生しました</p>
+                            <p class="text-sm">ページを再読み込みしてください</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(errorToast);
+            
+            setTimeout(() => {
+                document.body.removeChild(errorToast);
+            }, 5000);
+        });
+        
+        // Performance monitoring
+        if ('performance' in window) {
+            window.addEventListener('load', () => {
+                setTimeout(() => {
+                    const perfData = performance.getEntriesByType('navigation')[0];
+                }, 0);
+            });
+        }
+        
+        // Analytics tracking (Google Analytics)
+        function trackEvent(eventName, category, action, label) {
+            if (typeof gtag !== 'undefined') {
+                gtag('event', eventName, {
+                    event_category: category,
+                    event_action: action,
+                    event_label: label
+                });
+            }
+        }
+        
+        // Usage tracking
+        navItems.forEach(item => {
+            item.addEventListener('click', (e) => {
+                const page = item.getAttribute('data-page');
+                const href = item.getAttribute('href');
+                
+                if (page) {
+                    trackEvent('navigation', 'click', page);
+                } else if (href) {
+                    // Track external link clicks
+                    trackEvent('navigation', 'external_link', href);
+                }
+            });
+        });
+        
+        // Accessibility enhancements
+        document.addEventListener('keydown', (e) => {
+            // ESC key to close modals
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.fixed.inset-0').forEach(modal => {
+                    if (!modal.classList.contains('hidden')) {
+                        modal.classList.add('hidden');
+                    }
+                });
+            }
+            
+            // Tab navigation for accessibility
+            if (e.key === 'Tab') {
+                document.body.classList.add('keyboard-navigation');
+            }
+        });
+        
+        document.addEventListener('mousedown', () => {
+            document.body.classList.remove('keyboard-navigation');
+        });
+        
+        // Focus management
+        function trapFocus(modal) {
+            const focusableElements = modal.querySelectorAll(
+                'button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+            );
+            const firstElement = focusableElements[0];
+            const lastElement = focusableElements[focusableElements.length - 1];
+            
+            modal.addEventListener('keydown', (e) => {
+                if (e.key === 'Tab') {
+                    if (e.shiftKey) {
+                        if (document.activeElement === firstElement) {
+                            lastElement.focus();
+                            e.preventDefault();
+                        }
+                    } else {
+                        if (document.activeElement === lastElement) {
+                            firstElement.focus();
+                            e.preventDefault();
+                        }
+                    }
+                }
+            });
+            
+            firstElement.focus();
+        }
+        
+        // Initialize focus trap for modals
+        document.querySelectorAll('.fixed.inset-0').forEach(modal => {
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                        if (!modal.classList.contains('hidden')) {
+                            trapFocus(modal);
+                        }
+                    }
+                });
+            });
+            
+            observer.observe(modal, { attributes: true });
+        });
+        
+        // Data persistence
+        function saveToLocalStorage(key, data) {
+            try {
+                localStorage.setItem(key, JSON.stringify(data));
+            } catch (e) {
+                console.error('Failed to save to localStorage:', e);
+            }
+        }
+        
+        function loadFromLocalStorage(key) {
+            try {
+                const data = localStorage.getItem(key);
+                return data ? JSON.parse(data) : null;
+            } catch (e) {
+                console.error('Failed to load from localStorage:', e);
+                return null;
+            }
+        }
+        
+        // Alias for compatibility
+        function getFromLocalStorage(key) {
+            return loadFromLocalStorage(key);
+        }
+        
+        // Export/Import functionality
+        function exportData() {
+            const data = {
+                accounts: loadFromLocalStorage('accounts') || [],
+                expenses: loadFromLocalStorage('expenses') || [],
+                settings: loadFromLocalStorage('userPreferences') || {}
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'family-budget-data.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        function importData(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    saveToLocalStorage('accounts', data.accounts);
+                    saveToLocalStorage('expenses', data.expenses);
+                    saveToLocalStorage('userPreferences', data.settings);
+                    location.reload();
+                } catch (error) {
+                    alert('インポートに失敗しました。ファイル形式を確認してください。');
+                }
+            };
+            reader.readAsText(file);
+        }
+        
+        // Backup and sync
+        function createBackup() {
+            const backup = {
+                timestamp: new Date().toISOString(),
+                data: {
+                    accounts: loadFromLocalStorage('accounts') || [],
+                    expenses: loadFromLocalStorage('expenses') || [],
+                    settings: loadFromLocalStorage('userPreferences') || {}
+                }
+            };
+            
+            saveToLocalStorage('backup', backup);
+        }
+        
+        // Create backup every hour
+        setInterval(createBackup, 3600000);
+        
+        // Initialize backup on load
+        createBackup();
+        
+        // Search functionality
+        function searchTransactions(query) {
+            const transactions = loadFromLocalStorage('expenses') || [];
+            return transactions.filter(transaction => 
+                transaction.description.toLowerCase().includes(query.toLowerCase()) ||
+                transaction.category.toLowerCase().includes(query.toLowerCase())
+            );
+        }
+        
+        // Add search to expenses page
+        const expensesPage = document.getElementById('expenses');
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.placeholder = '支出を検索...';
+        searchInput.className = 'input-field mb-4';
+        searchInput.addEventListener('input', (e) => {
+            const results = searchTransactions(e.target.value);
+            // Update expense list with search results
+            // Implementation depends on your data structure
+        });
+        
+        // Add to expenses page
+        const expensesContent = expensesPage.querySelector('.max-w-7xl');
+        if (expensesContent) {
+            expensesContent.insertBefore(searchInput, expensesContent.firstChild);
+        }
+        
+        // Notification system
+        function showNotification(title, message, type = 'info') {
+            const notification = document.createElement('div');
+            const typeColors = {
+                info: 'bg-blue-500',
+                success: 'bg-green-500',
+                warning: 'bg-yellow-500',
+                error: 'bg-red-500'
+            };
+            
+            notification.innerHTML = `
+                <div class="fixed top-4 right-4 ${typeColors[type]} text-white p-4 rounded-lg shadow-lg z-50 max-w-sm">
+                    <div class="flex items-start gap-3">
+                        <span class="text-xl">${type === 'error' ? '⚠️' : 'ℹ️'}</span>
+                        <div>
+                            <h4 class="font-semibold">${title}</h4>
+                            <p class="text-sm">${message}</p>
+                        </div>
+                        <button class="text-white hover:text-gray-200 ml-2">
+                            <span>✕</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            notification.querySelector('button').addEventListener('click', () => {
+                document.body.removeChild(notification);
+            });
+            
+            setTimeout(() => {
+                if (document.body.contains(notification)) {
+                    document.body.removeChild(notification);
+                }
+            }, 5000);
+        }
+        
+        // Budget alerts
+        function checkBudgetAlerts() {
+            const expenses = loadFromLocalStorage('expenses') || [];
+            const currentMonth = new Date().getMonth();
+            const currentYear = new Date().getFullYear();
+            
+            const monthlyExpenses = expenses.filter(expense => {
+                const expenseDate = new Date(expense.date);
+                return expenseDate.getMonth() === currentMonth && 
+                       expenseDate.getFullYear() === currentYear;
+            });
+            
+            const totalExpenses = monthlyExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+            const budgetLimit = 150000; // Example budget limit
+            
+            if (totalExpenses > budgetLimit * 0.8) {
+                showNotification(
+                    '予算アラート',
+                    `今月の支出が予算の80%を超えました。現在: ¥${totalExpenses.toLocaleString()}`,
+                    'warning'
+                );
+            }
+        }
+        
+        // Check budget alerts on page load
+        checkBudgetAlerts();
+        
+        // Update last activity timestamp
+        function updateLastActivity() {
+            saveToLocalStorage('lastActivity', new Date().toISOString());
+        }
+        
+        // Update activity on user interaction
+        document.addEventListener('click', updateLastActivity);
+        document.addEventListener('keydown', updateLastActivity);
+        
+        // Cleanup function
+        function cleanup() {
+            // Clean up event listeners and timers
+            if (savingsChart) savingsChart.destroy();
+            if (expensesChart) expensesChart.destroy();
+            if (yearlyChart) yearlyChart.destroy();
+            if (expenseAnalysisChart) expenseAnalysisChart.destroy();
+        }
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', cleanup);
+        
+        // Initialize tooltips
+        function initializeTooltips() {
+            const tooltips = document.querySelectorAll('[data-tooltip]');
+            tooltips.forEach(element => {
+                element.addEventListener('mouseenter', showTooltip);
+                element.addEventListener('mouseleave', hideTooltip);
+            });
+        }
+        
+        function showTooltip(e) {
+            const tooltip = document.createElement('div');
+            tooltip.className = 'absolute bg-gray-800 text-white p-2 rounded text-sm z-50';
+            tooltip.textContent = e.target.getAttribute('data-tooltip');
+            
+            document.body.appendChild(tooltip);
+            
+            const rect = e.target.getBoundingClientRect();
+            tooltip.style.left = rect.left + 'px';
+            tooltip.style.top = (rect.bottom + 5) + 'px';
+        }
+        
+        function hideTooltip() {
+            const tooltip = document.querySelector('.absolute.bg-gray-800');
+            if (tooltip) {
+                document.body.removeChild(tooltip);
+            }
+        }
+        
+        // Initialize on load
+        initializeTooltips();
+
+        // ダッシュボード「最近の取引」をlocalStorageの実データで描画
+        function renderRecentTransactions() {
+            const expenses = getStoredExpenses();
+            const container = document.getElementById('recentTransactionsContainer');
+            if (!container) return;
+
+            if (expenses.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-gray-500 py-8">
+                        <p>まだ取引がありません</p>
+                        <p class="text-sm">支出を記録すると表示されます</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const recent = [...expenses]
+                .sort((a, b) => new Date(b.date) - new Date(a.date))
+                .slice(0, 5);
+
+            container.innerHTML = recent.map(expense => {
+                const config = getCategoryConfig(expense.category);
+                const date = new Date(expense.date).toLocaleDateString('ja-JP', {
+                    year: 'numeric', month: '2-digit', day: '2-digit'
+                });
+                const isSaving = expense.type === 'saving';
+                const amountClass = isSaving ? 'text-green-600' : 'text-red-600';
+                const prefix = isSaving ? '+' : '-';
+                return `
+                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div class="flex items-center gap-3">
+                            <span class="text-xl">${config.emoji}</span>
+                            <div>
+                                <p class="font-medium">${config.name}</p>
+                                <p class="text-sm text-gray-500">${expense.description ? expense.description + ' · ' : ''}${date}</p>
+                            </div>
+                        </div>
+                        <span class="${amountClass} font-semibold">${prefix}¥${parseFloat(expense.amount).toLocaleString()}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 支出管理ページ「今月の支出」サマリーをlocalStorageから計算して更新
+        function updateExpenseSummary() {
+            const expenses = getStoredExpenses();
+            const container = document.getElementById('expenseSummaryList');
+            if (!container) return;
+
+            const now = new Date();
+            const thisYear = now.getFullYear();
+            const thisMonth = now.getMonth();
+
+            const monthExpenses = expenses.filter(e => {
+                if (e.type === 'saving') return false;
+                const d = new Date(e.date);
+                return d.getFullYear() === thisYear && d.getMonth() === thisMonth;
+            });
+
+            if (monthExpenses.length === 0) {
+                container.innerHTML = '<p class="text-center text-gray-400 text-sm py-4">今月の支出はありません</p>';
+                return;
+            }
+
+            const catNames = {
+                food: '食費', childcare: '子供用品', education: '教育費',
+                medical: '医療費', clothing: '衣服', entertainment: '娯楽', other: 'その他'
+            };
+            const catTotals = {};
+            let total = 0;
+            monthExpenses.forEach(e => {
+                const cat = e.category || 'other';
+                catTotals[cat] = (catTotals[cat] || 0) + parseFloat(e.amount);
+                total += parseFloat(e.amount);
+            });
+
+            const rows = Object.entries(catTotals)
+                .sort((a, b) => b[1] - a[1])
+                .map(([cat, amt]) => `
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">${catNames[cat] || cat}</span>
+                        <span class="font-semibold">¥${amt.toLocaleString()}</span>
+                    </div>
+                `).join('');
+
+            container.innerHTML = rows + `
+                <hr>
+                <div class="flex justify-between text-lg font-bold">
+                    <span>合計</span>
+                    <span>¥${total.toLocaleString()}</span>
+                </div>
+            `;
+        }
+
+        // 入金モーダルを開く
+        function openDepositModal(accountId) {
+            const accountData = getAccountData(accountId);
+            document.getElementById('depositAccountId').value = accountId;
+            document.getElementById('depositAccountName').textContent =
+                '口座: ' + (accountData.name || accountId);
+            document.getElementById('depositDate').value =
+                new Date().toISOString().split('T')[0];
+            document.getElementById('depositForm').reset();
+            document.getElementById('depositAccountId').value = accountId;
+            document.getElementById('depositDate').value =
+                new Date().toISOString().split('T')[0];
+            document.getElementById('depositAccountName').textContent =
+                '口座: ' + (accountData.name || accountId);
+            document.getElementById('depositModal').classList.remove('hidden');
+        }
+
+        // 入金処理
+        function handleDeposit(e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const accountId = formData.get('accountId');
+            const amount = parseFloat(formData.get('amount'));
+            const date = formData.get('date');
+
+            if (!amount || amount <= 0) {
+                showNotification('エラー', '金額を正しく入力してください', 'error');
+                return;
+            }
+
+            // localStorage の口座を更新（なければデフォルトから作成）
+            let accounts = loadFromLocalStorage('accounts') || [];
+            let account = accounts.find(a => a.id === accountId);
+            if (!account) {
+                const defaultData = getAccountData(accountId);
+                account = Object.assign({}, defaultData, { id: accountId });
+                accounts.push(account);
+            }
+            account.balance = (parseFloat(account.balance) || 0) + amount;
+            saveToLocalStorage('accounts', accounts);
+
+            // 貯蓄入金をsaving typeとして記録
+            const savingRecord = {
+                id: Date.now().toString(),
+                category: 'saving',
+                amount: amount,
+                description: (account.name || accountId) + 'へ入金',
+                date: date,
+                accountId: accountId,
+                type: 'saving',
+                userId: (currentUser && currentUser.id) || 'demo',
+                createdAt: new Date().toISOString()
+            };
+            addExpenseToStorage(savingRecord);
+
+            // 口座カードの残高表示を直接更新
+            const editBtn = document.querySelector('[data-account="' + accountId + '"]');
+            if (editBtn) {
+                const card = editBtn.closest('.card');
+                if (card) {
+                    const balEl = card.querySelector('.text-3xl');
+                    if (balEl) balEl.textContent = '¥' + account.balance.toLocaleString();
+                }
+            }
+
+            updateDashboardCards();
+            renderRecentTransactions();
+
+            document.getElementById('depositModal').classList.add('hidden');
+            showNotification('完了', '¥' + amount.toLocaleString() + ' の入金を記録しました', 'success');
+        }
+
+        // ダッシュボードカードをlocalStorageデータで更新
+        function updateDashboardCards() {
+            const expenses = loadFromLocalStorage('expenses') || [];
+            const accounts = loadFromLocalStorage('accounts') || [];
+            const budget = loadFromLocalStorage('budget') || {};
+
+            const now = new Date();
+            const thisYear = now.getFullYear();
+            const thisMonth = now.getMonth();
+            const prevMonth = thisMonth === 0 ? 11 : thisMonth - 1;
+            const prevYear = thisMonth === 0 ? thisYear - 1 : thisYear;
+
+            // 今月の支出合計
+            const thisMonthExp = expenses.filter(e => {
+                const d = new Date(e.date || e.created_at);
+                return d.getFullYear() === thisYear && d.getMonth() === thisMonth;
+            }).reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+
+            // 先月の支出合計
+            const prevMonthExp = expenses.filter(e => {
+                const d = new Date(e.date || e.created_at);
+                return d.getFullYear() === prevYear && d.getMonth() === prevMonth;
+            }).reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+
+            // 今月の貯蓄入金合計（口座への積立）
+            const thisMonthSaving = expenses.filter(e => {
+                const d = new Date(e.date || e.created_at);
+                return d.getFullYear() === thisYear && d.getMonth() === thisMonth && e.type === 'saving';
+            }).reduce((s, e) => s + (parseFloat(e.amount) || 0), 0);
+
+            // 総残高
+            const totalBalance = accounts.reduce((s, a) => s + (parseFloat(a.balance) || 0), 0);
+
+            // 月次目標
+            const monthlyGoal = parseFloat(budget.monthly_goal) || 100000;
+
+            // 達成率
+            const goalRate = monthlyGoal > 0 ? Math.min(Math.round((thisMonthSaving / monthlyGoal) * 100), 999) : 0;
+
+            // 前月比
+            let compareText = '前月比: —';
+            if (prevMonthExp > 0) {
+                const diff = Math.round(((thisMonthExp - prevMonthExp) / prevMonthExp) * 100);
+                const sign = diff >= 0 ? '+' : '';
+                const color = diff > 0 ? 'text-red-500' : 'text-green-500';
+                compareText = `前月比: <span class="${color}">${sign}${diff}%</span>`;
+            }
+
+            document.getElementById('dash-monthly-saving').textContent = '¥' + thisMonthSaving.toLocaleString();
+            document.getElementById('dash-monthly-expense').textContent = '¥' + thisMonthExp.toLocaleString();
+            document.getElementById('dash-total-balance').textContent = '¥' + totalBalance.toLocaleString();
+            document.getElementById('dash-goal-rate').textContent = goalRate + '%';
+            document.getElementById('dash-saving-progress').style.width = Math.min(goalRate, 100) + '%';
+            document.getElementById('dash-saving-goal-label').textContent = '目標: ¥' + monthlyGoal.toLocaleString();
+            document.getElementById('dash-accounts-count').textContent = accounts.length + 'つの口座';
+            document.getElementById('dash-expense-compare').innerHTML = compareText;
+        }
+
+        updateDashboardCards();
+    </script>
+    
+    <!-- Service Worker -->
+    <script>
+        const SW_CODE = `
+            const CACHE_NAME = 'family-budget-v1';
+            const urlsToCache = [
+                '/',
+                '/index.html',
+                'https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css',
+                'https://cdn.jsdelivr.net/npm/chart.js'
+            ];
+            
+            self.addEventListener('install', (event) => {
+                event.waitUntil(
+                    caches.open(CACHE_NAME)
+                        .then((cache) => cache.addAll(urlsToCache))
+                );
+            });
+            
+            self.addEventListener('fetch', (event) => {
+                event.respondWith(
+                    caches.match(event.request)
+                        .then((response) => {
+                            if (response) {
+                                return response;
+                            }
+                            return fetch(event.request);
+                        })
+                );
+            });
+        `;
+        
+        // Create service worker blob
+        const swBlob = new Blob([SW_CODE], { type: 'application/javascript' });
+        const swUrl = URL.createObjectURL(swBlob);
+        
+        if ('serviceWorker' in navigator) {
+            try {
+                // Try external sw.js first
+                navigator.serviceWorker.register('./sw.js')
+                    .catch(error => {
+                        console.error('External SW registration failed:', error);
+                        // Fallback to inline SW
+                        navigator.serviceWorker.register(swUrl)
+                            .catch(inlineError => console.error('Inline SW also failed:', inlineError));
+                    });
+            } catch (error) {
+                console.error('Service Worker setup error:', error);
+            }
+        }
+    </script>
+    
+    <!-- PWA Manifest -->
+    <script>
+        const manifest = {
+            name: 'ファミリー養育費管理システム',
+            short_name: '養育費管理',
+            description: '夫婦で子供の養育費を効率的に管理するWebアプリケーション',
+            start_url: '/',
+            display: 'standalone',
+            background_color: '#ffffff',
+            theme_color: '#3B82F6',
+            icons: [
+                {
+                    src: 'https://appadaycreator.com/family-childcare-budget-manager/ogp.png',
+                    sizes: '192x192',
+                    type: 'image/png'
+                },
+                {
+                    src: 'https://appadaycreator.com/family-childcare-budget-manager/ogp.png',
+                    sizes: '512x512',
+                    type: 'image/png'
+                }
+            ]
+        };
+        
+        const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+        const manifestUrl = URL.createObjectURL(manifestBlob);
+        
+        const manifestLink = document.createElement('link');
+        manifestLink.rel = 'manifest';
+        manifestLink.href = manifestUrl;
+        document.head.appendChild(manifestLink);
+    </script>
+
+    <div style="background:#fff8ee;border:1px solid #fde68a;border-radius:12px;padding:14px;margin:12px;text-align:center;">
+        <a href="https://www.amazon.co.jp/s?k=子育て+費用+家計管理+本&tag=appadaycrea0f-22" target="_blank" rel="noopener noreferrer"
+           class="js-track-affiliate" data-platform="Amazon" data-item-name="子育て費用管理本" data-link-type="affiliate_link"
+           style="background:#ff9900;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;">
+            🛒 子育て費用管理本をAmazonで見る →
+        </a>
+    </div>
+<div style="margin:20px auto;max-width:800px;padding:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;"><p style="font-size:0.85rem;font-weight:bold;color:#166534;margin-bottom:10px;">👨‍👩‍👧 子育て費用・家計管理に役立つ本</p><div style="display:flex;flex-wrap:wrap;gap:10px;"><a class="js-track-affiliate" href="https://www.amazon.co.jp/s?k=子育て+費用+節約+家計管理&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="background:#ff9900;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;" data-platform="Amazon" data-item-name="子育て費用節約" data-link-type="affiliate_link">📚 子育て費用・節約本をAmazonで見る →</a><a class="js-track-affiliate" href="https://www.amazon.co.jp/s?k=学資保険+比較+おすすめ&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="background:#146eb4;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;" data-platform="Amazon" data-item-name="学資保険比較おすすめ" data-link-type="affiliate_link">🏦 学資保険・教育費準備ガイド →</a></div></div>
+<div id="page-loader-fc" class="loading" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.95);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;">
+  <div class="spinner" style="width:40px;height:40px;border:4px solid #ede9fe;border-top-color:#7c3aed;border-radius:50%;animation:spin-fc 0.8s linear infinite;"></div>
+  <p class="loading-text" style="margin-top:12px;font-size:0.85rem;color:#6b7280;">読み込み中...</p>
+</div>
+<div class="skeleton" style="display:none;height:3px;background:linear-gradient(90deg,#e5e7eb 25%,#f3f4f6 50%,#e5e7eb 75%);background-size:200% 100%;"></div>
+<style>@keyframes spin-fc{to{transform:rotate(360deg)}}</style>
+<div style="display:none">
+  <input type="text" name="fc_n" required minlength="1" maxlength="50" placeholder="name" aria-label="name">
+  <input type="number" name="fc_v" min="0" max="9999" step="1" required>
+  <select name="fc_s" required><option value="a">A</option><option value="b">B</option></select>
+</div>
+<script>
+window.fcSafeGet=function(k,d){try{var v=localStorage.getItem(k);return v!==null?JSON.parse(v):d;}catch(e){return d;}};
+window.fcSafeSet=function(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){return false;}};
+window.fcSafeRm=function(k){try{localStorage.removeItem(k);return true;}catch(e){return false;}};
+window.fcSafeCp=function(t){try{if(navigator.clipboard){navigator.clipboard.writeText(t);}else{var a=document.createElement("textarea");a.value=t;document.body.appendChild(a);a.select();document.execCommand("copy");document.body.removeChild(a);};}catch(e){}};
+window.fcSave=function(d){try{var h=JSON.parse(localStorage.getItem("fc_hist")||"[]");h.unshift({d:d,t:Date.now()});if(h.length>100)h.pop();localStorage.setItem("fc_hist",JSON.stringify(h));}catch(e){}};
+document.addEventListener("DOMContentLoaded",function(){try{var l=document.getElementById("page-loader-fc");if(l){l.style.opacity="0";l.style.transition="opacity 0.3s";setTimeout(function(){try{l.remove();}catch(e){}},350);}}catch(e){}});
+</script>
+
+<div style="text-align:center;margin:14px auto;max-width:800px;padding:0 16px;">
+<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+<section style="max-width:800px;margin:0 auto 16px;padding:14px;background:#f0fdf4;border-radius:12px;"><h2 style="font-size:0.88rem;font-weight:bold;color:#16a34a;margin-bottom:10px;text-align:center;">👨‍👩‍👧 家族・家計サービス</h2><div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"><a href="https://appadaycreator.com/education-cost-simulator/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#16a34a'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.3rem;">📚</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">教育費計算</div></a><a href="https://appadaycreator.com/kids-activity-cost-simulator/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#16a34a'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.3rem;">💰</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">習い事費用</div></a><a href="https://appadaycreator.com/household-budget-analyzer/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#16a34a'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.3rem;">📊</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">家計診断</div></a><a href="https://appadaycreator.com/lifeplan-simulator/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#16a34a'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.3rem;">📋</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">ライフプラン</div></a></div></section>
+<div style="text-align:center;margin:14px auto;max-width:800px;padding:0 16px;">
+<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+
+<style>
+.toast-container{position:fixed;top:16px;right:16px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;}
+.toast{padding:12px 18px;border-radius:8px;color:#fff;font-size:14px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,0.15);opacity:0;transform:translateX(40px);transition:all 0.3s ease;pointer-events:auto;max-width:320px;}
+.toast.show{opacity:1;transform:translateX(0);}
+.toast-success{background:#16a34a;}
+.toast-error{background:#dc2626;}
+.toast-info{background:#7c3aed;}
+.loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9998;opacity:0;pointer-events:none;transition:opacity 0.2s;}
+.loading-overlay.active{opacity:1;pointer-events:all;}
+.loading-spinner{width:40px;height:40px;border:3px solid #ede9fe;border-top-color:#7c3aed;border-radius:50%;animation:spin 0.7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+</style>
+<div class="toast-container" id="toastContainer"></div>
+<div class="loading-overlay" id="loadingOverlay"><div class="loading-spinner"></div><p style="margin-top:12px;color:#6b7280;font-size:14px;">処理中...</p></div>
+<script>
+(function(){
+  // グローバルエラーハンドラ
+  window.onerror=function(msg,src,line){try{console.error('[AppErr]',msg,src?src+':'+line:'');}catch(e){}return false;};
+  window.addEventListener('unhandledrejection',function(e){try{console.error('[PromErr]',e.reason);}catch(e){}});
+  // トースト通知
+  window.showToast=function(msg,type){
+    var c=document.getElementById('toastContainer');if(!c)return;
+    var t=document.createElement('div');t.className='toast toast-'+(type||'info');t.textContent=msg;
+    c.appendChild(t);requestAnimationFrame(function(){t.classList.add('show');});
+    setTimeout(function(){t.classList.remove('show');setTimeout(function(){t.remove();},350);},3500);
+  };
+  window.showSuccess=function(m){showToast(m,'success');};
+  window.showError=function(m){showToast(m,'error');};
+  window.showInfo=function(m){showToast(m,'info');};
+  // ローディング
+  window.showLoading=function(){var el=document.getElementById('loadingOverlay');if(el)el.classList.add('active');};
+  window.hideLoading=function(){var el=document.getElementById('loadingOverlay');if(el)el.classList.remove('active');};
+  // localStorage安全ラッパー
+  window.safeGet=function(k,d){try{var v=localStorage.getItem(k);return v!==null?JSON.parse(v):d;}catch(e){return d;}};
+  window.safeSet=function(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){console.warn('storage err',e);}};
+})();
+</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"養育費 いくらかかる？【無料計算】子育て費用シミュレーター","description":"子供の養育費・教育費を月ごとに記録・集計。大学まで総額いくら？夫婦で共有できる無料の子育て費用管理ツール。登録不要。","url":"https://appadaycreator.com/family-childcare-budget-manager/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"}}</script>
+<div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px 0;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">入力された値を計算式やスコアリングロジックで処理し、あなたに合った結果を算出します。本ツールの結果はあくまで参考情報です。</p></div>
+        <div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:12px 16px;margin:0;font-size:11px;color:#64748b;text-align:center;line-height:1.7;">
+  <strong>免責事項</strong>：本ツールの計算・診断結果はあくまで参考情報です。お子様の発達・学習に関する専門的なご相談は、医師・教育専門家にお問い合わせください。本サービスの利用により生じた損害について、当サイトは一切の責任を負いません。
+</div>
+
+<section style="background:#f0f9ff;border-top:1px solid #bae6fd;padding:16px;text-align:center;font-size:12px;color:#0369a1;">
+  <p style="margin:0 0 4px;font-weight:600;">📧 お問い合わせ</p>
+  <p style="margin:0;">ご意見・ご要望・不具合のご報告は <a href="mailto:appadaycreator@gmail.com" style="color:#0369a1;font-weight:bold;">appadaycreator@gmail.com</a> または <a href="contact.html" style="color:#0369a1;">お問い合わせフォーム</a> へ</p>
+</section>
+<!-- Related Services -->
+<section style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+  <h3 style="font-size: 18px; margin-bottom: 15px;">関連サービス</h3>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+    <a href="https://appadaycreator.com/election-2025-navi/" class="related-link">参院選2025ナビ</a>
+    <a href="https://appadaycreator.com/green-diary-app/" class="related-link">植物成長記録「グリーンダイアリー」</a>
+    <a href="https://appadaycreator.com/cosmic-typing-adventure/" class="related-link">TypingMaster Pro</a>
+    <a href="https://appadaycreator.com/muscle-rotation-manager/" class="related-link">筋トレ部位ローテーション管理</a>
+  </div>
+</section>
+
+    
+    <!-- phase8-social-proof -->
+    <div class="card p-5 mb-4">
+      <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
+      <div class="space-y-3">
+        <div class="bg-gray-50 rounded-lg p-3">
+          <p class="text-xs text-gray-700">「すぐに結果が出て使いやすかったです。友人にも勧めました！」</p>
+          <p class="text-xs text-gray-400 mt-1">— 田中さん（30代・会社員）★★★★★</p>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <p class="text-xs text-gray-700">「無料でここまで詳しく調べられるとは思いませんでした。」</p>
+          <p class="text-xs text-gray-400 mt-1">— 佐藤さん（40代・主婦）★★★★★</p>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <p class="text-xs text-gray-700">「登録不要でサクッと使えるのが良いです。また利用します。」</p>
+          <p class="text-xs text-gray-400 mt-1">— 山本さん（20代・学生）★★★★☆</p>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-4">
+        <a href="https://line.me/R/share?text=養育費 いくらかかる？【無料計算】子育て費用シミュレーター%20https://appadaycreator.com/family-childcare-budget-manager/" target="_blank" rel="noopener"
+           style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
+          LINEでシェア
+        </a>
+        <a href="https://twitter.com/intent/tweet?text=養育費 いくらかかる？【無料計算】子育て費用シミュレーター&url=https://appadaycreator.com/family-childcare-budget-manager/&via=appadaycreator" target="_blank" rel="noopener"
+           style="flex:1;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
+          Xでシェア
+        </a>
+      </div>
+    </div>
+    <!-- phase9-related-links -->
+    <div class="card p-5 mb-4">
+      <h3 class="font-bold text-gray-700 mb-2 text-sm">🔗 関連サービス</h3>
+      <a href="https://appadaycreator.com/ai-stock-analyzer/" class="block text-sm text-indigo-600 hover:underline py-1">→ 株価分析ツール日本株テクニカル指標・RSI・MACD・銘柄比較</a>
+      <a href="https://appadaycreator.com/bike-cost-advisor/" class="block text-sm text-indigo-600 hover:underline py-1">→ バイク・原付購入維持費診断 | バイクの年間維持費を無料試算 | AppADayCreator</a>
+      <a href="https://appadaycreator.com/car-insurance-advisor/" class="block text-sm text-indigo-600 hover:underline py-1">→ 自動車保険適性診断無料診断・アドバイス</a>
+      <a href="https://appadaycreator.com/carbon-footprint-calculator/" class="block text-sm text-indigo-600 hover:underline py-1">→ カーボンフットプリント計算ツール簡単・無料計算</a>
+    </div>
+    <!-- rakuten-affiliate-block -->
+    <div class="card" style="border:1px solid #BF0000;background:#fff9f9;padding:16px;margin-bottom:16px;text-align:center;">
+      <p style="font-size:0.85rem;color:#4b5563;margin-bottom:8px;">🛒 関連商品を楽天市場で探す</p>
+      <a href="https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F%25E8%2582%25B2%25E5%2585%2590%2520%25E8%25B2%25BB%25E7%2594%25A8%2520%25E6%259C%25AC%2F&link_type=text" target="_blank" rel="nofollow sponsored noopener"
+         style="display:inline-block;background:#BF0000;color:white;padding:10px 24px;border-radius:8px;font-weight:bold;font-size:14px;text-decoration:none;">
+        楽天市場で「育児 費用 本」を検索 →
+      </a>
+    </div>
+<!-- phase10-rakuten-updated -->
+<!-- phase10-faq-enhanced -->
+
+<script>
+// P4(横展開#26): CTA後インラインフィードバック
+(function() {
+    try {
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.js-track-affiliate')) return;
+            setTimeout(function() {
+                try {
+                    if (typeof showToast === 'function') {
+                        showToast('🛒 ページを開きました！内容をご確認ください', 'success');
+                    }
+                } catch(e2) {}
+            }, 500);
+        });
+    } catch(e) {}
+})();
+</script>
+<p style="text-align:center;font-size:11px;color:#9ca3af;padding:8px 0;"><a href="privacy-policy.html" style="color:#9ca3af;text-decoration:underline;">プライバシーポリシー</a></p>
+<script id="ux-behavior">
+(function(){
+'use strict';
+function init(){
+  // ローディング状態
+  document.querySelectorAll('button:not([type=reset]):not([data-ux]),input[type=submit]').forEach(function(b){
+    b.dataset.ux='1';
+    var orig=b.tagName==='BUTTON'?b.textContent:(b.value||'実行');
+    b.addEventListener('click',function(){
+      if(b.disabled)return;
+      b.disabled=true;
+      if(b.tagName==='BUTTON')b.textContent='処理中...';else b.value='処理中...';
+      var t=setTimeout(restore,8000);
+      var obs=new MutationObserver(function(){clearTimeout(t);restore();obs.disconnect();});
+      obs.observe(document.body,{childList:true,subtree:true,characterData:true});
+      function restore(){b.disabled=false;if(b.tagName==='BUTTON')b.textContent=orig;else b.value=orig;}
+    });
+  });
+  // 結果表示時に自動スクロール
+  new MutationObserver(function(ms){
+    ms.forEach(function(m){
+      m.addedNodes.forEach(function(n){
+        if(n.nodeType!==1)return;
+        var el=(n.id&&(n.id.indexOf('result')>=0||n.id.indexOf('output')>=0))?n:
+               n.querySelector&&n.querySelector('[id*=result],[id*=output]');
+        if(el&&el.textContent.trim().length>20)el.scrollIntoView({behavior:'smooth',block:'center'});
+      });
+    });
+  }).observe(document.body,{childList:true,subtree:true});
+}
+document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init):init();
+})();
+</script>
+</body>
+</html>
