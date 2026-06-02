@@ -113,6 +113,9 @@
   a[href]::after{content:none!important}
 }
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;}
+
+/* AdSense unfilled: collapse empty ad slots */
+ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
 </style>
 <style id="ux-enhanced">
 button,input[type=submit],input[type=button],[class*=btn]{min-height:44px;cursor:pointer;transition:opacity .15s,transform .1s;}
@@ -833,25 +836,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
   <p style="margin:0 0 4px;font-weight:600;">📧 お問い合わせ</p>
   <p style="margin:0;">ご意見・ご要望・不具合のご報告は <a href="mailto:appadaycreator@gmail.com" style="color:#0369a1;font-weight:bold;">appadaycreator@gmail.com</a> または <a href="contact.html" style="color:#0369a1;">お問い合わせフォーム</a> へ</p>
 </section>
-<footer class="glass-card mx-4 mb-4 rounded-xl p-6">
-        <div class="text-center">
-            <div class="flex justify-center space-x-6 mb-4">
-                <a href="usage.html" class="text-gray-600 hover:text-pink-400 transition-colors">使い方</a>
-                <a href="privacy.html" class="text-gray-600 hover:text-pink-400 transition-colors">プライバシーポリシー</a>
-                <a href="disclaimer.html" class="text-gray-600 hover:text-pink-400 transition-colors">免責事項</a>
-                <a href="contact.html" class="text-gray-600 hover:text-pink-400 transition-colors">お問い合わせ</a>
-            </div>
-            <p class="text-sm" style="color: var(--text-soft);">
-                © 2026 結婚式費用計算機. All rights reserved.
-            </p>
-            <p class="text-xs mt-2" style="color: var(--text-soft);">
-                このツールで計算された金額は参考値です。実際の費用は会場や時期により異なります。
-            </p>
-        </div>
-    </footer>
 
-
-    <script>
+<script>
         // グローバル変数
         let currentStep = 1;
         let selectedVenue = '';
@@ -934,6 +920,11 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             document.getElementById('guestCount').addEventListener('input', updateRealTimeCalculation);
             document.getElementById('region').addEventListener('change', updateRealTimeCalculation);
 
+            // スライダーのリアルタイム計算（ステップ4）
+            const budgetSlider = document.getElementById('budgetRange');
+            if (budgetSlider) {
+                budgetSlider.addEventListener('input', updateRealTimeCalculation);
+            }
         }
 
         function nextStep() {
@@ -1102,6 +1093,14 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
 
             const total = baseCost + guestCost + optionsCost;
 
+            // 計算式情報を追加（透明性向上）
+            const discountPercent = Math.round((1 - discountMultiplier) * 100);
+            const calculateBreakdown = {
+                baseFormula: `基本料金 ¥${venuePrice.base.toLocaleString()} × 地域係数${regionMultiplier.toFixed(2)} × 割引${discountMultiplier.toFixed(2)} = ¥${baseCost.toLocaleString()}`,
+                guestFormula: `¥${venuePrice.perPerson.toLocaleString()}/名 × ${guestCount}名 × 地域係数${regionMultiplier.toFixed(2)} × 割引${discountMultiplier.toFixed(2)} = ¥${guestCost.toLocaleString()}`,
+                discountInfo: discountPercent > 0 ? `割引${discountPercent}%適用済み` : `割引なし`
+            };
+
             calculationData = {
                 guestCount,
                 region,
@@ -1113,7 +1112,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 total,
                 discountMultiplier,
                 selectedOptions,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                calculateBreakdown
             };
 
             return calculationData;
@@ -1149,6 +1149,9 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
 
             // 節約アドバイス
             displaySavingsAdvice(calculation);
+
+            // アフィリエイト推奨文言の生成
+            generateAffiliateRecommendation(calculation);
         }
 
         function displayGiftIncome(calculation) {
@@ -1238,13 +1241,17 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
 
         function displayCostBreakdown(calculation) {
             const breakdown = document.getElementById('costBreakdown');
-            
+
             let html = `
                 <div class="cost-item">
                     <div class="flex justify-between items-center">
                         <span><span class="mr-2" aria-hidden="true">🏨</span>会場基本料</span>
                         <span class="font-bold">${calculation.baseCost.toLocaleString()}円</span>
                     </div>
+                    <details class="mt-2">
+                        <summary class="text-xs cursor-pointer" style="color: var(--text-soft);">計算式を表示</summary>
+                        <p class="text-xs mt-1" style="color: var(--text-soft);">${calculation.calculateBreakdown?.baseFormula || '計算式情報がありません'}</p>
+                    </details>
                 </div>
                 <div class="cost-item">
                     <div class="flex justify-between items-center">
@@ -1254,7 +1261,19 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     <div class="text-xs mt-1" style="color: var(--text-soft);">
                         @${(calculation.guestCost / calculation.guestCount).toLocaleString()}円/名
                     </div>
+                    <details class="mt-2">
+                        <summary class="text-xs cursor-pointer" style="color: var(--text-soft);">計算式を表示</summary>
+                        <p class="text-xs mt-1" style="color: var(--text-soft);">${calculation.calculateBreakdown?.guestFormula || '計算式情報がありません'}</p>
+                    </details>
                 </div>
+                ${calculation.calculateBreakdown?.discountInfo ? `
+                <div class="cost-item" style="background: #dcfce7; border-left-color: #16a34a;">
+                    <div class="flex justify-between items-center">
+                        <span><span class="mr-2">✓</span>割引情報</span>
+                        <span class="font-bold" style="color: #16a34a;">${calculation.calculateBreakdown.discountInfo}</span>
+                    </div>
+                </div>
+                ` : ''}
             `;
             
             // オプション別に表示
@@ -1362,24 +1381,24 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         function displaySavingsAdvice(calculation) {
             const adviceDiv = document.getElementById('savingsAdvice');
             let advice = [];
-            
+
             // 予算オーバーの場合の具体的なアドバイス
             if (calculation.total > calculation.budget) {
                 const overAmount = calculation.total - calculation.budget;
                 advice.push(`予算を${overAmount.toLocaleString()}円オーバーしています。以下の方法で調整してみましょう：`);
             }
-            
+
             // 費用の割合に応じたアドバイス
             const optionRatio = calculation.optionsCost / calculation.total;
             if (optionRatio > 0.3) {
                 advice.push('オプション費用が全体の30%を超えています。本当に必要なものか見直してみましょう。');
             }
-            
+
             const guestPerPersonCost = calculation.guestCost / calculation.guestCount;
             if (guestPerPersonCost > 20000) {
                 advice.push('1名あたりの費用が高めです。料理のグレードや会場タイプの見直しを検討してみてください。');
             }
-            
+
             // 一般的な節約アドバイス
             advice.push(...[
                 '平日や夕方の時間帯を選ぶと、会場費用が安くなることがあります。',
@@ -1388,7 +1407,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 '装花は季節の花を選ぶとコストを抑えられます。',
                 '引き出物はカタログギフトにすると喜ばれて節約にもなります。'
             ]);
-            
+
             let html = '';
             advice.forEach((tip, index) => {
                 html += `
@@ -1397,8 +1416,35 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     </div>
                 `;
             });
-            
+
             adviceDiv.innerHTML = html;
+        }
+
+        function generateAffiliateRecommendation(calculation) {
+            let recommendation = '';
+            const total = calculation.total;
+
+            // 予算に応じた推奨会場タイプ
+            if (total < 2500000) {
+                recommendation = '¥250万以下の低予算結婚式をお探しの方へ：レストランウェディングやハウスウェディングがおすすめ。アットホームな雰囲気で、家族・親友だけでの小規模婚も叶います。';
+            } else if (total < 3500000) {
+                recommendation = '¥250～350万円の一般的な予算でしたら、ホテルウェディングや専門式場がおすすめ。充実したサービスと施設で、ゲストをもてなしましょう。';
+            } else if (total < 4500000) {
+                recommendation = '¥350万円以上の予算がありましたら、チャペル式やガーデンウェディング、豪華なホテルウェディングもおすすめ。特別な演出で、一生の思い出にしましょう。';
+            } else {
+                recommendation = '¥450万円以上の豪華な結婚式をお考えの方へ：海外挙式や、最高級ホテル・式場での贅沢なウェディング。全てのこだわりを実現できます。';
+            }
+
+            // アフィリエイト推奨セクションに挿入
+            const affiliateSection = document.querySelector('div[style*="fff0f6"][style*="べてのサービス"]');
+            if (affiliateSection) {
+                const rec = document.createElement('p');
+                rec.className = 'text-center mb-4';
+                rec.style.color = '#be185d';
+                rec.style.fontWeight = '600';
+                rec.textContent = recommendation;
+                affiliateSection.insertBefore(rec, affiliateSection.querySelector('a'));
+            }
         }
 
         function saveCalculation() {
@@ -1734,8 +1780,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
     <!-- A8.net ゼクシィ（式場見学） -->
     <div style="background:#fff0f6;border:1px solid #f9a8d4;border-radius:12px;padding:16px;margin:16px 0;text-align:center;">
         <p style="font-weight:bold;color:#be185d;margin-bottom:10px;">💍 理想の式場を無料で探そう</p>
-        <a href="https://px.a8.net/svt/ejp?a8mat=457EG6+33XLLE+2T18+BXQOH" rel="nofollow" class="js-track-affiliate" data-platform="A8.net" data-item-name="ゼクシィ" data-link-type="affiliate_link">
-        <img border="0" width="120" height="60" alt="ゼクシィ 式場見学" src="https://www20.a8.net/svt/bgt?aid=250608102188&wid=005&eno=01&mid=s00000013094002005000&mc=1" style="border-radius:8px;" loading="lazy"></a>
+        <a href="https://px.a8.net/svt/ejp?a8mat=457EG6+33XLLE+2T18+BXQOH" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-flex;align-items:center;padding:10px 18px;background:#f1f5f9;border:1px solid #94a3b8;border-radius:8px;font-size:14px;font-weight:600;color:#1e293b;text-decoration:none;">→ ゼクシィ 式場見学</a>
         <img border="0" width="1" height="1" src="https://www16.a8.net/0.gif?a8mat=457EG6+33XLLE+2T18+BXQOH" alt="" loading="lazy">
         <div style="margin-top:8px;">
             <a href="https://px.a8.net/svt/ejp?a8mat=457EG6+33XLLE+2T18+BWVTE" rel="nofollow" class="js-track-affiliate" data-platform="A8.net" data-item-name="ゼクシィテキスト" data-link-type="affiliate_link"
@@ -1874,7 +1919,7 @@ document.addEventListener("DOMContentLoaded",function(){try{var l=document.getEl
       <a href="https://appadaycreator.com/carbon-footprint-calculator/" class="block text-sm text-indigo-600 hover:underline py-1">→ カーボンフットプリント計算ツール簡単・無料計算</a>
     </div>
     <!-- rakuten-affiliate-block -->
-    <div class="card" style="border:1px solid #BF0000;background:#fff9f9;padding:16px;margin-bottom:16px;text-align:center;">
+    <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">
       <p style="font-size:0.85rem;color:#4b5563;margin-bottom:8px;">🛒 関連商品を楽天市場で探す</p>
       <a href="https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F%25E7%25B5%2590%25E5%25A9%259A%25E5%25BC%258F%2520%25E7%25AF%2580%25E7%25B4%2584%2F&link_type=text" target="_blank" rel="nofollow sponsored noopener"
          style="display:inline-block;background:#BF0000;color:white;padding:10px 24px;border-radius:8px;font-weight:bold;font-size:14px;text-decoration:none;">
@@ -1934,6 +1979,31 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
 })();
 </script>
 
-<a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FIIWRU+1IRY+1TKOKI" rel="nofollow">ファイナンシャルアカデミー「お金の教養講座」</a><img border="0" width="1" height="1" src="https://www15.a8.net/0.gif?a8mat=4B3WJ6+FIIWRU+1IRY+1TKOKI" alt="">
+<div style="border-top:1px solid #e5e7eb;padding:14px 16px 18px;background:#fff;">
+  <p style="text-align:center;font-size:11px;font-weight:600;color:#94a3b8;margin:0 0 10px;">スポンサーリンク</p>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:700px;margin:0 auto;">
+    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FIIWRU+1IRY+1TKOKI" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">ファイナンシャルアカデミー「お金の教養講座」</a><img border="0" width="1" height="1" src="https://www15.a8.net/0.gif?a8mat=4B3WJ6+FIIWRU+1IRY+1TKOKI" alt="">
+    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJA+AWEYZU+2CG0+5YJRM" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">珈琲きゃろっと</a><img border="0" width="1" height="1" src="https://www11.a8.net/0.gif?a8mat=4B3WJA+AWEYZU+2CG0+5YJRM" alt="">
+    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">日々の生活にハッピーをプラス！《ハピタス》</a><img border="0" width="1" height="1" src="https://www14.a8.net/0.gif?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642" alt="">
+    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ7+18PTPM+1O96+699KI" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">《ヨガ》をはじめてみませんか？ホットヨガスタジオLAVA</a><img border="0" width="1" height="1" src="https://www12.a8.net/0.gif?a8mat=4B3WJ7+18PTPM+1O96+699KI" alt="">
+    <a href="https://px.a8.net/svt/ejp?a8mat=457C4C+C23BCA+0K+10FXXU" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">アフィリエイトならA8.net</a><img border="0" width="1" height="1" src="https://www15.a8.net/0.gif?a8mat=457C4C+C23BCA+0K+10FXXU" alt="">
+  </div>
+</div>
+<footer class="glass-card mx-4 mb-4 rounded-xl p-6">
+        <div class="text-center">
+            <div class="flex justify-center space-x-6 mb-4">
+                <a href="usage.html" class="text-gray-600 hover:text-pink-400 transition-colors">使い方</a>
+                <a href="privacy.html" class="text-gray-600 hover:text-pink-400 transition-colors">プライバシーポリシー</a>
+                <a href="disclaimer.html" class="text-gray-600 hover:text-pink-400 transition-colors">免責事項</a>
+                <a href="contact.html" class="text-gray-600 hover:text-pink-400 transition-colors">お問い合わせ</a>
+            </div>
+            <p class="text-sm" style="color: var(--text-soft);">
+                © 2026 結婚式費用計算機. All rights reserved.
+            </p>
+            <p class="text-xs mt-2" style="color: var(--text-soft);">
+                このツールで計算された金額は参考値です。実際の費用は会場や時期により異なります。
+            </p>
+        </div>
+    </footer>
 </body>
 </html>

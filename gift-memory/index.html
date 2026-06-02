@@ -105,6 +105,9 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 
 .card{background:#fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.08);overflow:hidden;}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;}
+
+/* AdSense unfilled: collapse empty ad slots */
+ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
 </style>
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "name": "ギフトメモリー - プレゼント記録帳", "url": "https://appadaycreator.com/gift-memory/", "description": "贈った・もらったプレゼントを記録し、相手別の好みや記念日も管理できる高機能プレゼント記録帳", "operatingSystem": "Any", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "JPY"}, "aggregateRating": {"@type": "AggregateRating", "ratingValue": "4.8", "reviewCount": "189", "bestRating": "5", "worstRating": "1"}, "applicationCategory": "UtilityApplication"}</script>
     <meta name="twitter:image" content="https://appadaycreator.com/gift-memory/ogp.png">
@@ -218,11 +221,12 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
     </header>
 
     <!-- モバイルサイドバー -->
-    <div v-show="showMobileMenu" 
+    <div v-show="showMobileMenu"
          @click="showMobileMenu = false"
          class="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden">
     </div>
-    <aside v-show="showMobileMenu" 
+    <aside v-show="showMobileMenu"
+           @click.stop
            class="fixed left-0 top-0 h-full w-64 bg-white shadow-xl z-50 md:hidden transform transition-transform">
         <div class="p-4 bg-gradient-pink">
             <div class="flex items-center justify-between">
@@ -315,14 +319,14 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         </div>
         <!-- データ管理 -->
         <div class="border-t pt-4">
-            <button @click="exportData" 
-                    class="w-full mb-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
-                <span class="mr-2">⬇️</span>{{ currentLanguage === 'ja' ? 'データエクスポート' : 'Export Data' }}
+            <button @click="exportData"
+                    class="w-full mb-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors min-h-[44px]">
+                <span class="mr-2">⬇️</span>{{ currentLanguage === 'ja' ? 'バックアップ' : 'Backup' }}
             </button>
             <input type="file" @change="importData" accept=".json" class="hidden" ref="fileInput" required aria-label="入力フォーム">
-            <button @click="$refs.fileInput.click()" 
-                    class="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
-                <span class="mr-2">⬆️</span>{{ currentLanguage === 'ja' ? 'データインポート' : 'Import Data' }}
+            <button @click="$refs.fileInput.click()"
+                    class="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors min-h-[44px]">
+                <span class="mr-2">⬆️</span>{{ currentLanguage === 'ja' ? '復元' : 'Restore' }}
             </button>
         </div>
     </div>
@@ -339,14 +343,18 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     <p class="text-gray-600 mb-6">
                         {{ currentLanguage === 'ja' ? '大切な人への贈り物を記録して、心のこもったプレゼント選びをサポートします。' : 'Record gifts for loved ones and support thoughtful present selection.' }}
                     </p>
-                    <div class="flex flex-wrap justify-center gap-4">
+                    <div class="flex flex-wrap justify-center gap-3">
                         <button @click="currentView = 'gifts'; showGiftForm = true; resetGiftForm()"
-                                class="bg-gradient-pink text-white px-6 py-3 rounded-lg hover:opacity-90 transition-opacity">
-                            <span class="mr-2">+</span>{{ currentLanguage === 'ja' ? 'プレゼントを記録' : 'Record Gift' }}
+                                class="bg-gradient-pink text-white px-6 py-3 rounded-lg hover:opacity-90 transition-opacity min-h-[48px] flex items-center">
+                            <span class="mr-2">+</span>{{ currentLanguage === 'ja' ? 'プレゼント記録' : 'Add Gift' }}
                         </button>
                         <button @click="currentView = 'people'; showPersonForm = true; resetPersonForm()"
-                                class="bg-gradient-purple text-white px-6 py-3 rounded-lg hover:opacity-90 transition-opacity">
-                            <span class="mr-2">👤</span>{{ currentLanguage === 'ja' ? '相手を追加' : 'Add Person' }}
+                                class="bg-gradient-purple text-white px-6 py-3 rounded-lg hover:opacity-90 transition-opacity min-h-[48px] flex items-center">
+                            <span class="mr-2">👤</span>{{ currentLanguage === 'ja' ? '相手追加' : 'Add Person' }}
+                        </button>
+                        <button @click="currentView = 'anniversaries'; showAnniversaryForm = true; resetAnniversaryForm()"
+                                class="bg-blue-500 text-white px-6 py-3 rounded-lg hover:opacity-90 transition-opacity min-h-[48px] flex items-center">
+                            <span class="mr-2">📅</span>{{ currentLanguage === 'ja' ? '記念日登録' : 'Add Date' }}
                         </button>
                     </div>
                 </div>
@@ -376,25 +384,34 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             </div>
             <!-- 最近のプレゼント -->
             <div class="bg-white rounded-lg shadow-lg p-6">
-                <h3 class="text-lg font-bold mb-4 flex items-center">
-                    <span class="mr-2 text-pink-500">⏰</span>
-                    {{ currentLanguage === 'ja' ? '最近のプレゼント' : 'Recent Gifts' }}
-                </h3>
-                <div v-if="recentGifts.length === 0" class="text-center text-gray-500 py-8">
-                    {{ currentLanguage === 'ja' ? 'まだプレゼントが記録されていません' : 'No gifts recorded yet' }}
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold flex items-center">
+                        <span class="mr-2 text-pink-500">⏰</span>
+                        {{ currentLanguage === 'ja' ? '最近のプレゼント' : 'Recent Gifts' }}
+                    </h3>
+                    <button @click="currentView = 'gifts'" class="text-sm text-pink-600 hover:text-pink-700 font-medium">
+                        {{ currentLanguage === 'ja' ? '全て見る' : 'View All' }} →
+                    </button>
                 </div>
-                <div v-else class="space-y-3">
-                    <div v-for="gift in recentGifts" :key="gift.id" 
-                         class="flex items-center space-x-4 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                        <div class="w-12 h-12 bg-gradient-pink rounded-full flex items-center justify-center text-white font-bold">
-                            {{ gift.type === 'given' ? '🎁' : '🎀' }}
-                        </div>
-                        <div class="flex-1">
-                            <div class="font-medium">{{ gift.name }}</div>
-                            <div class="text-sm text-gray-600">
-                                {{ getPerson(gift.personId)?.name || 'Unknown' }} • {{ formatDate(gift.date) }} • ¥{{ gift.amount.toLocaleString() }}
+                <div v-if="recentGifts.length === 0" class="text-center text-gray-500 py-8">
+                    <p class="mb-4">{{ currentLanguage === 'ja' ? 'まだプレゼントが記録されていません' : 'No gifts recorded yet' }}</p>
+                    <button @click="currentView = 'gifts'; showGiftForm = true; resetGiftForm()"
+                            class="bg-gradient-pink text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity">
+                        {{ currentLanguage === 'ja' ? 'プレゼントを記録する' : 'Record Gift' }}
+                    </button>
+                </div>
+                <div v-else class="space-y-2">
+                    <div v-for="gift in recentGifts.slice(0, 8)" :key="gift.id"
+                         class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                         @click="currentView = 'gifts'">
+                        <div class="text-lg">{{ gift.type === 'given' ? '🎁' : '🎀' }}</div>
+                        <div class="flex-1 min-w-0">
+                            <div class="font-medium truncate">{{ gift.name }}</div>
+                            <div class="text-xs text-gray-500 truncate">
+                                {{ getPerson(gift.personId)?.name || 'Unknown' }} • {{ formatDate(gift.date) }}
                             </div>
                         </div>
+                        <div class="text-sm font-medium text-pink-600 whitespace-nowrap">¥{{ gift.amount.toLocaleString() }}</div>
                     </div>
                 </div>
             </div>
@@ -408,15 +425,22 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     {{ currentLanguage === 'ja' ? '近づく記念日はありません' : 'No upcoming anniversaries' }}
                 </div>
                 <div v-else class="space-y-3">
-                    <div v-for="anniversary in upcomingAnniversaries" :key="anniversary.id" 
-                         class="flex items-center space-x-4 p-3 bg-gray-50 rounded-lg">
+                    <div v-for="anniversary in upcomingAnniversaries" :key="anniversary.id"
+                         :class="anniversary.daysUntil <= 7 ? 'bg-red-50 border-l-4 border-red-500' : anniversary.daysUntil <= 14 ? 'bg-yellow-50 border-l-4 border-yellow-500' : 'bg-gray-50'"
+                         class="flex items-center space-x-4 p-3 rounded-lg">
                         <div class="anniversary-date">
                             {{ new Date(anniversary.date).getDate() }}
                         </div>
                         <div class="flex-1">
                             <div class="font-medium">{{ anniversary.name }}</div>
                             <div class="text-sm text-gray-600">
-                                {{ getPerson(anniversary.personId)?.name || 'Unknown' }} • {{ anniversary.daysUntil }}{{ currentLanguage === 'ja' ? '日後' : ' days' }}
+                                {{ getPerson(anniversary.personId)?.name || 'Unknown' }}
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div :class="anniversary.daysUntil <= 7 ? 'text-red-600 font-bold text-lg' : 'text-gray-600'"
+                                 class="whitespace-nowrap">
+                                {{ currentLanguage === 'ja' ? 'あと' : 'in' }} <span class="font-bold">{{ anniversary.daysUntil }}</span>{{ currentLanguage === 'ja' ? '日' : 'd' }}
                             </div>
                         </div>
                     </div>
@@ -465,7 +489,9 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         <label class="block text-sm font-medium mb-1">{{ currentLanguage === 'ja' ? 'プレゼント名 *' : 'Gift Name *' }}</label>
                         <input v-model="giftForm.name" required type="text"
                                :placeholder="currentLanguage === 'ja' ? '例: バースデーケーキ' : 'e.g., Birthday Cake'"
-                               class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-pink-500">
+                               class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-pink-500"
+                               @blur="if(!giftForm.name.trim()) giftForm.name = ''">
+                        <p v-if="!giftForm.name" class="text-xs text-red-500 mt-1">{{ currentLanguage === 'ja' ? '必須項目です' : 'Required field' }}</p>
                     </div>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
@@ -490,14 +516,16 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         </div>
                         <div>
                             <label class="block text-sm font-medium mb-1">{{ currentLanguage === 'ja' ? '金額 (¥)' : 'Amount (¥)' }}</label>
-                            <input v-model.number="giftForm.amount" type="number" min="0" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-pink-500">
+                            <input v-model.number="giftForm.amount" type="number" min="0" placeholder="5000" class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-pink-500">
+                            <p class="text-xs text-gray-500 mt-1">{{ currentLanguage === 'ja' ? '例：3000, 5000, 10000' : 'e.g.: 3000, 5000, 10000' }}</p>
                         </div>
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-1">{{ currentLanguage === 'ja' ? 'シーン' : 'Occasion' }}</label>
                         <input v-model="giftForm.occasion" type="text"
-                               :placeholder="currentLanguage === 'ja' ? '例: 誕生日, クリスマス' : 'e.g., Birthday, Christmas'"
+                               :placeholder="currentLanguage === 'ja' ? '誕生日 / クリスマス / 母の日 / 結婚祝い等' : 'Birthday / Christmas / Mother\'s Day'"
                                class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-pink-500">
+                        <p class="text-xs text-gray-500 mt-1">{{ currentLanguage === 'ja' ? '誕生日・クリスマス・母の日・父の日等' : 'Birthday, Christmas, Mother\'s Day, Father\'s Day, etc.' }}</p>
                     </div>
                     <div>
                         <label class="block text-sm font-medium mb-1">{{ currentLanguage === 'ja' ? 'タグ (カンマ区切り)' : 'Tags (comma separated)' }}</label>
@@ -665,8 +693,9 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         </div>
                         <div v-if="person.memo" class="text-gray-400 text-xs">{{ person.memo }}</div>
                     </div>
-                    <div class="text-sm font-medium text-pink-600 mt-2">
-                        {{ currentLanguage === 'ja' ? '総支出: ' : 'Total: ' }}¥{{ getPersonTotalSpent(person.id).toLocaleString() }}
+                    <div class="text-sm font-medium text-pink-600 mt-2 flex gap-4">
+                        <span>{{ currentLanguage === 'ja' ? '総支出: ' : 'Total: ' }}¥{{ getPersonTotalSpent(person.id).toLocaleString() }}</span>
+                        <span>{{ currentLanguage === 'ja' ? 'ギフト: ' : 'Gifts: ' }}{{ getPersonGifts(person.id).length }}{{ currentLanguage === 'ja' ? '件' : '' }}</span>
                     </div>
                     <div class="flex gap-2 mt-3">
                         <button @click="editPerson(person)" class="text-blue-500 hover:text-blue-700 text-sm flex-1 bg-blue-50 rounded py-1">
@@ -813,14 +842,14 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     {{ currentLanguage === 'ja' ? '相手が登録されていません' : 'No people registered' }}
                 </div>
                 <div v-else class="space-y-3">
-                    <div v-for="person in people" :key="person.id" class="flex items-center space-x-3">
+                    <div v-for="person in people.sort((a, b) => getPersonTotalSpent(b.id) - getPersonTotalSpent(a.id))" :key="person.id" class="flex items-center space-x-3">
                         <div class="w-8 h-8 bg-gradient-purple rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
                             {{ person.name.charAt(0) }}
                         </div>
                         <div class="flex-1">
                             <div class="flex justify-between mb-1">
                                 <span class="text-sm font-medium">{{ person.name }}</span>
-                                <span class="text-sm text-gray-600">¥{{ getPersonTotalSpent(person.id).toLocaleString() }}</span>
+                                <span class="text-sm text-gray-600">¥{{ getPersonTotalSpent(person.id).toLocaleString() }} / {{ getPersonGifts(person.id).length }}{{ currentLanguage === 'ja' ? '件' : '' }}</span>
                             </div>
                             <div class="bg-gray-100 rounded-full h-2">
                                 <div class="bg-gradient-pink h-2 rounded-full transition-all"
@@ -879,57 +908,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
   <p style="margin:0 0 4px;font-weight:600;">📧 お問い合わせ</p>
   <p style="margin:0;">ご意見・ご要望・不具合のご報告は <a href="mailto:appadaycreator@gmail.com" style="color:#0369a1;font-weight:bold;">appadaycreator@gmail.com</a> または <a href="contact.html" style="color:#0369a1;">お問い合わせフォーム</a> へ</p>
 </section>
-<footer class="bg-gray-800 text-white py-8 mt-12">
-        <div class="container mx-auto px-4">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div>
-                    <div class="flex items-center space-x-2 mb-3">
-                        <span class="text-2xl">🎁</span>
-                        <span class="font-bold text-lg">{{ currentLanguage === 'ja' ? 'ギフトメモリー' : 'Gift Memory' }}</span>
-                    </div>
-                    <p class="text-gray-400 text-sm">
-                        {{ currentLanguage === 'ja' ? '大切な人への贈り物を記録・管理' : 'Record and manage gifts for loved ones' }}
-                    </p>
-                </div>
-                <div>
-                    <h4 class="font-bold mb-3">{{ currentLanguage === 'ja' ? '機能' : 'Features' }}</h4>
-                    <ul class="space-y-2 text-sm text-gray-400">
-                        <li><a href="#" @click="currentView = 'gifts'" class="hover:text-white">{{ currentLanguage === 'ja' ? 'プレゼント記録' : 'Gift Recording' }}</a></li>
-                        <li><a href="#" @click="currentView = 'people'" class="hover:text-white">{{ currentLanguage === 'ja' ? '相手管理' : 'People Management' }}</a></li>
-                        <li><a href="#" @click="currentView = 'anniversaries'" class="hover:text-white">{{ currentLanguage === 'ja' ? '記念日管理' : 'Anniversary Management' }}</a></li>
-                        <li><a href="#" @click="currentView = 'budget'" class="hover:text-white">{{ currentLanguage === 'ja' ? '予算管理' : 'Budget Management' }}</a></li>
-                    </ul>
-                </div>
-                <div>
-                    <h4 class="font-bold mb-3">{{ currentLanguage === 'ja' ? 'サポート' : 'Support' }}</h4>
-                    <ul class="space-y-2 text-sm text-gray-400">
-                        <li><a href="#" @click="showPage('how-to-use')" class="hover:text-white">{{ currentLanguage === 'ja' ? '使い方' : 'How to Use' }}</a></li>
-                        <li><a href="#" @click="showPage('terms')" class="hover:text-white">{{ currentLanguage === 'ja' ? '利用規約' : 'Terms of Service' }}</a></li>
-                        <li><a href="#" @click="showPage('privacy')" class="hover:text-white">{{ currentLanguage === 'ja' ? 'プライバシーポリシー' : 'Privacy Policy' }}</a></li>
-                        <li><a href="#" @click="showPage('contact')" class="hover:text-white">{{ currentLanguage === 'ja' ? 'お問い合わせ' : 'Contact' }}</a></li>
-                    </ul>
-                </div>
-                <div>
-                    <h4 class="font-bold mb-3">{{ currentLanguage === 'ja' ? 'フォロー' : 'Follow' }}</h4>
-                    <div class="flex space-x-3">
-                        <a href="https://x.com/appadaycreator" target="_blank" class="text-gray-400 hover:text-white" rel="noopener noreferrer">
-                            <span aria-hidden="true">▪</span>
-                        </a>
-                    </div>
-                </div>
-            </div>
-            <div class="border-t border-gray-700 mt-6 pt-6 text-center text-sm text-gray-400">
-                <p>&copy; 2026 Gift Memory. {{ currentLanguage === 'ja' ? 'All rights reserved.' : 'All rights reserved.' }}</p>
-            </div>
-        </div>
-    <div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px 0;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">入力された値を計算式やスコアリングロジックで処理し、あなたに合った結果を算出します。本ツールの結果はあくまで参考情報です。</p></div>
-        <div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:12px 16px;margin:0;font-size:11px;color:#64748b;text-align:center;line-height:1.7;">
-  <strong>免責事項</strong>：本ツールの計算・診断結果はあくまで参考情報です。本サービスの利用により生じた損害について、当サイトは一切の責任を負いません。
-</div>
-<p style="text-align:center;font-size:10px;color:#9ca3af;margin-top:3px;">最終更新: 2026年5月 | 本サービスはアフィリエイト広告を掲載しています</p>
-</footer>
 
-    <script>
+<script>
         const { createApp } = Vue;
         
         createApp({
@@ -1515,199 +1495,66 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
 <div style="margin:20px auto;max-width:800px;padding:16px;background:#fdf4ff;border:1px solid #f0abfc;border-radius:12px;">
 <p style="font-size:0.85rem;font-weight:bold;color:#86198f;margin-bottom:10px;">💰 不要になった着物・骨董品・切手を買い取ってもらう</p>
 <div style="display:flex;flex-wrap:wrap;gap:10px;">
-<a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ8+EXOQLM+35HU+60OXE" rel="nofollow noopener noreferrer" target="_blank" style="background:#a21caf;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;">👘 着物買取は福ちゃんにお任せ！最速30分出張査定</a>
-<a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ8+F7T3VU+35HU+15Q22Q" rel="nofollow noopener noreferrer" target="_blank" style="background:#92400e;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;">🏺 骨董品捨てるの待った！福ちゃんで現金化</a>
-<a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ8+F8EJHM+35HU+BZGEQ" rel="nofollow noopener noreferrer" target="_blank" style="background:#1e40af;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;">✉️ 古い切手も福ちゃんにお任せ！プレミア価格で買取</a>
-</div>
-<img border="0" width="1" height="1" src="https://www14.a8.net/0.gif?a8mat=4B3WJ8+EXOQLM+35HU+60OXE" alt=""/ loading="lazy">
-<img border="0" width="1" height="1" src="https://www19.a8.net/0.gif?a8mat=4B3WJ8+F7T3VU+35HU+15Q22Q" alt=""/ loading="lazy">
-<img border="0" width="1" height="1" src="https://www12.a8.net/0.gif?a8mat=4B3WJ8+F8EJHM+35HU+BZGEQ" alt=""/ loading="lazy">
-</div>
-<section style="margin:20px auto;max-width:800px;padding:20px;background:#fdf4ff;border-radius:12px;">
-<h2 style="color:#86198f;font-size:1.1rem;margin-bottom:12px;">🎁 シーン別プレゼント選びガイド</h2>
-<table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
-<tr style="background:#f3e8ff;"><th style="padding:6px;border:1px solid #e9d5ff;">シーン</th><th>おすすめカテゴリ</th><th>予算目安</th></tr>
-<tr><td style="padding:5px;border:1px solid #f3e8ff;">誕生日</td><td>体験ギフト・雑貨</td><td>3,000〜10,000円</td></tr>
-<tr style="background:#fdf4ff;"><td style="padding:5px;border:1px solid #f3e8ff;">結婚祝い</td><td>カタログギフト・キッチン</td><td>10,000〜30,000円</td></tr>
-<tr><td style="padding:5px;border:1px solid #f3e8ff;">出産祝い</td><td>消耗品・おもちゃ</td><td>5,000〜15,000円</td></tr>
-<tr style="background:#fdf4ff;"><td style="padding:5px;border:1px solid #f3e8ff;">母の日</td><td>花・スイーツ・美容</td><td>3,000〜8,000円</td></tr>
-<tr><td style="padding:5px;border:1px solid #f3e8ff;">父の日</td><td>お酒・グルメ・趣味</td><td>3,000〜8,000円</td></tr>
-<tr style="background:#fdf4ff;"><td style="padding:5px;border:1px solid #f3e8ff;">クリスマス</td><td>ファッション・ガジェット</td><td>5,000〜20,000円</td></tr>
-</table>
-<h3 style="color:#86198f;font-size:0.95rem;margin-top:14px;">よくある質問</h3>
-<p style="margin-top:8px;"><strong>Q. もらって嬉しいギフトの共通点は？</strong><br/>相手の趣味・好みを反映したもの。消耗品（食品・消耗雑貨）は失敗が少ないです。</p>
-<p style="margin-top:8px;"><strong>Q. 予算が少ない時は？</strong><br/>手作りメッセージカードやデジタルギフト（Amazonギフト券など）も喜ばれます。</p>
-<p style="margin-top:8px;"><strong>Q. 渡すタイミングは？</strong><br/>誕生日当日が理想。難しい場合は前後1週間以内に渡しましょう。</p>
-</section>
-<div id="page-loader-gm" class="loading" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.95);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;">
-  <div class="spinner" style="width:40px;height:40px;border:4px solid #ede9fe;border-top-color:#7c3aed;border-radius:50%;animation:spin-gm 0.8s linear infinite;"></div>
-  <p class="loading-text" style="margin-top:12px;font-size:0.85rem;color:#6b7280;">読み込み中...</p>
-</div>
-<div class="skeleton" style="display:none;height:3px;background:linear-gradient(90deg,#e5e7eb 25%,#f3f4f6 50%,#e5e7eb 75%);background-size:200% 100%;animation:skeleton-gm 1.5s infinite;"></div>
-<style>@keyframes spin-gm{to{transform:rotate(360deg)}} @keyframes skeleton-gm{0%{background-position:200% 0}100%{background-position:-200% 0}}</style>
-<div style="display:none">
-  <input type="text" name="gm_name" required minlength="1" maxlength="50" placeholder="name" aria-label="name">
-  <input type="number" name="gm_val" min="0" max="9999" step="1" required aria-label="入力フォーム">
-  <select name="gm_sel" required><option value="a">A</option><option value="b">B</option></select>
-</div>
-<script>
-window.gmSafeGet=function(k,d){try{var v=localStorage.getItem(k);return v!==null?JSON.parse(v):d;}catch(e){return d;}};
-window.gmSafeSet=function(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){return false;}};
-window.gmSafeRm=function(k){try{localStorage.removeItem(k);return true;}catch(e){return false;}};
-window.gmSafeCp=function(t){try{if(navigator.clipboard){navigator.clipboard.writeText(t);}else{var a=document.createElement("textarea");a.value=t;document.body.appendChild(a);a.select();document.execCommand("copy");document.body.removeChild(a);};}catch(e){}};
-window.gmSave=function(d){try{var h=JSON.parse(localStorage.getItem("gm_hist")||"[]");h.unshift({d:d,t:Date.now()});if(h.length>100)h.pop();localStorage.setItem("gm_hist",JSON.stringify(h));}catch(e){}};
-document.addEventListener("DOMContentLoaded",function(){try{var l=document.getElementById("page-loader-gm");if(l){l.style.opacity="0";l.style.transition="opacity 0.3s";setTimeout(function(){try{l.remove();}catch(e){}},350);}}catch(e){}});
-</script>
 
-<div style="text-align:center;margin:16px auto;max-width:800px;padding:0 16px;">
-<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
-<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+<div style="border-top:1px solid #e5e7eb;padding:14px 16px 18px;background:#fff;">
+  <p style="text-align:center;font-size:11px;font-weight:600;color:#94a3b8;margin:0 0 10px;">スポンサーリンク</p>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:700px;margin:0 auto;">
+    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">日々の生活にハッピーをプラス！《ハピタス》</a><img border="0" width="1" height="1" src="https://www14.a8.net/0.gif?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642" alt="">
+    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ7+18PTPM+1O96+699KI" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">《ヨガ》をはじめてみませんか？ホットヨガスタジオLAVA</a><img border="0" width="1" height="1" src="https://www12.a8.net/0.gif?a8mat=4B3WJ7+18PTPM+1O96+699KI" alt="">
+    <a href="https://px.a8.net/svt/ejp?a8mat=457C4C+C23BCA+0K+10FXXU" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">アフィリエイトならA8.net</a><img border="0" width="1" height="1" src="https://www15.a8.net/0.gif?a8mat=457C4C+C23BCA+0K+10FXXU" alt="">
+    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ5+C2OQY2+14CS+68EPE" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">【じゃらん】国内25,000軒の宿をネットで予約OK！2％ポイント還元！</a><img border="0" width="1" height="1" src="https://www11.a8.net/0.gif?a8mat=4B3WJ5+C2OQY2+14CS+68EPE" alt="">
+    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FIIWRU+1IRY+1TKOKI" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">ファイナンシャルアカデミー「お金の教養講座」</a><img border="0" width="1" height="1" src="https://www15.a8.net/0.gif?a8mat=4B3WJ6+FIIWRU+1IRY+1TKOKI" alt="">
+    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJA+86RVSA+3XCC+64C3M" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">松井証券</a><img border="0" width="1" height="1" src="https://www10.a8.net/0.gif?a8mat=4B3WJA+86RVSA+3XCC+64C3M" alt="">
+  </div>
 </div>
-<section style="max-width:800px;margin:0 auto 16px;padding:14px;background:#fdf4ff;border-radius:12px;"><h2 style="font-size:0.88rem;font-weight:bold;color:#86198f;margin-bottom:10px;text-align:center;">🎁 プレゼント・記念日サービス</h2><div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"><a href="https://appadaycreator.com/couple-anniversary-counter/" style="background:#fff;border:2px solid #f0abfc;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#86198f'" onmouseout="this.style.borderColor='#f0abfc'"><div style="font-size:1.3rem;">💑</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">記念日カウンター</div></a><a href="https://appadaycreator.com/wedding-cost-calculator/" style="background:#fff;border:2px solid #f0abfc;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#86198f'" onmouseout="this.style.borderColor='#f0abfc'"><div style="font-size:1.3rem;">💒</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">結婚式費用</div></a><a href="https://appadaycreator.com/personal-color-finder/" style="background:#fff;border:2px solid #f0abfc;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#86198f'" onmouseout="this.style.borderColor='#f0abfc'"><div style="font-size:1.3rem;">🎨</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">パーソナルカラー</div></a><a href="https://appadaycreator.com/packing-checklist/" style="background:#fff;border:2px solid #f0abfc;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#86198f'" onmouseout="this.style.borderColor='#f0abfc'"><div style="font-size:1.3rem;">🎒</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">旅行チェック</div></a></div></section>
-<div style="text-align:center;margin:16px auto;max-width:800px;padding:0 16px;">
-<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
-<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
-</div>
-
-<style>
-.toast-container{position:fixed;top:16px;right:16px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;}
-.toast{padding:12px 18px;border-radius:8px;color:#fff;font-size:14px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,0.15);opacity:0;transform:translateX(40px);transition:all 0.3s ease;pointer-events:auto;max-width:320px;}
-.toast.show{opacity:1;transform:translateX(0);}
-.toast-success{background:#16a34a;}
-.toast-error{background:#dc2626;}
-.toast-info{background:#7c3aed;}
-.loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9998;opacity:0;pointer-events:none;transition:opacity 0.2s;}
-.loading-overlay.active{opacity:1;pointer-events:all;}
-.loading-spinner{width:40px;height:40px;border:3px solid #ede9fe;border-top-color:#7c3aed;border-radius:50%;animation:spin 0.7s linear infinite;}
-@keyframes spin{to{transform:rotate(360deg);}}
-</style>
-<div class="toast-container" id="toastContainer"></div>
-<div class="loading-overlay" id="loadingOverlay"><div class="loading-spinner"></div><p style="margin-top:12px;color:#6b7280;font-size:14px;">処理中...</p></div>
-<script>
-(function(){
-  // グローバルエラーハンドラ
-  window.onerror=function(msg,src,line){try{console.error('[AppErr]',msg,src?src+':'+line:'');}catch(e){}return false;};
-  window.addEventListener('unhandledrejection',function(e){try{console.error('[PromErr]',e.reason);}catch(e){}});
-  // トースト通知
-  window.showToast=function(msg,type){
-    var c=document.getElementById('toastContainer');if(!c)return;
-    var t=document.createElement('div');t.className='toast toast-'+(type||'info');t.textContent=msg;
-    c.appendChild(t);requestAnimationFrame(function(){t.classList.add('show');});
-    setTimeout(function(){t.classList.remove('show');setTimeout(function(){t.remove();},350);},3500);
-  };
-  window.showSuccess=function(m){showToast(m,'success');};
-  window.showError=function(m){showToast(m,'error');};
-  window.showInfo=function(m){showToast(m,'info');};
-  // ローディング
-  window.showLoading=function(){var el=document.getElementById('loadingOverlay');if(el)el.classList.add('active');};
-  window.hideLoading=function(){var el=document.getElementById('loadingOverlay');if(el)el.classList.remove('active');};
-  // localStorage安全ラッパー
-  window.safeGet=function(k,d){try{var v=localStorage.getItem(k);return v!==null?JSON.parse(v):d;}catch(e){return d;}};
-  window.safeSet=function(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){console.warn('storage err',e);}};
-})();
-</script>
-
-    
-    <!-- phase8-social-proof -->
-    <div class="card p-5 mb-4">
-      <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
-      <div class="space-y-3">
-        <div class="bg-gray-50 rounded-lg p-3">
-          <p class="text-xs text-gray-700">「すぐに結果が出て使いやすかったです。友人にも勧めました！」</p>
-          <p class="text-xs text-gray-400 mt-1">— 田中さん（30代・会社員）★★★★★</p>
+<footer class="bg-gray-800 text-white py-8 mt-12">
+        <div class="container mx-auto px-4">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div>
+                    <div class="flex items-center space-x-2 mb-3">
+                        <span class="text-2xl">🎁</span>
+                        <span class="font-bold text-lg">{{ currentLanguage === 'ja' ? 'ギフトメモリー' : 'Gift Memory' }}</span>
+                    </div>
+                    <p class="text-gray-400 text-sm">
+                        {{ currentLanguage === 'ja' ? '大切な人への贈り物を記録・管理' : 'Record and manage gifts for loved ones' }}
+                    </p>
+                </div>
+                <div>
+                    <h4 class="font-bold mb-3">{{ currentLanguage === 'ja' ? '機能' : 'Features' }}</h4>
+                    <ul class="space-y-2 text-sm text-gray-400">
+                        <li><a href="#" @click="currentView = 'gifts'" class="hover:text-white">{{ currentLanguage === 'ja' ? 'プレゼント記録' : 'Gift Recording' }}</a></li>
+                        <li><a href="#" @click="currentView = 'people'" class="hover:text-white">{{ currentLanguage === 'ja' ? '相手管理' : 'People Management' }}</a></li>
+                        <li><a href="#" @click="currentView = 'anniversaries'" class="hover:text-white">{{ currentLanguage === 'ja' ? '記念日管理' : 'Anniversary Management' }}</a></li>
+                        <li><a href="#" @click="currentView = 'budget'" class="hover:text-white">{{ currentLanguage === 'ja' ? '予算管理' : 'Budget Management' }}</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-bold mb-3">{{ currentLanguage === 'ja' ? 'サポート' : 'Support' }}</h4>
+                    <ul class="space-y-2 text-sm text-gray-400">
+                        <li><a href="#" @click="showPage('how-to-use')" class="hover:text-white">{{ currentLanguage === 'ja' ? '使い方' : 'How to Use' }}</a></li>
+                        <li><a href="#" @click="showPage('terms')" class="hover:text-white">{{ currentLanguage === 'ja' ? '利用規約' : 'Terms of Service' }}</a></li>
+                        <li><a href="#" @click="showPage('privacy')" class="hover:text-white">{{ currentLanguage === 'ja' ? 'プライバシーポリシー' : 'Privacy Policy' }}</a></li>
+                        <li><a href="#" @click="showPage('contact')" class="hover:text-white">{{ currentLanguage === 'ja' ? 'お問い合わせ' : 'Contact' }}</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="font-bold mb-3">{{ currentLanguage === 'ja' ? 'フォロー' : 'Follow' }}</h4>
+                    <div class="flex space-x-3">
+                        <a href="https://x.com/appadaycreator" target="_blank" class="text-gray-400 hover:text-white" rel="noopener noreferrer">
+                            <span aria-hidden="true">▪</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="border-t border-gray-700 mt-6 pt-6 text-center text-sm text-gray-400">
+                <p>&copy; 2026 Gift Memory. {{ currentLanguage === 'ja' ? 'All rights reserved.' : 'All rights reserved.' }}</p>
+            </div>
         </div>
-        <div class="bg-gray-50 rounded-lg p-3">
-          <p class="text-xs text-gray-700">「無料でここまで詳しく調べられるとは思いませんでした。」</p>
-          <p class="text-xs text-gray-400 mt-1">— 佐藤さん（40代・主婦）★★★★★</p>
-        </div>
-        <div class="bg-gray-50 rounded-lg p-3">
-          <p class="text-xs text-gray-700">「登録不要でサクッと使えるのが良いです。また利用します。」</p>
-          <p class="text-xs text-gray-400 mt-1">— 山本さん（20代・学生）★★★★☆</p>
-        </div>
-      </div>
-      <div class="flex gap-2 mt-4">
-        <a href="https://line.me/R/share?text=プレゼント記録贈り物・もらった物を管理するギフトメモ帳%20https://appadaycreator.com/gift-memory/" target="_blank" rel="noopener"
-           style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
-          LINEでシェア
-        </a>
-        <a href="https://twitter.com/intent/tweet?text=プレゼント記録贈り物・もらった物を管理するギフトメモ帳&url=https://appadaycreator.com/gift-memory/&via=appadaycreator" target="_blank" rel="noopener"
-           style="flex:1;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
-          Xでシェア
-        </a>
-      </div>
-    </div>
-    <!-- phase9-related-links -->
-    <div class="card p-5 mb-4">
-      <h3 class="font-bold text-gray-700 mb-2 text-sm">🔗 関連サービス</h3>
-      <a href="https://appadaycreator.com/ai-meditation-forest/" class="block text-sm text-indigo-600 hover:underline py-1">→ 瞑想ガイドAIが気分に合わせた瞑想をナビゲート｜静寂の森</a>
-      <a href="https://appadaycreator.com/allowance-manager/" class="block text-sm text-indigo-600 hover:underline py-1">→ 子供のおこづかい管理アプリ記録・管理アプリ</a>
-      <a href="https://appadaycreator.com/book-forest/" class="block text-sm text-indigo-600 hover:underline py-1">→ 読書記録読んだ本・積ん読を管理する読書トラッカー</a>
-      <a href="https://appadaycreator.com/business-idea-validator/" class="block text-sm text-indigo-600 hover:underline py-1">→ ビジネスアイデア検証ツール5軸スコアリング診断</a>
-    </div>
-    <!-- rakuten-affiliate-block -->
-    <div class="card" style="border:1px solid #BF0000;background:#fff9f9;padding:16px;margin-bottom:16px;text-align:center;">
-      <p style="font-size:0.85rem;color:#4b5563;margin-bottom:8px;">🛒 関連商品を楽天市場で探す</p>
-      <a href="https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F%25E3%2583%2597%25E3%2583%25AC%25E3%2582%25BC%25E3%2583%25B3%25E3%2583%2588%2520%25E8%25A8%2598%25E5%25BF%25B5%2F&link_type=text" target="_blank" rel="nofollow sponsored noopener"
-         style="display:inline-block;background:#BF0000;color:white;padding:10px 24px;border-radius:8px;font-weight:bold;font-size:14px;text-decoration:none;">
-        楽天市場で「プレゼント 記念」を検索 →
-      </a>
-    </div>
-<!-- phase10-rakuten-updated -->
-
-<script>
-// P4(横展開#26): CTA後インラインフィードバック
-(function() {
-    try {
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.js-track-affiliate')) return;
-            setTimeout(function() {
-                try {
-                    if (typeof showToast === 'function') {
-                        showToast('🛒 ページを開きました！内容をご確認ください', 'success');
-                    }
-                } catch(e2) {}
-            }, 500);
-        });
-    } catch(e) {}
-})();
-</script>
-<script id="ux-behavior">
-(function(){
-'use strict';
-function init(){
-  // ローディング状態
-  document.querySelectorAll('button:not([type=reset]):not([data-ux]),input[type=submit]').forEach(function(b){
-    b.dataset.ux='1';
-    var orig=b.tagName==='BUTTON'?b.textContent:(b.value||'実行');
-    b.addEventListener('click',function(){
-      if(b.disabled)return;
-      b.disabled=true;
-      if(b.tagName==='BUTTON')b.textContent='処理中...';else b.value='処理中...';
-      var t=setTimeout(restore,8000);
-      var obs=new MutationObserver(function(){clearTimeout(t);restore();obs.disconnect();});
-      obs.observe(document.body,{childList:true,subtree:true,characterData:true});
-      function restore(){b.disabled=false;if(b.tagName==='BUTTON')b.textContent=orig;else b.value=orig;}
-    });
-  });
-  // 結果表示時に自動スクロール
-  new MutationObserver(function(ms){
-    ms.forEach(function(m){
-      m.addedNodes.forEach(function(n){
-        if(n.nodeType!==1)return;
-        var el=(n.id&&(n.id.indexOf('result')>=0||n.id.indexOf('output')>=0))?n:
-               n.querySelector&&n.querySelector('[id*=result],[id*=output]');
-        if(el&&el.textContent.trim().length>20)el.scrollIntoView({behavior:'smooth',block:'center'});
-      });
-    });
-  }).observe(document.body,{childList:true,subtree:true});
-}
-document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init):init();
-})();
-</script>
-
-<a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642" rel="nofollow">日々の生活にハッピーをプラス！《ハピタス》</a><img border="0" width="1" height="1" src="https://www14.a8.net/0.gif?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642" alt="">
-
-<a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ7+18PTPM+1O96+699KI" rel="nofollow">《ヨガ》をはじめてみませんか？ホットヨガスタジオLAVA</a><img border="0" width="1" height="1" src="https://www12.a8.net/0.gif?a8mat=4B3WJ7+18PTPM+1O96+699KI" alt="">
+    <div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px 0;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">入力された値を計算式やスコアリングロジックで処理し、あなたに合った結果を算出します。本ツールの結果はあくまで参考情報です。</p></div>
+        <div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:12px 16px;margin:0;font-size:11px;color:#64748b;text-align:center;line-height:1.7;">
+  <strong>免責事項</strong>：本ツールの計算・診断結果はあくまで参考情報です。本サービスの利用により生じた損害について、当サイトは一切の責任を負いません。
+</div>
+<p style="text-align:center;font-size:10px;color:#9ca3af;margin-top:3px;">最終更新: 2026年5月 | 本サービスはアフィリエイト広告を掲載しています</p>
+</footer>
 </body>
-<script>function formatNum0(v){try{return v||null;}catch(e){return null;}};function calcResult1(v){try{return v||null;}catch(e){return null;}}</script><!-- gift-memory 詳細情報・活用ガイド・よくある質問・おすすめ情報・関連サービス -->
-</html> 
+</html>

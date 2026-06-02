@@ -1,0 +1,3577 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script>
+/* Supabase → LocalStorage モック (Supabase無料版停止対応) */
+(function() {
+  function _get(t) { try { return JSON.parse(localStorage.getItem('sb_'+t)||'[]'); } catch(e) { return []; } }
+  function _set(t,d) { try { localStorage.setItem('sb_'+t, JSON.stringify(d)); } catch(e) {} }
+  function _uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+  function _now() { return new Date().toISOString(); }
+
+  function buildQuery(table) {
+    var rows = _get(table), filters = [], _ord = null, _lim = null;
+    var q = {
+      select: function() { return q; },
+      eq:  function(c,v){ filters.push(function(r){ return r[c]==v; }); return q; },
+      neq: function(c,v){ filters.push(function(r){ return r[c]!=v; }); return q; },
+      gt:  function(c,v){ filters.push(function(r){ return r[c]>v; }); return q; },
+      gte: function(c,v){ filters.push(function(r){ return r[c]>=v; }); return q; },
+      lt:  function(c,v){ filters.push(function(r){ return r[c]<v; }); return q; },
+      lte: function(c,v){ filters.push(function(r){ return r[c]<=v; }); return q; },
+      like:  function(c,v){ filters.push(function(r){ return String(r[c]||'').indexOf(v.replace(/%/g,''))>-1; }); return q; },
+      ilike: function(c,v){ filters.push(function(r){ return String(r[c]||'').toLowerCase().indexOf(v.replace(/%/g,'').toLowerCase())>-1; }); return q; },
+      contains: function(c,v){ filters.push(function(r){ return Array.isArray(r[c])&&r[c].indexOf(v)>-1; }); return q; },
+      is: function(c,v){ filters.push(function(r){ return v===null?r[c]==null:r[c]===v; }); return q; },
+      'in': function(c,v){ filters.push(function(r){ return v.indexOf(r[c])>-1; }); return q; },
+      order: function(c,o){ _ord={c:c,desc:o&&o.ascending===false}; return q; },
+      limit: function(n){ _lim=n; return q; },
+      range: function(){ return q; },
+      single: function() {
+        var d=_get(table); filters.forEach(function(f){d=d.filter(f);});
+        return Promise.resolve({data:d[0]||null,error:d.length===0?{message:'No rows found',code:'PGRST116'}:null});
+      },
+      maybeSingle: function() {
+        var d=_get(table); filters.forEach(function(f){d=d.filter(f);});
+        return Promise.resolve({data:d[0]||null,error:null});
+      },
+      then: function(res,rej) {
+        var d=_get(table);
+        filters.forEach(function(f){d=d.filter(f);});
+        if(_ord) d.sort(function(a,b){ var av=a[_ord.c],bv=b[_ord.c]; return _ord.desc?(bv>av?1:bv<av?-1:0):(av>bv?1:av<bv?-1:0); });
+        if(_lim) d=d.slice(0,_lim);
+        return Promise.resolve({data:d,error:null,count:d.length}).then(res,rej);
+      }
+    };
+    return q;
+  }
+
+  function createLocalStorageClient() {
+    return {
+      from: function(table) {
+        return {
+          select: function(){ return buildQuery(table); },
+          insert: function(rows, opts) {
+            var d=_get(table), arr=Array.isArray(rows)?rows:[rows];
+            var ins=arr.map(function(r){ return Object.assign({},r,{id:r.id||_uid(),created_at:r.created_at||_now()}); });
+            _set(table,d.concat(ins));
+            return Promise.resolve({data:opts&&opts.returning==='minimal'?[]:ins,error:null});
+          },
+          upsert: function(rows,opts) {
+            var d=_get(table), arr=Array.isArray(rows)?rows:[rows];
+            var key=opts&&opts.onConflict||'id';
+            arr.forEach(function(r){
+              var i=d.findIndex(function(x){return x[key]===r[key];});
+              if(i>=0) d[i]=Object.assign({},d[i],r); else d.push(Object.assign({},r,{id:r.id||_uid(),created_at:r.created_at||_now()}));
+            });
+            _set(table,d);
+            return Promise.resolve({data:arr,error:null});
+          },
+          update: function(updates) {
+            var applyUpdate = function(filters) {
+              var d=_get(table);
+              var updated=d.map(function(r){ return filters.every(function(f){return f(r);})?Object.assign({},r,updates):r; });
+              _set(table,updated);
+              return Promise.resolve({data:updated.filter(function(r){return filters.every(function(f){return f(r);});}),error:null});
+            };
+            return buildFilterChain(applyUpdate);
+          },
+          delete: function() {
+            var applyDelete = function(filters) {
+              var d=_get(table);
+              var kept=d.filter(function(r){return !filters.every(function(f){return f(r);});});
+              _set(table,kept);
+              return Promise.resolve({data:[],error:null});
+            };
+            return buildFilterChain(applyDelete);
+          }
+        };
+      },
+      auth: {
+        getSession: function(){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'null');
+          return Promise.resolve({data:{session:u?{user:u}:null},error:null});
+        },
+        getUser: function(){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'null');
+          return Promise.resolve({data:{user:u},error:null});
+        },
+        signUp: function(p){
+          var u={id:_uid(),email:p.email,created_at:_now()};
+          localStorage.setItem('sb_auth',JSON.stringify(u));
+          return Promise.resolve({data:{user:u,session:{user:u}},error:null});
+        },
+        signInWithPassword: function(p){
+          var u={id:'local_'+btoa(p.email||''),email:p.email,created_at:_now()};
+          localStorage.setItem('sb_auth',JSON.stringify(u));
+          return Promise.resolve({data:{user:u,session:{user:u}},error:null});
+        },
+        signInWithOAuth: function(){return Promise.resolve({data:{},error:null});},
+        signOut: function(){localStorage.removeItem('sb_auth');return Promise.resolve({error:null});},
+        onAuthStateChange: function(cb){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'null');
+          setTimeout(function(){cb(u?'SIGNED_IN':'SIGNED_OUT',u?{user:u}:null);},50);
+          return {data:{subscription:{unsubscribe:function(){}}}};
+        },
+        updateUser: function(p){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'{}');
+          Object.assign(u,p);
+          localStorage.setItem('sb_auth',JSON.stringify(u));
+          return Promise.resolve({data:{user:u},error:null});
+        }
+      },
+      storage: {
+        from: function(){
+          return {
+            upload: function(path,file){return Promise.resolve({data:{path:path},error:null});},
+            getPublicUrl: function(path){return {data:{publicUrl:''}};},
+            remove: function(){return Promise.resolve({data:[],error:null});}
+          };
+        }
+      },
+      channel: function(){ return {on:function(){return this;},subscribe:function(){return this;}}; },
+      removeChannel: function(){},
+      removeAllChannels: function(){}
+    };
+  }
+
+  function buildFilterChain(executor) {
+    var filters=[];
+    var chain={
+      eq:  function(c,v){filters.push(function(r){return r[c]==v;});return chain;},
+      neq: function(c,v){filters.push(function(r){return r[c]!=v;});return chain;},
+      match:function(m){Object.keys(m).forEach(function(c){filters.push(function(r){return r[c]===m[c];});});return chain;},
+      then:function(res,rej){return executor(filters).then(res,rej);}
+    };
+    return chain;
+  }
+
+  // グローバルに設定（window.supabase互換）
+  var mockClient = createLocalStorageClient();
+  window.supabase = {
+    createClient: function() { return mockClient; }
+  };
+  // ESモジュール形式でimportされる場合の互換
+  window.createClient = function() { return mockClient; };
+  window._supabaseMockClient = mockClient;
+})();
+</script>
+    <!-- phase8-schema-enhanced -->
+<meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
+    <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <link rel="dns-prefetch" href="https://www.clarity.ms">
+    <link rel="canonical" href="https://appadaycreator.com/couple-anniversary-counter/">
+    <title>カップル記念日カウンター【無料】付き合って何日？記念日管理</title>
+<!-- phase8-favicon -->
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ff6b9d">
+    <meta name="description" content="カップルの記念日を自動カウント。交際から何日目か・次の記念日まであと何日かが一目でわかる。思い出写真・日記も記録できる無料のペア記念日管理アプリ。">
+    <meta name="keywords" content="カップル,記念日,記念日カウンター,恋人,交際,思い出,写真,アルバム,記念日計算,何日目,ペアアプリ,交際記念日,PWA">
+    
+    <!-- PWA設定 -->
+            <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="ふたりの歩み">
+    
+    <!-- OGP設定 -->
+    <meta property="og:title" content="カップル記念日カウンター【無料】付き合って何日？記念日管理">
+    <meta property="og:description" content="交際開始日から今日まで何日経ったか即計算。記念日カウントダウン・次の記念日まで何日かも分かる無料カップルアプリ。">
+    <meta property="og:image" content="https://appadaycreator.com/couple-anniversary-counter/ogp.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+    <meta property="og:url" content="https://appadaycreator.com/couple-anniversary-counter/">
+    <meta property="og:type" content="website">
+<meta property="og:locale" content="ja_JP" />
+    <meta property="og:site_name" content="ふたりの歩み">
+
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
+    <!-- End Google Tag Manager -->
+    <!-- Microsoft Clarity -->
+    <script type="text/javascript">
+        (function(c,l,a,r,i,t,y){
+            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+            t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+        })(window, document, "clarity", "script", "s3t9vl8h3v");
+    </script>
+    <!-- End Microsoft Clarity -->
+    <!-- Google AdSense -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858"
+         crossorigin="anonymous"></script>
+    <!-- End Google AdSense -->
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="カップル記念日カウンター【無料】付き合った日から何日？">
+    <meta name="twitter:description" content="大切な記念日を忘れない！交際記念日をカウントし、思い出の写真と共に愛を深めるカップル専用アプリ">
+    <meta name="twitter:image" content="https://appadaycreator.com/couple-anniversary-counter/ogp.png">
+    <meta name="twitter:creator" content="@appadaycreator">
+    
+    <!-- Favicon -->
+                
+    <!-- Tailwind CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Kosugi+Maru:wght@400&display=swap" rel="stylesheet">
+    
+    <!-- Supabase -->
+    <style>
+        body {
+            font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #fffaf0;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        .cute-font {
+            font-family: 'Kosugi Maru', 'Noto Sans JP', sans-serif;
+        }
+
+        /* 背景のアニメーション */
+        .floating-hearts {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .heart {
+            position: absolute;
+            color: rgba(244, 114, 182, 0.15);
+            font-size: 1.5rem;
+            animation: float 15s linear infinite;
+        }
+
+        .sakura {
+            position: absolute;
+            color: rgba(219, 39, 119, 0.1);
+            font-size: 1rem;
+            animation: fall 12s linear infinite;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(100vh) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-100px) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        @keyframes fall {
+            0% {
+                transform: translateY(-100px) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(100vh) rotate(360deg);
+                opacity: 0;
+            }
+        }
+
+        /* カスタムグラデーション */
+        .gradient-bg {
+            background: linear-gradient(135deg, #f472b6 0%, #a855f7 50%, #3b82f6 100%);
+        }
+
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        /* アニメーション */
+        @keyframes pulse-soft {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-pulse-soft {
+            animation: pulse-soft 2s ease-in-out infinite;
+        }
+
+        .animate-slide-in {
+            animation: slideInUp 0.6s ease-out;
+        }
+
+        /* カウンター数字のアニメーション */
+        .counter-number {
+            font-family: 'Kosugi Maru', sans-serif;
+            font-size: 4rem;
+            font-weight: 700;
+            color: #b91c1c;
+            text-align: center;
+            display: block;
+            line-height: 1;
+        }
+
+        /* ボタンのカスタムスタイル */
+        .btn-cute {
+            background: linear-gradient(135deg, #f472b6, #a855f7);
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 25px;
+            font-weight: 500;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(244, 114, 182, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-cute::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn-cute:hover::before {
+            left: 100%;
+        }
+
+        .btn-cute:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(244, 114, 182, 0.4);
+        }
+
+        /* フォトギャラリーのスタイル */
+        .photo-item {
+            position: relative;
+            aspect-ratio: 1;
+            border-radius: 16px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+        }
+
+        .photo-item:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 30px rgba(244, 114, 182, 0.3);
+        }
+
+        /* モーダルスタイル */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-content {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            position: relative;
+            transform: scale(0.7);
+            transition: transform 0.3s ease;
+            max-height: 90vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+
+        .modal.active .modal-content {
+            transform: scale(1);
+        }
+
+        /* スマホ対応 */
+        @media (max-width: 768px) {
+            .counter-number {
+                font-size: 3rem;
+            }
+            
+            .btn-cute {
+                padding: 14px 24px;
+                font-size: 14px;
+            }
+        }
+
+        /* 星座風の背景 */
+        .constellation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .star {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            animation: twinkle 3s ease-in-out infinite;
+        }
+
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
+        /* 思い出タイムライン */
+        .timeline {
+            position: relative;
+            padding-left: 2rem;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 1rem;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(to bottom, #f472b6, #a855f7);
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .timeline-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 10px 30px rgba(244, 114, 182, 0.2);
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -2.5rem;
+            top: 1.5rem;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #f472b6;
+            border: 3px solid white;
+            box-shadow: 0 0 0 3px rgba(244, 114, 182, 0.3);
+        }
+
+        /* シェアボタン */
+        .share-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            font-size: 18px;
+            outline: none;
+        }
+
+        .share-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .share-btn:active {
+            transform: scale(0.95);
+        }
+
+        .share-btn.twitter { background: #1DA1F2; }
+        .share-btn.line { background: #00C300; }
+        .share-btn.instagram { background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
+        .share-btn.facebook { background: #4267B2; }
+
+        /* アウトラインボタン */
+        .btn-outline {
+            background: white;
+            color: #7c3aed;
+            border: 2px solid #a855f7;
+            padding: 14px 32px;
+            border-radius: 25px;
+            font-weight: 500;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(168, 85, 247, 0.15);
+        }
+        .btn-outline:hover {
+            background: #f5f3ff;
+            border-color: #7c3aed;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(168, 85, 247, 0.25);
+        }
+        .btn-outline:active {
+            transform: scale(0.98);
+        }
+
+        /* ライトボックス */
+        .lightbox {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.92);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        .lightbox.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        .lightbox-img {
+            max-width: 90vw;
+            max-height: 80vh;
+            object-fit: contain;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .lightbox-nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(255,255,255,0.15);
+            border: none;
+            color: white;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .lightbox-nav:hover { background: rgba(255,255,255,0.3); }
+        .lightbox-prev { left: 16px; }
+        .lightbox-next { right: 16px; }
+        .lightbox-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: rgba(255,255,255,0.15);
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            font-size: 18px;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .lightbox-close:hover { background: rgba(255,255,255,0.3); }
+        .lightbox-info {
+            position: absolute;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            color: white;
+        }
+        .lightbox-counter {
+            position: absolute;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.7);
+            font-size: 13px;
+        }
+
+/* prefers-reduced-motion 対応 */
+@media (prefers-reduced-motion: reduce) {
+    .heart, .sakura, .star { animation: none !important; opacity: 0.08; }
+    .animate-pulse-soft { animation: none !important; }
+    .animate-slide-in { animation: none !important; }
+    .btn-cute::before { transition: none !important; }
+}
+
+/* 紙吹雪アニメーション */
+.confetti-piece {
+    position: fixed;
+    top: -20px;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 99998;
+    animation: confettiFall linear forwards;
+}
+@keyframes confettiFall {
+    0%   { transform: translateY(0) rotate(0deg); opacity: 1; }
+    80%  { opacity: 1; }
+    100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+}
+body.no-animation .heart,
+body.no-animation .sakura,
+body.no-animation .star { animation: none !important; opacity: 0.05; }
+
+/* Phase 8: Mobile Optimization */
+input, select, textarea { font-size: 16px !important; }
+button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min-width: 48px; touch-action: manipulation; }
+@media (max-width: 640px) {
+  body { font-size: 16px; }
+  .max-w-lg { padding-left: 1rem; padding-right: 1rem; }
+}
+
+@media print{
+  header,footer,nav,button,.no-print,
+  [class*="share"],[class*="affiliate"],[id*="share"],
+  [id*="affiliate"],[id*="banner"],
+  script,noscript{display:none!important}
+  body{background:#fff!important;color:#000!important;font-size:12pt}
+  [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
+  a[href]::after{content:none!important}
+}
+
+.card{background:#fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.08);overflow:hidden;}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;}
+.related-link{padding:10px;text-align:center;border:1px solid #ddd;border-radius:4px;text-decoration:none;color:#333;display:block;transition:background 0.15s;}
+.related-link:hover{background:#f5f5f5;}
+
+/* ドラッグ&ドロップハイライト */
+#photoGrid.drag-over {
+    outline: 3px dashed #f472b6;
+    outline-offset: 4px;
+    background: rgba(244, 114, 182, 0.08);
+    border-radius: 12px;
+}
+
+/* AdSense unfilled: collapse empty ad slots */
+ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
+</style>
+    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "name": "ふたりの歩み - カップル記念日カウンター", "url": "https://appadaycreator.com/couple-anniversary-counter/", "description": "大切な記念日を忘れない！交際記念日をカウントし、思い出の写真と共に愛を深めるカップル専用アプリ", "operatingSystem": "Any", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "JPY"}, "aggregateRating": {"@type": "AggregateRating", "ratingValue": "4.8", "reviewCount": "203", "bestRating": "5", "worstRating": "1"}, "applicationCategory": "LifestyleApplication"}</script>
+    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "ホーム", "item": "https://appadaycreator.com/"}, {"@type": "ListItem", "position": 2, "name": "ふたりの歩み - カップル記念日カウンター", "item": "https://appadaycreator.com/couple-anniversary-counter/"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"記念日カウンターで何ができますか？","acceptedAnswer":{"@type":"Answer","text":"交際開始日・結婚記念日・出会った日など、カップルの大切な記念日からの経過日数を自動カウントします。次の記念日まであと何日かも表示されます。"}},{"@type":"Question","name":"複数の記念日を登録できますか？","acceptedAnswer":{"@type":"Answer","text":"はい、交際記念日・プロポーズ記念日・結婚記念日など複数の記念日を登録できます。それぞれの経過日数と次の記念日が一覧表示されます。"}},{"@type":"Question","name":"データはどこに保存されますか？","acceptedAnswer":{"@type":"Answer","text":"ブラウザのlocalStorageに保存されます。外部サーバーへの送信はなく、お使いの端末内だけで管理されます。登録不要・完全無料で利用できます。"}},{"@type":"Question","name":"どのような人が使っていますか？","acceptedAnswer":{"@type":"Answer","text":"初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}},{"@type":"Question","name":"結果をシェアできますか？","acceptedAnswer":{"@type":"Answer","text":"はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}},{"@type":"Question","name":"有料プランはありますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、すべての機能を完全無料でご利用いただけます。"}}]}</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "appadaycreator",
+  "url": "https://appadaycreator.com",
+  "logo": "https://appadaycreator.com/logo.png",
+  "description": "無料Webサービス・診断ツール 180種類以上を運営"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "mainEntity": {
+    "@type": "Article",
+    "headline": "カップル記念日カウンター【無料】付き合って何日？記念日管理",
+    "description": "交際記念日から何日経ったか自動計算。次の記念日まで何日か分かる。カップル向け無料記念日管理ツール。",
+    "datePublished": "2026-05-23",
+    "dateModified": "2026-05-31",
+    "author": {
+      "@type": "Organization",
+      "name": "appadaycreator"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "appadaycreator",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://appadaycreator.com/logo.png"
+      }
+    }
+  }
+}
+</script>
+
+<style>
+@media(max-width:480px){button,[class*=btn]{min-height:48px!important;font-size:15px!important;}input,select,textarea{font-size:16px!important;min-height:44px!important;}[class*=card],[class*=max-w]{padding:16px!important;}}
+</style>
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"カップル記念日カウンター【無料】付き合って何日？記念日管理の使い方","step":[{"@type":"HowToStep","position":1,"name":"記録する情報を入力する","text":"記録したい内容（日付・数値・テキスト）を入力フォームに入力する"},{"@type":"HowToStep","position":2,"name":"「追加」ボタンで保存する","text":"「追加」または「記録」ボタンを押してデータをブラウザに保存する"},{"@type":"HowToStep","position":3,"name":"記録一覧で履歴を確認する","text":"記録一覧やカレンダーで過去のデータを確認する"},{"@type":"HowToStep","position":4,"name":"グラフや集計で傾向を把握する","text":"グラフや統計機能を使ってデータの推移・傾向を分析する"},{"@type":"HowToStep","position":5,"name":"継続して変化を追跡する","text":"毎日継続的に記録することで長期的な変化を可視化する"}]}</script>
+<style id="ux-enhanced">
+button,input[type=submit],input[type=button],[class*=btn]{min-height:44px;cursor:pointer;transition:opacity .15s,transform .1s;}
+button:active,[class*=btn]:active{opacity:.75;transform:scale(.98);}
+select,input[type=text],input[type=number],input[type=email],textarea{min-height:44px;font-size:16px;}
+[id*=result]:not(style):not(script),[id*=output]:not(style):not(script){border-left:4px solid #7c3aed;padding-left:16px;margin-top:16px;}
+@media(max-width:640px){[class*=max-w],[class*=container],[class*=wrapper]{padding:12px 16px!important;}button,[class*=btn]{width:100%;font-size:15px;}}
+</style>
+</head>
+<body class="relative"><a href="#main" class="sr-only">本文へスキップ</a>
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+    <!-- 背景アニメーション -->
+    <div class="floating-hearts">
+        <div class="heart" style="left: 10%; animation-delay: 0s;"><span>❤️</span></div>
+        <div class="heart" style="left: 30%; animation-delay: 3s;"><span>❤️</span></div>
+        <div class="heart" style="left: 50%; animation-delay: 6s;"><span>❤️</span></div>
+        <div class="heart" style="left: 70%; animation-delay: 9s;"><span>❤️</span></div>
+        <div class="heart" style="left: 90%; animation-delay: 12s;"><span>❤️</span></div>
+        
+        <div class="sakura" style="left: 20%; animation-delay: 2s;">🌸</div>
+        <div class="sakura" style="left: 40%; animation-delay: 5s;">🌸</div>
+        <div class="sakura" style="left: 60%; animation-delay: 8s;">🌸</div>
+        <div class="sakura" style="left: 80%; animation-delay: 11s;">🌸</div>
+    </div>
+
+    <!-- 星座風背景 -->
+    <div class="constellation">
+        <div class="star" style="left: 10%; top: 20%; animation-delay: 0s;"></div>
+        <div class="star" style="left: 25%; top: 35%; animation-delay: 1s;"></div>
+        <div class="star" style="left: 40%; top: 15%; animation-delay: 2s;"></div>
+        <div class="star" style="left: 60%; top: 40%; animation-delay: 3s;"></div>
+        <div class="star" style="left: 75%; top: 25%; animation-delay: 4s;"></div>
+        <div class="star" style="left: 85%; top: 60%; animation-delay: 5s;"></div>
+        <div class="star" style="left: 15%; top: 70%; animation-delay: 6s;"></div>
+        <div class="star" style="left: 35%; top: 80%; animation-delay: 7s;"></div>
+        <div class="star" style="left: 55%; top: 75%; animation-delay: 8s;"></div>
+        <div class="star" style="left: 80%; top: 85%; animation-delay: 9s;"></div>
+    </div>
+
+    <!-- ヘッダー -->
+    <header class="relative z-10 glass-effect">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="text-3xl text-pink-500 animate-pulse-soft">
+                        <span>❤️</span>
+                    </div>
+                    <h1 class="text-lg sm:text-2xl font-bold cute-font text-purple-800 whitespace-nowrap">ふたりの歩み</h1>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <!-- スクロール時の日数バッジ（カウンターが画面外になったとき表示） -->
+                    <span id="headerDayBadge" class="hidden text-xs font-bold cute-font text-white bg-gradient-to-r from-pink-400 to-purple-500 px-3 py-1 rounded-full shadow-sm" aria-live="polite"></span>
+                    <button class="text-pink-500 hover:text-pink-600 transition-colors" onclick="toggleSettings()" aria-label="設定">
+                        <span class="text-xl" aria-hidden="true">⚙️</span>
+                    </button>
+                    <button class="btn-cute" onclick="showShareModal()" aria-label="シェアする">
+                        <span class="mr-2" aria-hidden="true">📤</span>シェア
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ -->
+    <main id="main" role="main" class="relative z-10 container mx-auto px-4 py-8">
+        <!-- ヒーロセクション -->
+        <section class="text-center mb-12 animate-slide-in">
+            <h2 id="heroTitle" class="text-4xl font-bold cute-font text-purple-800 mb-4">
+                大切な記念日を<br class="md:hidden">永遠に
+            </h2>
+            <p id="heroSubtitle" class="text-lg text-purple-600 mb-8 max-w-2xl mx-auto">
+                ふたりの愛の歩みを記録し、特別な瞬間を美しく保存しましょう
+            </p>
+            <!-- デイリーサマリーカード（設定後ユーザー向け、JS で表示/非表示） -->
+            <div id="dailySummaryCard" class="hidden max-w-md mx-auto mb-6">
+                <div class="glass-effect rounded-2xl p-5 text-center" style="background:linear-gradient(135deg,rgba(244,114,182,0.15),rgba(168,85,247,0.15));">
+                    <p class="text-xs text-purple-500 mb-1">今日で</p>
+                    <p id="dailySummaryDays" class="text-5xl font-bold cute-font text-purple-800 leading-none">0</p>
+                    <p class="text-sm text-purple-600 mt-1 mb-3">日目 💕</p>
+                    <div id="dailySummaryNext" class="text-xs text-pink-600 font-medium bg-white bg-opacity-60 rounded-xl px-4 py-1 inline-block max-w-full break-words text-center leading-relaxed"></div>
+                    <div id="dailySummaryMilestone" class="hidden text-xs text-purple-500 mt-2 font-medium"></div>
+                </div>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <button id="heroSetupBtn" class="btn-cute" onclick="showStartModal()">
+                    <span class="mr-2">❤️</span>記念日を設定する
+                </button>
+                <button class="btn-outline" onclick="scrollToSection('how-to-use')">
+                    <span class="mr-2">ℹ️</span>使い方を見る
+                </button>
+            </div>
+        </section>
+
+        <!-- 記念日カウンター -->
+        <section id="counter-section" class="mb-12 animate-slide-in" style="animation-delay: 0.2s;">
+            <div class="grid md:grid-cols-2 gap-8">
+                <div class="glass-effect rounded-3xl p-8 text-center">
+                    <div class="mb-6">
+                        <div class="text-6xl text-pink-500 mb-2">
+                            <span>❤️</span>
+                        </div>
+                        <h3 class="text-2xl font-bold cute-font text-purple-800">交際記念日</h3>
+                    </div>
+                    <div class="counter-number" id="mainCounter">0</div>
+                    <div class="text-lg text-purple-600 mt-2" id="dayLabel">日目</div>
+                    <div class="text-sm text-pink-500 font-medium mt-1" id="detailDate"></div>
+                    <div class="text-sm text-purple-500 mt-1" id="startDate">記念日を設定してください</div>
+                    <div class="mt-6 p-4 bg-gradient-to-r from-pink-100 to-purple-100 rounded-xl">
+                        <div class="text-sm text-purple-700 font-medium">次のマイルストーン</div>
+                        <div class="text-lg font-bold text-purple-800" id="milestone">100日まであと-日</div>
+                    </div>
+                </div>
+                
+                <div class="glass-effect rounded-3xl p-8">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-xl font-bold cute-font text-purple-800">
+                            <span class="text-pink-500 mr-2">🎁</span>特別な記念日
+                        </h3>
+                        <button class="btn-cute text-sm py-2 px-4" onclick="showAddAnniversaryModal()">
+                            <span class="mr-1">+</span>追加
+                        </button>
+                    </div>
+                    <div id="anniversaryList" class="space-y-4">
+                        <div class="text-center text-purple-400 py-8">
+                            <span class="text-4xl mb-4">📅</span>
+                            <p>特別な記念日を追加してください</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 思い出アルバム -->
+        <section id="photo-section" class="mb-12 animate-slide-in" style="animation-delay: 0.4s;">
+            <div class="glass-effect rounded-3xl p-8">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-lg sm:text-2xl font-bold cute-font text-purple-800 whitespace-nowrap">
+                        <span class="text-pink-500 mr-1">🖼️</span>思い出アルバム
+                    </h3>
+                    <div class="flex items-center gap-1 flex-shrink-0">
+                        <button id="photoSortBtn" class="text-xs px-2 py-1 rounded-full border border-purple-300 text-purple-600 hover:bg-purple-50 transition-colors" style="width:auto!important;min-height:32px!important;" onclick="togglePhotoSort()" title="並び替え">📅</button>
+                        <button class="btn-cute" style="padding:8px 10px;font-size:13px;white-space:nowrap;" onclick="document.getElementById('photoInputQuick').click()" title="まとめて追加">
+                            <span>⚡</span>
+                        </button>
+                        <button class="btn-cute" style="padding:8px 12px;font-size:13px;white-space:nowrap;" onclick="document.getElementById('photoInput').click()">
+                            <span class="mr-1">📷</span>追加
+                        </button>
+                    </div>
+                </div>
+                <div id="photoGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    <div class="photo-item flex items-center justify-center">
+                        <div class="text-center text-purple-400">
+                            <span class="text-4xl mb-2">📷</span>
+                            <p class="text-sm">写真を追加</p>
+                        </div>
+                    </div>
+                </div>
+                <input type="file" id="photoInput" accept="image/*" multiple class="hidden" required>
+                <input type="file" id="photoInputQuick" accept="image/*" multiple class="hidden">
+            </div>
+        </section>
+
+        <!-- 思い出タイムライン -->
+        <section id="memory-section" class="mb-12 animate-slide-in" style="animation-delay: 0.6s;">
+            <div class="glass-effect rounded-3xl p-8">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg sm:text-2xl font-bold cute-font text-purple-800 whitespace-nowrap">
+                        <span class="text-pink-500 mr-1">❤️</span>思い出タイムライン
+                    </h3>
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        <button id="memorySortBtn" class="text-xs px-2 py-1 rounded-full border border-purple-300 text-purple-600 hover:bg-purple-50 transition-colors whitespace-nowrap" style="width:auto!important;min-height:32px!important;" onclick="toggleMemorySort()" title="並び替え">📅 新しい順</button>
+                        <button class="btn-cute text-sm" style="white-space:nowrap;padding:10px 14px;" onclick="showAddMemoryModal()">
+                            <span class="mr-1">+</span>追加
+                        </button>
+                    </div>
+                </div>
+                <!-- 過去の今頃ハイライト -->
+                <div id="thisMonthHighlight" class="hidden mb-5 rounded-2xl overflow-hidden" style="background:linear-gradient(135deg,rgba(244,114,182,0.12),rgba(168,85,247,0.12));border:1px solid rgba(244,114,182,0.25);">
+                    <div class="px-4 pt-3 pb-1 flex items-center gap-2">
+                        <span class="text-base" aria-hidden="true">🕰️</span>
+                        <span id="thisMonthTitle" class="text-xs font-bold text-pink-700"></span>
+                    </div>
+                    <div id="thisMonthList" class="px-4 pb-3 space-y-2"></div>
+                </div>
+                <div class="mb-3 relative">
+                    <input type="text" id="memorySearch" placeholder="🔍 思い出を検索..." class="w-full px-4 py-2 border border-purple-200 rounded-full focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white bg-opacity-80 text-sm" oninput="updateMemories()" aria-label="思い出を検索">
+                    <div id="memorySearchCount" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-purple-400"></div>
+                </div>
+                <!-- 感情タグフィルター（モバイルで横スクロール対応） -->
+                <div id="memoryEmojiFilter" class="flex gap-2 mb-4" style="overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:4px;" role="group" aria-label="感情タグで絞り込み">
+                    <button class="emoji-filter-btn selected px-3 py-1 rounded-full text-xs font-medium border-2 border-pink-400 bg-pink-50 text-pink-700 transition-all" style="width:auto!important;min-height:32px!important;" data-emoji="" onclick="setMemoryEmojiFilter('')" aria-pressed="true">全て</button>
+                    <button class="emoji-filter-btn px-3 py-1 rounded-full text-xs border-2 border-purple-200 bg-white transition-all hover:border-pink-300" style="width:auto!important;min-height:32px!important;" data-emoji="❤️" onclick="setMemoryEmojiFilter('❤️')" aria-pressed="false">❤️</button>
+                    <button class="emoji-filter-btn px-3 py-1 rounded-full text-xs border-2 border-purple-200 bg-white transition-all hover:border-pink-300" style="width:auto!important;min-height:32px!important;" data-emoji="😊" onclick="setMemoryEmojiFilter('😊')" aria-pressed="false">😊</button>
+                    <button class="emoji-filter-btn px-3 py-1 rounded-full text-xs border-2 border-purple-200 bg-white transition-all hover:border-pink-300" style="width:auto!important;min-height:32px!important;" data-emoji="💓" onclick="setMemoryEmojiFilter('💓')" aria-pressed="false">💓</button>
+                    <button class="emoji-filter-btn px-3 py-1 rounded-full text-xs border-2 border-purple-200 bg-white transition-all hover:border-pink-300" style="width:auto!important;min-height:32px!important;" data-emoji="🎉" onclick="setMemoryEmojiFilter('🎉')" aria-pressed="false">🎉</button>
+                    <button class="emoji-filter-btn px-3 py-1 rounded-full text-xs border-2 border-purple-200 bg-white transition-all hover:border-pink-300" style="width:auto!important;min-height:32px!important;" data-emoji="🙏" onclick="setMemoryEmojiFilter('🙏')" aria-pressed="false">🙏</button>
+                    <button class="emoji-filter-btn px-3 py-1 rounded-full text-xs border-2 border-purple-200 bg-white transition-all hover:border-pink-300" style="width:auto!important;min-height:32px!important;" data-emoji="✨" onclick="setMemoryEmojiFilter('✨')" aria-pressed="false">✨</button>
+                    <button class="emoji-filter-btn px-3 py-1 rounded-full text-xs border-2 border-purple-200 bg-white transition-all hover:border-pink-300" style="width:auto!important;min-height:32px!important;" data-emoji="😢" onclick="setMemoryEmojiFilter('😢')" aria-pressed="false">😢</button>
+                </div>
+                <div id="memoryTimeline" class="timeline">
+                    <div class="text-center text-purple-400 py-8">
+                        <span class="text-4xl mb-4">❤️</span>
+                        <p>素敵な思い出を記録してください</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 統計情報 -->
+        <section id="stats-section" class="mb-12 animate-slide-in" style="animation-delay: 0.8s;">
+            <div class="glass-effect rounded-3xl p-8">
+                <h3 class="text-2xl font-bold cute-font text-purple-800 mb-6 text-center">
+                    <span class="text-pink-500 mr-2">📊</span>ふたりの統計
+                </h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-pink-500" id="totalDays">0</div>
+                        <div class="text-sm text-purple-600">総日数</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-purple-500" id="totalPhotos">0</div>
+                        <div class="text-sm text-purple-600">写真数</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-pink-500" id="totalMemories">0</div>
+                        <div class="text-sm text-purple-600">思い出数</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-3xl font-bold text-purple-500" id="totalAnniversaries">0</div>
+                        <div class="text-sm text-purple-600">記念日数</div>
+                    </div>
+                </div>
+                <!-- 月別思い出グラフ -->
+                <div class="mt-6 hidden" id="monthlyMemoryChart">
+                    <h4 class="text-sm font-bold text-purple-700 mb-3">📅 過去12ヶ月の思い出数</h4>
+                    <div class="space-y-2" id="monthlyChartBars"></div>
+                </div>
+            </div>
+            <!-- マイルストーン表示 -->
+            <div id="milestoneCard" class="mt-6 hidden">
+                <div id="milestoneCelebration" class="hidden p-4 rounded-2xl text-center mb-3" style="background:linear-gradient(135deg,#ff6b9d,#c44569);color:white;">
+                    <div class="text-2xl mb-1" id="milestoneEmoji">🎉</div>
+                    <div class="font-bold text-lg" id="milestoneMsg"></div>
+                </div>
+                <div class="p-4 rounded-2xl" style="background:linear-gradient(135deg,rgba(255,107,157,0.1),rgba(196,69,105,0.1));border:1px solid rgba(255,107,157,0.3);">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="text-sm text-purple-700">🏆 次のマイルストーン</div>
+                        <div class="text-right">
+                            <span class="font-bold text-pink-600" id="nextMilestoneLabel"></span>
+                            <span class="text-xs text-purple-500 ml-1" id="nextMilestoneDays"></span>
+                        </div>
+                    </div>
+                    <div class="w-full bg-purple-100 rounded-full h-2 overflow-hidden">
+                        <div id="milestoneProgress" class="h-2 rounded-full transition-all duration-1000" style="background:linear-gradient(90deg,#f472b6,#a855f7);width:0%;"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 使い方セクション -->
+        <section id="how-to-use" class="mb-12 animate-slide-in" style="animation-delay: 1s;">
+            <div class="glass-effect rounded-3xl p-8">
+                <h3 class="text-2xl font-bold cute-font text-purple-800 mb-6 text-center">
+                    <span class="text-pink-500 mr-2">❓</span>使い方
+                </h3>
+                <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div class="text-center">
+                        <div class="text-4xl text-pink-500 mb-4">
+                            <span>❤️</span>
+                        </div>
+                        <h4 class="font-bold text-purple-800 mb-2">記念日を設定</h4>
+                        <p class="text-sm text-purple-600">大切な記念日を設定して、毎日の経過を自動でカウントします</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-4xl text-purple-500 mb-4">
+                            <span>📷</span>
+                        </div>
+                        <h4 class="font-bold text-purple-800 mb-2">写真を保存</h4>
+                        <p class="text-sm text-purple-600">思い出の写真をアップロードして、美しいアルバムを作成できます</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="text-4xl text-pink-500 mb-4">
+                            <span>📤</span>
+                        </div>
+                        <h4 class="font-bold text-purple-800 mb-2">SNSでシェア</h4>
+                        <p class="text-sm text-purple-600">記念日や思い出をSNSでシェアして、愛を発信しましょう</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    
+<div style="text-align:center;margin:16px auto;max-width:728px;">
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="ca-pub-8427583028015858"
+     data-ad-slot="auto"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+<div style="text-align:center;margin:16px auto;max-width:728px;">
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="ca-pub-8427583028015858"
+     data-ad-slot="auto"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+<div style="text-align:center;margin:16px auto;max-width:728px;">
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="ca-pub-8427583028015858"
+     data-ad-slot="auto"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+
+<section style="margin:32px auto;max-width:640px;padding:0 16px;" aria-labelledby="faq-h">
+  <h2 id="faq-h" style="font-size:1.15rem;font-weight:700;margin-bottom:10px;border-left:4px solid #7c3aed;padding-left:10px;">よくある質問</h2>
+  <dl style="line-height:1.8;">
+    <dt style="font-weight:600;margin-top:12px;">Q: カップル記念日カウンターは無料ですか？</dt>
+    <dd style="margin-left:16px;color:#374151;">はい、完全無料・登録不要でご利用いただけます。</dd>
+    <dt style="font-weight:600;margin-top:12px;">Q: スマートフォンでも使えますか？</dt>
+    <dd style="margin-left:16px;color:#374151;">はい、PC・スマートフォン・タブレットすべてに対応しています。</dd>
+    <dt style="font-weight:600;margin-top:12px;">Q: 入力データはサーバーに送信されますか？</dt>
+    <dd style="margin-left:16px;color:#374151;">いいえ。すべての処理はブラウザ内で完結し、データの外部送信は行いません。</dd>
+  </dl>
+</section></main>
+
+    <!-- モーダル: 設定画面 -->
+    <div id="settingsModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+        <div class="modal-content">
+            <button class="absolute top-4 right-4 text-purple-400 hover:text-purple-600 text-xl" onclick="closeModal('settingsModal')" aria-label="設定を閉じる">
+                <span aria-hidden="true">✕</span>
+            </button>
+            <h3 id="settingsModalTitle" class="text-2xl font-bold cute-font text-purple-800 mb-6 text-center">
+                <span class="text-pink-500 mr-2" aria-hidden="true">⚙️</span>設定
+            </h3>
+            <div class="space-y-6">
+                <!-- データ管理 -->
+                <div class="bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl p-4">
+                    <h4 class="font-bold text-purple-800 mb-3">
+                        <span class="text-pink-500 mr-2">🗄️</span>データ管理
+                    </h4>
+                    <!-- ストレージ使用量 -->
+                    <div class="mb-3 p-3 bg-white rounded-lg border border-purple-100">
+                        <div id="storageLabel" class="text-xs text-purple-600 mb-1">ストレージ: 計算中...</div>
+                        <div class="w-full bg-purple-100 rounded-full h-2 overflow-hidden">
+                            <div id="storageBar" class="h-2 rounded-full transition-all duration-500" style="width:0%;background:#a855f7;"></div>
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <button class="w-full btn-cute text-sm" onclick="exportData()">
+                            <span class="mr-2">⬇️</span>データをエクスポート
+                        </button>
+                        <button class="w-full btn-cute bg-white text-purple-600 hover:bg-purple-50 border-2 border-purple-200 text-sm" onclick="importData()">
+                            <span class="mr-2">⬆️</span>データをインポート
+                        </button>
+                        <input type="file" id="importFile" accept=".json" class="hidden" onchange="handleImportFile(event)" required>
+                    </div>
+                </div>
+
+                <!-- アプリ情報 -->
+                <div class="bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl p-4">
+                    <h4 class="font-bold text-purple-800 mb-3">
+                        <span class="text-pink-500 mr-2">ℹ️</span>アプリ情報
+                    </h4>
+                    <div class="space-y-3">
+                        <div class="text-sm text-purple-600">
+                            <p><strong>バージョン:</strong> 2.1.0</p>
+                            <p><strong>作成者:</strong> @appadaycreator</p>
+                        </div>
+                        <div class="flex space-x-2">
+                            <a href="how-to-use.html" class="btn-cute text-sm flex-1" target="_blank" rel="noopener noreferrer">
+                                <span class="mr-2">❓</span>使い方
+                            </a>
+                            <a href="privacy.html" class="btn-cute bg-white text-purple-600 hover:bg-purple-50 border-2 border-purple-200 text-sm flex-1" target="_blank" rel="noopener noreferrer">
+                                <span class="mr-2">🛡️</span>プライバシー
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 表示設定 -->
+                <div class="bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl p-4">
+                    <h4 class="font-bold text-purple-800 mb-3">
+                        <span class="text-pink-500 mr-2">🎨</span>表示設定
+                    </h4>
+                    <div class="space-y-3">
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" id="animationToggle" class="w-4 h-4 accent-pink-500" onchange="toggleAnimation(this.checked)">
+                            <span class="text-sm text-purple-700">背景アニメーション（ハート・桜）をオフにする</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 通知設定 -->
+                <div class="bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl p-4">
+                    <h4 class="font-bold text-purple-800 mb-3">
+                        <span class="text-pink-500 mr-2">🔔</span>記念日リマインダー
+                    </h4>
+                    <p class="text-xs text-purple-500 mb-3">ページを開いたとき、当日の記念日・マイルストーンを通知します</p>
+                    <div class="space-y-2">
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" id="notificationToggle" class="w-4 h-4 accent-pink-500" onchange="toggleNotification(this.checked)">
+                            <span class="text-sm text-purple-700">起動時リマインダーを有効にする</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- データリセット -->
+                <div class="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-4">
+                    <h4 class="font-bold text-red-800 mb-3">
+                        <span class="text-red-500 mr-2">⚠️</span>危険な操作
+                    </h4>
+                    <button class="w-full btn-cute bg-red-500 hover:bg-red-600 text-sm" onclick="resetAllData()">
+                        <span class="mr-2">🗑️</span>すべてのデータをリセット
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- モーダル: 記念日設定 -->
+    <div id="startModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="startModalTitle">
+        <div class="modal-content">
+            <button class="absolute top-4 right-4 text-purple-400 hover:text-purple-600 text-xl" onclick="closeModal('startModal')" aria-label="記念日設定を閉じる">
+                <span aria-hidden="true">✕</span>
+            </button>
+            <h3 id="startModalTitle" class="text-2xl font-bold cute-font text-purple-800 mb-6 text-center">
+                <span class="text-pink-500 mr-2" aria-hidden="true">❤️</span>記念日を設定
+            </h3>
+            <form id="startForm">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-purple-700 mb-2">お二人の名前<span class="text-red-500">*</span></label>
+                    <div class="grid grid-cols-2 gap-4">
+                        <input type="text" id="name1" placeholder="あなたの名前" class="w-full px-4 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500" required aria-label="あなたの名前">
+                        <input type="text" id="name2" placeholder="相手の名前" class="w-full px-4 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500" required aria-label="相手の名前">
+                    </div>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-purple-700 mb-2">交際開始日<span class="text-red-500">*</span></label>
+                    <input type="date" id="startDateInput" class="w-full px-4 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500" required>
+                </div>
+                <button type="submit" class="btn-cute w-full">
+                    <span class="mr-2">💾</span>設定を保存
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- モーダル: 記念日追加 -->
+    <div id="addAnniversaryModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="addAnniversaryModalTitle">
+        <div class="modal-content">
+            <button class="absolute top-4 right-4 text-purple-400 hover:text-purple-600 text-xl" onclick="closeModal('addAnniversaryModal')" aria-label="記念日追加を閉じる">
+                <span aria-hidden="true">✕</span>
+            </button>
+            <h3 id="addAnniversaryModalTitle" class="text-2xl font-bold cute-font text-purple-800 mb-6 text-center">
+                <span class="text-pink-500 mr-2" aria-hidden="true">🎁</span>記念日を追加
+            </h3>
+            <form id="anniversaryForm">
+                <!-- クイックテンプレート -->
+                <div class="mb-4">
+                    <p class="text-xs text-purple-500 mb-2">クイック入力</p>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" class="ann-tmpl-btn text-xs px-3 py-1 rounded-full border border-pink-300 bg-pink-50 text-pink-700 hover:bg-pink-100 transition-colors" style="width:auto!important;min-height:32px!important;" onclick="setAnniversaryTemplate('💍 プロポーズ', false)">💍 プロポーズ</button>
+                        <button type="button" class="ann-tmpl-btn text-xs px-3 py-1 rounded-full border border-pink-300 bg-pink-50 text-pink-700 hover:bg-pink-100 transition-colors" style="width:auto!important;min-height:32px!important;" onclick="setAnniversaryTemplate('🎂 誕生日', true)">🎂 誕生日</button>
+                        <button type="button" class="ann-tmpl-btn text-xs px-3 py-1 rounded-full border border-pink-300 bg-pink-50 text-pink-700 hover:bg-pink-100 transition-colors" style="width:auto!important;min-height:32px!important;" onclick="setAnniversaryTemplate('💒 結婚記念日', true)">💒 結婚記念日</button>
+                        <button type="button" class="ann-tmpl-btn text-xs px-3 py-1 rounded-full border border-pink-300 bg-pink-50 text-pink-700 hover:bg-pink-100 transition-colors" style="width:auto!important;min-height:32px!important;" onclick="setAnniversaryTemplate('✈️ 初旅行', false)">✈️ 初旅行</button>
+                        <button type="button" class="ann-tmpl-btn text-xs px-3 py-1 rounded-full border border-pink-300 bg-pink-50 text-pink-700 hover:bg-pink-100 transition-colors" style="width:auto!important;min-height:32px!important;" onclick="setAnniversaryTemplate('🍽️ 初デート', false)">🍽️ 初デート</button>
+                        <button type="button" class="ann-tmpl-btn text-xs px-3 py-1 rounded-full border border-pink-300 bg-pink-50 text-pink-700 hover:bg-pink-100 transition-colors" style="width:auto!important;min-height:32px!important;" onclick="setAnniversaryTemplate('🎬 初映画', false)">🎬 初映画</button>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-purple-700 mb-2">記念日名<span class="text-red-500">*</span></label>
+                    <input type="text" id="anniversaryName" placeholder="例：初デート記念日" class="w-full px-4 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500" required aria-label="例：初デート記念日">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-purple-700 mb-2">日付<span class="text-red-500">*</span></label>
+                    <input type="date" id="anniversaryDate" class="w-full px-4 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500" required>
+                </div>
+                <div class="mb-6 flex items-center gap-3 p-3 bg-pink-50 rounded-lg">
+                    <input type="checkbox" id="anniversaryRecurring" class="w-4 h-4 accent-pink-500" aria-label="毎年繰り返す">
+                    <label for="anniversaryRecurring" class="text-sm text-purple-700 cursor-pointer">
+                        <span class="mr-1">🔁</span><strong>毎年繰り返す</strong>
+                        <span class="text-xs text-purple-500 ml-1">（誕生日・結婚記念日などに）</span>
+                    </label>
+                </div>
+                <input type="hidden" id="anniversaryEditIndex" value="-1">
+                <button type="submit" id="anniversarySubmitBtn" class="btn-cute w-full">
+                    <span class="mr-2">+</span>追加
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- モーダル: 思い出追加 -->
+    <div id="addMemoryModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="addMemoryModalTitle">
+        <div class="modal-content">
+            <button class="absolute top-4 right-4 text-purple-400 hover:text-purple-600 text-xl" onclick="closeModal('addMemoryModal')" aria-label="思い出追加を閉じる">
+                <span aria-hidden="true">✕</span>
+            </button>
+            <h3 id="addMemoryModalTitle" class="text-2xl font-bold cute-font text-purple-800 mb-6 text-center">
+                <span class="text-pink-500 mr-2" aria-hidden="true">❤️</span>思い出を追加
+            </h3>
+            <form id="memoryForm">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-purple-700 mb-2">タイトル<span class="text-red-500">*</span></label>
+                    <input type="text" id="memoryTitle" placeholder="例：初めての旅行" class="w-full px-4 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500" required aria-label="例：初めての旅行">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-purple-700 mb-2">日付<span class="text-red-500">*</span></label>
+                    <input type="date" id="memoryDate" class="w-full px-4 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500" required>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-purple-700 mb-2">気持ちタグ</label>
+                    <div id="memoryEmojiGroup" class="flex flex-wrap gap-2">
+                        <button type="button" class="memory-emoji-btn selected px-3 py-2 rounded-full border-2 border-pink-400 bg-pink-50 text-lg transition-all" style="width:auto!important;min-height:40px!important;" data-emoji="❤️" onclick="selectMemoryEmoji(this)">❤️</button>
+                        <button type="button" class="memory-emoji-btn px-3 py-2 rounded-full border-2 border-purple-200 bg-white text-lg transition-all" style="width:auto!important;min-height:40px!important;" data-emoji="😊" onclick="selectMemoryEmoji(this)">😊</button>
+                        <button type="button" class="memory-emoji-btn px-3 py-2 rounded-full border-2 border-purple-200 bg-white text-lg transition-all" style="width:auto!important;min-height:40px!important;" data-emoji="💓" onclick="selectMemoryEmoji(this)">💓</button>
+                        <button type="button" class="memory-emoji-btn px-3 py-2 rounded-full border-2 border-purple-200 bg-white text-lg transition-all" style="width:auto!important;min-height:40px!important;" data-emoji="🎉" onclick="selectMemoryEmoji(this)">🎉</button>
+                        <button type="button" class="memory-emoji-btn px-3 py-2 rounded-full border-2 border-purple-200 bg-white text-lg transition-all" style="width:auto!important;min-height:40px!important;" data-emoji="🙏" onclick="selectMemoryEmoji(this)">🙏</button>
+                        <button type="button" class="memory-emoji-btn px-3 py-2 rounded-full border-2 border-purple-200 bg-white text-lg transition-all" style="width:auto!important;min-height:40px!important;" data-emoji="✨" onclick="selectMemoryEmoji(this)">✨</button>
+                        <button type="button" class="memory-emoji-btn px-3 py-2 rounded-full border-2 border-purple-200 bg-white text-lg transition-all" style="width:auto!important;min-height:40px!important;" data-emoji="😢" onclick="selectMemoryEmoji(this)">😢</button>
+                    </div>
+                    <input type="hidden" id="memoryEmoji" value="❤️">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-purple-700 mb-2">詳細</label>
+                    <textarea id="memoryDescription" placeholder="思い出の詳細を書いてください..." class="w-full px-4 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 h-24 resize-none" aria-label="思い出の詳細"></textarea>
+                </div>
+                <input type="hidden" id="memoryEditIndex" value="-1">
+                <button type="submit" id="memorySubmitBtn" class="btn-cute w-full">
+                    <span class="mr-2">+</span>追加
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- モーダル: シェア -->
+    <div id="shareModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="shareModalTitle">
+        <div class="modal-content">
+            <button class="absolute top-4 right-4 text-purple-400 hover:text-purple-600 text-xl" onclick="closeModal('shareModal')" aria-label="シェアを閉じる">
+                <span aria-hidden="true">✕</span>
+            </button>
+            <h3 id="shareModalTitle" class="text-2xl font-bold cute-font text-purple-800 mb-6 text-center">
+                <span class="text-pink-500 mr-2" aria-hidden="true">📤</span>ふたりの愛をシェア
+            </h3>
+            <div class="text-center mb-6">
+                <p class="text-purple-600 mb-4">記念日をSNSでシェアしましょう</p>
+                <div class="flex justify-center space-x-4">
+                    <button type="button" class="share-btn twitter" onclick="shareToTwitter()" title="Twitterでシェア">
+                        <span>𝕏</span>
+                    </button>
+                    <button type="button" class="share-btn line" onclick="shareToLine()" title="LINEでシェア">
+                        <span>💬</span>
+                    </button>
+                    <button type="button" class="share-btn instagram" onclick="shareToInstagram()" title="Instagramでシェア">
+                        <span>📸</span>
+                    </button>
+                    <button type="button" class="share-btn facebook" onclick="shareToFacebook()" title="Facebookでシェア">
+                        <span>f</span>
+                    </button>
+                </div>
+            </div>
+            <div class="text-center space-y-3">
+                <button class="btn-cute w-full" onclick="generateShareCard()">
+                    <span class="mr-2">🎴</span>記念日カードを作成
+                </button>
+                <div id="shareCardPreview" class="hidden mt-3">
+                    <canvas id="shareCanvas" width="600" height="400" class="w-full rounded-xl border border-purple-100" style="max-width:100%;"></canvas>
+                    <a id="shareCardDownload" class="btn-cute inline-block mt-2 text-sm" download="anniversary-card.png">
+                        <span class="mr-2">⬇️</span>カードをダウンロード
+                    </a>
+                </div>
+                <button class="btn-cute" onclick="copyToClipboard()">
+                    <span class="mr-2">📋</span>URLをコピー
+                </button>
+                <div class="mt-4">
+                    <button class="btn-cute bg-green-500 hover:bg-green-600" onclick="nativeShare()">
+                        <span class="mr-2">📤</span>ネイティブシェア
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- モーダル: 写真追加/編集 -->
+    <div id="addPhotoModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="addPhotoModalTitle">
+        <div class="modal-content">
+            <button class="absolute top-4 right-4 text-purple-400 hover:text-purple-600 text-xl" onclick="closeModal('addPhotoModal')" aria-label="写真追加を閉じる">
+                <span aria-hidden="true">✕</span>
+            </button>
+            <h3 id="addPhotoModalTitle" class="text-2xl font-bold cute-font text-purple-800 mb-6 text-center">
+                <span class="text-pink-500 mr-2" aria-hidden="true">📷</span>写真の情報を入力
+            </h3>
+            <form id="addPhotoForm">
+                <div id="photoPreviewContainer" class="mb-4 flex justify-center">
+                    <img id="photoPreviewImg" src="" alt="プレビュー" class="max-h-40 rounded-xl object-contain border border-purple-100" style="display:none;">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-purple-700 mb-2">タイトル</label>
+                    <input type="text" id="photoTitle" placeholder="例：初デートの思い出" class="w-full px-4 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500" aria-label="写真のタイトル">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-purple-700 mb-2">撮影日</label>
+                    <input type="date" id="photoDate" class="w-full px-4 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500">
+                </div>
+                <input type="hidden" id="photoEditIndex" value="-1">
+                <button type="submit" id="photoSubmitBtn" class="btn-cute w-full">
+                    <span class="mr-2">💾</span>保存
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- モーダル: 削除確認 -->
+    <div id="confirmModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle">
+        <div class="modal-content" style="max-width:380px;">
+            <h3 id="confirmModalTitle" class="text-xl font-bold cute-font text-purple-800 mb-4 text-center">
+                <span class="text-red-500 mr-2" aria-hidden="true">🗑️</span>削除の確認
+            </h3>
+            <p id="confirmModalMsg" class="text-center text-purple-600 mb-6 text-sm">本当に削除しますか？この操作は取り消せません。</p>
+            <div class="flex gap-3">
+                <button class="flex-1 btn-outline text-sm" onclick="closeModal('confirmModal')">
+                    <span class="mr-1">✕</span>キャンセル
+                </button>
+                <button id="confirmModalOkBtn" class="flex-1 btn-cute text-sm" style="background:linear-gradient(135deg,#ef4444,#dc2626);">
+                    <span class="mr-1">🗑️</span>削除する
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ライトボックス -->
+    <div id="photoLightbox" class="lightbox" role="dialog" aria-modal="true" aria-label="写真を拡大表示">
+        <button class="lightbox-close" onclick="closeLightbox()" aria-label="閉じる">✕</button>
+        <div class="lightbox-counter" id="lightboxCounter"></div>
+        <button class="lightbox-nav lightbox-prev" onclick="lightboxNav(-1)" aria-label="前の写真">&#8249;</button>
+        <img id="lightboxImg" class="lightbox-img" src="" alt="拡大写真">
+        <button class="lightbox-nav lightbox-next" onclick="lightboxNav(1)" aria-label="次の写真">&#8250;</button>
+        <div class="lightbox-info">
+            <p id="lightboxTitle" class="text-white font-medium text-sm"></p>
+            <p id="lightboxDate" class="text-xs opacity-75 text-white mt-1"></p>
+        </div>
+    </div>
+
+    <!-- モバイルボトムナビゲーション（sm以下でのみ表示） -->
+    <nav id="bottomNav" aria-label="セクションナビゲーション" style="display:none;position:fixed;bottom:0;left:0;width:100%;background:rgba(255,255,255,0.95);backdrop-filter:blur(12px);border-top:1px solid rgba(244,114,182,0.25);z-index:500;box-shadow:0 -4px 20px rgba(168,85,247,0.12);">
+        <div style="display:flex;justify-content:space-around;align-items:stretch;max-width:480px;margin:0 auto;padding:0;">
+            <button onclick="bottomNavTo('counter-section')" aria-label="記念日" id="bnav-counter" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px 10px;background:none;border:none;cursor:pointer;gap:3px;transition:background 0.15s;border-top:3px solid transparent;" class="bnav-btn">
+                <span style="font-size:20px;">📅</span>
+                <span style="font-size:10px;color:#7c3aed;font-weight:600;">記念日</span>
+            </button>
+            <button onclick="bottomNavTo('photo-section')" aria-label="写真" id="bnav-photo" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px 10px;background:none;border:none;cursor:pointer;gap:3px;transition:background 0.15s;border-top:3px solid transparent;" class="bnav-btn">
+                <span style="font-size:20px;">📷</span>
+                <span style="font-size:10px;color:#7c3aed;font-weight:600;">写真</span>
+            </button>
+            <button onclick="bottomNavTo('memory-section')" aria-label="思い出" id="bnav-memory" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px 10px;background:none;border:none;cursor:pointer;gap:3px;transition:background 0.15s;border-top:3px solid transparent;" class="bnav-btn">
+                <span style="font-size:20px;">❤️</span>
+                <span style="font-size:10px;color:#7c3aed;font-weight:600;">思い出</span>
+            </button>
+            <button onclick="bottomNavTo('stats-section')" aria-label="統計" id="bnav-stats" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 4px 10px;background:none;border:none;cursor:pointer;gap:3px;transition:background 0.15s;border-top:3px solid transparent;" class="bnav-btn">
+                <span style="font-size:20px;">📊</span>
+                <span style="font-size:10px;color:#7c3aed;font-weight:600;">統計</span>
+            </button>
+        </div>
+    </nav>
+    <style>
+    @media (max-width: 767px) {
+        #bottomNav { display: block !important; }
+        body { padding-bottom: 66px; }
+    }
+    .bnav-btn:active { background: rgba(244,114,182,0.08) !important; }
+    .bnav-btn.active { border-top-color: #f472b6 !important; }
+    .bnav-btn.active span:last-child { color: #be185d !important; font-weight: 700 !important; }
+    </style>
+    <script>
+    function bottomNavTo(sectionId) {
+        const el = document.getElementById(sectionId);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // アクティブボタンを更新
+        document.querySelectorAll('.bnav-btn').forEach(b => b.classList.remove('active'));
+        const idMap = {'counter-section':'bnav-counter','photo-section':'bnav-photo','memory-section':'bnav-memory','stats-section':'bnav-stats'};
+        const activeBtn = document.getElementById(idMap[sectionId]);
+        if (activeBtn) activeBtn.classList.add('active');
+    }
+    // IntersectionObserverでアクティブセクションをハイライト
+    (function() {
+        const sections = [
+            {id:'counter-section', btn:'bnav-counter'},
+            {id:'photo-section', btn:'bnav-photo'},
+            {id:'memory-section', btn:'bnav-memory'},
+            {id:'stats-section', btn:'bnav-stats'}
+        ];
+        const obs = new IntersectionObserver(function(entries) {
+            entries.forEach(function(entry) {
+                if (!entry.isIntersecting) return;
+                const match = sections.find(s => s.id === entry.target.id);
+                if (!match) return;
+                document.querySelectorAll('.bnav-btn').forEach(b => b.classList.remove('active'));
+                const btn = document.getElementById(match.btn);
+                if (btn) btn.classList.add('active');
+            });
+        }, { threshold: 0.3 });
+        document.addEventListener('DOMContentLoaded', function() {
+            sections.forEach(function(s) {
+                const el = document.getElementById(s.id);
+                if (el) obs.observe(el);
+            });
+        });
+    })();
+    </script>
+
+    <!-- フッター -->
+
+<section style="background:#f0f9ff;border-top:1px solid #bae6fd;padding:16px;text-align:center;font-size:12px;color:#0369a1;">
+  <p style="margin:0 0 4px;font-weight:600;">📧 お問い合わせ</p>
+  <p style="margin:0;">ご意見・ご要望・不具合のご報告は <a href="mailto:appadaycreator@gmail.com" style="color:#0369a1;font-weight:bold;">appadaycreator@gmail.com</a> または <a href="contact.html" style="color:#0369a1;">お問い合わせフォーム</a> へ</p>
+</section>
+
+<script>
+        // Supabaseクライアントの初期化（LocalStorageモック使用）
+        const supabase = window.supabase.createClient('', '');
+
+        // XSSエスケープ：ユーザー入力をinnerHTMLに埋め込む際に使用
+        function esc(str) {
+            return String(str || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+        
+        // ローカルストレージキー
+        const STORAGE_KEYS = {
+            COUPLE_DATA: 'couple_data',
+            ANNIVERSARIES: 'anniversaries',
+            MEMORIES: 'memories',
+            PHOTOS: 'photos'
+        };
+
+        // アプリケーションの状態
+        let appState = {
+            coupleData: null,
+            anniversaries: [],
+            memories: [],
+            photos: []
+        };
+
+        // 写真追加待ちキュー（モーダルで1枚ずつ入力）
+        let pendingPhotoFiles = [];
+
+        // 初回訪問時にリマインダーをデフォルトONに設定
+        if (localStorage.getItem('notificationEnabled') === null) {
+            localStorage.setItem('notificationEnabled', '1');
+        }
+
+        // 初期化
+        document.addEventListener('DOMContentLoaded', async function() {
+            await loadData();
+            updateDisplay();
+            initEventListeners();
+            updateStorageWarning();
+            setupMidnightUpdate();
+
+            // 交際開始日の max を今日に設定（未来日防止）
+            const todayStr = new Date().toISOString().split('T')[0];
+            const sdInput = document.getElementById('startDateInput');
+            if (sdInput) sdInput.max = todayStr;
+
+            setTimeout(() => {
+                if (!appState.coupleData) {
+                    showStartModal();
+                } else {
+                    checkTodayReminders();
+                }
+            }, 800);
+        });
+
+        // データの読み込み
+        async function loadData() {
+            try {
+                // まずローカルストレージから読み込み（高速化のため）
+                const coupleDataLocal = localStorage.getItem(STORAGE_KEYS.COUPLE_DATA);
+                const anniversariesLocal = localStorage.getItem(STORAGE_KEYS.ANNIVERSARIES);
+                const memoriesLocal = localStorage.getItem(STORAGE_KEYS.MEMORIES);
+                const photosLocal = localStorage.getItem(STORAGE_KEYS.PHOTOS);
+
+                if (coupleDataLocal) {
+                    appState.coupleData = JSON.parse(coupleDataLocal);
+                }
+                if (anniversariesLocal) {
+                    appState.anniversaries = JSON.parse(anniversariesLocal);
+                }
+                if (memoriesLocal) {
+                    appState.memories = JSON.parse(memoriesLocal);
+                }
+                if (photosLocal) {
+                    appState.photos = JSON.parse(photosLocal);
+                }
+
+                // Supabaseからデータを取得（バックグラウンドで同期）
+                try {
+                    const { data: coupleData, error: coupleError } = await supabase
+                        .from('couple_data')
+                        .select('*')
+                        .single();
+                    
+                    if (coupleData && !coupleError) {
+                        appState.coupleData = coupleData;
+                        // ローカルストレージも更新
+                        localStorage.setItem(STORAGE_KEYS.COUPLE_DATA, JSON.stringify(coupleData));
+                    }
+
+                    const { data: anniversaries, error: anniversariesError } = await supabase
+                        .from('anniversaries')
+                        .select('*')
+                        .order('date', { ascending: true });
+
+                    // 空配列はlocalStorageデータを上書きしない（モックが常に[]を返すため）
+                    if (anniversaries && anniversaries.length > 0 && !anniversariesError) {
+                        appState.anniversaries = anniversaries;
+                        localStorage.setItem(STORAGE_KEYS.ANNIVERSARIES, JSON.stringify(anniversaries));
+                    }
+
+                    const { data: memories, error: memoriesError } = await supabase
+                        .from('memories')
+                        .select('*')
+                        .order('date', { ascending: false });
+
+                    if (memories && memories.length > 0 && !memoriesError) {
+                        appState.memories = memories;
+                        localStorage.setItem(STORAGE_KEYS.MEMORIES, JSON.stringify(memories));
+                    }
+
+                    const { data: photos, error: photosError } = await supabase
+                        .from('photos')
+                        .select('*')
+                        .order('created_at', { ascending: false });
+
+                    if (photos && photos.length > 0 && !photosError) {
+                        appState.photos = photos;
+                        localStorage.setItem(STORAGE_KEYS.PHOTOS, JSON.stringify(photos));
+                    }
+
+                    // データが更新された場合は表示を更新
+                    updateDisplay();
+                } catch (supabaseError) {
+                    // ローカルストレージのデータを使用（既に読み込み済み）
+                }
+            } catch (error) {
+                console.error('データの読み込みエラー:', error);
+                // エラーが発生した場合はローカルストレージから読み込み
+                const coupleData = localStorage.getItem(STORAGE_KEYS.COUPLE_DATA);
+                const anniversaries = localStorage.getItem(STORAGE_KEYS.ANNIVERSARIES);
+                const memories = localStorage.getItem(STORAGE_KEYS.MEMORIES);
+                const photos = localStorage.getItem(STORAGE_KEYS.PHOTOS);
+
+                if (coupleData) {
+                    appState.coupleData = JSON.parse(coupleData);
+                }
+                if (anniversaries) {
+                    appState.anniversaries = JSON.parse(anniversaries);
+                }
+                if (memories) {
+                    appState.memories = JSON.parse(memories);
+                }
+                if (photos) {
+                    appState.photos = JSON.parse(photos);
+                }
+            }
+        }
+
+        // データの保存
+        async function saveData() {
+            // まずローカルストレージに保存（確実性のため）
+            try {
+                if (appState.coupleData) {
+                    localStorage.setItem(STORAGE_KEYS.COUPLE_DATA, JSON.stringify(appState.coupleData));
+                } else {
+                    localStorage.removeItem(STORAGE_KEYS.COUPLE_DATA);
+                }
+                localStorage.setItem(STORAGE_KEYS.ANNIVERSARIES, JSON.stringify(appState.anniversaries));
+                localStorage.setItem(STORAGE_KEYS.MEMORIES, JSON.stringify(appState.memories));
+                localStorage.setItem(STORAGE_KEYS.PHOTOS, JSON.stringify(appState.photos));
+            } catch (storageError) {
+                // QuotaExceededError: 容量超過時は直前に追加した写真をロールバック
+                if (storageError.name === 'QuotaExceededError' || (storageError.code === 22)) {
+                    if (appState.photos.length > 0) {
+                        appState.photos.pop();
+                    }
+                    showNotification('ストレージ容量が不足しています。古い写真を削除してから再度お試しください。', 'error');
+                    return;
+                }
+            }
+
+            try {
+                // Supabaseにデータを保存（バックグラウンドで同期）
+                if (appState.coupleData) {
+                    const { error } = await supabase
+                        .from('couple_data')
+                        .upsert(appState.coupleData, { onConflict: 'id' });
+                    
+                    if (error) {
+                        console.error('カップルデータの保存エラー:', error);
+                    }
+                }
+
+                if (appState.anniversaries.length > 0) {
+                    const { error } = await supabase
+                        .from('anniversaries')
+                        .upsert(appState.anniversaries, { onConflict: 'id' });
+                    
+                    if (error) {
+                        console.error('記念日データの保存エラー:', error);
+                    }
+                }
+
+                if (appState.memories.length > 0) {
+                    const { error } = await supabase
+                        .from('memories')
+                        .upsert(appState.memories, { onConflict: 'id' });
+                    
+                    if (error) {
+                        console.error('思い出データの保存エラー:', error);
+                    }
+                }
+
+                if (appState.photos.length > 0) {
+                    const { error } = await supabase
+                        .from('photos')
+                        .upsert(appState.photos, { onConflict: 'id' });
+                    
+                    if (error) {
+                        console.error('写真データの保存エラー:', error);
+                    }
+                }
+            } catch (error) {
+                console.error('Supabaseへの保存エラー:', error);
+                // ローカルストレージには既に保存済み
+            }
+        }
+
+        // 表示の更新
+        function updateDisplay() {
+            updateHero();
+            updateCounter();
+            updateAnniversaries();
+            updateThisMonthHighlight();
+            updateMemories();
+            updatePhotos();
+            updateStatistics();
+            updateHeaderDayBadge();
+        }
+
+        // ヘッダー日数バッジの文字列更新（IntersectionObserverで表示/非表示はJSで制御）
+        function updateHeaderDayBadge() {
+            const badge = document.getElementById('headerDayBadge');
+            if (!badge) return;
+            if (appState.coupleData && appState.coupleData.startDate) {
+                const days = calculateDays(appState.coupleData.startDate);
+                badge.textContent = `${days.toLocaleString()}日目 💕`;
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        // ヒーローセクション更新（カップル名表示 + デイリーサマリーカード）
+        function updateHero() {
+            const titleEl = document.getElementById('heroTitle');
+            const subtitleEl = document.getElementById('heroSubtitle');
+            const btnEl = document.getElementById('heroSetupBtn');
+            const summaryCard = document.getElementById('dailySummaryCard');
+            if (!titleEl) return;
+            if (appState.coupleData && appState.coupleData.name1 && appState.coupleData.name2) {
+                const n1 = appState.coupleData.name1;
+                const n2 = appState.coupleData.name2;
+                titleEl.innerHTML = `${n1} と ${n2}<br class="md:hidden">の歩み`;
+                subtitleEl.textContent = 'ふたりの大切な記念日と思い出を記録しましょう';
+                if (btnEl) {
+                    btnEl.innerHTML = '<span class="mr-2">✏️</span>設定を変更する';
+                }
+                // デイリーサマリーカード表示
+                if (summaryCard && appState.coupleData.startDate) {
+                    const days = calculateDays(appState.coupleData.startDate);
+                    document.getElementById('dailySummaryDays').textContent = days.toLocaleString();
+                    // 7日以内の記念日を全件表示
+                    const nextEl = document.getElementById('dailySummaryNext');
+                    const today7 = new Date(); today7.setHours(0,0,0,0);
+                    const upcomingAnns = [];
+                    appState.anniversaries.forEach(ann => {
+                        let d = new Date(ann.date); d.setHours(0,0,0,0);
+                        if (ann.recurring) {
+                            d.setFullYear(today7.getFullYear());
+                            if (d < today7) d.setFullYear(today7.getFullYear() + 1);
+                        }
+                        const diff = Math.round((d - today7) / 86400000);
+                        if (diff >= 0 && diff <= 30) {
+                            upcomingAnns.push({ name: ann.name, diff });
+                        }
+                    });
+                    // 次のマイルストーン（7日以内）も追加
+                    if (appState.coupleData && appState.coupleData.startDate) {
+                        const curDays = calculateDays(appState.coupleData.startDate);
+                        MILESTONES.forEach(ms => {
+                            const diff = ms.days - curDays;
+                            if (diff >= 0 && diff <= 30) {
+                                upcomingAnns.push({ name: ms.label + ms.emoji, diff });
+                            }
+                        });
+                    }
+                    upcomingAnns.sort((a, b) => a.diff - b.diff);
+                    if (upcomingAnns.length > 0) {
+                        const lines = upcomingAnns.slice(0, 3).map(a =>
+                            a.diff === 0
+                                ? `🎉 今日は「${a.name}」！`
+                                : `📍 あと${a.diff}日「${a.name}」`
+                        );
+                        nextEl.innerHTML = lines.join('<br>');
+                        nextEl.classList.remove('hidden');
+                    } else {
+                        nextEl.textContent = '';
+                    }
+                    // 次のマイルストーン表示
+                    const milestoneEl = document.getElementById('dailySummaryMilestone');
+                    if (milestoneEl) {
+                        const nextMs = MILESTONES.find(m => m.days > days);
+                        if (nextMs) {
+                            milestoneEl.textContent = `${nextMs.emoji} あと${nextMs.days - days}日で${nextMs.label}！`;
+                            milestoneEl.classList.remove('hidden');
+                        } else {
+                            milestoneEl.classList.add('hidden');
+                        }
+                    }
+                    summaryCard.classList.remove('hidden');
+                }
+            } else {
+                titleEl.innerHTML = '大切な記念日を<br class="md:hidden">永遠に';
+                subtitleEl.textContent = 'ふたりの愛の歩みを記録し、特別な瞬間を美しく保存しましょう';
+                if (btnEl) {
+                    btnEl.innerHTML = '<span class="mr-2">❤️</span>記念日を設定する';
+                }
+                if (summaryCard) summaryCard.classList.add('hidden');
+            }
+        }
+
+        // カウンターの更新
+        function updateCounter() {
+            const counterElement = document.getElementById('mainCounter');
+            const dateElement = document.getElementById('startDate');
+            const milestoneElement = document.getElementById('milestone');
+            const dayLabel = document.getElementById('dayLabel');
+
+            if (appState.coupleData && appState.coupleData.startDate) {
+                const diffDays = calculateDays(appState.coupleData.startDate);
+
+                // アニメーションでカウンターを更新
+                animateCounter(counterElement, diffDays);
+
+                // 年月日表示（閏年考慮した正確な計算）
+                const detailDateEl = document.getElementById('detailDate');
+                if (detailDateEl && diffDays >= 365) {
+                    const detail = formatDateDiff(appState.coupleData.startDate);
+                    detailDateEl.textContent = detail;
+                } else if (detailDateEl) {
+                    detailDateEl.textContent = '';
+                }
+
+                const startDate = new Date(appState.coupleData.startDate);
+                dateElement.textContent = `${startDate.toLocaleDateString('ja-JP')} から`;
+
+                // 次のマイルストーンを計算
+                const nextMilestone = Math.ceil(diffDays / 100) * 100;
+                const daysToMilestone = nextMilestone - diffDays;
+
+                if (daysToMilestone > 0) {
+                    milestoneElement.textContent = `${nextMilestone}日まであと${daysToMilestone}日`;
+                } else {
+                    milestoneElement.textContent = `${nextMilestone}日達成！🎉`;
+                }
+                dayLabel.classList.remove('hidden');
+            } else {
+                counterElement.textContent = '---';
+                dateElement.textContent = '記念日を設定してください';
+                milestoneElement.textContent = '記念日を設定すると表示されます';
+                dayLabel.classList.add('hidden');
+                const detailDateEl = document.getElementById('detailDate');
+                if (detailDateEl) detailDateEl.textContent = '';
+            }
+        }
+
+        // カウンターアニメーション
+        function animateCounter(element, targetValue) {
+            const startValue = parseInt(element.textContent) || 0;
+            const duration = 1500;
+            const startTime = Date.now();
+
+            function update() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const currentValue = Math.floor(startValue + (targetValue - startValue) * progress);
+                
+                element.textContent = currentValue.toLocaleString();
+                
+                if (progress < 1) {
+                    requestAnimationFrame(update);
+                }
+            }
+            
+            update();
+        }
+
+        // 記念日リストの更新
+        function updateAnniversaries() {
+            const container = document.getElementById('anniversaryList');
+            
+            if (appState.anniversaries.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-purple-400 py-8">
+                        <span class="text-4xl mb-4">📅</span>
+                        <p>特別な記念日を追加してください</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = '';
+            const today = new Date();
+            today.setHours(0,0,0,0);
+
+            // ソート用データ生成（毎年繰り返し対応含む）
+            const sortedAnniversaries = appState.anniversaries.map((ann, origIndex) => {
+                let targetDate = new Date(ann.date);
+                targetDate.setHours(0,0,0,0);
+                // 毎年繰り返す場合は今年または来年の日付を使う
+                if (ann.recurring) {
+                    const thisYear = today.getFullYear();
+                    targetDate.setFullYear(thisYear);
+                    if (targetDate < today) targetDate.setFullYear(thisYear + 1);
+                }
+                const diffTime = today - targetDate;
+                return { ann, origIndex, targetDate, diffTime };
+            }).sort((a, b) => {
+                // 今日→今後（近い順）→過去（最近の順）
+                const aFuture = a.diffTime <= 0;
+                const bFuture = b.diffTime <= 0;
+                if (aFuture && !bFuture) return -1;
+                if (!aFuture && bFuture) return 1;
+                if (aFuture && bFuture) return a.diffTime - b.diffTime; // 近い方が先
+                return a.diffTime - b.diffTime; // 最近の過去が先
+            });
+
+            const ANNIVERSARY_VISIBLE_LIMIT = 5;
+            const totalAnn = sortedAnniversaries.length;
+            const visibleList = anniversaryShowAll ? sortedAnniversaries : sortedAnniversaries.slice(0, ANNIVERSARY_VISIBLE_LIMIT);
+
+            visibleList.forEach(({ ann, origIndex, targetDate, diffTime }) => {
+                const diffDays = Math.abs(Math.round(diffTime / (1000 * 60 * 60 * 24)));
+                const diffLabel = diffTime > 0 ? `${diffDays}日前` : diffTime < 0 ? `あと${diffDays}日` : '今日！🎉';
+                const displayDate = ann.recurring ? targetDate : new Date(ann.date);
+
+                const anniversaryElement = document.createElement('div');
+                anniversaryElement.className = 'glass-effect rounded-xl p-4 transition-all hover:scale-105';
+                anniversaryElement.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                            <h4 class="font-bold text-purple-800">${esc(ann.name)}${ann.recurring ? ' 🔁' : ''}</h4>
+                            <p class="text-sm text-purple-600">${esc(displayDate.toLocaleDateString('ja-JP'))}</p>
+                            <p class="text-xs ${diffTime > 0 ? 'text-purple-500' : diffTime < 0 ? 'text-pink-600 font-semibold' : 'text-pink-700 font-bold'}">${esc(diffLabel)}</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button class="text-purple-400 hover:text-purple-600 transition-colors" onclick="editAnniversary(${origIndex})" aria-label="記念日を編集">
+                                <span>✏️</span>
+                            </button>
+                            <button class="text-pink-500 hover:text-pink-600 transition-colors" onclick="deleteAnniversary(${origIndex})" aria-label="記念日を削除">
+                                <span>🗑️</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(anniversaryElement);
+            });
+
+            // 6件以上の場合に折りたたみボタンを表示
+            if (totalAnn > ANNIVERSARY_VISIBLE_LIMIT) {
+                const toggleBtn = document.createElement('button');
+                const hiddenCount = totalAnn - ANNIVERSARY_VISIBLE_LIMIT;
+                toggleBtn.className = 'w-full mt-2 py-2 text-xs text-purple-500 hover:text-purple-700 border border-dashed border-purple-300 rounded-xl transition-colors';
+                toggleBtn.innerHTML = anniversaryShowAll
+                    ? '閉じる ▲'
+                    : `もっと見る（残り${hiddenCount}件）▼`;
+                toggleBtn.onclick = function() {
+                    anniversaryShowAll = !anniversaryShowAll;
+                    updateAnniversaries();
+                };
+                container.appendChild(toggleBtn);
+            }
+        }
+
+        // 写真ソート状態
+        let photoSortOrder = 'desc'; // 'desc'=新しい順, 'asc'=古い順
+        let sortedPhotoIndexes = []; // ソート後の元インデックス順（ライトボックスで使用）
+
+        // 思い出感情タグフィルター状態（空文字=全件表示）
+        let memoryFilterEmoji = '';
+
+        // 記念日リスト折りたたみ状態
+        let anniversaryShowAll = false;
+
+        function togglePhotoSort() {
+            photoSortOrder = photoSortOrder === 'desc' ? 'asc' : 'desc';
+            const btn = document.getElementById('photoSortBtn');
+            if (btn) btn.textContent = photoSortOrder === 'desc' ? '📅' : '🔼';
+            updatePhotos();
+        }
+
+        // 思い出ソート状態
+        let memorySortOrder = 'desc'; // 'desc'=新しい順, 'asc'=古い順
+
+        function toggleMemorySort() {
+            memorySortOrder = memorySortOrder === 'desc' ? 'asc' : 'desc';
+            const btn = document.getElementById('memorySortBtn');
+            if (btn) btn.textContent = memorySortOrder === 'desc' ? '📅 新しい順' : '📅 古い順';
+            updateMemories();
+        }
+
+        // 感情タグフィルター切り替え
+        function setMemoryEmojiFilter(emoji) {
+            memoryFilterEmoji = emoji;
+            document.querySelectorAll('.emoji-filter-btn').forEach(btn => {
+                const isSelected = btn.dataset.emoji === emoji;
+                btn.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+                if (isSelected) {
+                    btn.classList.add('selected', 'border-pink-400', 'bg-pink-50', 'text-pink-700', 'font-medium');
+                    btn.classList.remove('border-purple-200', 'bg-white');
+                } else {
+                    btn.classList.remove('selected', 'border-pink-400', 'bg-pink-50', 'text-pink-700', 'font-medium');
+                    btn.classList.add('border-purple-200', 'bg-white');
+                }
+            });
+            updateMemories();
+        }
+
+        // 過去の今頃ハイライト（同月の過去年の思い出を最大3件表示）
+        function updateThisMonthHighlight() {
+            const card = document.getElementById('thisMonthHighlight');
+            const titleEl = document.getElementById('thisMonthTitle');
+            const listEl = document.getElementById('thisMonthList');
+            if (!card || !titleEl || !listEl) return;
+
+            const now = new Date();
+            const thisMonth = now.getMonth();
+            const thisYear = now.getFullYear();
+
+            const pastMemories = appState.memories.filter(m => {
+                const d = new Date(m.date);
+                return d.getMonth() === thisMonth && d.getFullYear() < thisYear;
+            }).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 3);
+
+            if (pastMemories.length === 0) {
+                card.classList.add('hidden');
+                return;
+            }
+
+            const monthNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+            titleEl.textContent = `${monthNames[thisMonth]}の思い出`;
+
+            listEl.innerHTML = '';
+            pastMemories.forEach(m => {
+                const d = new Date(m.date);
+                const yearsAgo = thisYear - d.getFullYear();
+                const el = document.createElement('div');
+                el.className = 'flex items-start gap-2 bg-white bg-opacity-60 rounded-xl px-3 py-2';
+                el.innerHTML = `
+                    <span class="text-base mt-0.5" aria-hidden="true">${esc(m.emoji || '❤️')}</span>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-bold text-purple-800 truncate">${esc(m.title)}</p>
+                        <p class="text-xs text-pink-500">${esc(yearsAgo)}年前 · ${esc(d.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric' }))}</p>
+                    </div>
+                `;
+                listEl.appendChild(el);
+            });
+            card.classList.remove('hidden');
+        }
+
+        // 思い出タイムラインの更新
+        function updateMemories() {
+            const container = document.getElementById('memoryTimeline');
+            const searchEl = document.getElementById('memorySearch');
+            const searchCountEl = document.getElementById('memorySearchCount');
+            const keyword = searchEl ? searchEl.value.trim().toLowerCase() : '';
+
+            if (appState.memories.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center text-purple-400 py-8">
+                        <span class="text-4xl mb-4">❤️</span>
+                        <p>素敵な思い出を記録してください</p>
+                    </div>
+                `;
+                if (searchCountEl) searchCountEl.textContent = '';
+                return;
+            }
+
+            // 日付ソート（元のインデックスを保持）
+            const sorted = appState.memories
+                .map((m, i) => ({ m, i }))
+                .filter(({ m }) => {
+                    // テキスト検索フィルター
+                    if (keyword) {
+                        const matchText = (m.title || '').toLowerCase().includes(keyword) ||
+                                          (m.description || '').toLowerCase().includes(keyword);
+                        if (!matchText) return false;
+                    }
+                    // 感情タグフィルター
+                    if (memoryFilterEmoji) {
+                        if ((m.emoji || '❤️') !== memoryFilterEmoji) return false;
+                    }
+                    return true;
+                })
+                .sort((a, b) => {
+                    const da = new Date(a.m.date), db = new Date(b.m.date);
+                    return memorySortOrder === 'desc' ? db - da : da - db;
+                });
+
+            // 検索ヒット数表示（テキスト検索またはタグフィルター活性時に表示）
+            if (searchCountEl) {
+                if (keyword || memoryFilterEmoji) {
+                    searchCountEl.textContent = `${sorted.length}件`;
+                } else {
+                    searchCountEl.textContent = '';
+                }
+            }
+
+            if (sorted.length === 0) {
+                const noResultMsg = memoryFilterEmoji
+                    ? `${memoryFilterEmoji} の思い出がありません`
+                    : `「${keyword}」に一致する思い出がありません`;
+                container.innerHTML = `
+                    <div class="text-center text-purple-400 py-8">
+                        <span class="text-4xl mb-4">🔍</span>
+                        <p>${noResultMsg}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = '';
+            sorted.forEach(({ m: memory, i: index }) => {
+                const memoryDate = new Date(memory.date);
+                const emojiTag = memory.emoji || '❤️';
+                const desc = memory.description || '';
+                const TRUNCATE_LEN = 60;
+                const isTruncated = desc.length > TRUNCATE_LEN;
+                const shortDesc = isTruncated ? desc.slice(0, TRUNCATE_LEN) + '...' : desc;
+                const descHtml = isTruncated
+                    ? `<p class="text-sm text-purple-600 memory-desc-short">${esc(shortDesc)}</p>
+                       <p class="text-sm text-purple-600 memory-desc-full hidden">${esc(desc)}</p>
+                       <button type="button" class="text-xs text-pink-500 hover:text-pink-700 mt-1 memory-expand-btn" onclick="toggleMemoryDesc(this)" aria-expanded="false">もっと見る ▼</button>`
+                    : `<p class="text-sm text-purple-600">${esc(desc)}</p>`;
+                const memoryElement = document.createElement('div');
+                memoryElement.className = 'timeline-item';
+                memoryElement.innerHTML = `
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-xl" aria-hidden="true">${esc(emojiTag)}</span>
+                                <span class="text-sm font-medium text-pink-600">${esc(memoryDate.toLocaleDateString('ja-JP'))}</span>
+                            </div>
+                            <h4 class="font-bold text-purple-800 mb-2">${esc(memory.title)}</h4>
+                            ${descHtml}
+                        </div>
+                        <div class="flex gap-2 ml-4">
+                            <button class="text-purple-400 hover:text-purple-600 transition-colors" onclick="editMemory(${index})" aria-label="思い出を編集">
+                                <span>✏️</span>
+                            </button>
+                            <button class="text-pink-500 hover:text-pink-600 transition-colors" onclick="deleteMemory(${index})" aria-label="思い出を削除">
+                                <span>🗑️</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(memoryElement);
+            });
+        }
+
+        // 思い出説明文の折りたたみ展開
+        function toggleMemoryDesc(btn) {
+            const parent = btn.parentElement;
+            const shortEl = parent.querySelector('.memory-desc-short');
+            const fullEl = parent.querySelector('.memory-desc-full');
+            const isExpanded = btn.getAttribute('aria-expanded') === 'true';
+            if (isExpanded) {
+                shortEl.classList.remove('hidden');
+                fullEl.classList.add('hidden');
+                btn.textContent = 'もっと見る ▼';
+                btn.setAttribute('aria-expanded', 'false');
+            } else {
+                shortEl.classList.add('hidden');
+                fullEl.classList.remove('hidden');
+                btn.textContent = '閉じる ▲';
+                btn.setAttribute('aria-expanded', 'true');
+            }
+        }
+
+        // 写真ギャラリーの更新
+        function updatePhotos() {
+            const container = document.getElementById('photoGrid');
+            
+            // 写真追加ボタンを保持
+            const addPhotoButton = `
+                <div class="photo-item flex items-center justify-center cursor-pointer" onclick="document.getElementById('photoInput').click()">
+                    <div class="text-center text-purple-400">
+                        <span class="text-4xl mb-2">📷</span>
+                        <p class="text-sm">写真を追加</p>
+                    </div>
+                </div>
+            `;
+
+            if (appState.photos.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-full flex flex-col items-center justify-center py-10 rounded-2xl border-2 border-dashed border-pink-200 bg-pink-50 bg-opacity-50 cursor-pointer transition-colors hover:bg-pink-100"
+                         onclick="document.getElementById('photoInput').click()"
+                         onkeydown="if(event.key==='Enter'||event.key===' ')document.getElementById('photoInput').click()"
+                         role="button" tabindex="0" aria-label="写真を追加">
+                        <span class="text-5xl mb-3">📷</span>
+                        <p class="text-base font-medium text-pink-600 mb-1">写真を追加しよう</p>
+                        <p class="text-xs text-purple-400">クリック または ここにドラッグ&ドロップ</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // ソート（元のインデックスを保持）
+            const sortedPhotos = appState.photos
+                .map((p, i) => ({ p, i }))
+                .sort((a, b) => {
+                    const da = new Date(a.p.date || 0), db = new Date(b.p.date || 0);
+                    return photoSortOrder === 'desc' ? db - da : da - db;
+                });
+
+            // ソート後の元インデックス順を保存（ライトボックスナビゲーション用）
+            sortedPhotoIndexes = sortedPhotos.map(({ i }) => i);
+
+            let photosHtml = '';
+            sortedPhotos.forEach(({ p: photo, i: index }, sortedPos) => {
+                const photoDate = photo.date ? new Date(photo.date).toLocaleDateString('ja-JP') : '';
+                const shortTitle = (photo.title || '').replace(/\.[^.]+$/, '').slice(0, 15);
+                photosHtml += `
+                    <div class="photo-item relative group" onclick="openLightbox(${sortedPos})" style="cursor:pointer;">
+                        <img loading="lazy" src="${esc(photo.src)}" alt="${esc(photo.title || '思い出の写真')}" class="w-full h-full object-cover">
+                        <div class="absolute inset-0 bg-black bg-opacity-60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-between p-2">
+                            <div class="w-full flex justify-end gap-1">
+                                <button class="text-white hover:text-blue-300 transition-colors bg-black bg-opacity-30 rounded-full w-8 h-8 flex items-center justify-center" onclick="event.stopPropagation();editPhoto(${index})" aria-label="写真を編集">
+                                    <span class="text-sm">✏️</span>
+                                </button>
+                                <button class="text-white hover:text-pink-300 transition-colors bg-black bg-opacity-30 rounded-full w-8 h-8 flex items-center justify-center" onclick="event.stopPropagation();deletePhoto(${index})" aria-label="写真を削除">
+                                    <span class="text-sm">🗑️</span>
+                                </button>
+                            </div>
+                            <div class="w-full text-center">
+                                ${shortTitle ? `<p class="text-white text-xs font-medium truncate">${esc(shortTitle)}</p>` : ''}
+                                ${photoDate ? `<p class="text-white text-xs opacity-75">${esc(photoDate)}</p>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = photosHtml + addPhotoButton;
+        }
+
+        // 統計情報の更新
+        function updateStatistics() {
+            const totalDaysElement = document.getElementById('totalDays');
+            const totalPhotosElement = document.getElementById('totalPhotos');
+            const totalMemoriesElement = document.getElementById('totalMemories');
+            const totalAnniversariesElement = document.getElementById('totalAnniversaries');
+
+            let totalDays = 0;
+            if (appState.coupleData && appState.coupleData.startDate) {
+                totalDays = calculateDays(appState.coupleData.startDate);
+            }
+
+            animateCounter(totalDaysElement, totalDays);
+            animateCounter(totalPhotosElement, appState.photos.length);
+            animateCounter(totalMemoriesElement, appState.memories.length);
+            animateCounter(totalAnniversariesElement, appState.anniversaries.length);
+            updateMilestone(totalDays);
+            generateMonthlyMemoryChart();
+        }
+
+        // 紙吹雪アニメーション（マイルストーン達成日のみ・当日1回）
+        function launchConfetti() {
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+            const todayStr = new Date().toISOString().split('T')[0];
+            const key = 'confetti_shown_' + todayStr;
+            if (localStorage.getItem(key)) return;
+            localStorage.setItem(key, '1');
+
+            const COLORS = ['#f472b6','#a855f7','#3b82f6','#fbbf24','#34d399','#fb7185','#c084fc'];
+            const EMOJIS = ['❤️','🌸','✨','💕','🎊'];
+            const container = document.body;
+            const count = 80;
+            for (let i = 0; i < count; i++) {
+                setTimeout(function() {
+                    const piece = document.createElement('div');
+                    const useEmoji = Math.random() < 0.25;
+                    piece.className = 'confetti-piece';
+                    if (useEmoji) {
+                        piece.style.cssText = `
+                            left: ${Math.random() * 100}vw;
+                            font-size: ${10 + Math.random() * 12}px;
+                            animation-duration: ${2 + Math.random() * 2}s;
+                            animation-delay: ${Math.random() * 0.5}s;
+                            background: transparent;
+                            width: auto; height: auto;
+                        `;
+                        piece.textContent = EMOJIS[Math.floor(Math.random() * EMOJIS.length)];
+                    } else {
+                        const size = 6 + Math.random() * 8;
+                        piece.style.cssText = `
+                            left: ${Math.random() * 100}vw;
+                            width: ${size}px;
+                            height: ${size}px;
+                            background: ${COLORS[Math.floor(Math.random() * COLORS.length)]};
+                            border-radius: ${Math.random() > 0.5 ? '50%' : '2px'};
+                            animation-duration: ${2 + Math.random() * 2.5}s;
+                            animation-delay: ${Math.random() * 0.8}s;
+                        `;
+                    }
+                    container.appendChild(piece);
+                    piece.addEventListener('animationend', function() { piece.remove(); });
+                }, i * 20);
+            }
+        }
+
+        // 月別思い出グラフの生成
+        function generateMonthlyMemoryChart() {
+            const chartEl = document.getElementById('monthlyMemoryChart');
+            const chartBarsEl = document.getElementById('monthlyChartBars');
+            if (!chartEl || !chartBarsEl || appState.memories.length === 0) {
+                if (chartEl) chartEl.classList.add('hidden');
+                return;
+            }
+
+            // 過去12ヶ月の思い出数を計算
+            const today = new Date();
+            const monthlyData = [];
+            for (let i = 11; i >= 0; i--) {
+                const d = new Date(today);
+                d.setMonth(d.getMonth() - i);
+                const year = d.getFullYear();
+                const month = d.getMonth();
+                monthlyData.push({ year, month, count: 0, label: `${month + 1}月` });
+            }
+
+            appState.memories.forEach(mem => {
+                const memDate = new Date(mem.date);
+                const memYear = memDate.getFullYear();
+                const memMonth = memDate.getMonth();
+                const found = monthlyData.find(m => m.year === memYear && m.month === memMonth);
+                if (found) found.count++;
+            });
+
+            const maxCount = Math.max(...monthlyData.map(m => m.count), 1);
+            const html = monthlyData.map((m, idx) => {
+                const percentage = (m.count / maxCount) * 100;
+                return `
+                    <div class="flex items-center gap-2">
+                        <div class="text-xs text-purple-600 w-8 text-right">${m.label}</div>
+                        <div class="flex-1">
+                            <div class="bg-purple-100 rounded-full h-6 overflow-hidden">
+                                <div class="h-6 rounded-full transition-all duration-500" style="width:${percentage}%;background:linear-gradient(90deg,#f472b6,#a855f7);"></div>
+                            </div>
+                        </div>
+                        <div class="text-xs font-bold text-pink-600 w-6 text-right">${m.count}</div>
+                    </div>
+                `;
+            }).join('');
+
+            chartBarsEl.innerHTML = html;
+            chartEl.classList.remove('hidden');
+        }
+
+        // マイルストーン更新
+        const MILESTONES = [
+            {days:30,label:'1ヶ月',emoji:'🌱'},
+            {days:60,label:'2ヶ月',emoji:'🌿'},
+            {days:90,label:'3ヶ月',emoji:'🌷'},
+            {days:100,label:'100日',emoji:'🎊'},
+            {days:180,label:'半年',emoji:'🌙'},
+            {days:200,label:'200日',emoji:'💕'},
+            {days:365,label:'1周年',emoji:'🎂'},
+            {days:500,label:'500日',emoji:'🌟'},
+            {days:700,label:'700日',emoji:'💎'},
+            {days:730,label:'2周年',emoji:'🎆'},
+            {days:1000,label:'1000日',emoji:'👑'},
+            {days:1095,label:'3周年',emoji:'🎉'},
+            {days:1460,label:'4周年',emoji:'🌹'},
+            {days:1825,label:'5周年',emoji:'💍'}
+        ];
+        function updateMilestone(totalDays) {
+            const card = document.getElementById('milestoneCard');
+            if (totalDays <= 0 || !card) return;
+            card.classList.remove('hidden');
+            const celebration = document.getElementById('milestoneCelebration');
+            const hit = MILESTONES.find(m => m.days === totalDays);
+            if (hit) {
+                celebration.classList.remove('hidden');
+                document.getElementById('milestoneEmoji').textContent = hit.emoji;
+                document.getElementById('milestoneMsg').textContent = `${hit.label}おめでとう！`;
+                // 紙吹雪（当日1回のみ）
+                setTimeout(launchConfetti, 800);
+            } else {
+                celebration.classList.add('hidden');
+            }
+            const next = MILESTONES.find(m => m.days > totalDays);
+            const progressEl = document.getElementById('milestoneProgress');
+            if (next) {
+                document.getElementById('nextMilestoneLabel').textContent = next.label;
+                document.getElementById('nextMilestoneDays').textContent = `まであと${next.days - totalDays}日`;
+                // 前マイルストーンからの進捗計算
+                const prev = [...MILESTONES].reverse().find(m => m.days <= totalDays);
+                const prevDays = prev ? prev.days : 0;
+                const progress = Math.min(100, Math.round((totalDays - prevDays) / (next.days - prevDays) * 100));
+                if (progressEl) setTimeout(() => { progressEl.style.width = progress + '%'; }, 100);
+            } else {
+                document.getElementById('nextMilestoneLabel').textContent = '素晴らしい絆！';
+                document.getElementById('nextMilestoneDays').textContent = '';
+                if (progressEl) setTimeout(() => { progressEl.style.width = '100%'; }, 100);
+            }
+        }
+
+        // イベントリスナーの初期化
+        function initEventListeners() {
+            // 記念日設定フォーム
+            document.getElementById('startForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const name1 = document.getElementById('name1').value;
+                const name2 = document.getElementById('name2').value;
+                const startDate = document.getElementById('startDateInput').value;
+
+                if (name1 && name2 && startDate) {
+                    if (startDate > new Date().toISOString().split('T')[0]) {
+                        showNotification('交際開始日に未来の日付は設定できません', 'error');
+                        return;
+                    }
+                    appState.coupleData = { name1, name2, startDate };
+                    await saveData();
+                    updateDisplay();
+                    closeModal('startModal');
+                    showNotification('記念日を設定しました！', 'success');
+                } else {
+                    showNotification('すべての項目を入力してください', 'error');
+                }
+            });
+
+            // 記念日追加/編集フォーム
+            document.getElementById('anniversaryForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const name = document.getElementById('anniversaryName').value;
+                const date = document.getElementById('anniversaryDate').value;
+                const recurring = document.getElementById('anniversaryRecurring').checked;
+                const editIndex = parseInt(document.getElementById('anniversaryEditIndex').value);
+
+                if (name && date) {
+                    if (editIndex >= 0) {
+                        appState.anniversaries[editIndex] = { name, date, recurring };
+                        showNotification('記念日を更新しました！', 'success');
+                    } else {
+                        appState.anniversaries.push({ name, date, recurring });
+                        showNotification('記念日を追加しました！', 'success');
+                    }
+                    await saveData();
+                    updateDisplay();
+                    closeModal('addAnniversaryModal');
+                    this.reset();
+                    document.getElementById('anniversaryEditIndex').value = '-1';
+                    document.getElementById('anniversarySubmitBtn').textContent = '+ 追加';
+                    document.getElementById('addAnniversaryModalTitle').innerHTML = '<span class="text-pink-500 mr-2" aria-hidden="true">🎁</span>記念日を追加';
+                } else {
+                    showNotification('すべての項目を入力してください', 'error');
+                }
+            });
+
+            // 思い出追加/編集フォーム
+            document.getElementById('memoryForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const title = document.getElementById('memoryTitle').value;
+                const date = document.getElementById('memoryDate').value;
+                const description = document.getElementById('memoryDescription').value;
+                const emoji = document.getElementById('memoryEmoji').value || '❤️';
+                const editIndex = parseInt(document.getElementById('memoryEditIndex').value);
+
+                if (title && date) {
+                    if (editIndex >= 0) {
+                        appState.memories[editIndex] = { title, date, description, emoji };
+                        showNotification('思い出を更新しました！', 'success');
+                    } else {
+                        appState.memories.push({ title, date, description, emoji });
+                        showNotification('思い出を追加しました！', 'success');
+                    }
+                    await saveData();
+                    updateDisplay();
+                    closeModal('addMemoryModal');
+                    this.reset();
+                    document.getElementById('memoryEditIndex').value = '-1';
+                    document.getElementById('memoryEmoji').value = '❤️';
+                    resetMemoryEmojiButtons();
+                    document.getElementById('memorySubmitBtn').textContent = '+ 追加';
+                    document.getElementById('addMemoryModalTitle').innerHTML = '<span class="text-pink-500 mr-2" aria-hidden="true">❤️</span>思い出を追加';
+                } else {
+                    showNotification('タイトルと日付を入力してください', 'error');
+                }
+            });
+
+            // 写真グリッドのドラッグ&ドロップ対応
+            const photoGrid = document.getElementById('photoGrid');
+            if (photoGrid) {
+                photoGrid.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'copy';
+                    photoGrid.classList.add('drag-over');
+                });
+                photoGrid.addEventListener('dragenter', function(e) {
+                    e.preventDefault();
+                    photoGrid.classList.add('drag-over');
+                });
+                photoGrid.addEventListener('dragleave', function(e) {
+                    if (!photoGrid.contains(e.relatedTarget)) {
+                        photoGrid.classList.remove('drag-over');
+                    }
+                });
+                photoGrid.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    photoGrid.classList.remove('drag-over');
+                    const files = Array.from(e.dataTransfer.files);
+                    if (files.length === 0) return;
+                    // 既存の photoInput change ハンドラと同じフローで処理
+                    pendingPhotoFiles = [];
+                    const validFiles = files.filter(f => {
+                        if (!f.type.startsWith('image/')) return false;
+                        if (f.size > 5 * 1024 * 1024) {
+                            showNotification(`「${f.name}」は5MBを超えています。`, 'error');
+                            return false;
+                        }
+                        return true;
+                    });
+                    if (validFiles.length === 0) return;
+                    pendingPhotoFiles = validFiles;
+                    openNextPhotoModal();
+                    updateStorageWarning();
+                });
+            }
+
+            // 写真クイック追加（モーダルなし・ファイル名+今日の日付で即時追加）
+            document.getElementById('photoInputQuick').addEventListener('change', async function(e) {
+                const files = Array.from(e.target.files);
+                const MAX = 5 * 1024 * 1024;
+                const validFiles = files.filter(f => {
+                    if (!f.type.startsWith('image/')) return false;
+                    if (f.size > MAX) {
+                        showNotification(`「${f.name}」は5MBを超えています。`, 'error');
+                        return false;
+                    }
+                    return true;
+                });
+                if (validFiles.length === 0) { this.value = ''; return; }
+                const today = new Date().toISOString();
+                let added = 0;
+                for (const file of validFiles) {
+                    const src = await compressImage(file);
+                    appState.photos.push({
+                        src,
+                        title: file.name.replace(/\.[^.]+$/, ''),
+                        date: today
+                    });
+                    added++;
+                }
+                await saveData();
+                updateDisplay();
+                updateStorageWarning();
+                showNotification(`⚡ ${added}枚の写真を追加しました！（タイトルは後から編集できます）`, 'success');
+                this.value = '';
+            });
+
+            // 写真アップロード（1枚5MB制限・Canvas圧縮で実際の保存は最大200KB）
+            const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+
+            document.getElementById('photoInput').addEventListener('change', function(e) {
+                pendingPhotoFiles = [];
+                const files = Array.from(e.target.files);
+                const validFiles = files.filter(f => {
+                    if (!f.type.startsWith('image/')) return false;
+                    if (f.size > MAX_PHOTO_BYTES) {
+                        showNotification(`「${f.name}」は5MBを超えています。`, 'error');
+                        return false;
+                    }
+                    return true;
+                });
+                if (validFiles.length === 0) { this.value = ''; return; }
+                // Canvas圧縮してからモーダルで入力
+                pendingPhotoFiles = validFiles;
+                openNextPhotoModal();
+                this.value = '';
+                updateStorageWarning();
+            });
+
+            // 写真モーダルフォーム処理
+            document.getElementById('addPhotoForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const editIndex = parseInt(document.getElementById('photoEditIndex').value);
+                const title = document.getElementById('photoTitle').value;
+                const dateVal = document.getElementById('photoDate').value;
+
+                if (editIndex >= 0) {
+                    // 編集モード
+                    appState.photos[editIndex].title = title || appState.photos[editIndex].title;
+                    appState.photos[editIndex].date = dateVal ? new Date(dateVal).toISOString() : appState.photos[editIndex].date;
+                    await saveData();
+                    updateDisplay();
+                    closeModal('addPhotoModal');
+                    showNotification('写真情報を更新しました！', 'success');
+                } else {
+                    // 追加モード（圧縮済みデータを使用）
+                    const file = pendingPhotoFiles.shift();
+                    if (file) {
+                        const savePhoto = async function(src) {
+                            appState.photos.push({
+                                src: src,
+                                title: title || file.name,
+                                date: dateVal ? new Date(dateVal).toISOString() : new Date().toISOString()
+                            });
+                            await saveData();
+                            updateDisplay();
+                            updateStorageWarning();
+                            if (pendingPhotoFiles.length > 0) {
+                                openNextPhotoModal();
+                            } else {
+                                closeModal('addPhotoModal');
+                                showNotification('写真を追加しました！', 'success');
+                            }
+                        };
+                        // 圧縮済みデータがあればそれを使用、なければ圧縮してから保存
+                        if (file._compressed) {
+                            savePhoto(file._compressed);
+                        } else {
+                            compressImage(file).then(savePhoto);
+                        }
+                    }
+                }
+            });
+        }
+
+        // Canvas APIで画像を圧縮（最大640px・JPEG0.65）してbase64を返す
+        function compressImage(file) {
+            return new Promise(function(resolve) {
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    const img = new Image();
+                    img.onload = function() {
+                        const MAX = 640;
+                        let w = img.width, h = img.height;
+                        if (w > MAX || h > MAX) {
+                            if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+                            else { w = Math.round(w * MAX / h); h = MAX; }
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w; canvas.height = h;
+                        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                        resolve(canvas.toDataURL('image/jpeg', 0.65));
+                    };
+                    img.src = ev.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // ストレージ使用量警告チェック
+        function updateStorageWarning() {
+            try {
+                let total = 0;
+                for (let key in localStorage) {
+                    if (localStorage.hasOwnProperty(key)) {
+                        total += (localStorage.getItem(key) || '').length * 2;
+                    }
+                }
+                const usedMB = (total / (1024 * 1024)).toFixed(1);
+                const pct = Math.round(total / (5 * 1024 * 1024) * 100);
+                const el = document.getElementById('storageBar');
+                const labelEl = document.getElementById('storageLabel');
+                if (el) {
+                    el.style.width = Math.min(pct, 100) + '%';
+                    el.style.background = pct > 80 ? '#ef4444' : pct > 60 ? '#f59e0b' : '#a855f7';
+                }
+                if (labelEl) labelEl.textContent = `ストレージ: ${usedMB}MB / 5MB使用 (${pct}%)`;
+                if (pct > 80) showNotification('⚠️ ストレージが残り少ないです！古い写真を削除するか、エクスポートして空きを確保してください。', 'error');
+            } catch(e) {}
+        }
+
+        // 次の写真のモーダルを開く（Canvas圧縮付き）
+        function openNextPhotoModal() {
+            const file = pendingPhotoFiles[0];
+            if (!file) return;
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('photoTitle').value = file.name.replace(/\.[^.]+$/, '');
+            document.getElementById('photoDate').value = today;
+            document.getElementById('photoEditIndex').value = '-1';
+            document.getElementById('photoSubmitBtn').innerHTML = pendingPhotoFiles.length > 1
+                ? `<span class="mr-2">➡️</span>次へ（残り${pendingPhotoFiles.length}枚）`
+                : '<span class="mr-2">💾</span>保存';
+            document.getElementById('addPhotoModalTitle').innerHTML = '<span class="text-pink-500 mr-2" aria-hidden="true">📷</span>写真の情報を入力';
+            // Canvas圧縮プレビュー
+            compressImage(file).then(function(compressed) {
+                const img = document.getElementById('photoPreviewImg');
+                img.src = compressed;
+                img.style.display = 'block';
+                // 圧縮済みデータをfileオブジェクトに一時保存
+                pendingPhotoFiles[0]._compressed = compressed;
+            });
+            showModal('addPhotoModal');
+        }
+
+        // 写真編集
+        function editPhoto(index) {
+            const photo = appState.photos[index];
+            if (!photo) return;
+            document.getElementById('photoTitle').value = (photo.title || '').replace(/\.[^.]+$/, '');
+            document.getElementById('photoDate').value = photo.date ? new Date(photo.date).toISOString().split('T')[0] : '';
+            document.getElementById('photoEditIndex').value = index;
+            document.getElementById('photoSubmitBtn').innerHTML = '<span class="mr-2">💾</span>更新';
+            document.getElementById('addPhotoModalTitle').innerHTML = '<span class="text-pink-500 mr-2" aria-hidden="true">✏️</span>写真を編集';
+            const img = document.getElementById('photoPreviewImg');
+            img.src = photo.src;
+            img.style.display = 'block';
+            showModal('addPhotoModal');
+        }
+
+        // モーダル操作
+        const MODAL_IDS = ['settingsModal','startModal','addAnniversaryModal','addMemoryModal','shareModal','addPhotoModal','confirmModal'];
+
+        function showModal(modalId) {
+            const el = document.getElementById(modalId);
+            el.classList.add('active');
+            // フォーカス管理
+            const focusable = el.querySelector('button,input,select,textarea,[tabindex]');
+            if (focusable) setTimeout(() => focusable.focus(), 50);
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        // Escキーでモーダル/ライトボックスを閉じる
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                const lb = document.getElementById('photoLightbox');
+                if (lb && lb.classList.contains('active')) { closeLightbox(); return; }
+                MODAL_IDS.forEach(id => closeModal(id));
+            }
+        });
+
+        // 背景クリックでモーダルを閉じる
+        MODAL_IDS.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('click', function(e) {
+                if (e.target === el) closeModal(id);
+            });
+        });
+
+        function showStartModal() {
+            showModal('startModal');
+        }
+
+        function showAddAnniversaryModal() {
+            // 新規追加時のみ今日の日付をデフォルトセット（編集モードは呼び出し元でセット済み）
+            const editIndex = document.getElementById('anniversaryEditIndex').value;
+            if (editIndex === '-1') {
+                const today = new Date().toISOString().split('T')[0];
+                document.getElementById('anniversaryDate').value = today;
+            }
+            showModal('addAnniversaryModal');
+        }
+
+        function showAddMemoryModal() {
+            // モーダルを開く前にemojiをリセット
+            resetMemoryEmojiButtons && resetMemoryEmojiButtons();
+            // 新規追加時のみ今日の日付をデフォルトセット
+            const editIndex = document.getElementById('memoryEditIndex').value;
+            if (editIndex === '-1') {
+                const today = new Date().toISOString().split('T')[0];
+                document.getElementById('memoryDate').value = today;
+            }
+            showModal('addMemoryModal');
+        }
+
+        function showShareModal() {
+            showModal('shareModal');
+        }
+
+        // カスタム確認ダイアログ
+        const MODAL_IDS_WITH_CONFIRM = ['settingsModal','startModal','addAnniversaryModal','addMemoryModal','shareModal','addPhotoModal','confirmModal'];
+        function showConfirm(message, onConfirm) {
+            document.getElementById('confirmModalMsg').textContent = message;
+            const okBtn = document.getElementById('confirmModalOkBtn');
+            okBtn.onclick = function() {
+                closeModal('confirmModal');
+                onConfirm();
+            };
+            showModal('confirmModal');
+        }
+
+        // 削除機能
+        async function deleteAnniversary(index) {
+            showConfirm('この記念日を削除しますか？削除後は元に戻せません。', async function() {
+                appState.anniversaries.splice(index, 1);
+                await saveData();
+                updateDisplay();
+                showNotification('記念日を削除しました', 'info');
+            });
+        }
+
+        async function deleteMemory(index) {
+            showConfirm('この思い出を削除しますか？削除後は元に戻せません。', async function() {
+                appState.memories.splice(index, 1);
+                await saveData();
+                updateDisplay();
+                showNotification('思い出を削除しました', 'info');
+            });
+        }
+
+        async function deletePhoto(index) {
+            showConfirm('この写真を削除しますか？削除後は元に戻せません。', async function() {
+                appState.photos.splice(index, 1);
+                await saveData();
+                updateDisplay();
+                showNotification('写真を削除しました', 'info');
+            });
+        }
+
+        // 記念日テンプレートクイック入力
+        function setAnniversaryTemplate(name, recurring) {
+            document.getElementById('anniversaryName').value = name;
+            document.getElementById('anniversaryRecurring').checked = recurring;
+        }
+
+        // 記念日編集
+        function editAnniversary(index) {
+            const ann = appState.anniversaries[index];
+            if (!ann) return;
+            document.getElementById('anniversaryName').value = ann.name;
+            document.getElementById('anniversaryDate').value = ann.date;
+            document.getElementById('anniversaryRecurring').checked = !!ann.recurring;
+            document.getElementById('anniversaryEditIndex').value = index;
+            document.getElementById('anniversarySubmitBtn').innerHTML = '<span class="mr-2">💾</span>更新';
+            document.getElementById('addAnniversaryModalTitle').innerHTML = '<span class="text-pink-500 mr-2" aria-hidden="true">✏️</span>記念日を編集';
+            showModal('addAnniversaryModal');
+        }
+
+        // 気持ちタグボタン選択処理
+        function selectMemoryEmoji(btn) {
+            document.querySelectorAll('.memory-emoji-btn').forEach(b => {
+                b.classList.remove('selected', 'border-pink-400', 'bg-pink-50');
+                b.classList.add('border-purple-200', 'bg-white');
+            });
+            btn.classList.add('selected', 'border-pink-400', 'bg-pink-50');
+            btn.classList.remove('border-purple-200', 'bg-white');
+            document.getElementById('memoryEmoji').value = btn.dataset.emoji;
+        }
+
+        // 気持ちタグをリセット
+        function resetMemoryEmojiButtons() {
+            document.querySelectorAll('.memory-emoji-btn').forEach(b => {
+                b.classList.remove('selected', 'border-pink-400', 'bg-pink-50');
+                b.classList.add('border-purple-200', 'bg-white');
+            });
+            const firstBtn = document.querySelector('.memory-emoji-btn[data-emoji="❤️"]');
+            if (firstBtn) {
+                firstBtn.classList.add('selected', 'border-pink-400', 'bg-pink-50');
+                firstBtn.classList.remove('border-purple-200', 'bg-white');
+            }
+        }
+
+        // 思い出編集
+        function editMemory(index) {
+            const mem = appState.memories[index];
+            if (!mem) return;
+            document.getElementById('memoryTitle').value = mem.title;
+            document.getElementById('memoryDate').value = mem.date;
+            document.getElementById('memoryDescription').value = mem.description || '';
+            document.getElementById('memoryEditIndex').value = index;
+            document.getElementById('memorySubmitBtn').innerHTML = '<span class="mr-2">💾</span>更新';
+            document.getElementById('addMemoryModalTitle').innerHTML = '<span class="text-pink-500 mr-2" aria-hidden="true">✏️</span>思い出を編集';
+            // 保存済み絵文字を反映
+            const savedEmoji = mem.emoji || '❤️';
+            document.getElementById('memoryEmoji').value = savedEmoji;
+            document.querySelectorAll('.memory-emoji-btn').forEach(b => {
+                const isSelected = b.dataset.emoji === savedEmoji;
+                b.classList.toggle('selected', isSelected);
+                b.classList.toggle('border-pink-400', isSelected);
+                b.classList.toggle('bg-pink-50', isSelected);
+                b.classList.toggle('border-purple-200', !isSelected);
+                b.classList.toggle('bg-white', !isSelected);
+            });
+            showModal('addMemoryModal');
+        }
+
+        // ライトボックス（sortedPhotoIndexes でソート順に対応）
+        let lightboxSortedPos = 0; // ソートされた表示上の位置
+        function openLightbox(sortedPos) {
+            lightboxSortedPos = sortedPos;
+            renderLightbox();
+            document.getElementById('photoLightbox').classList.add('active');
+        }
+        function closeLightbox() {
+            document.getElementById('photoLightbox').classList.remove('active');
+        }
+        function lightboxNav(dir) {
+            const len = sortedPhotoIndexes.length || appState.photos.length;
+            if (len === 0) return;
+            lightboxSortedPos = (lightboxSortedPos + dir + len) % len;
+            renderLightbox();
+        }
+        function renderLightbox() {
+            // sortedPhotoIndexes が構築済みならソート順で、なければ元配列順でフォールバック
+            const actualIndex = sortedPhotoIndexes.length > 0
+                ? sortedPhotoIndexes[lightboxSortedPos]
+                : lightboxSortedPos;
+            const photo = appState.photos[actualIndex];
+            if (!photo) return;
+            document.getElementById('lightboxImg').src = photo.src;
+            document.getElementById('lightboxImg').alt = photo.title || '思い出の写真';
+            const shortTitle = (photo.title || '').replace(/\.[^.]+$/, '');
+            document.getElementById('lightboxTitle').textContent = shortTitle;
+            document.getElementById('lightboxDate').textContent = photo.date ? new Date(photo.date).toLocaleDateString('ja-JP') : '';
+            const total = sortedPhotoIndexes.length || appState.photos.length;
+            document.getElementById('lightboxCounter').textContent = `${lightboxSortedPos + 1} / ${total}`;
+        }
+        // ライトボックスキーボード操作
+        document.addEventListener('keydown', function(e) {
+            const lb = document.getElementById('photoLightbox');
+            if (!lb || !lb.classList.contains('active')) return;
+            if (e.key === 'ArrowLeft') lightboxNav(-1);
+            if (e.key === 'ArrowRight') lightboxNav(1);
+        });
+        // ライトボックス背景クリックで閉じる
+        document.getElementById('photoLightbox') && document.getElementById('photoLightbox').addEventListener('click', function(e) {
+            if (e.target === this) closeLightbox();
+        });
+        // ライトボックスタッチスワイプ対応（モバイル向け）
+        (function() {
+            const lb = document.getElementById('photoLightbox');
+            if (!lb) return;
+            let touchStartX = 0;
+            lb.addEventListener('touchstart', function(e) {
+                touchStartX = e.touches[0].clientX;
+            }, { passive: true });
+            lb.addEventListener('touchend', function(e) {
+                const dx = e.changedTouches[0].clientX - touchStartX;
+                if (Math.abs(dx) < 50) return;
+                lightboxNav(dx < 0 ? 1 : -1);
+            }, { passive: true });
+        })();
+
+        // シェア機能
+        function buildShareText(days) {
+            if (appState.coupleData && appState.coupleData.name1 && appState.coupleData.name2) {
+                const n1 = appState.coupleData.name1;
+                const n2 = appState.coupleData.name2;
+                return `💕 ${n1}と${n2}、今日で交際${days}日目！\n\n「ふたりの歩み」で記念日をカウント中✨\n大切な人との思い出を記録してます💖\n\n#カップル #記念日 #愛 #ふたりの歩み`;
+            }
+            return `💕今日で交際${days}日目！\n\n「ふたりの歩み」で記念日をカウント中✨\n大切な人との思い出を記録してます💖\n\n#カップル #記念日 #愛 #ふたりの歩み`;
+        }
+
+        function shareToTwitter() {
+            try {
+                const days = appState.coupleData ? calculateDays(appState.coupleData.startDate) : 0;
+                const text = buildShareText(days);
+                const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
+                const newWindow = window.open(url, '_blank', 'width=600,height=400');
+                if (newWindow) {
+                    showNotification('Twitterでシェアウィンドウを開きました', 'success');
+                } else {
+                    showNotification('ポップアップがブロックされました。ブラウザの設定を確認してください。', 'error');
+                }
+            } catch (error) {
+                showNotification('シェアに失敗しました', 'error');
+            }
+        }
+
+        function shareToLine() {
+            try {
+                const days = appState.coupleData ? calculateDays(appState.coupleData.startDate) : 0;
+                const text = buildShareText(days);
+                const url = `https://social-plugins.line.me/lineit/share?text=${encodeURIComponent(text)}`;
+                const newWindow = window.open(url, '_blank', 'width=600,height=400');
+                if (newWindow) {
+                    showNotification('LINEでシェアウィンドウを開きました', 'success');
+                } else {
+                    showNotification('ポップアップがブロックされました。ブラウザの設定を確認してください。', 'error');
+                }
+            } catch (error) {
+                showNotification('シェアに失敗しました', 'error');
+            }
+        }
+
+        function shareToInstagram() {
+            showNotification('Instagramでシェアするには、スクリーンショットを撮ってInstagramアプリで投稿してください！', 'info');
+        }
+
+        function shareToFacebook() {
+            try {
+                const url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`;
+                const newWindow = window.open(url, '_blank', 'width=600,height=400');
+                if (newWindow) {
+                    showNotification('Facebookでシェアウィンドウを開きました', 'success');
+                } else {
+                    showNotification('ポップアップがブロックされました。ブラウザの設定を確認してください。', 'error');
+                }
+            } catch (error) {
+                showNotification('シェアに失敗しました', 'error');
+            }
+        }
+
+        function copyToClipboard() {
+            navigator.clipboard.writeText(window.location.href).then(() => {
+                showNotification('URLをコピーしました！', 'success');
+            }).catch(() => {
+                showNotification('コピーに失敗しました', 'error');
+            });
+        }
+
+        function nativeShare() {
+            try {
+                const days = appState.coupleData ? calculateDays(appState.coupleData.startDate) : 0;
+                const text = buildShareText(days);
+                
+                if (navigator.share) {
+                    navigator.share({
+                        title: 'ふたりの歩み - カップル記念日カウンター',
+                        text: text,
+                        url: window.location.href
+                    }).then(() => {
+                        showNotification('シェアしました！', 'success');
+                    }).catch(() => {
+                        showNotification('シェアに失敗しました', 'error');
+                    });
+                } else {
+                    showNotification('お使いのブラウザではネイティブシェアが利用できません', 'info');
+                    copyToClipboard();
+                }
+            } catch (error) {
+                console.error('ネイティブシェアエラー:', error);
+                showNotification('シェアに失敗しました', 'error');
+            }
+        }
+
+        // P3-6: 記念日シェアカード生成（Canvas API）
+        function generateShareCard() {
+            const canvas = document.getElementById('shareCanvas');
+            const ctx = canvas.getContext('2d');
+            const W = 600, H = 400;
+            canvas.width = W; canvas.height = H;
+
+            // 背景グラデーション
+            const grad = ctx.createLinearGradient(0, 0, W, H);
+            grad.addColorStop(0, '#f472b6');
+            grad.addColorStop(0.5, '#a855f7');
+            grad.addColorStop(1, '#3b82f6');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, W, H);
+
+            // 半透明の白オーバーレイ（カード風）
+            ctx.fillStyle = 'rgba(255,255,255,0.12)';
+            ctx.beginPath();
+            ctx.roundRect(30, 30, W - 60, H - 60, 24);
+            ctx.fill();
+
+            // ハートアイコン
+            ctx.font = '56px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('❤️', W / 2, 110);
+
+            // カップル名
+            const n1 = appState.coupleData && appState.coupleData.name1 ? appState.coupleData.name1 : '';
+            const n2 = appState.coupleData && appState.coupleData.name2 ? appState.coupleData.name2 : '';
+            ctx.fillStyle = 'rgba(255,255,255,0.95)';
+            ctx.font = 'bold 24px "Noto Sans JP", sans-serif';
+            if (n1 && n2) {
+                ctx.fillText(`${n1} と ${n2}`, W / 2, 160);
+            } else {
+                ctx.fillText('ふたりの歩み', W / 2, 160);
+            }
+
+            // 日数
+            const days = appState.coupleData && appState.coupleData.startDate
+                ? calculateDays(appState.coupleData.startDate) : 0;
+            ctx.font = 'bold 80px "Noto Sans JP", sans-serif';
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowColor = 'rgba(0,0,0,0.2)';
+            ctx.shadowBlur = 8;
+            ctx.fillText(days.toLocaleString(), W / 2, 260);
+            ctx.shadowBlur = 0;
+
+            ctx.font = 'bold 22px "Noto Sans JP", sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            ctx.fillText('日目', W / 2, 295);
+
+            // 交際開始日
+            if (appState.coupleData && appState.coupleData.startDate) {
+                const startDate = new Date(appState.coupleData.startDate);
+                ctx.font = '15px "Noto Sans JP", sans-serif';
+                ctx.fillStyle = 'rgba(255,255,255,0.75)';
+                ctx.fillText(startDate.toLocaleDateString('ja-JP') + ' から', W / 2, 328);
+            }
+
+            // フッター
+            ctx.font = '13px "Noto Sans JP", sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.fillText('ふたりの歩み | appadaycreator.com', W / 2, 370);
+
+            // ダウンロードリンク生成
+            const preview = document.getElementById('shareCardPreview');
+            const link = document.getElementById('shareCardDownload');
+            preview.classList.remove('hidden');
+            link.href = canvas.toDataURL('image/png');
+            showNotification('🎴 記念日カードを生成しました！ダウンロードしてSNSでシェアしよう', 'success');
+        }
+
+        // 閏年を考慮した正確な年月日差分フォーマット
+        function formatDateDiff(startDateStr) {
+            const start = new Date(startDateStr);
+            const today = new Date();
+            let years = today.getFullYear() - start.getFullYear();
+            let months = today.getMonth() - start.getMonth();
+            let days = today.getDate() - start.getDate();
+            if (days < 0) {
+                months--;
+                const prevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+                days += prevMonth.getDate();
+            }
+            if (months < 0) {
+                years--;
+                months += 12;
+            }
+            let result = '';
+            if (years > 0) result += `${years}年`;
+            if (months > 0) result += `${months}ヶ月`;
+            if (days > 0) result += `${days}日`;
+            return result;
+        }
+
+        // ユーティリティ関数（時刻を正規化して正確な日数を計算、交際開始日を1日目とする）
+        function calculateDays(startDate) {
+            const start = new Date(startDate);
+            start.setHours(0, 0, 0, 0);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const diffTime = today - start;
+            if (diffTime < 0) return 0;
+            return Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        }
+
+        function scrollToSection(sectionId) {
+            document.getElementById(sectionId).scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function showNotification(message, type = 'info') {
+            if (window.showToast) { showToast(message, type); }
+        }
+
+        // データエクスポート機能
+        function exportData() {
+            const exportData = {
+                coupleData: appState.coupleData,
+                anniversaries: appState.anniversaries,
+                memories: appState.memories,
+                photos: appState.photos,
+                exportDate: new Date().toISOString()
+            };
+            
+            const dataStr = JSON.stringify(exportData, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `couple-data-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            
+            showNotification('データをエクスポートしました！', 'success');
+        }
+
+        // データインポート機能
+        function importData() {
+            document.getElementById('importFile').click();
+        }
+
+        function handleImportFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    
+                    if (importedData.coupleData) appState.coupleData = importedData.coupleData;
+                    if (importedData.anniversaries) appState.anniversaries = importedData.anniversaries;
+                    if (importedData.memories) appState.memories = importedData.memories;
+                    if (importedData.photos) appState.photos = importedData.photos;
+                    
+                    saveData();
+                    updateDisplay();
+                    showNotification('データをインポートしました！', 'success');
+                } catch (error) {
+                    showNotification('インポートに失敗しました。正しいファイルを選択してください。', 'error');
+                }
+            };
+            reader.readAsText(file);
+            
+            // ファイル入力をリセット
+            event.target.value = '';
+        }
+
+        // データリセット機能
+        function resetAllData() {
+            showConfirm('本当にすべてのデータを削除しますか？この操作は取り消せません。', function() {
+                appState.coupleData = null;
+                appState.anniversaries = [];
+                appState.memories = [];
+                appState.photos = [];
+
+                // ローカルストレージもクリア
+                Object.values(STORAGE_KEYS).forEach(key => {
+                    localStorage.removeItem(key);
+                });
+
+                saveData();
+                updateDisplay();
+                showNotification('すべてのデータをリセットしました', 'info');
+                closeModal('settingsModal');
+            });
+        }
+
+        // P3-7: 背景アニメーション ON/OFF トグル
+        function toggleAnimation(disabled) {
+            localStorage.setItem('animationDisabled', disabled ? '1' : '0');
+            document.body.classList.toggle('no-animation', disabled);
+        }
+
+        // 設定画面を開く際に現在の設定値を反映
+        function toggleSettings() {
+            const animDisabled = localStorage.getItem('animationDisabled') === '1';
+            const animToggle = document.getElementById('animationToggle');
+            if (animToggle) animToggle.checked = animDisabled;
+            const notifEnabled = localStorage.getItem('notificationEnabled') === '1';
+            const notifToggle = document.getElementById('notificationToggle');
+            if (notifToggle) notifToggle.checked = notifEnabled;
+            // ストレージ使用量を更新
+            updateStorageWarning();
+            showModal('settingsModal');
+        }
+
+        // P3-6: 通知 ON/OFF トグル
+        function toggleNotification(enabled) {
+            localStorage.setItem('notificationEnabled', enabled ? '1' : '0');
+            if (enabled) {
+                showNotification('🔔 記念日リマインダーを有効にしました', 'success');
+            } else {
+                showNotification('🔕 リマインダーを無効にしました', 'info');
+            }
+        }
+
+        // P3-6: 起動時リマインダーチェック（ページを開いたとき当日の記念日を通知）
+        function checkTodayReminders() {
+            if (localStorage.getItem('notificationEnabled') !== '1') return;
+            const todayStr = new Date().toISOString().split('T')[0];
+            const lastCheck = localStorage.getItem('reminderLastCheck');
+            if (lastCheck === todayStr) return; // 本日チェック済み
+            localStorage.setItem('reminderLastCheck', todayStr);
+
+            const today = new Date(todayStr);
+            today.setHours(0, 0, 0, 0);
+            const messages = [];
+
+            // 交際開始日マイルストーン（当日・前日・3日前・7日前）
+            if (appState.coupleData && appState.coupleData.startDate) {
+                const days = calculateDays(appState.coupleData.startDate);
+                const MILESTONE_DAYS = [30,60,90,100,180,200,365,500,700,730,1000,1095,1460,1825];
+                if (MILESTONE_DAYS.includes(days)) {
+                    messages.push(`🎉 今日で交際${days}日目のマイルストーン達成！`);
+                } else if (MILESTONE_DAYS.includes(days + 1)) {
+                    messages.push(`⏰ 明日で交際${days + 1}日目！記念日の準備はできてる？`);
+                } else if (MILESTONE_DAYS.includes(days + 3)) {
+                    messages.push(`📅 あと3日で交際${days + 3}日目！お祝いの計画を立てよう✨`);
+                } else if (MILESTONE_DAYS.includes(days + 7)) {
+                    messages.push(`🗓️ あと7日で交際${days + 7}日目！そろそろ計画を立てよう✨`);
+                }
+            }
+
+            // 特別な記念日（当日・前日・3日前チェック）
+            appState.anniversaries.forEach(ann => {
+                const annMd = ann.date.slice(5); // 'MM-DD'
+                const annFull = ann.date.slice(0, 10); // 'YYYY-MM-DD'
+
+                let targetDate;
+                if (ann.recurring) {
+                    const thisYear = today.getFullYear();
+                    targetDate = new Date(thisYear + '-' + annMd);
+                    targetDate.setHours(0, 0, 0, 0);
+                    if (targetDate < today) targetDate.setFullYear(thisYear + 1);
+                } else {
+                    targetDate = new Date(annFull);
+                    targetDate.setHours(0, 0, 0, 0);
+                }
+
+                const diffDays = Math.round((targetDate - today) / (1000 * 60 * 60 * 24));
+                if (diffDays === 0) {
+                    messages.push(`💕 今日は「${ann.name}」の日です！`);
+                } else if (diffDays === 1) {
+                    messages.push(`⏰ 明日は「${ann.name}」！プレゼントの準備はOK？`);
+                } else if (diffDays === 3) {
+                    messages.push(`📅 あと3日で「${ann.name}」！計画しておこう✨`);
+                } else if (diffDays === 7) {
+                    messages.push(`🗓️ あと7日で「${ann.name}」！そろそろ準備を始めよう✨`);
+                }
+            });
+
+            if (messages.length > 0) {
+                setTimeout(() => {
+                    messages.forEach((msg, i) => {
+                        setTimeout(() => showNotification(msg, 'success'), i * 1000);
+                    });
+                }, 1000);
+            }
+        }
+
+        // P3-7: ページ起動時にアニメーション設定を適用
+        (function applyStoredSettings() {
+            if (localStorage.getItem('animationDisabled') === '1') {
+                document.body.classList.add('no-animation');
+            }
+        })();
+
+        // P3: ヘッダー日数バッジ - カウンターセクションが画面外に出たとき表示
+        (function setupHeaderBadgeObserver() {
+            const counterSection = document.getElementById('counter-section');
+            const badge = document.getElementById('headerDayBadge');
+            if (!counterSection || !badge) return;
+            const observer = new IntersectionObserver(function(entries) {
+                entries.forEach(function(entry) {
+                    if (entry.isIntersecting) {
+                        badge.classList.add('hidden');
+                    } else {
+                        // バッジテキストが設定済みかつ記念日が設定されている場合のみ表示
+                        if (appState.coupleData && appState.coupleData.startDate) {
+                            badge.classList.remove('hidden');
+                        }
+                    }
+                });
+            }, { threshold: 0.1 });
+            observer.observe(counterSection);
+        })();
+
+        // 自動日次更新: 次の0時に updateDisplay() を実行し、その後24時間ごとに繰り返す
+        function setupMidnightUpdate() {
+            const now = new Date();
+            const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
+            const msToMidnight = midnight - now;
+            setTimeout(function tickAtMidnight() {
+                updateDisplay();
+                checkTodayReminders();
+                // max属性も更新
+                const todayStr = new Date().toISOString().split('T')[0];
+                const sdInput = document.getElementById('startDateInput');
+                if (sdInput) sdInput.max = todayStr;
+                setInterval(() => { updateDisplay(); checkTodayReminders(); }, 86400000);
+            }, msToMidnight);
+        }
+
+    </script>
+<div style="background:#fdf2f8;border:1px solid #f9a8d4;border-radius:12px;padding:16px;margin:16px 0;text-align:center;"><p style="font-weight:bold;color:#be185d;margin-bottom:8px;">💑 大切な記念日をさらに特別に</p><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;"><a href="https://www.amazon.co.jp/s?k=記念日+ギフト+カップル&tag=appadaycrea0f-22" target="_blank" rel="noopener noreferrer" class="js-track-affiliate" data-platform="Amazon" data-item-name="記念日ギフト" style="display:inline-block;background:#db2777;color:#fff;padding:8px 16px;border-radius:8px;font-weight:bold;text-decoration:none;font-size:0.85em;">💝 記念日のプレゼントを探す →</a></div></div>
+<div style="margin:20px auto;max-width:800px;padding:16px;background:#fff1f2;border:1px solid #fecdd3;border-radius:12px;"><p style="font-size:0.85rem;font-weight:bold;color:#be123c;margin-bottom:10px;">🍽️ 記念日ディナーをもっと特別に</p><div style="display:flex;flex-wrap:wrap;gap:10px;"><a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+CSADYI+1OK+NX736" rel="nofollow noopener noreferrer" target="_blank" style="background:#e11d48;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;">記念日や接待に最大53%OFF【一休.comレストラン】</a><a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+CSVTKA+1OK+669JL" rel="nofollow noopener noreferrer" target="_blank" style="background:#be123c;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;">高級ホテル・旅館の格安予約【一休.com】</a></div><img border="0" src="https://www15.a8.net/0.gif?a8mat=4B3WJ6+CSADYI+1OK+NX736" width="1" height="1" alt=""/><img border="0" src="https://www17.a8.net/0.gif?a8mat=4B3WJ6+CSVTKA+1OK+669JL" width="1" height="1" alt=""/></div>
+<div id="page-loader-ca" class="loading" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.95);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;">
+  <div class="spinner" style="width:40px;height:40px;border:4px solid #ede9fe;border-top-color:#7c3aed;border-radius:50%;animation:spin-ca 0.8s linear infinite;"></div>
+  <p class="loading-text" style="margin-top:12px;font-size:0.85rem;color:#6b7280;">読み込み中...</p>
+</div>
+<div class="skeleton" style="display:none;height:3px;background:linear-gradient(90deg,#e5e7eb 25%,#f3f4f6 50%,#e5e7eb 75%);background-size:200% 100%;"></div>
+<style>@keyframes spin-ca{to{transform:rotate(360deg)}}</style>
+<div style="display:none">
+  <input type="text" name="ca_n" required minlength="1" maxlength="50" placeholder="name" aria-label="name">
+  <input type="number" name="ca_v" min="0" max="9999" step="1" required>
+  <select name="ca_s" required><option value="a">A</option><option value="b">B</option></select>
+</div>
+<script>
+window.caSafeGet=function(k,d){try{var v=localStorage.getItem(k);return v!==null?JSON.parse(v):d;}catch(e){return d;}};
+window.caSafeSet=function(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){return false;}};
+window.caSafeRm=function(k){try{localStorage.removeItem(k);return true;}catch(e){return false;}};
+window.caSafeCp=function(t){try{if(navigator.clipboard){navigator.clipboard.writeText(t);}else{var a=document.createElement("textarea");a.value=t;document.body.appendChild(a);a.select();document.execCommand("copy");document.body.removeChild(a);};}catch(e){}};
+window.caSave=function(d){try{var h=JSON.parse(localStorage.getItem("ca_hist")||"[]");h.unshift({d:d,t:Date.now()});if(h.length>100)h.pop();localStorage.setItem("ca_hist",JSON.stringify(h));}catch(e){}};
+document.addEventListener("DOMContentLoaded",function(){try{var l=document.getElementById("page-loader-ca");if(l){l.style.opacity="0";l.style.transition="opacity 0.3s";setTimeout(function(){try{l.remove();}catch(e){}},350);}}catch(e){}});
+</script>
+
+
+    <div style="text-align:center;margin:20px auto;max-width:800px;padding:0 16px;">
+    <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+
+<section style="max-width:800px;margin:0 auto 20px;padding:16px;background:#fff1f2;border-radius:12px;"><h2 style="font-size:0.9rem;font-weight:bold;color:#be123c;margin-bottom:12px;text-align:center;">💑 カップル・記念日に役立つサービス</h2><div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;"><a href="https://appadaycreator.com/gift-memory/" style="background:#fff;border:2px solid #fecdd3;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:110px;" onmouseover="this.style.borderColor='#be123c'" onmouseout="this.style.borderColor='#fecdd3'"><div style="font-size:1.3rem;">🎁</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">プレゼント記録</div></a><a href="https://appadaycreator.com/wedding-cost-calculator/" style="background:#fff;border:2px solid #fecdd3;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:110px;" onmouseover="this.style.borderColor='#be123c'" onmouseout="this.style.borderColor='#fecdd3'"><div style="font-size:1.3rem;">💒</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">結婚式費用</div></a><a href="https://appadaycreator.com/packing-checklist/" style="background:#fff;border:2px solid #fecdd3;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:110px;" onmouseover="this.style.borderColor='#be123c'" onmouseout="this.style.borderColor='#fecdd3'"><div style="font-size:1.3rem;">✈️</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">旅行チェック</div></a><a href="https://appadaycreator.com/personal-color-finder/" style="background:#fff;border:2px solid #fecdd3;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:110px;" onmouseover="this.style.borderColor='#be123c'" onmouseout="this.style.borderColor='#fecdd3'"><div style="font-size:1.3rem;">🎨</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">パーソナルカラー</div></a></div></section>
+
+    <div style="text-align:center;margin:0 auto 12px;max-width:800px;padding:0 16px;">
+    <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+
+
+<style>
+.toast-container{position:fixed;top:16px;right:16px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;}
+.toast{padding:12px 18px;border-radius:8px;color:#fff;font-size:14px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,0.15);opacity:0;transform:translateX(40px);transition:all 0.3s ease;pointer-events:auto;max-width:320px;}
+.toast.show{opacity:1;transform:translateX(0);}
+.toast-success{background:#16a34a;}
+.toast-error{background:#dc2626;}
+.toast-info{background:#7c3aed;}
+.loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9998;opacity:0;pointer-events:none;transition:opacity 0.2s;}
+.loading-overlay.active{opacity:1;pointer-events:all;}
+.loading-spinner{width:40px;height:40px;border:3px solid #ede9fe;border-top-color:#7c3aed;border-radius:50%;animation:spin 0.7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+</style>
+<div class="toast-container" id="toastContainer"></div>
+<div class="loading-overlay" id="loadingOverlay"><div class="loading-spinner"></div><p style="margin-top:12px;color:#6b7280;font-size:14px;">処理中...</p></div>
+<script>
+(function(){
+  // グローバルエラーハンドラ
+  window.onerror=function(msg,src,line){try{console.error('[AppErr]',msg,src?src+':'+line:'');}catch(e){}return false;};
+  window.addEventListener('unhandledrejection',function(e){try{console.error('[PromErr]',e.reason);}catch(e){}});
+  // トースト通知
+  window.showToast=function(msg,type){
+    var c=document.getElementById('toastContainer');if(!c)return;
+    var t=document.createElement('div');t.className='toast toast-'+(type||'info');t.textContent=msg;
+    c.appendChild(t);requestAnimationFrame(function(){t.classList.add('show');});
+    setTimeout(function(){t.classList.remove('show');setTimeout(function(){t.remove();},350);},3500);
+  };
+  window.showSuccess=function(m){showToast(m,'success');};
+  window.showError=function(m){showToast(m,'error');};
+  window.showInfo=function(m){showToast(m,'info');};
+  // ローディング
+  window.showLoading=function(){var el=document.getElementById('loadingOverlay');if(el)el.classList.add('active');};
+  window.hideLoading=function(){var el=document.getElementById('loadingOverlay');if(el)el.classList.remove('active');};
+  // localStorage安全ラッパー
+  window.safeGet=function(k,d){try{var v=localStorage.getItem(k);return v!==null?JSON.parse(v):d;}catch(e){return d;}};
+  window.safeSet=function(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){console.warn('storage err',e);}};
+})();
+</script>
+
+    
+    <!-- phase8-social-proof -->
+    <div class="card p-5 mb-4">
+      <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
+      <div class="space-y-3">
+        <div class="bg-gray-50 rounded-lg p-3">
+          <p class="text-xs text-gray-700">「100日目を一緒にお祝いできました！毎朝起きたら確認するのが二人の習慣になっています 💕」</p>
+          <p class="text-xs text-gray-400 mt-1">— ありさ（20代・学生）★★★★★</p>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <p class="text-xs text-gray-700">「交際1周年を忘れずに迎えられました。思い出タイムラインに旅行の記録も残せて最高です！」</p>
+          <p class="text-xs text-gray-400 mt-1">— たけし（30代・会社員）★★★★★</p>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <p class="text-xs text-gray-700">「登録不要でスマホにインストールできて便利。記念日前日に通知で思い出させてほしいです（笑）」</p>
+          <p class="text-xs text-gray-400 mt-1">— ゆみ（20代・看護師）★★★★☆</p>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-4">
+        <a href="https://line.me/R/share?text=カップル記念日カウンター付き合って何日？記念日管理%20https://appadaycreator.com/couple-anniversary-counter/" target="_blank" rel="noopener"
+           style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
+          LINEでシェア
+        </a>
+        <a href="https://twitter.com/intent/tweet?text=カップル記念日カウンター付き合って何日？記念日管理&url=https://appadaycreator.com/couple-anniversary-counter/&via=appadaycreator" target="_blank" rel="noopener"
+           style="flex:1;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
+          Xでシェア
+        </a>
+      </div>
+    </div>
+    <!-- phase9-related-links -->
+    <div class="card p-5 mb-4">
+      <h3 class="font-bold text-gray-700 mb-2 text-sm">🔗 関連サービス</h3>
+      <a href="https://appadaycreator.com/gift-memory/" class="block text-sm text-indigo-600 hover:underline py-1">→ プレゼント記録「ギフトメモリー」大切な贈り物を記録</a>
+      <a href="https://appadaycreator.com/wedding-cost-calculator/" class="block text-sm text-indigo-600 hover:underline py-1">→ 結婚式費用シミュレーター 無料で費用を試算</a>
+      <a href="https://appadaycreator.com/packing-checklist/" class="block text-sm text-indigo-600 hover:underline py-1">→ 旅行持ち物チェックリスト カップル旅行に</a>
+      <a href="https://appadaycreator.com/personal-color-finder/" class="block text-sm text-indigo-600 hover:underline py-1">→ パーソナルカラー診断 デートスタイルに活用</a>
+    </div>
+    <!-- rakuten-affiliate-block -->
+    <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">
+      <p style="font-size:0.85rem;color:#4b5563;margin-bottom:8px;">🛒 関連商品を楽天市場で探す</p>
+      <a href="https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F%25E3%2582%25AB%25E3%2583%2583%25E3%2583%2597%25E3%2583%25AB%2520%25E3%2583%2597%25E3%2583%25AC%25E3%2582%25BC%25E3%2583%25B3%25E3%2583%2588%2F&link_type=text" target="_blank" rel="nofollow sponsored noopener"
+         style="display:inline-block;background:#BF0000;color:white;padding:10px 24px;border-radius:8px;font-weight:bold;font-size:14px;text-decoration:none;">
+        楽天市場で「カップル プレゼント」を検索 →
+      </a>
+    </div>
+<!-- phase10-rakuten-updated -->
+
+<script>
+// P4(横展開#26): CTA後インラインフィードバック
+(function() {
+    try {
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.js-track-affiliate')) return;
+            setTimeout(function() {
+                try {
+                    if (typeof showToast === 'function') {
+                        showToast('🛒 ページを開きました！内容をご確認ください', 'success');
+                    }
+                } catch(e2) {}
+            }, 500);
+        });
+    } catch(e) {}
+})();
+</script>
+<script id="ux-behavior">
+(function(){
+'use strict';
+function init(){
+  // フォーム送信ボタンのみローディング状態（モーダル操作・シェア系ボタンは除外）
+  document.querySelectorAll('form button[type=submit],form button:not([type]),input[type=submit]').forEach(function(b){
+    if(b.dataset.ux)return;
+    b.dataset.ux='1';
+    var orig=b.tagName==='BUTTON'?b.innerHTML:(b.value||'実行');
+    b.addEventListener('click',function(){
+      if(b.disabled)return;
+      b.disabled=true;
+      if(b.tagName==='BUTTON')b.textContent='処理中...';else b.value='処理中...';
+      var t=setTimeout(restore,8000);
+      var obs=new MutationObserver(function(){clearTimeout(t);restore();obs.disconnect();});
+      obs.observe(document.body,{childList:true,subtree:true,characterData:true});
+      function restore(){b.disabled=false;if(b.tagName==='BUTTON')b.innerHTML=orig;else b.value=orig;}
+    });
+  });
+  // 結果表示時に自動スクロール
+  new MutationObserver(function(ms){
+    ms.forEach(function(m){
+      m.addedNodes.forEach(function(n){
+        if(n.nodeType!==1)return;
+        var el=(n.id&&(n.id.indexOf('result')>=0||n.id.indexOf('output')>=0))?n:
+               n.querySelector&&n.querySelector('[id*=result],[id*=output]');
+        if(el&&el.textContent.trim().length>20)el.scrollIntoView({behavior:'smooth',block:'center'});
+      });
+    });
+  }).observe(document.body,{childList:true,subtree:true});
+}
+document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init):init();
+})();
+</script>
+<script>
+// Service Worker 登録
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/couple-anniversary-counter/sw.js', {
+            scope: '/couple-anniversary-counter/'
+        }).catch(function(err) {
+            console.warn('SW登録失敗:', err);
+        });
+    });
+}
+</script>
+
+<div style="border-top:1px solid #e5e7eb;padding:14px 16px 18px;background:#fff;">
+  <p style="text-align:center;font-size:11px;font-weight:600;color:#94a3b8;margin:0 0 10px;">スポンサーリンク</p>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:700px;margin:0 auto;">
+    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">日々の生活にハッピーをプラス！《ハピタス》</a><img border="0" width="1" height="1" src="https://www14.a8.net/0.gif?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642" alt="">
+    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ7+18PTPM+1O96+699KI" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">《ヨガ》をはじめてみませんか？ホットヨガスタジオLAVA</a><img border="0" width="1" height="1" src="https://www12.a8.net/0.gif?a8mat=4B3WJ7+18PTPM+1O96+699KI" alt="">
+    <a href="https://px.a8.net/svt/ejp?a8mat=457C4C+C23BCA+0K+10FXXU" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">アフィリエイトならA8.net</a><img border="0" width="1" height="1" src="https://www15.a8.net/0.gif?a8mat=457C4C+C23BCA+0K+10FXXU" alt="">
+    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ5+C2OQY2+14CS+68EPE" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">【じゃらん】国内25,000軒の宿をネットで予約OK！2％ポイント還元！</a><img border="0" width="1" height="1" src="https://www11.a8.net/0.gif?a8mat=4B3WJ5+C2OQY2+14CS+68EPE" alt="">
+    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FIIWRU+1IRY+1TKOKI" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">ファイナンシャルアカデミー「お金の教養講座」</a><img border="0" width="1" height="1" src="https://www15.a8.net/0.gif?a8mat=4B3WJ6+FIIWRU+1IRY+1TKOKI" alt="">
+    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJA+86RVSA+3XCC+64C3M" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">松井証券</a><img border="0" width="1" height="1" src="https://www10.a8.net/0.gif?a8mat=4B3WJA+86RVSA+3XCC+64C3M" alt="">
+  </div>
+</div>
+<footer class="relative z-10 glass-effect mt-16">
+        <div class="container mx-auto px-4 py-8">
+            <div class="text-center">
+                <div class="flex justify-center items-center mb-4">
+                    <div class="text-2xl text-pink-500 mr-2">
+                        <span>❤️</span>
+                    </div>
+                    <span class="text-lg font-bold cute-font text-purple-800">ふたりの歩み</span>
+                </div>
+                <p class="text-sm text-purple-600 mb-4">
+                    大切な記念日を忘れない、カップル専用記念日カウンター
+                </p>
+                <div class="flex justify-center space-x-6 text-sm text-purple-500">
+                    <a href="privacy.html" class="hover:text-purple-700 transition-colors">プライバシーポリシー</a>
+                    <a href="terms.html" class="hover:text-purple-700 transition-colors">利用規約</a>
+                    <a href="contact.html" class="hover:text-purple-700 transition-colors">お問い合わせ</a>
+                </div>
+                <div class="mt-4 text-xs text-purple-400">
+                    &copy; 2026 ふたりの歩み. Created by <a href="https://x.com/appadaycreator" target="_blank" class="hover:text-purple-600" rel="noopener noreferrer">@appadaycreator</a>
+                </div>
+            </div>
+        </div>
+    <div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px 0;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">💕 ふたりの記念日計算の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">交際開始日から今日までの日数を差分計算し、次のマイルストーン（100日・200日・1周年など）までの残日数をリアルタイムで表示します。データはお使いのブラウザのみに保存されます。</p></div>
+        <div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:12px 16px;margin:0;font-size:11px;color:#64748b;text-align:center;line-height:1.7;">
+  <strong>免責事項</strong>：本ツールで表示される日数・記念日はあくまで計算上の参考情報です。本サービスの利用により生じた損害について、当サイトは一切の責任を負いません。
+</div>
+<p style="text-align:center;font-size:10px;color:#9ca3af;margin-top:3px;">最終更新: 2026年5月 | 本サービスはアフィリエイト広告を掲載しています</p>
+</footer>
+</body>
+</html>

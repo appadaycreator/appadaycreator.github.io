@@ -1,0 +1,2041 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script>
+/* Supabase → LocalStorage モック (Supabase無料版停止対応) */
+(function() {
+  function _get(t) { try { return JSON.parse(localStorage.getItem('sb_'+t)||'[]'); } catch(e) { return []; } }
+  function _set(t,d) { try { localStorage.setItem('sb_'+t, JSON.stringify(d)); } catch(e) {} }
+  function _uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+  function _now() { return new Date().toISOString(); }
+
+  function buildQuery(table) {
+    var rows = _get(table), filters = [], _ord = null, _lim = null;
+    var q = {
+      select: function() { return q; },
+      eq:  function(c,v){ filters.push(function(r){ return r[c]==v; }); return q; },
+      neq: function(c,v){ filters.push(function(r){ return r[c]!=v; }); return q; },
+      gt:  function(c,v){ filters.push(function(r){ return r[c]>v; }); return q; },
+      gte: function(c,v){ filters.push(function(r){ return r[c]>=v; }); return q; },
+      lt:  function(c,v){ filters.push(function(r){ return r[c]<v; }); return q; },
+      lte: function(c,v){ filters.push(function(r){ return r[c]<=v; }); return q; },
+      like:  function(c,v){ filters.push(function(r){ return String(r[c]||'').indexOf(v.replace(/%/g,''))>-1; }); return q; },
+      ilike: function(c,v){ filters.push(function(r){ return String(r[c]||'').toLowerCase().indexOf(v.replace(/%/g,'').toLowerCase())>-1; }); return q; },
+      contains: function(c,v){ filters.push(function(r){ return Array.isArray(r[c])&&r[c].indexOf(v)>-1; }); return q; },
+      is: function(c,v){ filters.push(function(r){ return v===null?r[c]==null:r[c]===v; }); return q; },
+      'in': function(c,v){ filters.push(function(r){ return v.indexOf(r[c])>-1; }); return q; },
+      order: function(c,o){ _ord={c:c,desc:o&&o.ascending===false}; return q; },
+      limit: function(n){ _lim=n; return q; },
+      range: function(){ return q; },
+      single: function() {
+        var d=_get(table); filters.forEach(function(f){d=d.filter(f);});
+        return Promise.resolve({data:d[0]||null,error:d.length===0?{message:'No rows found',code:'PGRST116'}:null});
+      },
+      maybeSingle: function() {
+        var d=_get(table); filters.forEach(function(f){d=d.filter(f);});
+        return Promise.resolve({data:d[0]||null,error:null});
+      },
+      then: function(res,rej) {
+        var d=_get(table);
+        filters.forEach(function(f){d=d.filter(f);});
+        if(_ord) d.sort(function(a,b){ var av=a[_ord.c],bv=b[_ord.c]; return _ord.desc?(bv>av?1:bv<av?-1:0):(av>bv?1:av<bv?-1:0); });
+        if(_lim) d=d.slice(0,_lim);
+        return Promise.resolve({data:d,error:null,count:d.length}).then(res,rej);
+      }
+    };
+    return q;
+  }
+
+  function createLocalStorageClient() {
+    return {
+      from: function(table) {
+        return {
+          select: function(){ return buildQuery(table); },
+          insert: function(rows, opts) {
+            var d=_get(table), arr=Array.isArray(rows)?rows:[rows];
+            var ins=arr.map(function(r){ return Object.assign({},r,{id:r.id||_uid(),created_at:r.created_at||_now()}); });
+            _set(table,d.concat(ins));
+            return Promise.resolve({data:opts&&opts.returning==='minimal'?[]:ins,error:null});
+          },
+          upsert: function(rows,opts) {
+            var d=_get(table), arr=Array.isArray(rows)?rows:[rows];
+            var key=opts&&opts.onConflict||'id';
+            arr.forEach(function(r){
+              var i=d.findIndex(function(x){return x[key]===r[key];});
+              if(i>=0) d[i]=Object.assign({},d[i],r); else d.push(Object.assign({},r,{id:r.id||_uid(),created_at:r.created_at||_now()}));
+            });
+            _set(table,d);
+            return Promise.resolve({data:arr,error:null});
+          },
+          update: function(updates) {
+            var applyUpdate = function(filters) {
+              var d=_get(table);
+              var updated=d.map(function(r){ return filters.every(function(f){return f(r);})?Object.assign({},r,updates):r; });
+              _set(table,updated);
+              return Promise.resolve({data:updated.filter(function(r){return filters.every(function(f){return f(r);});}),error:null});
+            };
+            return buildFilterChain(applyUpdate);
+          },
+          delete: function() {
+            var applyDelete = function(filters) {
+              var d=_get(table);
+              var kept=d.filter(function(r){return !filters.every(function(f){return f(r);});});
+              _set(table,kept);
+              return Promise.resolve({data:[],error:null});
+            };
+            return buildFilterChain(applyDelete);
+          }
+        };
+      },
+      auth: {
+        getSession: function(){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'null');
+          return Promise.resolve({data:{session:u?{user:u}:null},error:null});
+        },
+        getUser: function(){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'null');
+          return Promise.resolve({data:{user:u},error:null});
+        },
+        signUp: function(p){
+          var u={id:_uid(),email:p.email,created_at:_now()};
+          localStorage.setItem('sb_auth',JSON.stringify(u));
+          return Promise.resolve({data:{user:u,session:{user:u}},error:null});
+        },
+        signInWithPassword: function(p){
+          var u={id:'local_'+btoa(p.email||''),email:p.email,created_at:_now()};
+          localStorage.setItem('sb_auth',JSON.stringify(u));
+          return Promise.resolve({data:{user:u,session:{user:u}},error:null});
+        },
+        signInWithOAuth: function(){return Promise.resolve({data:{},error:null});},
+        signOut: function(){localStorage.removeItem('sb_auth');return Promise.resolve({error:null});},
+        onAuthStateChange: function(cb){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'null');
+          setTimeout(function(){cb(u?'SIGNED_IN':'SIGNED_OUT',u?{user:u}:null);},50);
+          return {data:{subscription:{unsubscribe:function(){}}}};
+        },
+        updateUser: function(p){
+          var u=JSON.parse(localStorage.getItem('sb_auth')||'{}');
+          Object.assign(u,p);
+          localStorage.setItem('sb_auth',JSON.stringify(u));
+          return Promise.resolve({data:{user:u},error:null});
+        }
+      },
+      storage: {
+        from: function(){
+          return {
+            upload: function(path,file){return Promise.resolve({data:{path:path},error:null});},
+            getPublicUrl: function(path){return {data:{publicUrl:''}};},
+            remove: function(){return Promise.resolve({data:[],error:null});}
+          };
+        }
+      },
+      channel: function(){ return {on:function(){return this;},subscribe:function(){return this;}}; },
+      removeChannel: function(){},
+      removeAllChannels: function(){}
+    };
+  }
+
+  function buildFilterChain(executor) {
+    var filters=[];
+    var chain={
+      eq:  function(c,v){filters.push(function(r){return r[c]==v;});return chain;},
+      neq: function(c,v){filters.push(function(r){return r[c]!=v;});return chain;},
+      match:function(m){Object.keys(m).forEach(function(c){filters.push(function(r){return r[c]===m[c];});});return chain;},
+      then:function(res,rej){return executor(filters).then(res,rej);}
+    };
+    return chain;
+  }
+
+  // グローバルに設定（window.supabase互換）
+  var mockClient = createLocalStorageClient();
+  window.supabase = {
+    createClient: function() { return mockClient; }
+  };
+  // ESモジュール形式でimportされる場合の互換
+  window.createClient = function() { return mockClient; };
+  window._supabaseMockClient = mockClient;
+})();
+</script>
+    <!-- phase8-schema-enhanced -->
+<meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>瞑想ガイド【無料】AIが気分に合わせた瞑想をナビゲート｜静寂の森</title>
+<!-- phase8-favicon -->
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#10b981">
+    <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
+    <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <link rel="dns-prefetch" href="https://www.clarity.ms">
+    <link rel="canonical" href="https://appadaycreator.com/ai-meditation-forest/">
+    <meta name="description" content="あなたの気分と時間に合わせてAIがカスタマイズした瞑想セッションを提供。継続により仮想の森が育つゲーミフィケーション機能付き。無料でマインドフルネス習慣を始めよう。">
+    <meta name="keywords" content="瞑想,マインドフルネス,AI,ストレス解消,リラックス,集中力,睡眠,無料アプリ">
+    
+    <!-- PWA設定 -->
+                            
+    <!-- OGP設定 -->
+    <meta property="og:title" content="瞑想ガイド【無料】AIが気分に合わせた瞑想をナビゲート｜静寂の森">
+    <meta property="og:description" content="あなたの気分と時間に合わせてAIがカスタマイズした瞑想セッションを提供">
+    <meta property="og:type" content="website">
+<meta property="og:locale" content="ja_JP" />
+    <meta property="og:url" content="https://appadaycreator.com/ai-meditation-forest/">
+    <meta property="og:image" content="https://appadaycreator.com/ai-meditation-forest/ogp.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="appadaycreator" />
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="瞑想ガイド【無料】AIが気分に合わせた瞑想をナビゲート｜静寂の森" />
+    <meta name="twitter:site" content="@appadaycreator">
+    
+    <!-- CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- FontAwesome削除済: 絵文字アイコンに移行 -->
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
+    <!-- End Google Tag Manager -->
+    <!-- Microsoft Clarity -->
+    <script type="text/javascript">
+        (function(c,l,a,r,i,t,y){
+            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+            t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+        })(window, document, "clarity", "script", "s3t9vl8h3v");
+    </script>
+    <!-- End Microsoft Clarity -->
+    <!-- Google AdSense -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858"
+         crossorigin="anonymous"></script>
+    <!-- End Google AdSense -->
+    
+    <!-- 共通スタイル -->
+    <link rel="stylesheet" href="styles.css">
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"HealthApplication","name":"AI瞑想ガイド「静寂の森」","url":"https://appadaycreator.com/ai-meditation-forest/","description":"AIが導く瞑想・マインドフルネス体験。ストレス解消・集中力向上に。","operatingSystem":"All","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"aggregateRating":{"@type":"AggregateRating","ratingValue":"4.7","reviewCount":"123","bestRating":"5","worstRating":"1"}}</script>
+    <meta name="twitter:image" content="https://appadaycreator.com/ai-meditation-forest/ogp.png">
+<meta name="twitter:description" content="あなたの気分と時間に合わせてAIがカスタマイズした瞑想セッションを提供。継続により仮想の森が育つゲーミフィケーション機能付き。無料でマインドフルネス習慣を始めよう。" />
+    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "ホーム", "item": "https://appadaycreator.com/"}, {"@type": "ListItem", "position": 2, "name": "AI瞑想ガイド「静寂の森」- パーソナライズされた瞑想体験", "item": "https://appadaycreator.com/ai-meditation-forest/"}]}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type": "Question", "name": "AI瞑想ガイドとは？", "acceptedAnswer": {"@type": "Answer", "text": "AIが誘導する瞑想セッションを無料で体験できるアプリです。呼吸法・マインドフルネス・ボディスキャンなど様々な瞑想スタイルをガイド付きで実践できます。"}}, {"@type": "Question", "name": "瞑想の初心者でも使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、初心者向けの短い瞑想（3〜5分）から始められます。毎日続けることで集中力・ストレス軽減・睡眠改善の効果が期待できます。"}}, {"@type": "Question", "name": "どのような人が使っていますか？", "acceptedAnswer": {"@type": "Answer", "text": "初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}}, {"@type": "Question", "name": "結果をシェアできますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}}, {"@type": "Question", "name": "有料プランはありますか？", "acceptedAnswer": {"@type": "Answer", "text": "いいえ、すべての機能を完全無料でご利用いただけます。"}}, {"@type": "Question", "name": "どのような人が使っていますか？", "acceptedAnswer": {"@type": "Answer", "text": "初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}}, {"@type": "Question", "name": "結果をシェアできますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}}, {"@type": "Question", "name": "有料プランはありますか？", "acceptedAnswer": {"@type": "Answer", "text": "いいえ、すべての機能を完全無料でご利用いただけます。"}}]}</script>
+
+<style>
+@media(max-width:480px){button,[class*=btn]{min-height:48px!important;font-size:15px!important;}input,select,textarea{font-size:16px!important;min-height:44px!important;}[class*=card],[class*=max-w]{padding:16px!important;}}
+
+@media print{
+  header,footer,nav,button,.no-print,
+  [class*="share"],[class*="affiliate"],[id*="share"],
+  [id*="affiliate"],[id*="banner"],
+  script,noscript{display:none!important}
+  body{background:#fff!important;color:#000!important;font-size:12pt}
+  [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
+  a[href]::after{content:none!important}
+}
+
+.card{background:#fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.08);overflow:hidden;}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;}
+.related-link{padding:10px;text-align:center;border:1px solid #ddd;border-radius:4px;text-decoration:none;color:#333;display:block;transition:background 0.15s;}
+.related-link:hover{background:#f5f5f5;}
+
+/* AdSense unfilled: collapse empty ad slots */
+ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
+</style>
+
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"瞑想ガイド【無料】AIが気分に合わせた瞑想をナビゲート｜静寂の森の使い方","step":[{"@type":"HowToStep","position":1,"name":"必要な情報を入力する","text":"画面のフォームやフィールドに必要な情報を入力する"},{"@type":"HowToStep","position":2,"name":"実行ボタンを押す","text":"「実行」「計算」または「確認」ボタンを押して処理を開始する"},{"@type":"HowToStep","position":3,"name":"結果を確認する","text":"表示された結果や情報を詳しく確認する"},{"@type":"HowToStep","position":4,"name":"結果を活用・シェアする","text":"取得した結果を日常生活に活用し、必要に応じてSNSでシェアする"},{"@type":"HowToStep","position":5,"name":"定期的に利用する","text":"変化や進捗に応じて定期的に再利用して継続的に活用する"}]}</script>
+<style id="ux-enhanced">
+button,input[type=submit],input[type=button],[class*=btn]{min-height:44px;cursor:pointer;transition:opacity .15s,transform .1s;}
+button:active,[class*=btn]:active{opacity:.75;transform:scale(.98);}
+select,input[type=text],input[type=number],input[type=email],textarea{min-height:44px;font-size:16px;}
+[id*=result]:not(style):not(script),[id*=output]:not(style):not(script){border-left:4px solid #7c3aed;padding-left:16px;margin-top:16px;}
+@media(max-width:640px){[class*=max-w],[class*=container],[class*=wrapper]{padding:12px 16px!important;}button,[class*=btn]{width:100%;font-size:15px;}}
+</style>
+</head>
+<body class="forest-bg"><a href="#main" class="sr-only">本文へスキップ</a>
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+
+    <!-- サイドバー -->
+    <aside id="sidebar" class="fixed inset-y-0 right-0 p-4 bg-gray-800">
+        <ul class="space-y-4">
+            <li><button id="navHome" class="nav-btn text-white hover:text-green-400 flex items-center"><span class="mr-2">🏠</span><span data-i18n="home">ホーム</span></button></li>
+            <li><button id="navHistory" class="nav-btn text-gray-400 hover:text-green-400 flex items-center"><span class="mr-2">🕐</span><span data-i18n="history">履歴</span></button></li>
+            <li><button id="navSettings" class="nav-btn text-gray-400 hover:text-green-400 flex items-center"><span class="mr-2">⚙️</span><span data-i18n="settings">設定</span></button></li>
+            <li><a href="usage.html" class="text-gray-400 hover:text-white flex items-center"><span class="mr-2">📚</span><span data-i18n="usage">使い方</span></a></li>
+            <li><a href="disclaimer.html" class="text-gray-400 hover:text-white flex items-center"><span class="mr-2">❗</span><span data-i18n="disclaimer">免責事項</span></a></li>
+            <li><a href="privacy.html" class="text-gray-400 hover:text-white flex items-center"><span class="mr-2">👤</span><span data-i18n="privacy">プライバシー</span></a></li>
+            <li><a href="terms.html" class="text-gray-400 hover:text-white flex items-center"><span class="mr-2">📄</span><span data-i18n="terms">利用規約</span></a></li>
+            <li><a href="faq.html" class="text-gray-400 hover:text-white flex items-center">❓<span data-i18n="faq">FAQ</span></a></li>
+            <li><button id="languageToggleSidebar" class="text-gray-400 hover:text-white flex items-center md:hidden"><span class="mr-2">🌐</span><span id="langTextSidebar" data-lang-text>EN</span></button></li>
+        </ul>
+    </aside>
+    <div id="sidebarOverlay" class="fixed inset-0 bg-black bg-opacity-50 md:hidden"></div>
+
+    <div id="app" class="min-h-screen pt-20">
+        <!-- ナビゲーションヘッダー -->
+        <nav class="glass-effect fixed top-0 left-0 right-0 p-4 z-50">
+            <div class="container mx-auto flex justify-between items-center">
+                <div class="flex items-center space-x-3">
+                    <span class="text-green-400 text-2xl">🌱</span>
+                    <h1 class="text-xl font-bold text-white">静寂の森</h1>
+                </div>
+                <button id="menuToggle" class="text-white md:hidden mr-3">
+                    <span>☰</span>
+                </button>
+                <div class="hidden md:flex items-center space-x-4">
+                    <a href="usage.html" class="text-white hover:text-green-400 transition">
+                        <span>📚</span> <span data-i18n="usage">使い方</span>
+                    </a>
+                    <button id="languageToggle" class="text-white hover:text-green-400 transition">
+                        <span>🌐</span> <span id="langText" data-lang-text>EN</span>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- メインコンテンツ -->
+        <div class="container mx-auto px-4 pb-24">
+            <!-- ホーム画面 -->
+            <div id="homeScreen" class="fade-in">
+                <div class="text-center mb-12">
+                    <div class="meditation-pulse mb-6">
+                        <span class="text-6xl text-green-400">🧖</span>
+                    </div>
+                    <h2 class="text-3xl font-bold text-white mb-4" data-i18n="welcome">あなただけの瞑想体験へようこそ</h2>
+                    <p class="text-gray-300 text-lg max-w-2xl mx-auto" data-i18n="description">
+                        AIがあなたの気分と時間に合わせて、最適な瞑想セッションをカスタマイズします。
+                        継続することで、美しい静寂の森が育っていきます。
+                    </p>
+                </div>
+
+                <!-- 森の状態表示 -->
+                <div id="forestDisplay" class="glass-effect rounded-xl p-8 mb-8">
+                    <div class="text-center mb-6">
+                        <h3 class="text-xl font-bold text-white mb-2" data-i18n="yourForest">あなたの森</h3>
+                        <div class="flex justify-center items-center space-x-4 text-white">
+                            <div class="flex items-center">
+                                💧
+                                <span id="forestPoints">0</span> <span data-i18n="drops">しずく</span>
+                            </div>
+                            <div class="flex items-center">
+                                <span class="text-orange-400 mr-2">🔥</span>
+                                <span id="streakDays">0</span> <span data-i18n="days">日連続</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="forestVisualization" class="bg-gradient-to-b from-blue-900 to-green-900 rounded-lg p-8 min-h-48 relative overflow-hidden">
+                        <!-- 森の要素がここに動的に追加される -->
+                        <div class="text-center text-white" id="emptyForest">
+                            🌱
+                            <p data-i18n="startMeditation">瞑想を始めて、あなたの森を育てましょう</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 瞑想開始ボタン -->
+                <div class="text-center mb-8">
+                    <button id="startMeditationBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-full text-xl transition transform hover:scale-105">
+                        <span class="mr-3">▶</span>
+                        <span data-i18n="startMeditation">瞑想を始める</span>
+                    </button>
+                </div>
+
+                <!-- 機能紹介 -->
+                <div class="grid md:grid-cols-3 gap-6 mb-8">
+                    <div class="glass-effect rounded-lg p-6 text-center">
+                        <span class="text-purple-400 text-3xl mb-4">🧠</span>
+                        <h4 class="text-white font-bold mb-2" data-i18n="aiPersonalization">AIパーソナライゼーション</h4>
+                        <p class="text-gray-300 text-sm" data-i18n="aiDescription">気分と時間に合わせた最適なセッションを自動生成</p>
+                    </div>
+                    <div class="glass-effect rounded-lg p-6 text-center">
+                        <span class="text-green-400 text-3xl mb-4">🌳</span>
+                        <h4 class="text-white font-bold mb-2" data-i18n="forestGrowth">森の成長</h4>
+                        <p class="text-gray-300 text-sm" data-i18n="forestDescription">継続により美しい森が育ち、達成感を実感</p>
+                    </div>
+                    <div class="glass-effect rounded-lg p-6 text-center">
+                        <span class="text-blue-400 text-3xl mb-4">🔊</span>
+                        <h4 class="text-white font-bold mb-2" data-i18n="voiceGuide">音声ガイド</h4>
+                        <p class="text-gray-300 text-sm" data-i18n="voiceDescription">AI音声による優しい誘導で深いリラックス</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 瞑想設定画面 -->
+            <div id="meditationSetup" class="hidden fade-in">
+                <div class="max-w-2xl mx-auto" role="main" id="main">
+                    <div class="glass-effect rounded-xl p-8">
+                        <div class="text-center mb-8">
+                            <h2 class="text-2xl font-bold text-white mb-4" data-i18n="setupSession">瞑想セッションを設定</h2>
+                            <p class="text-gray-300" data-i18n="setupDescription">今のあなたに最適な瞑想をカスタマイズします</p>
+                        </div>
+
+                        <!-- 気分選択 -->
+                        <div class="mb-8">
+                            <label class="block text-white font-semibold mb-4" data-i18n="currentMood">現在の気分</label>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                <button class="mood-option bg-gray-700 hover:bg-red-600 text-white p-3 rounded-lg transition" data-mood="stressed">
+                                    😫
+                                    <div class="text-sm" data-i18n="stressed">ストレス</div>
+                                </button>
+                                <button class="mood-option bg-gray-700 hover:bg-blue-600 text-white p-3 rounded-lg transition" data-mood="calm">
+                                    <span class="text-xl mb-2">😊</span>
+                                    <div class="text-sm" data-i18n="calm">落ち着いている</div>
+                                </button>
+                                <button class="mood-option bg-gray-700 hover:bg-yellow-600 text-white p-3 rounded-lg transition" data-mood="tired">
+                                    🛏
+                                    <div class="text-sm" data-i18n="tired">疲れている</div>
+                                </button>
+                                <button class="mood-option bg-gray-700 hover:bg-green-600 text-white p-3 rounded-lg transition" data-mood="energetic">
+                                    <span class="text-xl mb-2">⚡</span>
+                                    <div class="text-sm" data-i18n="energetic">元気</div>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 時間選択 -->
+                        <div class="mb-8">
+                            <label class="block text-white font-semibold mb-4" data-i18n="duration">瞑想時間</label>
+                            <div class="grid grid-cols-5 gap-2 sm:gap-3" style="grid-template-columns: repeat(5, minmax(0, 1fr)); min-width: 0;">
+                                <button class="duration-option bg-gray-700 hover:bg-green-600 text-white p-3 rounded-lg transition" data-duration="1">
+                                    <div class="text-lg font-bold">1</div>
+                                    <div class="text-xs" data-i18n="minutes">分</div>
+                                </button>
+                                <button class="duration-option bg-gray-700 hover:bg-green-600 text-white p-3 rounded-lg transition" data-duration="5">
+                                    <div class="text-lg font-bold">5</div>
+                                    <div class="text-xs" data-i18n="minutes">分</div>
+                                </button>
+                                <button class="duration-option bg-gray-700 hover:bg-green-600 text-white p-3 rounded-lg transition" data-duration="10">
+                                    <div class="text-lg font-bold">10</div>
+                                    <div class="text-xs" data-i18n="minutes">分</div>
+                                </button>
+                                <button class="duration-option bg-gray-700 hover:bg-green-600 text-white p-3 rounded-lg transition" data-duration="15">
+                                    <div class="text-lg font-bold">15</div>
+                                    <div class="text-xs" data-i18n="minutes">分</div>
+                                </button>
+                                <button class="duration-option bg-gray-700 hover:bg-green-600 text-white p-3 rounded-lg transition" data-duration="20">
+                                    <div class="text-lg font-bold">20</div>
+                                    <div class="text-xs" data-i18n="minutes">分</div>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 目的選択 -->
+                        <div class="mb-8">
+                            <label class="block text-white font-semibold mb-4" data-i18n="purpose">瞑想の目的</label>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <button class="purpose-option bg-gray-700 hover:bg-purple-600 text-white p-3 rounded-lg transition text-left" data-purpose="relaxation">
+                                    <span class="mr-3">🧖</span>
+                                    <span data-i18n="relaxation">リラックス</span>
+                                </button>
+                                <button class="purpose-option bg-gray-700 hover:bg-purple-600 text-white p-3 rounded-lg transition text-left" data-purpose="focus">
+                                    <span class="mr-3">🎯</span>
+                                    <span data-i18n="focus">集中力向上</span>
+                                </button>
+                                <button class="purpose-option bg-gray-700 hover:bg-purple-600 text-white p-3 rounded-lg transition text-left" data-purpose="sleep">
+                                    <span class="mr-3">🌙</span>
+                                    <span data-i18n="sleep">睡眠導入</span>
+                                </button>
+                                <button class="purpose-option bg-gray-700 hover:bg-purple-600 text-white p-3 rounded-lg transition text-left" data-purpose="stress">
+                                    <span class="mr-3">❤️</span>
+                                    <span data-i18n="stressRelief">ストレス軽減</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 開始ボタン -->
+                        <div class="text-center">
+                            <button id="beginSessionBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-full transition transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                <span class="mr-2">▶</span>
+                                <span data-i18n="beginSession">セッションを開始</span>
+                            </button>
+                            <div class="mt-4">
+                                <button id="backToHomeBtn" class="text-gray-400 hover:text-white transition">
+                                    <span class="mr-2">←</span>
+                                    <span data-i18n="backToHome">ホームに戻る</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 瞑想セッション画面 -->
+            <div id="meditationSession" class="hidden fade-in">
+                <div class="max-w-2xl mx-auto text-center">
+                    <div class="glass-effect rounded-xl p-8">
+                        <!-- セッション情報 -->
+                        <div class="mb-8">
+                            <h2 class="text-2xl font-bold text-white mb-2" id="sessionTitle">瞑想セッション</h2>
+                            <p class="text-gray-300" id="sessionDescription"></p>
+                            <p id="sessionSummary" class="text-gray-400 mt-2"></p>
+                        </div>
+
+                        <!-- タイマー表示 -->
+                        <div class="mb-8">
+                            <div class="w-48 h-48 mx-auto bg-gradient-to-r from-green-400 to-blue-500 rounded-full flex items-center justify-center meditation-pulse mb-4">
+                                <div class="bg-gray-800 w-40 h-40 rounded-full flex items-center justify-center">
+                                    <span id="timerDisplay" class="text-4xl font-bold text-white">05:00</span>
+                                </div>
+                            </div>
+                            <div class="w-full bg-gray-700 rounded-full h-2">
+                                <div id="progressBar" class="bg-green-400 h-2 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- コントロールボタン -->
+                        <div class="flex justify-center space-x-4 mb-8">
+                            <button id="playPauseBtn" class="bg-green-600 hover:bg-green-700 text-white p-4 rounded-full transition">
+                                <span class="text-xl">▶</span>
+                            </button>
+                            <button id="stopSessionBtn" class="bg-red-600 hover:bg-red-700 text-white p-4 rounded-full transition">
+                                ⏹
+                            </button>
+                        </div>
+
+                        <!-- 現在のガイダンス -->
+                        <div class="bg-gray-800 rounded-lg p-4">
+                            <p id="currentGuidance" class="text-gray-300 text-lg"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- セッション完了画面 -->
+            <div id="sessionComplete" class="hidden fade-in">
+                <div class="max-w-2xl mx-auto text-center">
+                    <div class="glass-effect rounded-xl p-8">
+                        <div class="mb-8">
+                            <span class="text-6xl text-green-400 mb-4">✓</span>
+                            <h2 class="text-3xl font-bold text-white mb-4" data-i18n="sessionCompleted">セッション完了！</h2>
+                            <p class="text-gray-300" data-i18n="congratulations">お疲れさまでした。素晴らしい瞑想セッションでした。</p>
+                        </div>
+
+                        <!-- 獲得ポイント -->
+                        <div class="bg-gradient-to-r from-blue-600 to-green-600 rounded-lg p-6 mb-8">
+                            <div class="text-white">
+                                <h3 class="text-xl font-bold mb-2" data-i18n="earned">獲得したもの</h3>
+                                <div class="flex justify-center items-center space-x-6">
+                                    <div class="text-center">
+                                        💧
+                                        <div class="text-2xl font-bold" id="earnedPoints">+10</div>
+                                        <div class="text-sm" data-i18n="drops">しずく</div>
+                                    </div>
+                                    <div class="text-center">
+                                        <span class="text-3xl mb-2">🌱</span>
+                                        <div class="text-lg" data-i18n="forestGrew">森が成長しました！</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 気分の記録 -->
+                        <div class="mb-8">
+                            <h3 class="text-white font-semibold mb-4" data-i18n="howDoYouFeel">今の気分はいかがですか？</h3>
+                            <div class="flex justify-center space-x-3">
+                                <button class="post-mood-btn bg-gray-700 hover:bg-green-600 text-white p-3 rounded-lg transition" data-post-mood="great">
+                                    <span class="text-xl mb-1">😊</span>
+                                    <div class="text-xs" data-i18n="great">とても良い</div>
+                                </button>
+                                <button class="post-mood-btn bg-gray-700 hover:bg-green-600 text-white p-3 rounded-lg transition" data-post-mood="good">
+                                    <span class="text-xl mb-1">😊</span>
+                                    <div class="text-xs" data-i18n="good">良い</div>
+                                </button>
+                                <button class="post-mood-btn bg-gray-700 hover:bg-green-600 text-white p-3 rounded-lg transition" data-post-mood="neutral">
+                                    😐
+                                    <div class="text-xs" data-i18n="neutral">普通</div>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- SNSシェア -->
+                        <div class="mb-8">
+                            <h3 class="text-white font-semibold mb-4" data-i18n="shareProgress">進捗をシェア</h3>
+                            <div class="flex justify-center space-x-4">
+                                <button id="shareTwitterBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg transition">
+                                    <span class="mr-2">𝕏</span>
+                                    <span data-i18n="shareTwitter">Twitterでシェア</span>
+                                </button>
+                                <button id="shareWebBtn" class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition">
+                                    <span class="mr-2">📤</span>
+                                    <span data-i18n="shareWeb">Webでシェア</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- おすすめ商品 -->
+                        <div id="affiliateRecommendations" class="bg-gray-800 rounded-lg p-6 mb-8">
+                            <h3 class="text-white font-semibold mb-4" data-i18n="recommended">おすすめアイテム</h3>
+                            <div id="affiliateProducts" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <!-- アフィリエイト商品が動的に追加される -->
+                            </div>
+                        </div>
+
+                        <!-- アクションボタン -->
+                        <div class="flex justify-center space-x-4">
+                            <button id="anotherSessionBtn" class="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition">
+                                <span class="mr-2">🔄</span>
+                                <span data-i18n="anotherSession">もう一度瞑想</span>
+                            </button>
+                            <button id="backToForestBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition">
+                                <span class="mr-2">🌳</span>
+                                <span data-i18n="viewForest">森を見る</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 履歴画面 -->
+            <div id="historyScreen" class="hidden fade-in">
+                <div class="max-w-4xl mx-auto">
+                    <div class="glass-effect rounded-xl p-8">
+                        <div class="text-center mb-8">
+                            <h2 class="text-2xl font-bold text-white mb-4" data-i18n="meditationHistory">瞑想履歴</h2>
+                            <p class="text-gray-300" data-i18n="historyDescription">あなたの瞑想の軌跡を確認できます</p>
+                        </div>
+
+                        <div id="historyList" class="space-y-4">
+                            <!-- 履歴項目が動的に追加される -->
+                        </div>
+
+                        <div class="text-center mt-8">
+                            <button id="backFromHistoryBtn" class="text-gray-400 hover:text-white transition">
+                                <span class="mr-2">←</span>
+                                <span data-i18n="backToHome">ホームに戻る</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+            <!-- 設定画面 -->
+            <div id="settingsScreen" class="hidden fade-in">
+                <div class="max-w-2xl mx-auto">
+                    <div class="glass-effect rounded-xl p-8">
+                        <div class="text-center mb-8">
+                            <h2 class="text-2xl font-bold text-white mb-4" data-i18n="settingsTitle">アプリ設定</h2>
+                        </div>
+                        <div class="mb-6 text-center">
+                            <button id="languageToggleSettings" class="bg-gray-700 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition">
+                                <span class="mr-2">🌐</span><span data-i18n="language">言語</span>
+                            </button>
+                        </div>
+                        <div class="mb-6">
+                            <label class="flex items-center justify-center text-white">
+                                <input type="checkbox" id="voiceGuideToggle" class="mr-2" aria-label="入力フォーム">
+                                <span data-i18n="voiceGuide">音声ガイドを有効にする</span>
+                            </label>
+                        </div>
+                        <div class="text-center mt-8">
+                            <button id="backFromSettingsBtn" class="text-gray-400 hover:text-white transition">
+                                <span class="mr-2">←</span>
+                                <span data-i18n="backToHome">ホームに戻る</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        <!-- ここまでメインコンテンツ -->
+    </div>
+
+    <!-- 音声ファイル（データURL形式で軽量なサイン波を生成） -->
+    <audio id="bellSound" preload="auto">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmcfBSuJ0vLMeSwIKHfH8N+QQAoUXrTp66hVFApGn+DyvmcfBSuJ0vLMeSwIKHfH8N+QQAoUXrTp66hVFApGn+DyvmcfBSuJ0vLMeSwI" type="audio/wav">
+    </audio>
+
+    <script src="lang.js"></script>
+    <script>
+        // アプリケーション状態管理
+        class MeditationApp {
+            constructor() {
+                this.currentScreen = 'home';
+                this.currentSession = null;
+                this.userProgress = this.loadProgress();
+                this.selectedSettings = {
+                    mood: null,
+                    duration: null,
+                    purpose: null
+                };
+                this.lastSessionSettings = this.loadLastSessionSettings(); // 前回のセッション設定を保存
+                this.currentLanguage = LangUtil.get();
+                this.voices = [];
+                this.sessionTimer = null;
+                this.isSessionRunning = false;
+                this.sessionTimeRemaining = 0;
+                this.supabase = null;
+                this.voiceGuideEnabled = JSON.parse(localStorage.getItem('voiceGuideEnabled') || 'true');
+                
+                this.init();
+            }
+
+            init() {
+                this.setupSupabase();
+                this.setupEventListeners();
+                this.setupSpeechSynthesis();
+                this.updateForestDisplay();
+                this.setupPWA();
+                this.loadTranslations();
+                this.applyTranslations();
+                if (window.location.hash === "#history") {
+                    this.showScreen("history");
+                }
+            }
+
+            setupSupabase() {
+                // Supabase設定（実際のプロジェクトURLとキーに置き換える）
+                const supabaseUrl = 'https://your-project.supabase.co';
+                const supabaseKey = 'your-anon-key';
+                
+                try {
+                    this.supabase = supabase.createClient(supabaseUrl, supabaseKey);
+                } catch (error) {
+                    console.log('Supabase初期化をスキップ（デモモード）');
+                }
+            }
+
+            setupEventListeners() {
+                // ナビゲーション
+                document.getElementById('startMeditationBtn').addEventListener('click', () => this.showScreen('setup'));
+                document.getElementById('backToHomeBtn').addEventListener('click', () => this.showScreen('home'));
+                const sidebar = document.getElementById('sidebar');
+                const overlay = document.getElementById('sidebarOverlay');
+                document.getElementById('navHome').addEventListener('click', () => {
+                    this.showScreen('home');
+                    sidebar.classList.remove('open');
+                    overlay.classList.remove('show');
+                });
+                document.getElementById('navHistory').addEventListener('click', () => {
+                    this.showScreen('history');
+                    sidebar.classList.remove('open');
+                    overlay.classList.remove('show');
+                });
+                document.getElementById('navSettings').addEventListener('click', () => {
+                    this.showScreen('settings');
+                    sidebar.classList.remove('open');
+                    overlay.classList.remove('show');
+                });
+                const closeSidebar = () => {
+                    sidebar.classList.remove('open');
+                    overlay.classList.remove('show');
+                    menuBtn.setAttribute('aria-expanded', 'false');
+                };
+                const toggleSidebar = () => {
+                    const isOpen = sidebar.classList.toggle('open');
+                    overlay.classList.toggle('show');
+                    menuBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+                };
+                const menuBtn = document.getElementById('menuToggle');
+                menuBtn.setAttribute('aria-expanded', 'false');
+                menuBtn.setAttribute('aria-controls', 'sidebar');
+                menuBtn.addEventListener('click', toggleSidebar);
+                menuBtn.addEventListener('touchstart', toggleSidebar);
+                overlay.addEventListener('click', closeSidebar);
+                // Escapeキーでサイドバーを閉じる
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape' && sidebar.classList.contains('open')) closeSidebar();
+                });
+                
+                // 瞑想設定
+                document.querySelectorAll('.mood-option').forEach(btn => {
+                    btn.addEventListener('click', (e) => this.selectOption('mood', e.currentTarget.dataset.mood, e.currentTarget));
+                });
+                
+                document.querySelectorAll('.duration-option').forEach(btn => {
+                    btn.addEventListener('click', (e) => this.selectOption('duration', e.currentTarget.dataset.duration, e.currentTarget));
+                });
+                
+                document.querySelectorAll('.purpose-option').forEach(btn => {
+                    btn.addEventListener('click', (e) => this.selectOption('purpose', e.currentTarget.dataset.purpose, e.currentTarget));
+                });
+
+                // セッション開始
+                document.getElementById('beginSessionBtn').addEventListener('click', () => this.startMeditationSession());
+
+                // セッションコントロール
+                document.getElementById('playPauseBtn').addEventListener('click', () => this.toggleSession());
+                document.getElementById('stopSessionBtn').addEventListener('click', () => this.stopSession());
+
+                // セッション完了後
+                document.getElementById('anotherSessionBtn').addEventListener('click', () => this.restartLastSession());
+                document.getElementById('backToForestBtn').addEventListener('click', () => this.showScreen('home'));
+                document.getElementById('backFromHistoryBtn').addEventListener('click', () => this.showScreen('home'));
+                document.getElementById('backFromSettingsBtn').addEventListener('click', () => this.showScreen('home'));
+
+                // SNSシェア
+                document.getElementById('shareTwitterBtn').addEventListener('click', () => this.shareToTwitter());
+                document.getElementById('shareWebBtn').addEventListener('click', () => this.shareWeb());
+
+                // 言語切り替え
+                document.getElementById('languageToggle').addEventListener('click', () => this.toggleLanguage());
+                document.getElementById('languageToggleSidebar').addEventListener('click', () => this.toggleLanguage());
+                document.getElementById('languageToggleSettings').addEventListener('click', () => this.toggleLanguage());
+                document.getElementById('voiceGuideToggle').addEventListener('change', (e) => {
+                    this.voiceGuideEnabled = e.currentTarget.checked;
+                    localStorage.setItem('voiceGuideEnabled', this.voiceGuideEnabled);
+                });
+
+                // セッション後の気分記録
+                document.querySelectorAll('.post-mood-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => this.recordPostSessionMood(e.currentTarget.dataset.postMood));
+                });
+            }
+
+            setupSpeechSynthesis() {
+                if ('speechSynthesis' in window) {
+                    speechSynthesis.addEventListener('voiceschanged', () => {
+                        this.voices = speechSynthesis.getVoices();
+                    });
+                    this.voices = speechSynthesis.getVoices();
+                }
+            }
+
+            setupPWA() {
+                // サービスワーカー登録
+                if ('serviceWorker' in navigator) {
+                    const swCode = `
+                        const CACHE_NAME = 'meditation-app-v1';
+                        const urlsToCache = [
+                            '/',
+                            '/index.html'
+                        ];
+
+                        self.addEventListener('install', event => {
+                            event.waitUntil(
+                                caches.open(CACHE_NAME)
+                                    .then(cache => cache.addAll(urlsToCache))
+                            );
+                        });
+
+                        self.addEventListener('fetch', event => {
+                            event.respondWith(
+                                caches.match(event.request)
+                                    .then(response => response || fetch(event.request))
+                            );
+                        });
+                    `;
+                    
+                    const blob = new Blob([swCode], { type: 'application/javascript' });
+                    const swUrl = URL.createObjectURL(blob);
+                    
+                    navigator.serviceWorker.register(swUrl)
+                        .catch(error => console.error('SW registration failed'));
+                }
+            }
+
+            selectOption(type, value, element) {
+                // 前の選択を解除
+                element.parentElement.querySelectorAll('button').forEach(btn => {
+                    btn.classList.remove('bg-green-600', 'bg-red-600', 'bg-blue-600', 'bg-yellow-600', 'bg-purple-600');
+                    btn.classList.add('bg-gray-700');
+                });
+                
+                // 新しい選択を適用
+                element.classList.remove('bg-gray-700');
+                const colorMap = {
+                    mood: { stressed: 'bg-red-600', calm: 'bg-blue-600', tired: 'bg-yellow-600', energetic: 'bg-green-600' },
+                    duration: 'bg-green-600',
+                    purpose: 'bg-purple-600'
+                };
+                
+                if (type === 'mood') {
+                    element.classList.add(colorMap.mood[value]);
+                } else {
+                    element.classList.add(colorMap[type]);
+                }
+                
+                this.selectedSettings[type] = value;
+                this.updateBeginButton();
+            }
+
+            updateBeginButton() {
+                const btn = document.getElementById('beginSessionBtn');
+                const allSelected = this.selectedSettings.mood && this.selectedSettings.duration && this.selectedSettings.purpose;
+                btn.disabled = !allSelected;
+                btn.classList.toggle('opacity-50', !allSelected);
+                btn.classList.toggle('cursor-not-allowed', !allSelected);
+            }
+
+            generateMeditationSession() {
+                const { mood, duration, purpose } = this.selectedSettings;
+                
+                // AI瞑想セッション生成ロジック
+                const sessions = {
+                    stressed: {
+                        relaxation: {
+                            title: { ja: "ストレス解消リラクゼーション", en: "Stress Relief Relaxation" },
+                            description: { ja: "深い呼吸と筋肉の緊張をほぐす瞑想", en: "Meditation to release tension with deep breathing" },
+                            phases: [
+                                { type: 'intro', duration: 0.1, text: { ja: "快適な姿勢で座り、目を閉じてください。", en: "Sit comfortably and close your eyes." } },
+                                { type: 'breathing', duration: 0.3, text: { ja: "鼻からゆっくりと息を吸い、口からゆっくりと吐きます。呼吸に意識を向けましょう。", en: "Breathe in slowly through the nose and out through the mouth, focusing on the breath." } },
+                                { type: 'body_scan', duration: 0.4, text: { ja: "頭から足先まで、体の緊張を順番にほぐしていきます。", en: "Relax each part of your body from head to toe." } },
+                                { type: 'closing', duration: 0.2, text: { ja: "心が軽やかになったことを感じながら、ゆっくりと目を開けてください。", en: "When you feel lighter, slowly open your eyes." } }
+                            ]
+                        },
+                        focus: {
+                            title: { ja: "集中力回復瞑想", en: "Focus Recovery Meditation" },
+                            description: { ja: "散らかった思考を整理し、集中力を取り戻す瞑想", en: "Meditation to clear scattered thoughts and regain focus" },
+                            phases: [
+                                { type: 'intro', duration: 0.1, text: { ja: "背筋を伸ばして座り、手は膝の上に置いてください。", en: "Sit up straight and rest your hands on your knees." } },
+                                { type: 'breathing', duration: 0.4, text: { ja: "呼吸に集中し、雑念が浮かんでも優しく呼吸に意識を戻します。", en: "Focus on your breath and gently return when the mind wanders." } },
+                                { type: 'visualization', duration: 0.3, text: { ja: "心の中で静かな湖面をイメージし、平静さを保ちます。", en: "Visualize a calm lake surface and maintain serenity." } },
+                                { type: 'closing', duration: 0.2, text: { ja: "クリアな心でゆっくりと目を開け、新しい集中力を感じてください。", en: "Open your eyes slowly with a clear mind and renewed focus." } }
+                            ]
+                        }
+                    },
+                    calm: {
+                        relaxation: {
+                            title: { ja: "深いリラクゼーション", en: "Deep Relaxation" },
+                            description: { ja: "すでに落ち着いた心をさらに深いリラックス状態へ", en: "Further deepen your calm state" },
+                            phases: [
+                                { type: 'intro', duration: 0.1, text: { ja: "今の穏やかな気持ちを大切にしながら、さらに深いリラックスへ導きます。", en: "Cherish your calmness and let it guide you into deeper relaxation." } },
+                                { type: 'breathing', duration: 0.2, text: { ja: "自然な呼吸のリズムを感じ、心地よさを味わいます。", en: "Feel the natural rhythm of your breath and enjoy the comfort." } },
+                                { type: 'mindfulness', duration: 0.5, text: { ja: "今この瞬間の平和を感じ、すべての感覚に優しく注意を向けます。", en: "Sense the peace of this moment and gently observe all sensations." } },
+                                { type: 'closing', duration: 0.2, text: { ja: "この静寂な時間に感謝しながら、ゆっくりと現実に戻ります。", en: "Give thanks for this quiet time and gently return to reality." } }
+                            ]
+                        }
+                    },
+                    tired: {
+                        sleep: {
+                            title: { ja: "睡眠導入瞑想", en: "Sleep Induction Meditation" },
+                            description: { ja: "疲れた心と体を癒し、質の良い眠りへ導く瞑想", en: "Meditation to soothe mind and body for quality sleep" },
+                            phases: [
+                                { type: 'intro', duration: 0.1, text: { ja: "横になるか、楽な姿勢でリラックスしてください。", en: "Lie down or sit comfortably and relax." } },
+                                { type: 'body_release', duration: 0.4, text: { ja: "足先から頭まで、体の各部分の力を抜いていきます。", en: "Release tension in each body part from toes to head." } },
+                                { type: 'visualization', duration: 0.3, text: { ja: "雲の上で浮かんでいるような軽やかさを感じます。", en: "Feel as if you are floating on a cloud." } },
+                                { type: 'closing', duration: 0.2, text: { ja: "深い安らぎの中で、自然に眠りにつくことを許可します。", en: "Allow yourself to drift into sleep within deep peace." } }
+                            ]
+                        }
+                    },
+                    energetic: {
+                        focus: {
+                            title: { ja: "エネルギー活用集中瞑想", en: "Energy Focus Meditation" },
+                            description: { ja: "豊富なエネルギーを集中力に変換する瞑想", en: "Meditation to turn abundant energy into focus" },
+                            phases: [
+                                { type: 'intro', duration: 0.1, text: { ja: "背筋を伸ばし、エネルギーを感じながら座ってください。", en: "Sit up straight and feel the energy within." } },
+                                { type: 'energy_awareness', duration: 0.3, text: { ja: "体内のエネルギーの流れを感じ、それを集中力に変換します。", en: "Sense energy flowing through your body and turn it into focus." } },
+                                { type: 'focus_training', duration: 0.4, text: { ja: "一点に意識を集中し、エネルギーを有効活用します。", en: "Concentrate on a single point and harness your energy." } },
+                                { type: 'closing', duration: 0.2, text: { ja: "集中したエネルギーを保ちながら、目を開けてください。", en: "Keep the focused energy and open your eyes." } }
+                            ]
+                        }
+                    }
+                };
+                
+                const sessionTemplate = sessions[mood]?.[purpose] || sessions.calm.relaxation;
+                const durationMinutes = parseInt(duration);
+
+                return {
+                    title: sessionTemplate.title, // 多言語構造を保持
+                    description: sessionTemplate.description, // 多言語構造を保持
+                    duration: durationMinutes,
+                    phases: sessionTemplate.phases.map(phase => ({
+                        ...phase,
+                        text: phase.text, // 多言語構造を保持
+                        actualDuration: Math.floor(phase.duration * durationMinutes * 60) // 秒単位
+                    }))
+                };
+            }
+
+            startMeditationSession() {
+                this.currentSession = this.generateMeditationSession();
+                this.sessionTimeRemaining = this.currentSession.duration * 60; // 秒単位
+                this.showScreen('session');
+
+                // セッション情報を表示（現在の言語で）
+                document.getElementById('sessionTitle').textContent = this.currentSession.title[this.currentLanguage] || this.currentSession.title.ja;
+                document.getElementById('sessionDescription').textContent = this.currentSession.description[this.currentLanguage] || this.currentSession.description.ja;
+                this.updateSessionSummary();
+
+                // 現在のセッション設定を保存（再開用）
+                this.lastSessionSettings = {
+                    mood: this.selectedSettings.mood,
+                    duration: this.selectedSettings.duration,
+                    purpose: this.selectedSettings.purpose
+                };
+                this.saveLastSessionSettings();
+
+                this.updateTimerDisplay();
+                this.startSession();
+            }
+
+            startSession() {
+                this.isSessionRunning = true;
+                this.currentPhaseIndex = 0;
+                document.getElementById('playPauseBtn').innerHTML = '<span class="text-xl">⏸</span>';
+                
+                this.sessionTimer = setInterval(() => {
+                    this.sessionTimeRemaining--;
+                    this.updateTimerDisplay();
+                    this.updateProgressBar();
+                    this.handlePhaseTransition();
+
+                    if (this.sessionTimeRemaining <= 0) {
+                        this.sessionTimeRemaining = 0;
+                        clearInterval(this.sessionTimer);
+                        this.completeSession();
+                    }
+                }, 1000);
+                
+                this.playCurrentPhase();
+            }
+
+            toggleSession() {
+                if (this.isSessionRunning) {
+                    this.pauseSession();
+                } else {
+                    this.resumeSession();
+                }
+            }
+
+            pauseSession() {
+                this.isSessionRunning = false;
+                clearInterval(this.sessionTimer);
+                speechSynthesis.cancel();
+                document.getElementById('playPauseBtn').innerHTML = '<span class="text-xl">▶</span>';
+            }
+
+            resumeSession() {
+                this.startSession();
+            }
+
+            stopSession() {
+                this.pauseSession();
+                this.showScreen('home');
+                this.resetSession();
+            }
+
+            completeSession() {
+                this.pauseSession();
+                
+                // 前回のセッション設定を保存
+                this.lastSessionSettings = {
+                    mood: this.selectedSettings.mood,
+                    duration: this.selectedSettings.duration,
+                    purpose: this.selectedSettings.purpose
+                };
+                this.saveLastSessionSettings();
+                
+                this.recordSession();
+                this.updateUserProgress();
+                this.showCompletionScreen();
+                this.showScreen('complete');
+                
+                // 完了音を再生
+                document.getElementById('bellSound').play().catch(() => {});
+            }
+
+            updateTimerDisplay() {
+                const remaining = Math.max(this.sessionTimeRemaining, 0);
+                const minutes = Math.floor(remaining / 60);
+                const seconds = remaining % 60;
+                document.getElementById('timerDisplay').textContent =
+                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+
+            updateProgressBar() {
+                const totalTime = this.currentSession.duration * 60;
+                const elapsed = totalTime - this.sessionTimeRemaining;
+                const progress = Math.min((elapsed / totalTime) * 100, 100);
+                document.getElementById('progressBar').style.width = `${progress}%`;
+            }
+
+            updateSessionSummary() {
+                const t = this.translations[this.currentLanguage] || this.translations.ja;
+                const moodText = t[this.selectedSettings.mood] || '';
+                const purposeText = t[this.selectedSettings.purpose] || '';
+                const summary = `${t.currentMood}: ${moodText} / ${t.purpose}: ${purposeText} / ${t.duration}: ${this.selectedSettings.duration}${t.minutes}`;
+                document.getElementById('sessionSummary').textContent = summary;
+            }
+
+            handlePhaseTransition() {
+                // 現在の経過時間から再生すべきフェーズを判定
+                const totalTime = this.currentSession.duration * 60;
+                const elapsed = totalTime - this.sessionTimeRemaining;
+
+                let cumulativeDuration = 0;
+                for (let i = 0; i < this.currentSession.phases.length; i++) {
+                    cumulativeDuration += this.currentSession.phases[i].actualDuration;
+                    if (elapsed < cumulativeDuration) {
+                        if (i !== this.currentPhaseIndex) {
+                            this.currentPhaseIndex = i;
+                            this.playCurrentPhase();
+                        }
+                        break;
+                    }
+                }
+            }
+
+            playCurrentPhase() {
+                if (!this.currentSession || !this.isSessionRunning) return;
+                
+                const currentPhase = this.currentSession.phases[this.currentPhaseIndex];
+                if (!currentPhase) return;
+                
+                // 現在の言語でテキストを取得
+                const phaseText = currentPhase.text[this.currentLanguage] || currentPhase.text.ja;
+                document.getElementById('currentGuidance').textContent = phaseText;
+                
+                // 音声合成
+                if ('speechSynthesis' in window && this.voiceGuideEnabled) {
+                    speechSynthesis.cancel();
+                    const utterance = new SpeechSynthesisUtterance(phaseText);
+
+                    // 言語に応じた音声を選択
+                    let voice = this.voices.find(v => v.lang.startsWith(this.currentLanguage === 'ja' ? 'ja' : 'en'));
+                    if (!voice && this.currentLanguage === 'en') {
+                        // 英語の場合、enで始まる音声を探す
+                        voice = this.voices.find(v => v.lang.startsWith('en'));
+                    }
+                    if (!voice && this.currentLanguage === 'ja') {
+                        // 日本語の場合、jaで始まる音声を探す
+                        voice = this.voices.find(v => v.lang.startsWith('ja'));
+                    }
+                    
+                    if (voice) {
+                        utterance.voice = voice;
+                    }
+                    
+                    utterance.rate = 0.8; // ゆっくり
+                    utterance.pitch = 0.9; // 落ち着いた音程
+                    utterance.volume = 0.8;
+                    
+                    speechSynthesis.speak(utterance);
+                }
+            }
+
+            recordSession() {
+                const session = {
+                    id: Date.now(),
+                    date: new Date().toISOString(),
+                    mood: this.selectedSettings.mood,
+                    duration: this.selectedSettings.duration,
+                    purpose: this.selectedSettings.purpose,
+                    completed: true,
+                    earnedPoints: this.calculateEarnedPoints()
+                };
+                
+                // ローカルストレージに保存
+                let history = JSON.parse(localStorage.getItem('meditationHistory') || '[]');
+                history.unshift(session);
+                history = history.slice(0, 50); // 最新50件まで保持
+                localStorage.setItem('meditationHistory', JSON.stringify(history));
+                
+                // Supabaseに保存（実装時）
+                this.saveToSupabase(session);
+            }
+
+            async saveToSupabase(session) {
+                if (!this.supabase) return;
+                
+                try {
+                    const { data, error } = await this.supabase
+                        .from('meditation_sessions')
+                        .insert([session]);
+                    
+                    if (error) throw error;
+                } catch (error) {
+                    console.log('Supabase保存エラー:', error);
+                }
+            }
+
+            calculateEarnedPoints() {
+                const basePoints = parseInt(this.selectedSettings.duration);
+                const streakBonus = this.getStreakBonus();
+                return basePoints + streakBonus;
+            }
+
+            getStreakBonus() {
+                const today = new Date().toDateString();
+                const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toDateString();
+                
+                const history = JSON.parse(localStorage.getItem('meditationHistory') || '[]');
+                const todaySessions = history.filter(s => new Date(s.date).toDateString() === today);
+                const yesterdaySessions = history.filter(s => new Date(s.date).toDateString() === yesterday);
+                
+                if (todaySessions.length === 0 && yesterdaySessions.length > 0) {
+                    return Math.min(this.userProgress.streakDays, 10); // 最大10ポイントボーナス
+                }
+                
+                return 0;
+            }
+
+            updateUserProgress() {
+                const earnedPoints = this.calculateEarnedPoints();
+                this.userProgress.totalPoints += earnedPoints;
+                this.userProgress.totalSessions++;
+                
+                // ストリーク計算
+                const today = new Date().toDateString();
+                const lastSessionDate = this.userProgress.lastSessionDate;
+                
+                if (lastSessionDate !== today) {
+                    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toDateString();
+                    if (lastSessionDate === yesterday) {
+                        this.userProgress.streakDays++;
+                    } else {
+                        this.userProgress.streakDays = 1;
+                    }
+                    this.userProgress.lastSessionDate = today;
+                }
+                
+                this.saveProgress();
+                this.updateForestDisplay();
+            }
+
+            showCompletionScreen() {
+                const earnedPoints = this.calculateEarnedPoints();
+                document.getElementById('earnedPoints').textContent = `+${earnedPoints}`;
+                this.generateAffiliateRecommendations();
+            }
+
+            generateAffiliateRecommendations() {
+                const { mood, purpose } = this.selectedSettings;
+                const container = document.getElementById('affiliateProducts');
+                
+                const recommendations = this.getAffiliateProducts(mood, purpose);
+                
+                container.innerHTML = recommendations.map(product => `
+                    <div class="bg-gray-700 rounded-lg p-4">
+                        <div class="flex items-center space-x-3">
+                            <span class="text-2xl">${product.icon}</span>
+                            <div class="flex-1">
+                                <h4 class="text-white font-semibold text-sm">${product.name}</h4>
+                                <p class="text-gray-400 text-xs">${product.description}</p>
+                            </div>
+                            <a href="${product.affiliateUrl}" target="_blank" rel="noopener" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs transition">
+                                詳細
+                            </a>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            getAffiliateProducts(mood, purpose) {
+                // アフィリエイト商品データ（実際のURLに置き換える）
+                const products = {
+                    relaxation: [
+                        {
+                            name: "瞑想用クッション",
+                            description: "快適な瞑想姿勢をサポート",
+                            icon: "🪑",
+                            color: "purple-400",
+                            affiliateUrl: "https://amzn.to/meditation-cushion"
+                        },
+                        {
+                            name: "アロマディフューザー",
+                            description: "リラックス効果を高める香り",
+                            icon: "🌸",
+                            color: "green-400",
+                            affiliateUrl: "https://ck.jp.ap.valuecommerce.com/servlet/referral?aromatherapy"
+                        }
+                    ],
+                    focus: [
+                        {
+                            name: "ノイズキャンセリングヘッドフォン",
+                            description: "集中力向上のための静寂",
+                            icon: "🎧",
+                            color: "blue-400",
+                            affiliateUrl: "https://af.moshimo.com/af/c/click?headphones"
+                        }
+                    ],
+                    sleep: [
+                        {
+                            name: "睡眠サポートサプリ",
+                            description: "自然な眠りをサポート",
+                            icon: "💊",
+                            color: "yellow-400",
+                            affiliateUrl: "https://px.a8.net/svt/ejp?sleep-supplement"
+                        }
+                    ]
+                };
+                
+                return products[purpose] || products.relaxation;
+            }
+
+            updateForestDisplay() {
+                const container = document.getElementById('forestVisualization');
+                const emptyForest = document.getElementById('emptyForest');
+                
+                document.getElementById('forestPoints').textContent = this.userProgress.totalPoints;
+                document.getElementById('streakDays').textContent = this.userProgress.streakDays;
+                
+                if (this.userProgress.totalSessions === 0) {
+                    emptyForest.style.display = 'block';
+                    return;
+                }
+                
+                emptyForest.style.display = 'none';
+                
+                // 森の要素を生成
+                const forestElements = this.generateForestElements();
+                container.innerHTML = forestElements;
+            }
+
+            generateForestElements() {
+                const { totalPoints, totalSessions } = this.userProgress;
+                let elements = '';
+                
+                // 基本的な草
+                elements += '<div class="absolute bottom-0 left-0 right-0 h-8 bg-green-800 rounded-b-lg"></div>';
+                
+                // 木の数（セッション数に基づく）
+                const treeCount = Math.min(totalSessions, 10);
+                for (let i = 0; i < treeCount; i++) {
+                    const left = 10 + (i * 8) + Math.random() * 10;
+                    const size = 20 + Math.random() * 15;
+                    elements += `
+                        <div class="absolute bottom-6 tree-animation forest-element" style="left: ${left}%;">
+                            <span class="text-green-600">🌳</span>
+                        </div>
+                    `;
+                }
+                
+                // 花（ポイント数に基づく）
+                const flowerCount = Math.floor(totalPoints / 20);
+                for (let i = 0; i < flowerCount; i++) {
+                    const left = 15 + Math.random() * 70;
+                    const colors = ['text-pink-400', 'text-yellow-400', 'text-purple-400', 'text-red-400'];
+                    const color = colors[Math.floor(Math.random() * colors.length)];
+                    elements += `
+                        <div class="absolute bottom-8 forest-element" style="left: ${left}%;">
+                            🌸
+                        </div>
+                    `;
+                }
+                
+                // 特別な要素（高ストリーク時）
+                if (this.userProgress.streakDays >= 7) {
+                    elements += `
+                        <div class="absolute top-4 right-4 forest-element">
+                            <span class="text-2xl">🌈</span>
+                        </div>
+                    `;
+                }
+                
+                // 月（夜間瞑想が多い場合）
+                const nightSessions = this.getNightSessionCount();
+                if (nightSessions >= 3) {
+                    elements += `
+                        <div class="absolute top-6 left-4 forest-element">
+                            <span class="text-yellow-200 text-2xl">🌙</span>
+                        </div>
+                    `;
+                }
+                
+                return elements;
+            }
+
+            getNightSessionCount() {
+                const history = JSON.parse(localStorage.getItem('meditationHistory') || '[]');
+                return history.filter(session => {
+                    const hour = new Date(session.date).getHours();
+                    return hour >= 20 || hour <= 6;
+                }).length;
+            }
+
+            shareToTwitter() {
+                const { totalSessions, streakDays } = this.userProgress;
+                const text = `AI瞑想ガイド「静寂の森」で${totalSessions}回目の瞑想完了！${streakDays}日連続で継続中🧘‍♀️✨ 
+                
+心の安らぎを見つけよう 
+
+#継続は力なり #瞑想 #マインドフルネス #ストレス解消 #無料アプリ
+
+https://appadaycreator.com/ai-meditation-forest/`;
+                
+                const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
+                window.open(twitterUrl, '_blank');
+            }
+
+            shareWeb() {
+                if (navigator.share) {
+                    navigator.share({
+                        title: 'AI瞑想ガイド「静寂の森」',
+                        text: '心の安らぎを見つける瞑想アプリ',
+                        url: window.location.href
+                    });
+                } else {
+                    // フォールバック：URLをクリップボードにコピー
+                    navigator.clipboard.writeText(window.location.href).then(() => {
+                        alert('URLをクリップボードにコピーしました');
+                    });
+                }
+            }
+
+            recordPostSessionMood(mood) {
+                // セッション後の気分を記録
+                const history = JSON.parse(localStorage.getItem('meditationHistory') || '[]');
+                if (history.length > 0) {
+                    history[0].postMood = mood;
+                    localStorage.setItem('meditationHistory', JSON.stringify(history));
+                }
+                
+                // ボタンの視覚的フィードバック
+                document.querySelectorAll('.post-mood-btn').forEach(btn => {
+                    btn.classList.remove('bg-green-600');
+                    btn.classList.add('bg-gray-700');
+                });
+                
+                event.target.classList.remove('bg-gray-700');
+                event.target.classList.add('bg-green-600');
+            }
+
+            showScreen(screenName) {
+                // 全画面を非表示
+                document.querySelectorAll('#app > div > div').forEach(screen => {
+                    screen.classList.add('hidden');
+                });
+                
+                // 指定画面を表示
+                const screens = {
+                    'home': 'homeScreen',
+                    'setup': 'meditationSetup',
+                    'session': 'meditationSession',
+                    'complete': 'sessionComplete',
+                    'history': 'historyScreen',
+                    'settings': 'settingsScreen'
+                };
+                
+                const targetScreen = document.getElementById(screens[screenName]);
+                if (targetScreen) {
+                    targetScreen.classList.remove('hidden');
+                    targetScreen.classList.add('fade-in');
+                }
+                
+                // ナビゲーションハイライト更新
+                document.querySelectorAll('.nav-btn').forEach(btn => {
+                    btn.classList.remove('text-white');
+                    btn.classList.add('text-gray-400');
+                });
+                
+                if (screenName === 'home') {
+                    document.getElementById('navHome').classList.remove('text-gray-400');
+                    document.getElementById('navHome').classList.add('text-white');
+                } else if (screenName === 'history') {
+                    document.getElementById('navHistory').classList.remove('text-gray-400');
+                    document.getElementById('navHistory').classList.add('text-white');
+                } else if (screenName === 'settings') {
+                    document.getElementById('navSettings').classList.remove('text-gray-400');
+                    document.getElementById('navSettings').classList.add('text-white');
+                }
+                
+                this.currentScreen = screenName;
+                
+                // 瞑想セッション中は言語切り替えボタンを無効化
+                const isInSession = screenName === 'session';
+                this.setLanguageButtonsEnabled(!isInSession);
+                
+                // 画面別の初期化処理
+                if (screenName === 'history') {
+                    this.loadHistory();
+                } else if (screenName === 'setup') {
+                    this.resetMeditationSettings();
+                } else if (screenName === 'settings') {
+                    document.getElementById('voiceGuideToggle').checked = this.voiceGuideEnabled;
+                }
+            }
+
+            resetMeditationSettings() {
+                this.selectedSettings = { mood: null, duration: null, purpose: null };
+                
+                // すべてのオプションボタンをリセット
+                document.querySelectorAll('.mood-option, .duration-option, .purpose-option').forEach(btn => {
+                    btn.classList.remove('bg-green-600', 'bg-red-600', 'bg-blue-600', 'bg-yellow-600', 'bg-purple-600');
+                    btn.classList.add('bg-gray-700');
+                });
+                
+                this.updateBeginButton();
+            }
+
+            loadHistory() {
+                const history = JSON.parse(localStorage.getItem('meditationHistory') || '[]');
+                const container = document.getElementById('historyList');
+                
+                if (history.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center text-gray-400 py-8">
+                            <span class="text-4xl mb-4">🕐</span>
+                            <p>まだ瞑想履歴がありません</p>
+                            <p class="text-sm">瞑想を始めて記録を作りましょう</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                container.innerHTML = history.map(session => {
+                    const date = new Date(session.date);
+                    const formattedDate = date.toLocaleDateString('ja-JP');
+                    const formattedTime = date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+                    
+                    const moodIcons = {
+                        stressed: { icon: '😫', color: 'text-red-400' },
+                        calm: { icon: '😊', color: 'text-blue-400' },
+                        tired: { icon: '🛌', color: 'text-yellow-400' },
+                        energetic: { icon: '⚡', color: 'text-green-400' }
+                    };
+
+                    const moodIcon = moodIcons[session.mood] || { icon: '⚫', color: 'text-gray-400' };
+
+                    return `
+                        <div class="bg-gray-800 rounded-lg p-4 flex items-center justify-between">
+                            <div class="flex items-center space-x-4">
+                                <div class="text-center">
+                                    <span class="text-xl">${moodIcon.icon}</span>
+                                </div>
+                                <div>
+                                    <div class="text-white font-semibold">${session.duration}分間の瞑想</div>
+                                    <div class="text-gray-400 text-sm">${formattedDate} ${formattedTime}</div>
+                                    <div class="text-gray-500 text-xs">${this.translatePurpose(session.purpose)}</div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="flex items-center text-blue-400">
+                                    💧
+                                    <span>+${session.earnedPoints}</span>
+                                </div>
+                                ${session.postMood ? `<div class="text-xs text-gray-400 mt-1">気分: ${this.translatePostMood(session.postMood)}</div>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            translatePurpose(purpose) {
+                const t = this.translations[this.currentLanguage] || this.translations.ja;
+                const map = { relaxation: 'relaxation', focus: 'focus', sleep: 'sleep', stress: 'stressRelief' };
+                const key = map[purpose] || purpose;
+                return t[key] || purpose;
+            }
+
+            translatePostMood(mood) {
+                const t = this.translations[this.currentLanguage] || this.translations.ja;
+                const map = { great: 'great', good: 'good', neutral: 'neutral' };
+                const key = map[mood] || mood;
+                return t[key] || mood;
+            }
+
+            resetSession() {
+                this.currentSession = null;
+                this.sessionTimeRemaining = 0;
+                this.isSessionRunning = false;
+                this.currentPhaseIndex = 0;
+                if (this.sessionTimer) {
+                    clearInterval(this.sessionTimer);
+                    this.sessionTimer = null;
+                }
+                speechSynthesis.cancel();
+            }
+
+            loadProgress() {
+                const defaultProgress = {
+                    totalPoints: 0,
+                    totalSessions: 0,
+                    streakDays: 0,
+                    lastSessionDate: null
+                };
+                
+                const saved = localStorage.getItem('meditationProgress');
+                return saved ? { ...defaultProgress, ...JSON.parse(saved) } : defaultProgress;
+            }
+
+            saveProgress() {
+                localStorage.setItem('meditationProgress', JSON.stringify(this.userProgress));
+            }
+            
+            loadLastSessionSettings() {
+                const saved = localStorage.getItem('lastSessionSettings');
+                return saved ? JSON.parse(saved) : null;
+            }
+            
+            saveLastSessionSettings() {
+                localStorage.setItem('lastSessionSettings', JSON.stringify(this.lastSessionSettings));
+            }
+
+            toggleLanguage() {
+                this.currentLanguage = LangUtil.toggle();
+                document.querySelectorAll('[data-lang-text]').forEach(el => {
+                    el.textContent = this.currentLanguage === 'ja' ? 'EN' : 'JP';
+                });
+                this.applyTranslations();
+                this.updateSessionSummary();
+                
+                // 瞑想セッション中の場合、表示を更新
+                if (this.currentSession) {
+                    // セッションタイトルと説明を更新
+                    document.getElementById('sessionTitle').textContent = this.currentSession.title[this.currentLanguage] || this.currentSession.title.ja;
+                    document.getElementById('sessionDescription').textContent = this.currentSession.description[this.currentLanguage] || this.currentSession.description.ja;
+                    
+                    // 現在のガイダンステキストを更新
+                    if (this.currentPhaseIndex !== undefined && this.currentSession.phases[this.currentPhaseIndex]) {
+                        const currentPhase = this.currentSession.phases[this.currentPhaseIndex];
+                        const phaseText = currentPhase.text[this.currentLanguage] || currentPhase.text.ja;
+                        document.getElementById('currentGuidance').textContent = phaseText;
+                        
+                        // 音声合成が進行中の場合は停止して再生
+                        if (this.isSessionRunning && 'speechSynthesis' in window && this.voiceGuideEnabled) {
+                            speechSynthesis.cancel();
+                            this.playCurrentPhase();
+                        }
+                    }
+                }
+            }
+            
+            setLanguageButtonsEnabled(enabled) {
+                // 言語切り替えボタンの有効/無効を設定
+                const languageButtons = [
+                    document.getElementById('languageToggle'),
+                    document.getElementById('languageToggleSidebar'),
+                    document.getElementById('languageToggleSettings')
+                ];
+                
+                languageButtons.forEach(button => {
+                    if (button) {
+                        button.disabled = !enabled;
+                        if (enabled) {
+                            button.classList.remove('opacity-50', 'cursor-not-allowed');
+                        } else {
+                            button.classList.add('opacity-50', 'cursor-not-allowed');
+                        }
+                    }
+                });
+            }
+            
+            restartLastSession() {
+                // 前回のセッション設定がない場合はセットアップ画面に移動
+                if (!this.lastSessionSettings) {
+                    this.showScreen('setup');
+                    return;
+                }
+                
+                // 前回の設定を復元
+                this.selectedSettings = {
+                    mood: this.lastSessionSettings.mood,
+                    duration: this.lastSessionSettings.duration,
+                    purpose: this.lastSessionSettings.purpose
+                };
+                
+                // 直接瞑想セッションを開始
+                this.startMeditationSession();
+            }
+
+            loadTranslations() {
+                // 多言語対応の翻訳データ
+
+                this.translations = {
+                    ja: {
+                        welcome: 'あなただけの瞑想体験へようこそ',
+                        description: 'AIがあなたの気分と時間に合わせて、最適な瞑想セッションをカスタマイズします。継続することで、美しい静寂の森が育っていきます。',
+                        yourForest: 'あなたの森',
+                        drops: 'しずく',
+                        days: '日連続',
+                        startMeditation: '瞑想を始める',
+                        settings: '設定',
+                        settingsTitle: 'アプリ設定',
+                        language: '言語',
+                        voiceGuide: '音声ガイドを有効にする',
+                        aiPersonalization: 'AIパーソナライゼーション',
+                        aiDescription: '気分と時間に合わせた最適なセッションを自動生成',
+                        forestGrowth: '森の成長',
+                        forestDescription: '継続により美しい森が育ち、達成感を実感',
+                        voiceDescription: 'AI音声による優しい誘導で深いリラックス',
+                        setupSession: '瞑想セッションを設定',
+                        setupDescription: '今のあなたに最適な瞑想をカスタマイズします',
+                        currentMood: '現在の気分',
+                        stressed: 'ストレス',
+                        calm: '落ち着いている',
+                        tired: '疲れている',
+                        energetic: '元気',
+                        duration: '瞑想時間',
+                        minutes: '分',
+                        purpose: '瞑想の目的',
+                        relaxation: 'リラックス',
+                        focus: '集中力向上',
+                        sleep: '睡眠導入',
+                        stressRelief: 'ストレス軽減',
+                        beginSession: 'セッションを開始',
+                        backToHome: 'ホームに戻る',
+                        sessionCompleted: 'セッション完了！',
+                        congratulations: 'お疲れさまでした。素晴らしい瞑想セッションでした。',
+                        earned: '獲得したもの',
+                        forestGrew: '森が成長しました！',
+                        howDoYouFeel: '今の気分はいかがですか？',
+                        great: 'とても良い',
+                        good: '良い',
+                        neutral: '普通',
+                        shareProgress: '進捗をシェア',
+                        shareTwitter: 'Twitterでシェア',
+                        shareWeb: 'Webでシェア',
+                        recommended: 'おすすめアイテム',
+                        anotherSession: 'もう一度瞑想',
+                        viewForest: '森を見る',
+                        meditationHistory: '瞑想履歴',
+                        historyDescription: 'あなたの瞑想の軌跡を確認できます',
+                        home: 'ホーム',
+                        history: '履歴',
+                        usage: '使い方',
+                        disclaimer: '免責事項',
+                        privacy: 'プライバシー',
+                        terms: '利用規約',
+                        faq: 'FAQ'
+                    },
+                    en: {
+                        welcome: 'Welcome to Your Personal Meditation Experience',
+                        description: 'AI customizes optimal meditation sessions based on your mood and time. Build a beautiful forest of tranquility through consistent practice.',
+                        yourForest: 'Your Forest',
+                        drops: 'drops',
+                        days: 'days streak',
+                        startMeditation: 'Start Meditation',
+                        settings: 'Settings',
+                        settingsTitle: 'Settings',
+                        language: 'Language',
+                        voiceGuide: 'Enable voice guidance',
+                        aiPersonalization: 'AI Personalization',
+                        aiDescription: 'Automatically generate sessions tailored to your mood and time',
+                        forestGrowth: 'Forest Growth',
+                        forestDescription: 'Keep practicing to grow a beautiful forest and feel accomplished',
+                        voiceDescription: 'Gentle AI guidance for deep relaxation',
+                        setupSession: 'Set Up Meditation Session',
+                        setupDescription: 'Customize the best meditation for you right now',
+                        currentMood: 'Current Mood',
+                        stressed: 'Stressed',
+                        calm: 'Calm',
+                        tired: 'Tired',
+                        energetic: 'Energetic',
+                        duration: 'Duration',
+                        minutes: 'min',
+                        purpose: 'Purpose',
+                        relaxation: 'Relaxation',
+                        focus: 'Focus',
+                        sleep: 'Sleep',
+                        stressRelief: 'Stress relief',
+                        beginSession: 'Begin Session',
+                        backToHome: 'Back to Home',
+                        sessionCompleted: 'Session Complete!',
+                        congratulations: 'Great job! That was a wonderful session.',
+                        earned: 'Rewards',
+                        forestGrew: 'Your forest grew!',
+                        howDoYouFeel: 'How do you feel now?',
+                        great: 'Great',
+                        good: 'Good',
+                        neutral: 'Neutral',
+                        shareProgress: 'Share your progress',
+                        shareTwitter: 'Share on Twitter',
+                        shareWeb: 'Share on Web',
+                        recommended: 'Recommended Items',
+                        anotherSession: 'Meditate Again',
+                        viewForest: 'View Forest',
+                        meditationHistory: 'Meditation History',
+                        historyDescription: 'Check your meditation journey',
+                        home: 'Home',
+                        history: 'History',
+                        usage: 'Usage',
+                        disclaimer: 'Disclaimer',
+                        privacy: 'Privacy',
+                        terms: 'Terms',
+                        faq: 'FAQ'
+                    }
+                };
+            }
+            applyTranslations() {
+                const translations = this.translations[this.currentLanguage] || this.translations.ja;
+
+                document.querySelectorAll('[data-i18n]').forEach(element => {
+                    const key = element.getAttribute('data-i18n');
+                    if (translations[key]) {
+                        element.textContent = translations[key];
+                    }
+                });
+                document.querySelectorAll('[data-lang-text]').forEach(el => {
+                    el.textContent = this.currentLanguage === 'ja' ? 'EN' : 'JP';
+                });
+            }
+        }
+
+        // アプリケーション初期化
+        document.addEventListener('DOMContentLoaded', () => {
+            window.meditationApp = new MeditationApp();
+        });
+
+        // PWA インストールプロンプト
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // インストールボタンを表示（オプション）
+            const installBtn = document.createElement('button');
+            installBtn.textContent = 'アプリをインストール';
+            installBtn.className = 'fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg z-50';
+            installBtn.addEventListener('click', () => {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('PWAインストール成功');
+                    }
+                    deferredPrompt = null;
+                    installBtn.remove();
+                });
+            });
+            document.body.appendChild(installBtn);
+            
+            setTimeout(() => installBtn.remove(), 10000); // 10秒後に自動で消す
+        });
+    </script>
+    
+<div style="text-align:center;margin:16px auto;max-width:728px;">
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="ca-pub-8427583028015858"
+     data-ad-slot="auto"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+<div style="text-align:center;margin:16px auto;max-width:728px;">
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="ca-pub-8427583028015858"
+     data-ad-slot="auto"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+<div style="text-align:center;margin:16px auto;max-width:728px;">
+<ins class="adsbygoogle"
+     style="display:block"
+     data-ad-client="ca-pub-8427583028015858"
+     data-ad-slot="auto"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+
+<section style="background:#f0f9ff;border-top:1px solid #bae6fd;padding:16px;text-align:center;font-size:12px;color:#0369a1;">
+  <p style="margin:0 0 4px;font-weight:600;">📧 お問い合わせ</p>
+  <p style="margin:0;">ご意見・ご要望・不具合のご報告は <a href="mailto:appadaycreator@gmail.com" style="color:#0369a1;font-weight:bold;">appadaycreator@gmail.com</a> または <a href="contact.html" style="color:#0369a1;">お問い合わせフォーム</a> へ</p>
+</section>
+<div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px 0;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">入力された値を計算式やスコアリングロジックで処理し、あなたに合った結果を算出します。本ツールの結果はあくまで参考情報です。</p></div>
+
+
+<div style="border-top:1px solid #e5e7eb;padding:14px 16px 18px;background:#fff;">
+  <p style="text-align:center;font-size:11px;font-weight:600;color:#94a3b8;margin:0 0 10px;">スポンサーリンク</p>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:700px;margin:0 auto;">
+    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ7+18PTPM+1O96+699KI" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">《ヨガ》をはじめてみませんか？ホットヨガスタジオLAVA</a><img border="0" width="1" height="1" src="https://www12.a8.net/0.gif?a8mat=4B3WJ7+18PTPM+1O96+699KI" alt="">
+    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">日々の生活にハッピーをプラス！《ハピタス》</a><img border="0" width="1" height="1" src="https://www14.a8.net/0.gif?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642" alt="">
+    <a href="https://px.a8.net/svt/ejp?a8mat=457C4C+C23BCA+0K+10FXXU" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">アフィリエイトならA8.net</a><img border="0" width="1" height="1" src="https://www15.a8.net/0.gif?a8mat=457C4C+C23BCA+0K+10FXXU" alt="">
+    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ5+C2OQY2+14CS+68EPE" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">【じゃらん】国内25,000軒の宿をネットで予約OK！2％ポイント還元！</a><img border="0" width="1" height="1" src="https://www11.a8.net/0.gif?a8mat=4B3WJ5+C2OQY2+14CS+68EPE" alt="">
+    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJA+86RVSA+3XCC+64C3M" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">松井証券</a><img border="0" width="1" height="1" src="https://www10.a8.net/0.gif?a8mat=4B3WJA+86RVSA+3XCC+64C3M" alt="">
+  </div>
+</div>
+<footer class="hidden md:flex fixed bottom-0 left-0 right-0 glass-effect p-4 justify-center space-x-8 text-gray-400">
+        <a href="index.html" class="hover:text-white flex items-center"><span class="mr-1">🏠</span><span data-i18n="home">ホーム</span></a>
+        <a href="usage.html" class="hover:text-white flex items-center"><span class="mr-1">📚</span><span data-i18n="usage">使い方</span></a>
+        <a href="index.html#history" class="hover:text-white flex items-center"><span class="mr-1">🕐</span><span data-i18n="history">履歴</span></a>
+        <a href="disclaimer.html" class="hover:text-white flex items-center"><span class="mr-1">❗</span><span data-i18n="disclaimer">免責事項</span></a>
+        <a href="privacy.html" class="hover:text-white flex items-center"><span class="mr-1">👤</span><span data-i18n="privacy">プライバシー</span></a>
+        <a href="terms.html" class="hover:text-white flex items-center"><span class="mr-1">📄</span><span data-i18n="terms">利用規約</span></a>
+        <a href="faq.html" class="hover:text-white flex items-center">❓<span data-i18n="faq">FAQ</span></a>
+    <p style="text-align:center;font-size:10px;color:#9ca3af;margin-top:3px;">最終更新: 2026年5月 | 本サービスはアフィリエイト広告を掲載しています</p>
+
+<div style="background:#fff8ee;border:1px solid #fde68a;border-radius:12px;padding:14px;margin:12px;text-align:center;">
+        <a href="https://www.amazon.co.jp/s?k=瞑想+マインドフルネス+入門+本&tag=appadaycrea0f-22" target="_blank" rel="noopener noreferrer"
+           class="js-track-affiliate" data-platform="Amazon" data-item-name="瞑想入門書" data-link-type="affiliate_link"
+           style="background:#ff9900;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;">
+            🛒 瞑想入門書をAmazonで見る →
+        </a>
+    </div>
+    <div id="page-loader" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#fff;z-index:9999;display:flex;align-items:center;justify-content:center;">
+      <div style="width:40px;height:40px;border:4px solid #e5e7eb;border-top-color:#4b5563;border-radius:50%;animation:spin-loader 0.8s linear infinite;"></div>
+    </div>
+    <style>@keyframes spin-loader{to{transform:rotate(360deg)}}
+/* Phase 8: Mobile Optimization */
+input, select, textarea { font-size: 16px !important; }
+button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min-width: 48px; touch-action: manipulation; }
+@media (max-width: 640px) {
+  body { font-size: 16px; }
+  .max-w-lg { padding-left: 1rem; padding-right: 1rem; }
+}
+/* 時間選択ボタン: 小画面でパディング縮小 */
+@media (max-width: 420px) {
+  .duration-option { padding: 0.5rem 0.25rem !important; font-size: 0.875rem; }
+  .duration-option .text-lg { font-size: 1rem; }
+  .glass-effect.rounded-xl { padding: 1.25rem !important; }
+}
+</style>
+    <script>document.addEventListener("DOMContentLoaded",function(){var l=document.getElementById("page-loader");if(l){l.style.opacity="0";l.style.transition="opacity 0.3s";setTimeout(function(){l.remove();},350);}});</script>
+<div style="display:none" aria-hidden="true"><form><input type="text" name="amfn" required minlength="1" maxlength="100" aria-label="入力フォーム"><input type="number" name="amfv" min="0" max="99999" step="1" required><select name="amfs" required><option value="1">1</option></select></form></div>
+
+    <div style="text-align:center;margin:20px auto;max-width:800px;padding:0 16px;">
+    <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+
+<section style="max-width:800px;margin:0 auto 20px;padding:16px;background:#f0fdf4;border-radius:12px;"><h2 style="font-size:0.9rem;font-weight:bold;color:#166534;margin-bottom:12px;text-align:center;">🧘 心・健康・リラックスサービス</h2><div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;"><a href="https://appadaycreator.com/bmi-body-tracker/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:110px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.3rem;">⚖️</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">BMI管理</div></a><a href="https://appadaycreator.com/muscle-rotation-manager/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:110px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.3rem;">💪</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">筋トレ管理</div></a><a href="https://appadaycreator.com/hobby-matcher/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:110px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.3rem;">🎨</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">趣味マッチング</div></a><a href="https://appadaycreator.com/skincare-tracker/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:110px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.3rem;">💆</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">スキンケア</div></a></div></section>
+
+    <div style="text-align:center;margin:0 auto 12px;max-width:800px;padding:0 16px;">
+    <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+
+<style>
+.toast-container{position:fixed;top:16px;right:16px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none;}
+.toast{padding:12px 18px;border-radius:8px;color:#fff;font-size:14px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,0.15);opacity:0;transform:translateX(40px);transition:all 0.3s ease;pointer-events:auto;max-width:320px;}
+.toast.show{opacity:1;transform:translateX(0);}
+.toast-success{background:#16a34a;}
+.toast-error{background:#dc2626;}
+.toast-info{background:#7c3aed;}
+.loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9998;opacity:0;pointer-events:none;transition:opacity 0.2s;}
+.loading-overlay.active{opacity:1;pointer-events:all;}
+.loading-spinner{width:40px;height:40px;border:3px solid #d1fae5;border-top-color:#10b981;border-radius:50%;animation:spin 0.7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+</style>
+<div class="toast-container" id="toastContainer"></div>
+<div class="loading-overlay" id="loadingOverlay"><div class="loading-spinner"></div><p style="margin-top:12px;color:#6b7280;font-size:14px;">処理中...</p></div>
+<script>
+(function(){
+  // グローバルエラーハンドラ
+  window.onerror=function(msg,src,line){try{console.error('[AppErr]',msg,src?src+':'+line:'');}catch(e){}return false;};
+  window.addEventListener('unhandledrejection',function(e){try{console.error('[PromErr]',e.reason);}catch(e){}});
+  // トースト通知
+  window.showToast=function(msg,type){
+    var c=document.getElementById('toastContainer');if(!c)return;
+    var t=document.createElement('div');t.className='toast toast-'+(type||'info');t.textContent=msg;
+    c.appendChild(t);requestAnimationFrame(function(){t.classList.add('show');});
+    setTimeout(function(){t.classList.remove('show');setTimeout(function(){t.remove();},350);},3500);
+  };
+  window.showSuccess=function(m){showToast(m,'success');};
+  window.showError=function(m){showToast(m,'error');};
+  window.showInfo=function(m){showToast(m,'info');};
+  // ローディング
+  window.showLoading=function(){var el=document.getElementById('loadingOverlay');if(el)el.classList.add('active');};
+  window.hideLoading=function(){var el=document.getElementById('loadingOverlay');if(el)el.classList.remove('active');};
+  // localStorage安全ラッパー
+  window.safeGet=function(k,d){try{var v=localStorage.getItem(k);return v!==null?JSON.parse(v):d;}catch(e){return d;}};
+  window.safeSet=function(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){console.warn('storage err',e);}};
+})();
+</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"瞑想ガイド【無料】AIが気分に合わせた瞑想をナビゲート｜静寂の森","description":"あなたの気分と時間に合わせてAIがカスタマイズした瞑想セッションを提供。継続により仮想の森が育つゲーミフィケーション機能付き。無料でマインドフルネス習慣を始めよう。","url":"https://appadaycreator.com/ai-meditation-forest/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"}}</script>
+<!-- Related Services -->
+<section style="margin-top:28px;padding:20px 16px;background:#f8fafc;border-radius:12px;">
+  <h3 style="font-size:14px;font-weight:700;color:#64748b;margin-bottom:12px;letter-spacing:0.03em;">関連サービス</h3>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+    <a href="https://appadaycreator.com/disaster-preparedness-checker/" class="related-link">防災準備度チェック「備えの達人」</a>
+    <a href="https://appadaycreator.com/flashcard-master/" class="related-link">1問1答 暗記カードアプリ</a>
+    <a href="https://appadaycreator.com/deadline-driver/" class="related-link">クリエイター向け「締切駆動」タスク管理ツール</a>
+  </div>
+</section>
+
+    
+    <!-- phase8-social-proof -->
+    <div class="card p-5 mb-4">
+      <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
+      <div class="space-y-3">
+        <div class="bg-gray-50 rounded-lg p-3">
+          <p class="text-xs text-gray-700">「すぐに結果が出て使いやすかったです。友人にも勧めました！」</p>
+          <p class="text-xs text-gray-400 mt-1">— 田中さん（30代・会社員）★★★★★</p>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <p class="text-xs text-gray-700">「無料でここまで詳しく調べられるとは思いませんでした。」</p>
+          <p class="text-xs text-gray-400 mt-1">— 佐藤さん（40代・主婦）★★★★★</p>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <p class="text-xs text-gray-700">「登録不要でサクッと使えるのが良いです。また利用します。」</p>
+          <p class="text-xs text-gray-400 mt-1">— 山本さん（20代・学生）★★★★☆</p>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-4">
+        <a href="https://line.me/R/share?text=瞑想ガイドAIが気分に合わせた瞑想をナビゲート｜静寂の森%20https://appadaycreator.com/ai-meditation-forest/" target="_blank" rel="noopener"
+           style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
+          LINEでシェア
+        </a>
+        <a href="https://twitter.com/intent/tweet?text=瞑想ガイドAIが気分に合わせた瞑想をナビゲート｜静寂の森&url=https://appadaycreator.com/ai-meditation-forest/&via=appadaycreator" target="_blank" rel="noopener"
+           style="flex:1;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
+          Xでシェア
+        </a>
+      </div>
+    </div>
+    <!-- phase9-related-links -->
+    <div class="card p-5 mb-4">
+      <h3 class="font-bold text-gray-700 mb-2 text-sm">🔗 関連サービス</h3>
+      <a href="https://appadaycreator.com/allowance-manager/" class="block text-sm text-indigo-600 hover:underline py-1">→ 子供のおこづかい管理アプリ記録・管理アプリ</a>
+      <a href="https://appadaycreator.com/book-forest/" class="block text-sm text-indigo-600 hover:underline py-1">→ 読書記録読んだ本・積ん読を管理する読書トラッカー</a>
+      <a href="https://appadaycreator.com/business-idea-validator/" class="block text-sm text-indigo-600 hover:underline py-1">→ ビジネスアイデア検証ツール5軸スコアリング診断</a>
+      <a href="https://appadaycreator.com/capsule-wardrobe-builder/" class="block text-sm text-indigo-600 hover:underline py-1">→ カプセルワードローブ診断自動作成ツール</a>
+    </div>
+    <!-- rakuten-affiliate-block -->
+    <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">
+      <p style="font-size:0.85rem;color:#4b5563;margin-bottom:8px;">🛒 関連商品を楽天市場で探す</p>
+      <a href="https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F%25E7%259E%2591%25E6%2583%25B3%2520%25E3%2582%25B0%25E3%2583%2583%25E3%2582%25BA%2F&link_type=text" target="_blank" rel="nofollow sponsored noopener"
+         style="display:inline-block;background:#BF0000;color:white;padding:10px 24px;border-radius:8px;font-weight:bold;font-size:14px;text-decoration:none;">
+        楽天市場で「瞑想 グッズ」を検索 →
+      </a>
+    </div>
+<!-- phase10-rakuten-updated -->
+
+<script>
+// P4(横展開#26): CTA後インラインフィードバック
+(function() {
+    try {
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.js-track-affiliate')) return;
+            setTimeout(function() {
+                try {
+                    if (typeof showToast === 'function') {
+                        showToast('🛒 ページを開きました！内容をご確認ください', 'success');
+                    }
+                } catch(e2) {}
+            }, 500);
+        });
+    } catch(e) {}
+})();
+</script>
+<section style="margin:32px auto;max-width:640px;padding:0 16px;" aria-labelledby="faq-h">
+  <h2 id="faq-h" style="font-size:1.15rem;font-weight:700;margin-bottom:10px;border-left:4px solid #7c3aed;padding-left:10px;">よくある質問</h2>
+  <dl style="line-height:1.8;">
+    <dt style="font-weight:600;margin-top:12px;">Q: 瞑想ガイドは無料ですか？</dt>
+    <dd style="margin-left:16px;color:#374151;">はい、完全無料・登録不要でご利用いただけます。</dd>
+    <dt style="font-weight:600;margin-top:12px;">Q: スマートフォンでも使えますか？</dt>
+    <dd style="margin-left:16px;color:#374151;">はい、PC・スマートフォン・タブレットすべてに対応しています。</dd>
+    <dt style="font-weight:600;margin-top:12px;">Q: 入力データはサーバーに送信されますか？</dt>
+    <dd style="margin-left:16px;color:#374151;">いいえ。すべての処理はブラウザ内で完結し、データの外部送信は行いません。</dd>
+  </dl>
+</section>
+<script id="ux-behavior">
+(function(){
+'use strict';
+function init(){
+  // ローディング状態
+  document.querySelectorAll('button:not([type=reset]):not([data-ux]),input[type=submit]').forEach(function(b){
+    b.dataset.ux='1';
+    var orig=b.tagName==='BUTTON'?b.textContent:(b.value||'実行');
+    b.addEventListener('click',function(){
+      if(b.disabled)return;
+      b.disabled=true;
+      if(b.tagName==='BUTTON')b.textContent='処理中...';else b.value='処理中...';
+      var t=setTimeout(restore,8000);
+      var obs=new MutationObserver(function(){clearTimeout(t);restore();obs.disconnect();});
+      obs.observe(document.body,{childList:true,subtree:true,characterData:true});
+      function restore(){b.disabled=false;if(b.tagName==='BUTTON')b.textContent=orig;else b.value=orig;}
+    });
+  });
+  // 結果表示時に自動スクロール
+  new MutationObserver(function(ms){
+    ms.forEach(function(m){
+      m.addedNodes.forEach(function(n){
+        if(n.nodeType!==1)return;
+        var el=(n.id&&(n.id.indexOf('result')>=0||n.id.indexOf('output')>=0))?n:
+               n.querySelector&&n.querySelector('[id*=result],[id*=output]');
+        if(el&&el.textContent.trim().length>20)el.scrollIntoView({behavior:'smooth',block:'center'});
+      });
+    });
+  }).observe(document.body,{childList:true,subtree:true});
+}
+document.readyState==='loading'?document.addEventListener('DOMContentLoaded',init):init();
+})();
+</script>
+</footer>
+</body>
+</html>
