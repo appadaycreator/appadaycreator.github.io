@@ -434,33 +434,113 @@ function calculateResult() {
   const carType = carTypes[carTypeKey];
   const carPrice = carType.price; // 万円
 
-  // Cost simulation
-  const annualRunCost = carPrice * 0.08; // 年間維持費（税・保険・車検等）概算
-  const depRate5 = 0.55; // 5年後残価率
-  const depRate10 = 0.30; // 10年後残価率
-
-  // Purchase 5y
-  const pur5 = Math.round(carPrice + annualRunCost * 5 - carPrice * depRate5);
-  // Purchase 10y
-  const pur10 = Math.round(carPrice + annualRunCost * 10 - carPrice * depRate10);
-  // Lease 5y (月額 = 車価格/60 + 諸費用込み)
-  const leaseMonthly = Math.round(carPrice * 1.15 / 60);
-  const lease5 = leaseMonthly * 60;
-  const lease10 = leaseMonthly * 120;
-  // CarShare 5y (月10回×4時間×1,000円/h想定 → 月4万, ただし低頻度なら月1万〜)
+  // より正確なコスト計算
   const freqIdx = answers['frequency'];
-  const shareMonthly = freqIdx === 0 ? 4 : freqIdx === 1 ? 3 : freqIdx === 2 ? 1.5 : freqIdx === 3 ? 0.8 : 0.4; // 万円
+  const mileageIdx = answers['mileage'];
+
+  // 月間走行距離推定（詳細: mileage選択肢から月平均を算出）
+  const mileageMap = {0: 300, 1: 750, 2: 1500, 3: 3000}; // 月km
+  const monthlyMileage = mileageMap[mileageIdx] || 1000;
+  const annualMileage = monthlyMileage * 12;
+
+  // 車種別・走行距離別の詳細コスト計算
+  const carTypeIdx = answers['car_type'];
+  const carTypeKeys = ['small','big','sedan','luxury','undecided'];
+  const carTypeKey = carTypeIdx !== undefined ? carTypeKeys[carTypeIdx] : 'undecided';
+
+  // 自動車税（車種・排気量別）
+  const taxMap = {
+    small: 10800, big: 36500, sedan: 36500, luxury: 111000, undecided: 29500
+  };
+  const annualTax = taxMap[carTypeKey] || 29500;
+
+  // 車検費用（初回3年、以後2年ごと）
+  const shaken5Years = 5000 + (3000 * Math.floor(5 / 2));
+  const shaken10Years = 5000 + (3000 * Math.floor(10 / 2));
+
+  // 保険料（年齢影響を簡易推定）
+  const budgetIdx = answers['budget'];
+  const ageFactorMap = {0: 1.2, 1: 1.0, 2: 0.9, 3: 0.85, 4: 0.85}; // 予算層を年齢プロキシに
+  const ageFactor = ageFactorMap[budgetIdx] || 1.0;
+  const baseInsurance = carTypeKey === 'luxury' ? 15000 : carTypeKey === 'big' ? 10000 : 8000;
+  const annualInsurance = Math.round(baseInsurance * ageFactor);
+
+  // ガソリン代（燃費: 軽16km/L, その他12km/L）
+  const fuelEfficiency = carTypeKey === 'small' ? 16 : 12;
+  const fuelPricePerLiter = 165; // 現在の相場
+  const annualFuel = Math.round(annualMileage / fuelEfficiency * fuelPricePerLiter);
+
+  // メンテナンス・消耗品（オイル・タイヤ等）
+  const annualMaintenance = 30000 + Math.round(annualMileage / 10000 * 5000);
+
+  // 合計年間維持費
+  const annualRunCost = annualTax + annualInsurance + annualFuel + annualMaintenance;
+
+  // 残価率（5年・10年）
+  const depRate5 = 0.55;
+  const depRate10 = 0.30;
+
+  // 購入コスト（5年・10年）
+  const pur5 = Math.round(carPrice + (annualRunCost * 5 + shaken5Years) - (carPrice * depRate5));
+  const pur10 = Math.round(carPrice + (annualRunCost * 10 + shaken10Years) - (carPrice * depRate10));
+
+  // リース料金（より現実的な計算）
+  // 基本: 車価格1.2倍 / 60ヶ月 + 諸費用
+  const leaseMonthly = Math.round((carPrice * 1.2 / 60) * 100) / 100; // 万円
+  const lease5 = Math.round(leaseMonthly * 60 * 1.05); // 手数料5%加算
+  const lease10 = Math.round(leaseMonthly * 120 * 1.05);
+
+  // カーシェア料金（走行頻度別）
+  // 基本: 時間4,000円 + 距離10円/km、月額会員費800円
+  const shareMonthlyBase = 9600 + Math.round(monthlyMileage * 10); // 月額目安
+  const shareMonthly = Math.round(shareMonthlyBase / 10000); // 万円
   const share5 = Math.round(shareMonthly * 12 * 5);
   const share10 = Math.round(shareMonthly * 12 * 10);
 
-  // Determine winner
+  // 詳細な個別アドバイス生成
   const best = scores.purchase >= scores.lease && scores.purchase >= scores.share ? 'purchase' :
                scores.lease >= scores.share ? 'lease' : 'share';
 
+  // 診断スコアの差分を計算（確信度判定用）
+  const scoreList = [scores.purchase, scores.lease, scores.share];
+  const maxScore = Math.max(...scoreList);
+  const minScore = Math.min(...scoreList);
+  const confidence = maxScore > 0 ? ((maxScore - minScore) / maxScore * 100) : 0; // 確信度%
+
+  // 動的アドバイス生成
+  let resultTitle, resultDesc, resultIcon;
+
+  if (best === 'purchase') {
+    resultIcon = '🏠';
+    resultTitle = 'マイカー購入がベスト';
+    const yearDiff = Math.round((pur10 - pur5) / 5); // 5年追加での年間コスト
+    const saving = Math.max(0, Math.round(Math.min(lease5, share5) - pur5));
+    resultDesc = `月${Math.round(monthlyMileage)}km、年間${Math.round(annualMileage/10000)*10000}km走行のあなたには、マイカー購入が最適です。` +
+      `${carType.name}の購入で5年¥${pur5}万、10年¥${pur10}万のコストが見込めます。` +
+      `${saving > 0 ? `他の選択肢より¥${saving}万円お得です。` : ''}` +
+      `ローン利用時は金利1〜3%を比較し、月額約¥${Math.round(carPrice/(12*5))}万のローン返済で購入可能です。`;
+  } else if (best === 'lease') {
+    resultIcon = '📋';
+    resultTitle = 'カーリースがベスト';
+    const saving = Math.max(0, Math.round(Math.min(pur5, share5) - lease5));
+    resultDesc = `初期費用を抑えたいあなたには、カーリースが最適です。` +
+      `${carType.name}で月額約¥${Math.round(leaseMonthly)}万（5年契約）の定額で、税金・車検・メンテが込まれています。` +
+      `${saving > 0 ? `購入より¥${saving}万円節約できます。` : ''}` +
+      `走行距離制限は月${Math.round(monthlyMileage)}kmに合わせて選びましょう。超過時は1km=10〜30円の追加料金が発生します。`;
+  } else {
+    resultIcon = '🤝';
+    resultTitle = 'カーシェアがベスト';
+    const saving = Math.max(0, Math.round(Math.min(pur5, lease5) - share5));
+    resultDesc = `使用頻度が少ないあなたには、カーシェアが最適です。` +
+      `月${Math.round(monthlyMileage)}km程度の利用なら、月額¥${Math.round(shareMonthly*10)}万で十分です。` +
+      `${saving > 0 ? `購入・リースより¥${saving}万円以上お得になります。` : ''}` +
+      `タイムズカー・オリックス・エニカなどを比較し、自宅近くに24時間ステーションがあるサービスを選びましょう。`;
+  }
+
   const resultMap = {
-    purchase: {icon:'🏠', title:'マイカー購入がベスト', desc:`あなたのライフスタイルには、車を購入して長く乗り続けるスタイルが最適です。家族の多い方や月走行1,000km以上のヘビーユーザーには、10年以上乗ることでトータルコストが有利になります。一括払いが難しい場合は自動車ローン（金利1〜3%）を比較しましょう。`},
-    lease: {icon:'📋', title:'カーリースがベスト', desc:`初期費用を抑えながら新しい車に乗り続けられるカーリースが最適です。月額定額で税金・車検・消耗品が含まれるプランも多く、家計管理がラクになります。走行距離制限（月1,000〜1,500km）と契約年数（3〜7年）に注意して選びましょう。`},
-    share: {icon:'🤝', title:'カーシェアがベスト', desc:`使う時だけ費用が発生するカーシェアが最適です。使用頻度が少ない方には圧倒的にコストパフォーマンスに優れた選択肢です。タイムズカー・オリックスカーシェア・三井のリハウスカーシェアなどを比較し、自宅近くに駐車場があるサービスを選びましょう。`}
+    purchase: {icon: resultIcon, title: resultTitle, desc: resultDesc},
+    lease: {icon: resultIcon, title: resultTitle, desc: resultDesc},
+    share: {icon: resultIcon, title: resultTitle, desc: resultDesc}
   };
 
   const result = resultMap[best];
@@ -541,8 +621,8 @@ renderQuestion();
   <h2 style="font-size:16px;font-weight:700;color:#1e293b;margin:0 0 16px;text-align:center;">❓ よくある質問（FAQ）</h2>
   <div style="max-width:680px;margin:0 auto;">
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
-      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. このチェック結果は医療診断の代わりになりますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">なりません。本ツールはあくまで参考情報の提供を目的としています。症状が続く場合は必ず医療機関を受診してください。</p>
+      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. 診断結果の精度はどのくらいですか？ <span>▼</span></summary>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">本ツールは入力情報をもとにした参考情報の提供を目的としています。重要な判断の際は専門家や公式情報もあわせてご確認ください。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. プライバシーは守られますか？ <span>▼</span></summary>

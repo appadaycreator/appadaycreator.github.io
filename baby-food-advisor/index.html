@@ -338,8 +338,8 @@ var Qs = [
     key: "progress"
   },
   {
-    text: "Q3: アレルギーの有無は？",
-    opts: ["なし","卵アレルギー","乳製品アレルギー","小麦アレルギー","複数あり","不明・様子見"],
+    text: "Q3: アレルギー・食べられない食材は？",
+    opts: ["なし","卵","乳製品","小麦","そば・蕎麦粉","エビ・かに","ピーナッツ・ナッツ","複数あり","不明・様子見"],
     key: "allergy"
   },
   {
@@ -436,11 +436,14 @@ var stageData = {
 };
 
 var allergyAdvice = {
-  1: "卵アレルギーがある場合は、卵・卵黄を完全に除去してください。マヨネーズ・かまぼこ・練り物にも卵が含まれることがあります。",
-  2: "乳製品アレルギーの場合は、牛乳・ヨーグルト・チーズ・バター・ホエイなどを避けてください。食品表示をよく確認しましょう。",
-  3: "小麦アレルギーがある場合は、パン・うどん・パスタ・醤油（小麦含む）に注意。米粉代替品が便利です。",
-  4: "複数のアレルギーがある場合は、かかりつけの小児科・アレルギー専門医に必ず相談してください。自己判断は危険です。",
-  5: "アレルギーが不明な場合は、初めて食べる食材は1種類ずつ、午前中に少量から試してください。"
+  1: "卵アレルギー：卵・卵黄を完全に除去してください。マヨネーズ・かまぼこ・練り物・菓子にも卵が含まれることがあります。",
+  2: "乳製品アレルギー：牛乳・ヨーグルト・チーズ・バター・ホエイなどを避けてください。加工食品の表示をよく確認しましょう。",
+  3: "小麦アレルギー：パン・うどん・パスタ・醤油（小麦含む）・お好み焼きに注意。米粉・片栗粉代替品が便利です。",
+  4: "そば・蕎麦粉アレルギー：蕎麦・そば粉使用製品を避けてください。蕎麦は他の穀物との交差反応リスクもあるため要注意。",
+  5: "エビ・かにアレルギー：甲殻類全般（エビ・カニ・アミ・シーフードミックス）を避けてください。白身魚は通常安全です。",
+  6: "ピーナッツ・ナッツアレルギー：ナッツバター・アーモンドパウダー・加工食品に含まれる場合があります。1歳未満は誤嚥リスクもあるため推奨されません。",
+  7: "複数のアレルギーがある場合は、かかりつけの小児科・アレルギー専門医に必ず相談してください。自己判断は危険です。",
+  8: "アレルギーが不明な場合は、初めて食べる食材は1種類ずつ、午前中に少量から試してください。症状がないか注視しましょう。"
 };
 
 var troubleAdvice = {
@@ -491,14 +494,16 @@ function pick(i, val, key) {
       renderQ();
     } else {
       show('loading');
-      gtag('event', 'quiz_complete', { event_category: 'engagement' });
+      try { gtag('event', 'quiz_complete', { event_category: 'engagement' }); } catch(e) {}
       setTimeout(showResults, 1600);
     }
   }, 300);
 }
 
+function launchConfetti(){var colors=['#db2777','#fbbf24','#34d399','#60a5fa','#f472b6','#a78bfa','#fb923c'];for(var i=0;i<60;i++){var d=document.createElement('div');var sz=6+Math.random()*8;d.style.cssText='position:fixed;top:-20px;left:'+Math.random()*100+'%;width:'+sz+'px;height:'+sz+'px;background:'+colors[i%7]+';border-radius:'+(Math.random()>0.5?'50%':'2px')+';animation:svc-confetti-fall '+(1.2+Math.random()*1.5)+'s linear '+(Math.random()*0.5)+'s forwards;z-index:9999;pointer-events:none;';document.body.appendChild(d);setTimeout(function(el){return function(){el.remove();};}(d),3500);}}
+
 function showResults() {
-  launchConfetti();
+  try { launchConfetti(); } catch(e) {}
   var ageIdx = ans.age ? ans.age.i : 0;
   var stageKey = ['early','middle','late','finish'][ageIdx] || 'early';
   var data = stageData[stageKey];
@@ -562,10 +567,23 @@ function showResults() {
     var stageLabel = data.stage || stageKey;
     var encoded = btoa(unescape(encodeURIComponent(stageLabel)));
     var shareUrl = location.origin + location.pathname + '?r=' + encoded;
+
+    // LINE シェア最適化
     var lineA = document.querySelector('a[href*="line.me"]');
-    if (lineA) lineA.href = 'https://line.me/R/share?text=' + encodeURIComponent('離乳食診断結果：' + stageLabel + ' ' + shareUrl);
+    if (lineA) {
+      var lineText = '我が家の赤ちゃん、' + stageLabel + 'に突入🍼\n離乳食診断で月齢別の食材をチェック！\n' + shareUrl;
+      lineA.href = 'https://line.me/R/share?text=' + encodeURIComponent(lineText);
+    }
+
+    // Twitter（X）シェア最適化
     var xA = document.querySelector('a[href*="twitter.com"]');
-    if (xA) xA.href = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent('離乳食診断：' + stageLabel + ' #離乳食 #育児') + '&url=' + encodeURIComponent(shareUrl);
+    if (xA) {
+      var xText = data.stage.includes('初期') ? '離乳食初期スタート🌱' :
+                  data.stage.includes('中期') ? '離乳食中期に進みました🌿' :
+                  data.stage.includes('後期') ? '離乳食後期でカミカミ期へ🌻' :
+                  '離乳食完了期です🌸';
+      xA.href = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(xText + '\n\n月齢別の食材・レシピを無料で提案🥕\n#離乳食 #育児 #赤ちゃん') + '&url=' + encodeURIComponent(shareUrl);
+    }
   } catch(e){}
 }
 
@@ -604,8 +622,8 @@ function restart() {
   <h2 style="font-size:16px;font-weight:700;color:#1e293b;margin:0 0 16px;text-align:center;">❓ よくある質問（FAQ）</h2>
   <div style="max-width:680px;margin:0 auto;">
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
-      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. このチェック結果は医療診断の代わりになりますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">なりません。本ツールはあくまで参考情報の提供を目的としています。症状が続く場合は必ず医療機関を受診してください。</p>
+      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. 診断結果の精度はどのくらいですか？ <span>▼</span></summary>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">本ツールは入力情報をもとにした参考情報の提供を目的としています。重要な判断の際は専門家や公式情報もあわせてご確認ください。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. プライバシーは守られますか？ <span>▼</span></summary>
@@ -665,14 +683,18 @@ function restart() {
         </div>
         <p class="text-[10px] text-gray-400 mt-2 text-right">※ご利用イメージです</p>
       </div>
-      <div class="flex gap-2 mt-4">
+      <div class="flex gap-2 mt-4 flex-wrap">
         <a href="https://line.me/R/share?text=離乳食診断月齢別おすすめ食材・レシピを提案%20https://appadaycreator.com/baby-food-advisor/" target="_blank" rel="noopener"
-           style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
+           style="flex:1;min-width:60px;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
           LINEでシェア
         </a>
         <a href="https://twitter.com/intent/tweet?text=離乳食診断月齢別おすすめ食材・レシピを提案&url=https://appadaycreator.com/baby-food-advisor/&via=appadaycreator" target="_blank" rel="noopener"
-           style="flex:1;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
+           style="flex:1;min-width:60px;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
           Xでシェア
+        </a>
+        <a href="https://pinterest.com/pin/create/button/?url=https://appadaycreator.com/baby-food-advisor/&description=赤ちゃんの月齢に合った離乳食食材とレシピを無料で提案。月齢別アレルギー対応診断。" target="_blank" rel="noopener"
+           style="flex:1;min-width:60px;display:block;text-align:center;background:#E60023;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
+          Pinterestで保存
         </a>
       </div>
       <!-- P34横展開: PDF保存ボタン -->
