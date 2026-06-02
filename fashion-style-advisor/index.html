@@ -185,7 +185,73 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     </div>
 
     <!-- Result -->
-    <div 
+    <div id="result" class="hidden">
+      <!-- Answer Summary -->
+      <div class="bg-blue-50 rounded-xl p-4 mb-4 border border-blue-200">
+        <p class="text-sm text-blue-900" id="answer-summary"></p>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-md p-6 mb-6">
+        <div class="text-center mb-4">
+          <div id="result-icon" class="text-5xl mb-2"></div>
+          <h2 class="text-2xl font-bold text-rose-600" id="result-title"></h2>
+          <p class="text-gray-500 text-sm font-medium mt-1" id="result-subtitle"></p>
+          <p class="text-gray-700 mt-2 text-sm" id="result-desc"></p>
+        </div>
+
+        <div class="bg-rose-50 rounded-xl p-4 mb-4">
+          <h3 class="font-bold text-rose-700 mb-2">✨ コーデのコツ</h3>
+          <ul id="result-tips" class="text-sm text-gray-700 space-y-1 list-disc list-inside"></ul>
+        </div>
+
+        <div class="bg-pink-50 rounded-xl p-4 mb-5">
+          <h3 class="font-bold text-pink-700 mb-2">🛍️ おすすめアイテムカテゴリ</h3>
+          <div id="result-items" class="flex flex-wrap gap-2"></div>
+        </div>
+
+        <!-- Share Buttons -->
+        <div class="bg-purple-50 rounded-xl p-4 mb-5">
+          <h3 class="font-bold text-purple-700 mb-3">📤 シェアする</h3>
+          <div class="space-y-2">
+            <button onclick="copyResultText()" class="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 rounded-lg transition-colors text-sm">
+              📋 結果をコピー
+            </button>
+            <div class="flex gap-2">
+              <a id="line-share" href="#" target="_blank" rel="noopener"
+                class="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-2 rounded-lg transition-colors text-center text-sm">
+                LINE でシェア
+              </a>
+              <a id="x-share" href="#" target="_blank" rel="noopener"
+                class="flex-1 bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 rounded-lg transition-colors text-center text-sm">
+                X でシェア
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Affiliate CTAs -->
+        <div class="space-y-3">
+          <a id="amazon-link" href="https://www.amazon.co.jp/s?k=レディースファッション&tag=appadaycrea0f-22" target="_blank" rel="noopener"
+            class="block w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl text-center transition-colors js-track-affiliate" data-platform="Amazon" data-item-name="レディースファッション" data-link-type="affiliate_link">
+            🛒 Amazonでおすすめファッションを見る
+          </a>
+          <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ9+1RRP2I+5HR6+5YRHE" rel="nofollow" target="_blank" rel="noopener"
+            class="block w-full bg-rose-500 hover:bg-rose-600 text-white font-bold py-3 rounded-xl text-center transition-colors">
+            👗 ファッション通販サイトでコーデを探す
+          </a>
+        </div>
+
+        <button onclick="resetQuiz()" class="mt-4 w-full border border-rose-300 text-rose-600 font-medium py-2 rounded-xl hover:bg-rose-50 transition-colors" aria-label="もう一度診断する">
+          もう一度診断する
+        </button>
+      </div>
+
+      <!-- AdSense -->
+      <div class="my-4 text-center">
+        <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+        <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+      </div>
+    </div> 
     
     <!-- phase8-social-proof -->
     <div class="card p-5 mb-4">
@@ -422,6 +488,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     };
 
     function getResultKey(a) {
+      // P1-1: Q5（worry）を診断ロジックに反映
+      // 体型カバー重視なら、より堅実なスタイルを提案
+      if (a.worry === 'body') {
+        if (a.style === 'feminine' || a.style === 'casual') return 'casual_natural';
+        if (a.style === 'street') return 'casual_natural';
+      }
+
       if (a.style === 'simple') return 'clean_simple';
       if (a.style === 'casual') return 'casual_natural';
       if (a.style === 'feminine') return 'feminine';
@@ -446,9 +519,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('question-text').textContent = q.text;
       const optDiv = document.getElementById('options');
       optDiv.innerHTML = '';
+
+      // P2-2: モバイル UI 最適化 - Q3・Q4 は 2列グリッド
+      let gridClass = 'space-y-3';
+      if ((idx === 2 || idx === 3) && q.options.length <= 4) {
+        gridClass = 'grid grid-cols-2 gap-3';
+      }
+      optDiv.className = gridClass;
+
       q.options.forEach(opt => {
         const btn = document.createElement('button');
-        btn.className = 'w-full text-left border-2 border-gray-200 rounded-xl px-4 py-3 hover:border-rose-400 hover:bg-rose-50 transition-all font-medium text-gray-700';
+        btn.className = 'text-left border-2 border-gray-200 rounded-xl px-4 py-3 hover:border-rose-400 hover:bg-rose-50 transition-all font-medium text-gray-700 text-sm';
+        if (gridClass === 'space-y-3') {
+          btn.classList.add('w-full');
+        }
         btn.textContent = opt.label;
         btn.onclick = () => selectOption(q.key, opt.value);
         optDiv.appendChild(btn);
@@ -474,6 +558,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('result').classList.remove('hidden');
       const key = getResultKey(answers);
       const r = styleResults[key];
+
+      // P1-2: 回答サマリーを表示
+      const personaLabels = { f20: '20代女性', f30: '30〜40代女性', m20: '20代男性', m30: '30〜40代男性', teen: '10代' };
+      const styleLabels = { simple: 'シンプル・ミニマル', casual: 'カジュアル・ナチュラル', feminine: 'フェミニン・ガーリー', street: 'ストリート・トレンド', business: 'ビジネス・キレイめ' };
+      const sceneLabels = { daily: '日常・普段着', work: '仕事・オフィス', date: 'デート・外食', outing: 'お出かけ・イベント' };
+      const worryLabels = { unknown: '似合う服がわからない', body: '体型カバーしたい', rut: 'コーデがマンネリ', budget: '予算内でおしゃれしたい' };
+
+      const summaryText = `${personaLabels[answers.persona]} | ${styleLabels[answers.style]} | ${sceneLabels[answers.scene]}`;
+      document.getElementById('answer-summary').textContent = `📝 あなたの回答: ${summaryText}`;
+
       document.getElementById('result-icon').textContent = r.icon;
       document.getElementById('result-title').textContent = r.title;
       document.getElementById('result-subtitle').textContent = r.subtitle;
@@ -482,10 +576,47 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       ul.innerHTML = r.tips.map(t => `<li>${t}</li>`).join('');
       const itemsDiv = document.getElementById('result-items');
       itemsDiv.innerHTML = r.items.map(i => `<span class="bg-white border border-rose-200 text-rose-700 text-xs px-3 py-1 rounded-full font-medium">${i}</span>`).join('');
+
       const amazonLink = document.getElementById('amazon-link');
       const isMale = answers.persona === 'm20' || answers.persona === 'm30';
       const genderKw = isMale ? 'メンズ' : 'レディース';
       amazonLink.href = `https://www.amazon.co.jp/s?k=${encodeURIComponent(r.amazon_kw + ' ' + genderKw)}&tag=appadaycrea0f-22`;
+
+      // P2-1: シェアリンク設定
+      const resultText = `${r.title}（${r.subtitle}）`;
+      const shareUrl = 'https://appadaycreator.com/fashion-style-advisor/';
+
+      document.getElementById('line-share').href = `https://line.me/R/share?text=${encodeURIComponent(resultText + '\n' + shareUrl)}`;
+      document.getElementById('x-share').href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(resultText + ' - ' + shareUrl)}&via=appadaycreator`;
+    }
+
+    // P2-1: テキストコピー機能
+    function copyResultText() {
+      const key = getResultKey(answers);
+      const r = styleResults[key];
+      const personaLabels = { f20: '20代女性', f30: '30〜40代女性', m20: '20代男性', m30: '30〜40代男性', teen: '10代' };
+      const styleLabels = { simple: 'シンプル・ミニマル', casual: 'カジュアル・ナチュラル', feminine: 'フェミニン・ガーリー', street: 'ストリート・トレンド', business: 'ビジネス・キレイめ' };
+      const text = `📝 ファッション診断結果
+
+${r.icon} ${r.title} (${r.subtitle})
+
+${personaLabels[answers.persona]} | ${styleLabels[answers.style]}
+
+${r.desc}
+
+✨ コーデのコツ:
+${r.tips.map(t => '・' + t).join('\n')}
+
+🛍️ おすすめアイテム: ${r.items.join(', ')}
+
+https://appadaycreator.com/fashion-style-advisor/`;
+
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.querySelector('[onclick="copyResultText()"]');
+        const originalText = btn.textContent;
+        btn.textContent = '✅ コピーしました！';
+        setTimeout(() => { btn.textContent = originalText; }, 2000);
+      });
     }
 
     function resetQuiz() {

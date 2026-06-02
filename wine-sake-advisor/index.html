@@ -37,6 +37,7 @@
   <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","s3t9vl8h3v");</script>
 
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
   <script>
     window.onerror = function(msg, src, line, col, err) {
@@ -150,6 +151,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <p class="text-gray-600 text-sm leading-relaxed">ワインも日本酒も奥が深く、初心者には選び方が難しいもの。あなたの好みのテイスト・シーン・予算から、<strong style="color:#9f1239;">最適なお酒のカテゴリとフードペアリング</strong>をご提案します。</p>
     </div>
 
+    <!-- Initial Guide Tooltip -->
+    <div id="guide-tooltip" class="bg-blue-50 border border-blue-300 rounded-2xl p-4 mb-4 flex justify-between items-start animate-pulse" style="display:none;">
+      <div>
+        <p class="text-sm font-semibold text-blue-800">🎯 使い方</p>
+        <p class="text-xs text-blue-700 mt-1">ラジオボタンで1つ選んで『次へ』を押すだけ。難しくありません！</p>
+      </div>
+      <button onclick="closeGuideTooltip()" class="text-blue-600 hover:text-blue-800 text-lg">✕</button>
+    </div>
+
     <!-- Quiz -->
     <div id="quiz-section">
       <div class="bg-white rounded-2xl shadow p-6 mb-4">
@@ -170,9 +180,23 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     <!-- Result -->
     <div id="result-section" class="hidden">
-      <div class="bg-white rounded-2xl shadow p-6 mb-6">
+      <div id="screenshot-area" class="bg-white rounded-2xl shadow p-6 mb-6">
         <h2 class="text-xl font-bold mb-4" style="color:#9f1239;">診断結果</h2>
         <div id="result-content"></div>
+      </div>
+
+      <div class="flex gap-2 mb-6">
+        <button onclick="downloadScreenshot()" class="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition">
+          📸 結果をスクリーンショット保存
+        </button>
+        <button onclick="copyResultLink()" class="flex-1 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-xl font-semibold transition">
+          🔗 結果リンクをコピー
+        </button>
+      </div>
+
+      <div id="recommended-brands-section" class="bg-white rounded-2xl shadow p-6 mb-6">
+        <h2 class="text-xl font-bold mb-4" style="color:#9f1239;">📌 予算別おすすめ銘柄</h2>
+        <div id="recommended-brands-content"></div>
       </div>
 
       <!-- Affiliate CTAs -->
@@ -210,6 +234,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="my-6 text-center">
       <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
       <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
+
+    <!-- Diagnosis History -->
+    <div id="history-section" class="bg-white rounded-2xl shadow p-6 mb-6">
+      <h3 class="font-bold text-gray-700 mb-3">📋 診断履歴</h3>
+      <div id="history-list" class="space-y-2">
+        <p class="text-sm text-gray-500">まだ診断履歴がありません</p>
+      </div>
     </div>
 
     <!-- Cross-links -->
@@ -303,31 +335,61 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         category: 'ロゼワイン / 甘口白ワイン',
         examples: 'ポルトガルのヴィーニョ・ヴェルデ、アルゼンチンのモスカート',
         pairing: 'フルーツタルト、軽いチーズ、生ハム',
-        desc: '甘みとフルーティさを兼ね備えたお酒が好きな方には、ロゼや甘口白ワインが最適。色も美しくプレゼントにも喜ばれます。'
+        desc: '甘みとフルーティさを兼ね備えたお酒が好きな方には、ロゼや甘口白ワインが最適。色も美しくプレゼントにも喜ばれます。',
+        brands: {
+          'budget_1000': ['モスカート d\'Asti', 'プロセッコ', 'マテウス ロゼ'],
+          'budget_3000': ['カヴァ ロゼ', 'ロワール川 ロゼワイン', 'アルザス 甘口白'],
+          'budget_10000': ['シャンパーニュ ロゼ', 'リースリング 遅摘みワイン'],
+          'budget_over': ['プレスティージュ シャンパーニュ', 'アイスワイン']
+        }
       },
       wine_dry: {
         category: '辛口赤ワイン（フルボディ）',
         examples: 'カベルネ・ソーヴィニヨン、シラー、バルベーラ',
         pairing: '肉料理（ステーキ・ラム）、熟成チーズ、パスタ',
-        desc: 'コクと渋みのある本格的な赤ワインは食事との相性が抜群。大人の晩酌にぴったりです。'
+        desc: 'コクと渋みのある本格的な赤ワインは食事との相性が抜群。大人の晩酌にぴったりです。',
+        brands: {
+          'budget_1000': ['カベルネ・フラン', 'シラー スタンダード', 'バルベーラ'],
+          'budget_3000': ['ナパ・バレー カベルネ', 'ボルドー メルロー', 'リオハ グラン・レゼルヴァ'],
+          'budget_10000': ['ボルドー 1級シャトー', 'バローロ プリンチペ', 'カリフォルニア カベルネ熟成'],
+          'budget_over': ['ロマネコンティ級', 'シャトー・マルゴー', 'アマローネ高級ヴィンテージ']
+        }
       },
       sake_light: {
         category: '純米吟醸酒 / 大吟醸酒',
         examples: '獺祭、久保田、八海山、磯自慢',
         pairing: '刺身・寿司、白身魚、豆腐料理、塩焼き',
-        desc: 'フルーティな香りとスッキリした後味が特徴。日本酒入門としても人気の高い種類です。'
+        desc: 'フルーティな香りとスッキリした後味が特徴。日本酒入門としても人気の高い種類です。',
+        brands: {
+          'budget_1000': ['黒龍 吟', '白瀧 上善如水', '鶴齢'],
+          'budget_3000': ['獺祭 50', '久保田 萬寿', '八海山 吟醸'],
+          'budget_10000': ['獺祭 23', '久保田 大吟醸', '磯自慢 大吟醸'],
+          'budget_over': ['獺祭 最高峰', '田中 大吟醸', 'プレミアム純米大吟醸']
+        }
       },
       sake_full: {
         category: '純米酒 / 本醸造酒',
         examples: '菊正宗、月桂冠 特撰、白鶴 まる',
         pairing: '煮物、焼き魚、おでん、から揚げ',
-        desc: 'お米の旨みをしっかり感じられるコクのある日本酒。毎日の晩酌におすすめのバリューコスパ銘柄。'
+        desc: 'お米の旨みをしっかり感じられるコクのある日本酒。毎日の晩酌におすすめのバリューコスパ銘柄。',
+        brands: {
+          'budget_1000': ['菊正宗', '月桂冠 上選', '白鶴'],
+          'budget_3000': ['月桂冠 特撰', '菊正宗 黒 金兆', '白鶴 まる'],
+          'budget_10000': ['月桂冠 古酒', '菊正宗 大吟醸', '北雪 特撰'],
+          'budget_over': ['プレミアム純米酒', '黒龍 九十九 大吟醸']
+        }
       },
       beginner: {
         category: 'スパークリングワイン / にごり酒',
         examples: 'プロセッコ、カヴァ、どぶろく、にごり酒',
         pairing: 'ピザ、揚げ物、フルーツ盛り合わせ',
-        desc: '炭酸のはじける爽快感が飲みやすく、お酒の入門として最適。パーティーシーンでも大活躍。'
+        desc: '炭酸のはじける爽快感が飲みやすく、お酒の入門として最適。パーティーシーンでも大活躍。',
+        brands: {
+          'budget_1000': ['プロセッコ', 'スペイン スパークリング', 'にごり酒'],
+          'budget_3000': ['カヴァ プレミアム', 'クレマン', 'どぶろく'],
+          'budget_10000': ['シャンパーニュ 非ヴィンテージ', 'スパークリング デラックス'],
+          'budget_over': ['ヴィンテージ シャンパーニュ', 'プレスティージュ スパークリング']
+        }
       }
     };
 
@@ -425,6 +487,60 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <p class="text-xs text-gray-600">${sceneAdvice}</p>
           <p class="text-xs text-gray-600 mt-1">${budgetNote}</p>
         </div>`;
+
+      displayRecommendedBrands(rec);
+      saveToHistory(rec.category);
+    }
+
+    function displayRecommendedBrands(rec) {
+      const budgetKey = answers.budget === '1,000円以下' ? 'budget_1000' :
+                        answers.budget === '1,000〜3,000円' ? 'budget_3000' :
+                        answers.budget === '3,000〜10,000円' ? 'budget_10000' : 'budget_over';
+      const brands = rec.brands?.[budgetKey] || [];
+      let html = '<div class="grid grid-cols-1 gap-2">';
+      brands.forEach((brand, i) => {
+        html += `<div class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+          <span class="text-xs bg-rose-600 text-white px-2 py-1 rounded">${i+1}</span>
+          <span class="text-sm text-gray-700 flex-1">${brand}</span>
+          <a href="https://www.amazon.co.jp/s?k=${encodeURIComponent(brand)}" target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline">Amazon</a>
+        </div>`;
+      });
+      html += '</div>';
+      document.getElementById('recommended-brands-content').innerHTML = html;
+    }
+
+    function saveToHistory(category) {
+      let history = JSON.parse(localStorage.getItem('wine_advisor_history') || '[]');
+      const now = new Date().toLocaleString('ja-JP');
+      history.unshift({ date: now, category: category, answers: answers });
+      history = history.slice(0, 5);
+      localStorage.setItem('wine_advisor_history', JSON.stringify(history));
+      displayHistory();
+    }
+
+    function displayHistory() {
+      let history = JSON.parse(localStorage.getItem('wine_advisor_history') || '[]');
+      if (history.length === 0) {
+        document.getElementById('history-list').innerHTML = '<p class="text-sm text-gray-500">まだ診断履歴がありません</p>';
+        return;
+      }
+      let html = '<div class="space-y-2">';
+      history.forEach((item, i) => {
+        html += `<button onclick="restoreFromHistory(${i})" class="w-full text-left p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition">
+          <p class="text-sm font-semibold text-gray-700">${item.category}</p>
+          <p class="text-xs text-gray-500">${item.date}</p>
+        </button>`;
+      });
+      html += '</div>';
+      document.getElementById('history-list').innerHTML = html;
+    }
+
+    function restoreFromHistory(index) {
+      let history = JSON.parse(localStorage.getItem('wine_advisor_history') || '[]');
+      if (index >= history.length) return;
+      answers = history[index].answers;
+      showResult();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     function resetQuiz() {
@@ -432,8 +548,72 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('quiz-section').classList.remove('hidden');
       document.getElementById('result-section').classList.add('hidden');
       renderQuestion();
+      showInitialGuide();
     }
 
+    function downloadScreenshot() {
+      const element = document.getElementById('screenshot-area');
+      html2canvas(element, { backgroundColor: '#ffffff', scale: 2 }).then(canvas => {
+        const link = document.createElement('a');
+        const date = new Date().toISOString().slice(0, 10);
+        link.href = canvas.toDataURL('image/png');
+        link.download = `ワイン日本酒診断_${date}.png`;
+        link.click();
+      });
+    }
+
+    function copyResultLink() {
+      const rec = getRecommendation();
+      const resultCode = btoa(JSON.stringify(answers));
+      const url = `${window.location.origin}${window.location.pathname}?result=${resultCode}`;
+      navigator.clipboard.writeText(url).then(() => {
+        alert('診断結果のリンクをコピーしました！友人にシェアしましょう。');
+      });
+    }
+
+    function showInitialGuide() {
+      if (!localStorage.getItem('wine_advisor_visited')) {
+        document.getElementById('guide-tooltip').style.display = 'flex';
+        setTimeout(() => closeGuideTooltip(), 4000);
+        localStorage.setItem('wine_advisor_visited', 'true');
+      }
+    }
+
+    function closeGuideTooltip() {
+      document.getElementById('guide-tooltip').style.display = 'none';
+    }
+
+    function loadFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const resultCode = params.get('result');
+      if (resultCode) {
+        try {
+          answers = JSON.parse(atob(resultCode));
+          currentStep = questions.length;
+          showResult();
+        } catch(e) {
+          console.log('Invalid result code');
+        }
+      }
+    }
+
+    function shareToLine() {
+      const rec = getRecommendation();
+      const text = `ワイン・日本酒診断の結果、私は「${rec.category}」タイプ！🍷 あなたも試してみては？`;
+      const url = `https://line.me/R/share?text=${encodeURIComponent(text)}%20https://appadaycreator.com/wine-sake-advisor/`;
+      window.open(url);
+    }
+
+    function shareToTwitter() {
+      const rec = getRecommendation();
+      const text = `ワイン・日本酒診断で「${rec.category}」タイプと診断されました！🍷 あなたは何タイプかな？`;
+      const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=https://appadaycreator.com/wine-sake-advisor/&via=appadaycreator`;
+      window.open(url);
+    }
+
+    displayHistory();
+    showInitialGuide();
+    loadFromUrl();
     renderQuestion();
   </script>
 <!-- Related Services -->
@@ -466,14 +646,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
       </div>
       <div class="flex gap-2 mt-4">
-        <a href="https://line.me/R/share?text=ワイン・日本酒診断好みに合うお酒をAIが提案%20https://appadaycreator.com/wine-sake-advisor/" target="_blank" rel="noopener"
-           style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
+        <button onclick="shareToLine()"
+           style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;border:none;cursor:pointer;">
           LINEでシェア
-        </a>
-        <a href="https://twitter.com/intent/tweet?text=ワイン・日本酒診断好みに合うお酒をAIが提案&url=https://appadaycreator.com/wine-sake-advisor/&via=appadaycreator" target="_blank" rel="noopener"
-           style="flex:1;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
+        </button>
+        <button onclick="shareToTwitter()"
+           style="flex:1;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;border:none;cursor:pointer;">
           Xでシェア
-        </a>
+        </button>
       </div>
     </div>
     <!-- rakuten-affiliate-block -->
