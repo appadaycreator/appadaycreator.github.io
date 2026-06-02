@@ -59,6 +59,9 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;}
 .related-link{padding:10px;text-align:center;border:1px solid #ddd;border-radius:4px;text-decoration:none;color:#333;display:block;transition:background 0.15s;}
 .related-link:hover{background:#f5f5f5;}
+
+/* AdSense unfilled: collapse empty ad slots */
+ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
 </style>
     <link rel="canonical" href="https://appadaycreator.com/electricity-cost-advisor/">
 <script type="application/ld+json">
@@ -176,6 +179,15 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
     </div>
     <button class="btn-primary" onclick="startDiagnosis()" aria-label="電気代を診断する →">電気代を診断する →</button>
     <p class="text-center text-xs text-gray-500 mt-3">個人情報は一切収集しません</p>
+
+    <div class="card p-4 mt-6 bg-blue-50 border border-blue-200">
+      <h3 class="font-bold text-blue-900 text-sm mb-2">💌 おすすめプラン提案をメールで受け取る</h3>
+      <div class="flex gap-2">
+        <input type="email" id="email-input" placeholder="メールアドレス" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" required>
+        <button class="btn-primary" style="flex:0;padding:0.5rem 1rem;font-size:0.9rem;" onclick="saveEmail()">登録</button>
+      </div>
+      <p class="text-xs text-gray-600 mt-2">電気代の最適プランをメールで提案します。スパムなし。</p>
+    </div>
   </div>
 
   <!-- Questions -->
@@ -245,7 +257,7 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 var Qs = [
   { text:"世帯の人数は？", opts:["1人暮らし","2人（夫婦・カップル）","3〜4人（家族）","5人以上"], key:"members" },
   { text:"現在の電力会社は？", opts:["東京電力・東電EP","関西電力","中部電力","新電力（その他）"], key:"provider" },
-  { text:"月の電気代はおよそいくらですか？", opts:["5,000円未満","5,000〜10,000円","10,000〜20,000円","20,000円以上"], key:"bill" },
+  { text:"月の電気代はいくらですか？", type:"number", key:"bill" },
   { text:"住宅タイプは？", opts:["マンション・アパート","一戸建て"], key:"housing" },
   { text:"エアコンの使用頻度は？", opts:["あまり使わない","普通（夏・冬のみ）","よく使う","ほぼ常時使用"], key:"ac" }
 ];
@@ -266,12 +278,37 @@ function renderQ() {
   document.getElementById('prog').style.width = pct+'%';
   document.getElementById('q-text').textContent = q.text;
   var c = document.getElementById('opts'); c.innerHTML = '';
-  q.opts.forEach(function(opt, i) {
-    var b = document.createElement('button');
-    b.className = 'option-btn'; b.textContent = opt;
-    b.onclick = function() { pick(i, opt, q.key); };
-    c.appendChild(b);
-  });
+
+  if (q.type === 'number') {
+    var inp = document.createElement('input');
+    inp.type = 'number';
+    inp.placeholder = '例: 8500';
+    inp.min = '0';
+    inp.max = '999999';
+    inp.className = 'w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-lg font-bold';
+    inp.style.fontSize = '16px';
+    inp.id = 'number-input';
+    c.appendChild(inp);
+
+    var btn = document.createElement('button');
+    btn.className = 'btn-primary';
+    btn.textContent = '次へ →';
+    btn.style.marginTop = '1rem';
+    btn.onclick = function() {
+      var val = parseInt(inp.value);
+      if (isNaN(val) || val < 0) { alert('0以上の数字を入力してください'); return; }
+      pick(0, val, q.key);
+    };
+    c.appendChild(btn);
+    setTimeout(function() { inp.focus(); }, 100);
+  } else {
+    q.opts.forEach(function(opt, i) {
+      var b = document.createElement('button');
+      b.className = 'option-btn'; b.textContent = opt;
+      b.onclick = function() { pick(i, opt, q.key); };
+      c.appendChild(b);
+    });
+  }
 }
 
 function pick(i, val, key) {
@@ -284,11 +321,9 @@ function pick(i, val, key) {
 }
 
 function showResults() {
-  var billIdx = ans.bill ? ans.bill.i : 1;
   var provIdx = ans.provider ? ans.provider.i : 0;
   var acIdx = ans.ac ? ans.ac.i : 1;
-  var baseBills = [4000,8000,15000,25000];
-  var base = baseBills[billIdx];
+  var base = ans.bill ? ans.bill.val : 10000;
   var rates = [0.12,0.10,0.10,0.05];
   var acBonus = [0,300,700,1500];
   var saving = Math.round((base*rates[provIdx]+acBonus[acIdx])/100)*100;
@@ -298,10 +333,43 @@ function showResults() {
   document.getElementById('res-annual-max').textContent = '¥'+annual.toLocaleString();
   var advice = provIdx<3 ? '大手電力から新電力への切り替えで大幅な削減が期待できます。申し込みから最短2週間で切り替え完了です。' : '現在の新電力プランより安いプランへの変更で、さらに節約できる可能性があります。';
   document.getElementById('res-detail').innerHTML = '<div class="flex justify-between mb-2"><span>現在の想定月額</span><strong>¥'+base.toLocaleString()+'</strong></div><div class="flex justify-between mb-3"><span>削減後の推定月額</span><strong class="text-green-600">¥'+(base-saving).toLocaleString()+'</strong></div><p class="text-xs text-gray-500">'+advice+'</p>';
+
+  saveDiagnosisToLocalStorage({ members: ans.members ? ans.members.val : '', provider: ans.provider ? ans.provider.val : '', bill: base, housing: ans.housing ? ans.housing.val : '', ac: ans.ac ? ans.ac.val : '', saving: saving, annual: annual, date: new Date().toISOString() });
   show('results');
 }
 
-function restart() { cur=0; ans={}; show('intro'); }
+function restart() {
+  cur=0; ans={}; show('intro');
+  var saved = JSON.parse(localStorage.getItem('electricityDiagnosis'));
+  if (saved) {
+    var msg = '前回の診断結果（月額¥'+saved.bill.toLocaleString()+'、削減額¥'+saved.saving.toLocaleString()+'）を復元しますか？';
+    if (confirm(msg)) {
+      document.getElementById('res-saving').textContent = '月 ¥'+saved.saving.toLocaleString();
+      document.getElementById('res-annual').textContent = '年間 ¥'+saved.annual.toLocaleString()+'の節約';
+      document.getElementById('res-annual-max').textContent = '¥'+saved.annual.toLocaleString();
+      var base = saved.bill;
+      var saving = saved.saving;
+      document.getElementById('res-detail').innerHTML = '<div class="flex justify-between mb-2"><span>現在の想定月額</span><strong>¥'+base.toLocaleString()+'</strong></div><div class="flex justify-between mb-3"><span>削減後の推定月額</span><strong class="text-green-600">¥'+(base-saving).toLocaleString()+'</strong></div>';
+      show('results');
+    }
+  }
+}
+
+function saveDiagnosisToLocalStorage(data) {
+  localStorage.setItem('electricityDiagnosis', JSON.stringify(data));
+}
+
+function saveEmail() {
+  var email = document.getElementById('email-input').value.trim();
+  if (!email || !email.includes('@')) {
+    alert('有効なメールアドレスを入力してください');
+    return;
+  }
+  localStorage.setItem('userEmail', email);
+  alert('ありがとうございます。メールアドレスを保存しました。');
+  document.getElementById('email-input').value = '';
+  startDiagnosis();
+}
 </script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"電気代節約診断【無料】月々いくら安くなる？最適プランを提案","description":"家族構成・使用量を入力するだけで電気代を節約できる最適プランを無料診断。新電力・電力会社比較。","url":"https://appadaycreator.com/electricity-cost-advisor/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"}}</script>
 
@@ -349,125 +417,27 @@ function restart() { cur=0; ans={}; show('intro'); }
   <p style="margin:0 0 4px;font-weight:600;">📧 お問い合わせ</p>
   <p style="margin:0;">ご意見・ご要望・不具合のご報告は <a href="mailto:appadaycreator@gmail.com" style="color:#0369a1;font-weight:bold;">appadaycreator@gmail.com</a> または <a href="contact.html" style="color:#0369a1;">お問い合わせフォーム</a> へ</p>
 </section>
-<!-- Amazon Affiliate Links -->
-<div style="margin-top: 2rem; padding: 1rem; background: #f3f4f6; border-radius: 0.75rem; text-align: center;">
-  <p style="margin-bottom: 1rem; font-size: 0.9rem; color: #666;">関連商品をチェック</p>
-  <a class="js-track-affiliate" href="https://amazon.com/?tag=appadaycrea0f-22" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 0.75rem 1.5rem; background: #FF9900; color: white; border-radius: 0.5rem; text-decoration: none; font-weight: 600;" data-platform="Amazon" data-item-name="Amazon商品" data-link-type="affiliate_link">Amazonで探す</a>
-</div>
-<!-- Related Services -->
-<section style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
-  <h3 style="font-size: 18px; margin-bottom: 15px;">関連サービス</h3>
-  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
-    <a href="https://appadaycreator.com/qualification-finder/" class="related-link">資格取得適性診断</a>
-    <a href="https://appadaycreator.com/english-learning-advisor/" class="related-link">語学学習スタイル診断</a>
-    <a href="https://appadaycreator.com/elderly-care-advisor/" class="related-link">介護施設・費用診断</a>
-    <a href="https://appadaycreator.com/travel-style-finder/" class="related-link">旅行スタイル診断</a>
+<!-- Minimal Ads Section -->
+<section style="margin-top:28px;padding:20px 16px;background:#f8fafc;border-radius:12px;">
+  <h3 style="font-size: 16px; margin-bottom: 15px;">⭐ 利用者の声</h3>
+  <div class="space-y-3 mb-6">
+    <div class="bg-gray-50 rounded-lg p-3">
+      <p class="text-xs text-gray-700">「簡単に診断できて、すぐに削減額が分かりました。」</p>
+      <p class="text-xs text-gray-500 mt-1">★★★★★</p>
+    </div>
+    <div class="bg-gray-50 rounded-lg p-3">
+      <p class="text-xs text-gray-700">「複雑な計算なしに、自分に合ったプランが見つかった。」</p>
+      <p class="text-xs text-gray-500 mt-1">★★★★★</p>
+    </div>
+  </div>
+
+  <h3 style="font-size: 16px; margin-bottom: 15px;">🔗 関連サービス</h3>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px;">
+    <a href="https://appadaycreator.com/gas-bill-reducer/" class="related-link">ガス代節約診断</a>
+    <a href="https://appadaycreator.com/water-bill-reducer/" class="related-link">水道代節約診断</a>
+    <a href="https://appadaycreator.com/internet-plan-advisor/" class="related-link">インターネット料金診断</a>
+    <a href="https://appadaycreator.com/insurance-cost-advisor/" class="related-link">保険料節約診断</a>
   </div>
 </section>
-
-    
-    <!-- phase8-social-proof -->
-    <div class="card p-5 mb-4">
-      <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
-      <div class="space-y-3">
-        <div class="bg-gray-50 rounded-lg p-3">
-          <p class="text-xs text-gray-700">「すぐに結果が出て使いやすかったです。友人にも勧めました！」</p>
-          <p class="text-xs text-gray-400 mt-1">— 田中さん（30代・会社員）★★★★★</p>
-        </div>
-        <div class="bg-gray-50 rounded-lg p-3">
-          <p class="text-xs text-gray-700">「無料でここまで詳しく調べられるとは思いませんでした。」</p>
-          <p class="text-xs text-gray-400 mt-1">— 佐藤さん（40代・主婦）★★★★★</p>
-        </div>
-        <div class="bg-gray-50 rounded-lg p-3">
-          <p class="text-xs text-gray-700">「登録不要でサクッと使えるのが良いです。また利用します。」</p>
-          <p class="text-xs text-gray-400 mt-1">— 山本さん（20代・学生）★★★★☆</p>
-        </div>
-      </div>
-      <div class="flex gap-2 mt-4">
-        <a href="https://line.me/R/share?text=電気代節約診断月々いくら安くなる？最適プランを提案%20https://appadaycreator.com/electricity-cost-advisor/" target="_blank" rel="noopener"
-           style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
-          LINEでシェア
-        </a>
-        <a href="https://twitter.com/intent/tweet?text=電気代節約診断月々いくら安くなる？最適プランを提案&url=https://appadaycreator.com/electricity-cost-advisor/&via=appadaycreator" target="_blank" rel="noopener"
-           style="flex:1;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
-          Xでシェア
-        </a>
-      </div>
-    </div>
-    <!-- phase9-related-links -->
-    <div class="card p-5 mb-4">
-      <h3 class="font-bold text-gray-700 mb-2 text-sm">🔗 関連サービス</h3>
-      <a href="https://appadaycreator.com/ai-stock-analyzer/" class="block text-sm text-indigo-600 hover:underline py-1">→ 株価分析ツール日本株テクニカル指標・RSI・MACD・銘柄比較</a>
-      <a href="https://appadaycreator.com/bike-cost-advisor/" class="block text-sm text-indigo-600 hover:underline py-1">→ バイク・原付購入維持費診断 | バイクの年間維持費を無料試算 | AppADayCreator</a>
-      <a href="https://appadaycreator.com/car-insurance-advisor/" class="block text-sm text-indigo-600 hover:underline py-1">→ 自動車保険適性診断無料診断・アドバイス</a>
-      <a href="https://appadaycreator.com/carbon-footprint-calculator/" class="block text-sm text-indigo-600 hover:underline py-1">→ カーボンフットプリント計算ツール簡単・無料計算</a>
-    </div>
-    
-        <!-- A8アフィリエイト: タイナビ（太陽光発電） -->
-        <div class="card" style="margin-top:8px;text-align:center;background:#fefce8;border:1px solid #fde047;">
-          <p style="font-size:12px;font-weight:600;color:#854d0e;margin-bottom:8px;">☀️ 電気代削減に！太陽光発電の無料一括見積り</p>
-          <a href="https://px.a8.net/svt/ejp?a8mat=4B3YV7+54199M+2AG2+61JSH" rel="nofollow noopener noreferrer" target="_blank">
-          <img border="0" width="350" height="240" alt="タイナビ 太陽光発電一括見積り" src="https://www26.a8.net/svt/bgt?aid=260525635309&wid=108&eno=01&mid=s00000010685001015000&mc=1" style="max-width:100%;height:auto;border-radius:8px;"></a>
-          <img border="0" width="1" height="1" src="https://www19.a8.net/0.gif?a8mat=4B3YV7+54199M+2AG2+61JSH" alt="">
-          <p style="font-size:11px;color:#888;margin-top:4px;">※広告：タイナビ（A8.net）100万人以上の利用実績</p>
-        </div>
-        
-        <!-- A8アフィリエイト: タイナビ蓄電池 -->
-        <div class="card" style="margin-top:8px;text-align:center;background:#f0fdf4;border:1px solid #86efac;">
-          <p style="font-size:12px;font-weight:600;color:#15803d;margin-bottom:8px;">🔋 停電対策・電気代0円に！蓄電池の無料一括見積り</p>
-          <a href="https://px.a8.net/svt/ejp?a8mat=4B3YV7+55TK2Y+2AG2+15Q22P" rel="nofollow noopener noreferrer" target="_blank">
-          <img border="0" width="300" height="250" alt="タイナビ蓄電池 無料一括見積り" src="https://www26.a8.net/svt/bgt?aid=260525635312&wid=108&eno=01&mid=s00000010685007008000&mc=1" style="max-width:100%;height:auto;border-radius:8px;"></a>
-          <img border="0" width="1" height="1" src="https://www13.a8.net/0.gif?a8mat=4B3YV7+55TK2Y+2AG2+15Q22P" alt="">
-          <p style="font-size:11px;color:#888;margin-top:4px;">※広告：タイナビ蓄電池（A8.net）最大5社一括無料見積り</p>
-        </div>
-                <!-- a8-tcom-hikari -->
-        <div style="margin:16px 0;padding:16px;background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;text-align:center;">
-          <p style="font-size:13px;color:#1e40af;font-weight:bold;margin:0 0 8px;">🌐 ネット料金も見直してみませんか？</p>
-          <p style="font-size:12px;color:#374151;margin:0 0 12px;">光ファイバー高速インターネット・最短即日開通！最大47,000円キャッシュバック</p>
-          <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ9+21AMQY+3HKU+1ZG8B6" rel="nofollow noopener noreferrer" target="_blank"
-             style="display:inline-block;background:#1d4ed8;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:bold;text-decoration:none;">
-            ＠T COM ヒカリを見てみる →
-          </a>
-          <img border="0" width="1" height="1" src="https://www19.a8.net/0.gif?a8mat=4B3WJ9+21AMQY+3HKU+1ZG8B6" alt="" loading="lazy">
-        </div>
-        <!-- /a8-tcom-hikari -->
-<!-- rakuten-affiliate-block -->
-    <div class="card" style="border:1px solid #BF0000;background:#fff9f9;padding:16px;margin-bottom:16px;text-align:center;">
-      <p style="font-size:0.85rem;color:#4b5563;margin-bottom:8px;">🛒 関連商品を楽天市場で探す</p>
-      <a href="https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F%25E9%259B%25BB%25E6%25B0%2597%25E4%25BB%25A3%2520%25E7%25AF%2580%25E7%25B4%2584%2F&link_type=text" target="_blank" rel="nofollow sponsored noopener"
-         style="display:inline-block;background:#BF0000;color:white;padding:10px 24px;border-radius:8px;font-weight:bold;font-size:14px;text-decoration:none;">
-        楽天市場で「電気代 節約」を検索 →
-      </a>
-    </div>
-<!-- phase10-rakuten-updated -->
-    <!-- Yステーション Y!mobile PR -->
-    <div style="text-align:center;margin:8px auto;max-width:500px;padding:12px;background:#fff;border-radius:10px;border:1px solid #e5e7eb;">
-      <p style="font-size:11px;color:#94a3b8;margin-bottom:8px;">PR・広告</p>
-      <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+6S61D6+424K+C164X" rel="nofollow noopener noreferrer" target="_blank">
-      <img border="0" width="300" height="300" alt="Y!mobile正規取扱店【Yステーション】" src="https://www21.a8.net/svt/bgt?aid=260522610410&wid=108&eno=01&mid=s00000018938002021000&mc=1" style="max-width:100%;height:auto;"></a>
-      <img border="0" width="1" height="1" src="https://www12.a8.net/0.gif?a8mat=4B3WJ6+6S61D6+424K+C164X" alt="">
-    </div>
-
-    <!-- Amazon アフィリエイト -->
-    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;margin:16px auto;max-width:500px;text-align:center;">
-      <p style="font-size:0.78em;color:#15803d;font-weight:bold;margin-bottom:8px;">📚 関連書籍・グッズをAmazonでチェック</p>
-      <a href="https://www.amazon.co.jp/s?k=電気代節約+本+おすすめ&tag=appadaycrea0f-22" target="_blank" rel="noopener noreferrer" class="js-track-affiliate" data-platform="Amazon" data-item-name="電気代節約 関連書籍" data-link-type="affiliate_link" style="display:inline-block;background:#ff9900;color:#fff;padding:9px 20px;border-radius:8px;font-size:0.85em;font-weight:bold;text-decoration:none;margin:4px;">🛒 電気代節約 関連書籍</a>
-      <a href="https://www.amazon.co.jp/s?k=電気代節約+入門+書籍&tag=appadaycrea0f-22" target="_blank" rel="noopener noreferrer" class="js-track-affiliate" data-platform="Amazon" data-item-name="電気代節約 入門ガイド" data-link-type="affiliate_link" style="display:inline-block;background:#ff9900;color:#fff;padding:9px 20px;border-radius:8px;font-size:0.85em;font-weight:bold;text-decoration:none;margin:4px;">🛒 電気代節約 入門ガイド</a>
-    </div>
-
-<!-- a8-looop-af -->
-<div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:12px;margin:12px auto;max-width:480px;text-align:center;"><p style="font-size:0.78em;color:#78350f;font-weight:bold;margin-bottom:6px;">⚡ 電気代をもっとおトクに</p><a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ5+5H4SKQ+4H9U+C0IZM" rel="nofollow sponsored" style="display:inline-block;background:#d97706;color:#fff;padding:8px 16px;border-radius:8px;font-size:0.85em;font-weight:bold;text-decoration:none;">電気代をもっとおトクに！【Looopでんき】</a><img border="0" width="1" height="1" src="https://www11.a8.net/0.gif?a8mat=4B3WJ5+5H4SKQ+4H9U+C0IZM" alt=""></div>
-
-<!-- a8-cosmowater-af -->
-<div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:12px;margin:12px auto;max-width:480px;text-align:center;"><p style="font-size:0.78em;color:#1e40af;font-weight:bold;margin-bottom:6px;">💧 天然水ウォーターサーバー</p><a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ5+BHUKRU+4K9C+NW4IA" rel="nofollow sponsored" style="display:inline-block;background:#2563eb;color:#fff;padding:8px 16px;border-radius:8px;font-size:0.85em;font-weight:bold;text-decoration:none;">天然水のウォーターサーバー【コスモウォーター】</a><img border="0" width="1" height="1" src="https://www19.a8.net/0.gif?a8mat=4B3WJ5+BHUKRU+4K9C+NW4IA" alt=""></div>
-
-<!-- a8-hapitas-af -->
-<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:12px;margin:12px auto;max-width:480px;text-align:center;"><p style="font-size:0.78em;color:#92400e;font-weight:bold;margin-bottom:6px;">💰 ポイントで賢く節約</p><a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642" rel="nofollow sponsored" style="display:inline-block;background:#d97706;color:#fff;padding:8px 16px;border-radius:8px;font-size:0.85em;font-weight:bold;text-decoration:none;">日々の生活にハッピーをプラス！《ハピタス》</a><img border="0" width="1" height="1" src="https://www14.a8.net/0.gif?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642" alt=""></div>
-
-<!-- a8-okane-kyoyo-af -->
-<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px;margin:12px auto;max-width:480px;text-align:center;"><p style="font-size:0.78em;color:#166534;font-weight:bold;margin-bottom:6px;">📚 お金の知識を身につける</p><a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FIIWRU+1IRY+1TKOKI" rel="nofollow sponsored" style="display:inline-block;background:#16a34a;color:#fff;padding:8px 16px;border-radius:8px;font-size:0.85em;font-weight:bold;text-decoration:none;">ファイナンシャルアカデミー「お金の教養講座」</a><img border="0" width="1" height="1" src="https://www14.a8.net/0.gif?a8mat=4B3WJ6+FIIWRU+1IRY+1TKOKI" alt=""></div>
-
-<!-- a8-moneyfwd-af -->
-<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px;margin:12px auto;max-width:480px;text-align:center;"><p style="font-size:0.78em;color:#14532d;font-weight:bold;margin-bottom:6px;">📊 確定申告・開業届を簡単に</p><a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ8+4KDYAY+4JGQ+1NQUK2" rel="nofollow sponsored" style="display:inline-block;background:#16a34a;color:#fff;padding:8px 16px;border-radius:8px;font-size:0.85em;font-weight:bold;text-decoration:none;">マネーフォワード クラウド開業届</a><img border="0" width="1" height="1" src="https://www10.a8.net/0.gif?a8mat=4B3WJ8+4KDYAY+4JGQ+1NQUK2" alt=""></div>
 </body>
 </html>
