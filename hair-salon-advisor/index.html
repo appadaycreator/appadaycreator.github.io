@@ -42,9 +42,12 @@
 /* Phase 8: Mobile Optimization */
 input, select, textarea { font-size: 16px !important; }
 button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min-width: 48px; touch-action: manipulation; }
+.choice-btn { min-height: 52px; display: flex; align-items: center; justify-content: flex-start; }
 @media (max-width: 640px) {
   body { font-size: 16px; }
   .max-w-lg { padding-left: 1rem; padding-right: 1rem; }
+  .choice-btn { padding: 12px 14px !important; font-size: 14px !important; line-height: 1.4; }
+  #choicesContainer { gap: 10px !important; }
 }
 
 @media print{
@@ -122,7 +125,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <body class="bg-gradient-to-br from-pink-50 to-rose-100 min-h-screen text-gray-800"><a href="#main" class="sr-only">本文へスキップ</a>
   <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
-  <div class="container mx-auto px-4 py-6 max-w-lg" role="main" id="main">
+  <div class="container mx-auto px-4 py-6 max-w-2xl" role="main" id="main">
     <!-- Header -->
     <div class="text-center mb-6">
       <h1 class="text-2xl font-bold text-pink-700 mb-1">💇 美容院・ヘアサロン選び診断</h1>
@@ -210,6 +213,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div id="cautions" class="text-sm text-yellow-800 grid gap-1"></div>
         </div>
 
+        <div class="mb-3">
+          <p class="text-xs text-gray-500 text-center mb-2">この結果をシェア</p>
+          <div class="flex gap-2">
+            <button onclick="shareLine()" class="flex-1 bg-green-500 hover:bg-green-400 text-white font-bold py-2 rounded-lg text-sm transition">📱 LINE</button>
+            <button onclick="shareX()" class="flex-1 bg-black hover:bg-gray-800 text-white font-bold py-2 rounded-lg text-sm transition">𝕏</button>
+            <button onclick="copyResult()" class="flex-1 bg-blue-500 hover:bg-blue-400 text-white font-bold py-2 rounded-lg text-sm transition">📋 コピー</button>
+          </div>
+        </div>
         <button onclick="restart()" class="w-full bg-gradient-to-r from-pink-500 to-rose-500 text-white font-bold py-3 rounded-xl transition hover:from-pink-400 hover:to-rose-400 mb-2">🔄 もう一度診断する</button>
       </div>
 
@@ -256,6 +267,26 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       {q:'現在の髪色は？',cat:'現在の髪色',choices:['⬛ 黒（地毛のまま）','🟫 ブラウン系カラー中','🌟 明るめのカラー中','🩶 白髪が目立ってきた']},
       {q:'頭皮の状態は？',cat:'頭皮の状態',choices:['😊 特に気になる問題はない','🔴 乾燥・フケが気になる','💧 皮脂・べたつきが多い','😣 かゆみ・敏感な頭皮']},
       {q:'トリートメントやヘアケアへの意欲は？',cat:'ケア意欲',choices:['💪 毎日しっかりケアしたい','🙂 週数回は気をつけている','😐 洗い流しケア程度でOK','🤷 あまりこだわらない']},
+    ];
+
+    // スコアリングテーブル：各質問の各選択肢に対する[damage, curly, volume, gray]スコア
+    const questionScores = [
+      // Q1: 髪の悩み
+      [{damage:3, curly:0, volume:0, gray:0}, {damage:0, curly:3, volume:0, gray:0}, {damage:0, curly:0, volume:3, gray:0}, {damage:0, curly:0, volume:0, gray:3}],
+      // Q2: 理想のスタイル
+      [{damage:2, curly:1, volume:1, gray:0}, {damage:1, curly:1, volume:1, gray:1}, {damage:0, curly:0, volume:0, gray:2}, {damage:2, curly:0, volume:2, gray:0}],
+      // Q3: 来店頻度
+      [{damage:2, curly:1, volume:1, gray:2}, {damage:1, curly:2, volume:1, gray:2}, {damage:1, curly:1, volume:2, gray:1}, {damage:0, curly:0, volume:0, gray:0}],
+      // Q4: 予算
+      [{damage:0, curly:1, volume:0, gray:2}, {damage:1, curly:1, volume:1, gray:1}, {damage:2, curly:2, volume:1, gray:1}, {damage:3, curly:1, volume:1, gray:1}],
+      // Q5: 重視点
+      [{damage:2, curly:2, volume:1, gray:1}, {damage:1, curly:1, volume:1, gray:1}, {damage:0, curly:1, volume:0, gray:0}, {damage:1, curly:1, volume:1, gray:2}],
+      // Q6: 髪色
+      [{damage:1, curly:1, volume:1, gray:0}, {damage:1, curly:1, volume:0, gray:1}, {damage:0, curly:0, volume:0, gray:2}, {damage:1, curly:1, volume:0, gray:3}],
+      // Q7: 頭皮状態
+      [{damage:1, curly:1, volume:1, gray:1}, {damage:2, curly:1, volume:1, gray:0}, {damage:1, curly:1, volume:0, gray:1}, {damage:1, curly:1, volume:2, gray:1}],
+      // Q8: ケア意欲
+      [{damage:3, curly:2, volume:2, gray:2}, {damage:2, curly:2, volume:1, gray:2}, {damage:1, curly:1, volume:1, gray:1}, {damage:0, curly:0, volume:0, gray:0}],
     ];
 
     const results = {
@@ -361,9 +392,24 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function showResult() {
       document.getElementById('quizScreen').classList.add('hidden');
       document.getElementById('resultScreen').classList.remove('hidden');
-      const a0 = answers[0]; // 髪の悩み
+
+      // スコア集計
+      const scores = {damage:0, curly:0, volume:0, gray:0};
+      for(let i=0; i<TOTAL; i++) {
+        const choiceIdx = answers[i] !== undefined ? answers[i] : 0;
+        const scoreRow = questionScores[i][choiceIdx];
+        scores.damage += scoreRow.damage;
+        scores.curly += scoreRow.curly;
+        scores.volume += scoreRow.volume;
+        scores.gray += scoreRow.gray;
+      }
+
+      // 最高スコアのサロンタイプを特定
       const keys = ['damage','curly','volume','gray'];
-      const key = keys[a0 !== undefined ? a0 : 0];
+      const maxScore = Math.max(scores.damage, scores.curly, scores.volume, scores.gray);
+      const maxKeys = keys.filter(k => scores[k] === maxScore);
+      const key = maxKeys[0]; // 複数同スコアの場合は最初の1つ
+
       const r = results[key] || results.damage;
       document.getElementById('resultEmoji').textContent = r.emoji;
       document.getElementById('resultSalonType').textContent = r.type;
@@ -377,6 +423,31 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function restart() {
       document.getElementById('resultScreen').classList.add('hidden');
       document.getElementById('topScreen').classList.remove('hidden');
+    }
+
+    // 現在の診断結果を取得
+    function getResultText() {
+      const salonType = document.getElementById('resultSalonType').textContent;
+      return `あなたのサロン診断結果：${salonType}\n\n美容院・ヘアサロン選び診断で診断してみませんか？\nhttps://appadaycreator.com/hair-salon-advisor/`;
+    }
+
+    function shareLine() {
+      const text = getResultText();
+      const url = `https://line.me/R/share?text=${encodeURIComponent(text)}`;
+      window.open(url, '_blank');
+    }
+
+    function shareX() {
+      const text = getResultText();
+      const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&via=appadaycreator`;
+      window.open(url, '_blank');
+    }
+
+    function copyResult() {
+      const text = getResultText();
+      navigator.clipboard.writeText(text).then(() => {
+        alert('結果をコピーしました！');
+      });
     }
   </script>
 <div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px auto;max-width:680px;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">入力された値を計算式やスコアリングロジックで処理し、あなたに合った結果を算出します。本ツールの結果はあくまで参考情報です。重要な判断の際は専門家にご相談ください。</p></div>
