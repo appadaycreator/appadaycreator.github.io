@@ -42,7 +42,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"お菓子・パン材料計算ツール【無料】簡単・無料計算の使い方","step":[{"@type":"HowToStep","position":1,"name":"必要事項を入力する","text":"フォームに必要な情報（数値・選択肢・条件）を入力または選択する"},{"@type":"HowToStep","position":2,"name":"診断・計算を実行する","text":"「診断する」「計算する」または「確認する」ボタンを押して結果を取得する"},{"@type":"HowToStep","position":3,"name":"結果・分析を確認する","text":"表示された診断結果・計算結果・グラフをじっくり確認する"},{"@type":"HowToStep","position":4,"name":"アドバイスを活用する","text":"結果に基づくアドバイスや提案を日常生活に取り入れる"},{"@type":"HowToStep","position":5,"name":"定期的に再チェックする","text":"生活変化に応じて定期的に再診断して進捗を追跡する"}]}</script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', 'Noto Sans JP', sans-serif; background: linear-gradient(135deg, #E0E7FF 0%, #F0F4FF 100%); min-height: 100vh; color: #333; line-height: 1.6; }
+        body { font-family: 'Inter', 'Noto Sans JP', sans-serif; background: #f8fafc; min-height: 100vh; color: #333; line-height: 1.6; }
         .site-header { background: #7c3aed; color: white; padding: 32px 20px; text-align: center; }
         .site-header .emoji { font-size: 52px; margin-bottom: 8px; }
         .site-header h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
@@ -70,8 +70,15 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
             .result-value { font-size: 28px; }
         }
         /* ── サービス固有CSS ── */
+        .ingredient-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; margin-bottom: 8px; align-items: end; }
+        @media (max-width: 640px) {
+          .ingredient-row { grid-template-columns: 1fr; }
+          .ingredient-row button { grid-column: 1; }
+        }
+        #output { display: flex; flex-direction: column; gap: 8px; }
+        #scaling-info { background: #f0f4f8; padding: 12px; border-radius: 8px; margin-bottom: 12px; text-align: center; }
 
-    
+
 @media print{
   header,footer,nav,button,.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
@@ -102,18 +109,74 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <ins class="adsbygoogle" style="display:block;min-height:0;margin:12px 0" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
         <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
 
-        <!-- ✅MAIN_HTML自動生成済み：JS_CODEの★部分のみ実装してください -->
+        <!-- ✅複数材料対応版 -->
         <div class="card">
           <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;">🍞 お菓子・パン材料計算ツール</h2>
+
+          <!-- 人数入力 -->
           <label>元のレシピ人数</label>
-          <input type="number" id="original" placeholder="4" min="1">
+          <input type="number" id="original" placeholder="4" min="1" step="0.1">
           <label style="margin-top:12px;">作りたい人数</label>
-          <input type="number" id="target" placeholder="2" min="1">
-          <button class="btn" style="margin-top:20px;" onclick="calculate()">お菓子・パン材料計算ツールを計算する</button>
+          <input type="number" id="target" placeholder="2" min="1" step="0.1">
+
+          <!-- 材料リスト -->
+          <label style="margin-top:16px;display:flex;align-items:center;gap:8px;">
+            <span>📋 材料（複数対応）</span>
+          </label>
+          <div id="ingredients-list" style="margin-top:8px;">
+            <div class="ingredient-row" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin-bottom:8px;align-items:end;">
+              <input type="text" placeholder="材料名（例：小麦粉）" class="ingredient-name">
+              <input type="number" placeholder="元の量" class="ingredient-amount" min="0" step="0.1">
+              <select class="ingredient-unit">
+                <option value="g">グラム (g)</option>
+                <option value="ml">ミリリットル (ml)</option>
+                <option value="cup">カップ (cup)</option>
+                <option value="tsp">小さじ (tsp)</option>
+                <option value="tbsp">大さじ (tbsp)</option>
+              </select>
+              <button type="button" onclick="removeIngredient(this)" style="background:#f44336;color:white;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:14px;width:44px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;">✕</button>
+            </div>
+            <div class="ingredient-row" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin-bottom:8px;align-items:end;">
+              <input type="text" placeholder="材料名（例：砂糖）" class="ingredient-name">
+              <input type="number" placeholder="元の量" class="ingredient-amount" min="0" step="0.1">
+              <select class="ingredient-unit">
+                <option value="g">グラム (g)</option>
+                <option value="ml">ミリリットル (ml)</option>
+                <option value="cup">カップ (cup)</option>
+                <option value="tsp">小さじ (tsp)</option>
+                <option value="tbsp">大さじ (tbsp)</option>
+              </select>
+              <button type="button" onclick="removeIngredient(this)" style="background:#f44336;color:white;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:14px;width:44px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;">✕</button>
+            </div>
+            <div class="ingredient-row" style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin-bottom:8px;align-items:end;">
+              <input type="text" placeholder="材料名（例：バター）" class="ingredient-name">
+              <input type="number" placeholder="元の量" class="ingredient-amount" min="0" step="0.1">
+              <select class="ingredient-unit">
+                <option value="g">グラム (g)</option>
+                <option value="ml">ミリリットル (ml)</option>
+                <option value="cup">カップ (cup)</option>
+                <option value="tsp">小さじ (tsp)</option>
+                <option value="tbsp">大さじ (tbsp)</option>
+              </select>
+              <button type="button" onclick="removeIngredient(this)" style="background:#f44336;color:white;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:14px;width:44px;height:44px;padding:0;display:flex;align-items:center;justify-content:center;">✕</button>
+            </div>
+          </div>
+          <button type="button" onclick="addIngredient()" style="background:#e0e7ff;color:#7c3aed;border:1.5px solid #7c3aed;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:600;font-size:14px;width:100%;margin-top:8px;">+ 材料を追加</button>
+
+          <!-- 計算ボタン -->
+          <button class="btn" style="margin-top:20px;" onclick="calculate()">計算する</button>
+          <button type="button" onclick="resetForm()" style="background:#f0f4f8;color:#555;border:1px solid #d1d5db;padding:14px 24px;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;width:100%;margin-top:8px;min-height:48px;">リセット</button>
+
+          <!-- 結果表示 -->
           <div class="result" id="result" style="margin-top:16px;">
-            <div class="card" style="text-align:center;">
-              <div id="output" style="font-size:2.2rem;font-weight:700;color:#7c3aed;padding:12px 0;"></div>
-              <p id="detail" style="color:#666;font-size:14px;margin-top:4px;"></p>
+            <div class="card">
+              <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;color:#7c3aed;">📊 計算結果</h3>
+              <div id="scaling-info" style="background:#f0f4f8;padding:12px;border-radius:8px;margin-bottom:12px;text-align:center;">
+                <p style="font-size:14px;color:#555;margin:0;"><span id="scaling-ratio" style="font-size:20px;font-weight:700;color:#7c3aed;">-</span> 倍</p>
+                <p style="font-size:12px;color:#888;margin-top:4px;">各材料をこの倍率で計算してください</p>
+              </div>
+              <div id="output" style="font-size:14px;color:#333;"></div>
+              <p id="detail" style="color:#666;font-size:13px;margin-top:8px;"></p>
             </div>
           </div>
         </div>
@@ -171,7 +234,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
 
         <!-- SNSシェアCTA -->
-        <div class="card" style="margin-top:8px;text-align:center;background:linear-gradient(135deg,#E0E7FF,#F0F4FF);" role="complementary" aria-label="SNSシェア">
+        <div class="card" style="margin-top:8px;text-align:center;background:#f0f9ff;" role="complementary" aria-label="SNSシェア">
             <p style="font-size:13px;font-weight:600;color:#374151;margin-bottom:10px;">📣 友人・家族にシェアする</p>
             <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
                 <a href="https://twitter.com/intent/tweet?text=%E3%81%8A%E8%8F%93%E5%AD%90%E3%83%BB%E3%83%91%E3%83%B3%E6%9D%90%E6%96%99%E8%A8%88%E7%AE%97%E3%83%84%E3%83%BC%E3%83%AB%20%23無料ツール&url=https%3A%2F%2Fappadaycreator.com%2Fbaking-ingredient-calculator%2F" target="_blank" rel="noopener" aria-label="お菓子・パン材料計算ツールをXでシェア" style="background:#1DA1F2;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">𝕏 シェア</a>
@@ -187,29 +250,113 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     
 <script>
-    // ★ここだけ実装（約10行）★
-    const CFG = {
-      inputs: ['original','target'],  // ✅自動設定済み→変更不要
-      error: '値を入力してください', // 変更: バリデーションエラー文
+    // 単位別の容積換算テーブル（グラムの場合の参考値）
+    const UNIT_CONVERSIONS = {
+      小麦粉: { g: 1, cup: 120, ml: 1, tsp: 3, tbsp: 9 },
+      砂糖: { g: 1, cup: 200, ml: 1, tsp: 5, tbsp: 15 },
+      バター: { g: 1, cup: 227, ml: 1, tsp: 5, tbsp: 15 },
+      牛乳: { g: 1, cup: 237, ml: 1, tsp: 5, tbsp: 15 },
+      卵: { g: 50, cup: 240, ml: 1, tsp: 5, tbsp: 15 }
     };
-    function calcLogic(vals) {
-      const [v1] = vals;  // 変更: vals[0],vals[1]... で各入力値を取得
-      const result = v1;  // 変更: 実際の計算式
-      const detail = '';  // 変更: 補足説明（単位など）
-      return { result, detail };
+
+    // 材料行を追加
+    function addIngredient() {
+      const list = document.getElementById('ingredients-list');
+      const row = document.createElement('div');
+      row.className = 'ingredient-row';
+      row.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;margin-bottom:8px;align-items:end;';
+      row.innerHTML = `
+        <input type="text" placeholder="材料名" class="ingredient-name">
+        <input type="number" placeholder="元の量" class="ingredient-amount" min="0" step="0.1">
+        <select class="ingredient-unit">
+          <option value="g">グラム (g)</option>
+          <option value="ml">ミリリットル (ml)</option>
+          <option value="cup">カップ (cup)</option>
+          <option value="tsp">小さじ (tsp)</option>
+          <option value="tbsp">大さじ (tbsp)</option>
+        </select>
+        <button type="button" onclick="removeIngredient(this)" style="background:#f44336;color:white;border:none;padding:0;border-radius:6px;cursor:pointer;font-size:14px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;">✕</button>
+      `;
+      list.appendChild(row);
     }
-    // ★以下変更不要★
-    document.addEventListener('DOMContentLoaded',()=>{
-      CFG.inputs.forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') calculate(); }); });
-    });
-    function calculate(){
-      const vals=CFG.inputs.map(id=>parseFloat(document.getElementById(id)?.value)||0);
-      if(!vals[0]){ alert(CFG.error); return; }
-      const {result,detail}=calcLogic(vals);
-      document.getElementById('output').textContent=typeof result==='number'?result.toLocaleString():result;
-      const d=document.getElementById('detail'); if(d) d.textContent=detail||'';
+
+    // 材料行を削除
+    function removeIngredient(btn) {
+      const rows = document.querySelectorAll('.ingredient-row').length;
+      if (rows > 1) {
+        btn.closest('.ingredient-row').remove();
+      } else {
+        alert('最低1行の材料は必要です');
+      }
+    }
+
+    // フォームをリセット
+    function resetForm() {
+      document.getElementById('original').value = '';
+      document.getElementById('target').value = '';
+      document.querySelectorAll('.ingredient-row').forEach((row, idx) => {
+        if (idx > 0) row.remove();
+      });
+      document.querySelectorAll('.ingredient-name').forEach(el => el.value = '');
+      document.querySelectorAll('.ingredient-amount').forEach(el => el.value = '');
+      document.getElementById('result').classList.remove('show');
+    }
+
+    // 計算実行
+    function calculate() {
+      const original = parseFloat(document.getElementById('original').value) || 0;
+      const target = parseFloat(document.getElementById('target').value) || 0;
+
+      if (original <= 0) {
+        alert('元のレシピ人数を入力してください（0より大きい値）');
+        return;
+      }
+      if (target <= 0) {
+        alert('作りたい人数を入力してください（0より大きい値）');
+        return;
+      }
+
+      // スケーリング係数を計算
+      const ratio = (target / original).toFixed(2);
+
+      // 材料ごとに計算
+      const ingredients = [];
+      document.querySelectorAll('.ingredient-row').forEach(row => {
+        const name = row.querySelector('.ingredient-name').value.trim();
+        const amount = parseFloat(row.querySelector('.ingredient-amount').value) || 0;
+        const unit = row.querySelector('.ingredient-unit').value;
+
+        if (name && amount > 0) {
+          const newAmount = (amount * ratio).toFixed(2);
+          ingredients.push({ name, amount, unit, newAmount });
+        }
+      });
+
+      // 結果を表示
+      document.getElementById('scaling-ratio').textContent = ratio;
+
+      let resultHtml = '<div style="display:flex;flex-direction:column;gap:8px;">';
+      ingredients.forEach(ing => {
+        resultHtml += `<div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;padding:8px;background:#f9fafc;border-radius:6px;">
+          <span style="font-weight:600;color:#333;">${ing.name}</span>
+          <span style="text-align:right;color:#7c3aed;font-weight:700;">${ing.amount}${ing.unit} → <strong>${ing.newAmount}${ing.unit}</strong></span>
+        </div>`;
+      });
+      resultHtml += '</div>';
+      document.getElementById('output').innerHTML = resultHtml;
+      document.getElementById('detail').textContent = ingredients.length > 0
+        ? `合計 ${ingredients.length} 個の材料をスケーリングしました`
+        : '材料が入力されていません';
       document.getElementById('result').classList.add('show');
     }
+
+    // Enter キーで計算
+    document.addEventListener('DOMContentLoaded', () => {
+      ['original', 'target'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });
+      });
+    });
     </script>
     <!-- rakuten-affiliate-block -->
     <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">

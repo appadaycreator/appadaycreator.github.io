@@ -35,6 +35,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -44,7 +45,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"光熱費推移記録ツール【無料】簡単・無料計算の使い方","step":[{"@type":"HowToStep","position":1,"name":"必要事項を入力する","text":"フォームに必要な情報（数値・選択肢・条件）を入力または選択する"},{"@type":"HowToStep","position":2,"name":"診断・計算を実行する","text":"「診断する」「計算する」または「確認する」ボタンを押して結果を取得する"},{"@type":"HowToStep","position":3,"name":"結果・分析を確認する","text":"表示された診断結果・計算結果・グラフをじっくり確認する"},{"@type":"HowToStep","position":4,"name":"アドバイスを活用する","text":"結果に基づくアドバイスや提案を日常生活に取り入れる"},{"@type":"HowToStep","position":5,"name":"定期的に再チェックする","text":"生活変化に応じて定期的に再診断して進捗を追跡する"}]}</script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', 'Noto Sans JP', sans-serif; background: linear-gradient(135deg, #E0E7FF 0%, #F0F4FF 100%); min-height: 100vh; color: #333; line-height: 1.6; }
+        body { font-family: 'Inter', 'Noto Sans JP', sans-serif; background: #f8fafc; min-height: 100vh; color: #333; line-height: 1.6; }
         .site-header { background: #7c3aed; color: white; padding: 32px 20px; text-align: center; }
         .site-header .emoji { font-size: 52px; margin-bottom: 8px; }
         .site-header h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
@@ -118,6 +119,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <input type="number" id="val-amount" placeholder="例: 8500" min="0" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;margin-bottom:10px;">
           <button class="btn" style="margin-top:16px;" onclick="addEntry()">追加する</button>
         </div>
+
+        <div class="card" style="margin-top:12px;background:#fef3c7;border-left:4px solid #f59e0b;">
+          <h3 style="font-size:15px;font-weight:700;margin-bottom:10px;color:#92400e;">🎯 今月の節約目標</h3>
+          <label style="font-size:13px;font-weight:600;color:#92400e;">目標金額（円）</label>
+          <input type="number" id="val-goal" placeholder="例: 25000" min="0" style="width:100%;padding:10px;border:1px solid #f59e0b;border-radius:8px;font-size:14px;margin-bottom:10px;">
+          <button onclick="setGoal()" style="width:100%;background:#f59e0b;color:white;border:none;padding:10px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">目標を設定</button>
+        </div>
         <div class="card" style="margin-top:12px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
             <h2 style="font-size:16px;font-weight:700;">📋 記録一覧</h2>
@@ -131,7 +139,31 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="card">
             <h3 style="font-size:14px;font-weight:700;margin-bottom:8px;color:#7c3aed;">📊 サマリー</h3>
             <div id="summary"></div>
+            <div id="goal-progress" style="display:none;margin-top:12px;padding:12px;background:#f0fdf4;border-radius:8px;">
+              <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+                <span style="font-size:13px;font-weight:600;color:#15803d;">今月の達成度</span>
+                <span id="goal-percent" style="font-size:13px;font-weight:700;color:#15803d;">0%</span>
+              </div>
+              <div style="width:100%;height:8px;background:#d1fae5;border-radius:4px;overflow:hidden;">
+                <div id="goal-bar" style="height:100%;background:#10b981;width:0%;transition:width 0.3s;"></div>
+              </div>
+              <p id="goal-msg" style="font-size:12px;color:#059669;margin-top:6px;"></p>
+            </div>
             <button onclick="exportCSV()" style="margin-top:12px;width:100%;background:#f8fafc;border:1.5px solid #d1d5db;color:#374151;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;" aria-label="光熱費記録をCSVでダウンロード">⬇ CSVダウンロード</button>
+          </div>
+
+          <div class="card" style="margin-top:12px;">
+            <h3 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#7c3aed;">📈 月別推移グラフ</h3>
+            <div style="position:relative;height:300px;">
+              <canvas id="chart-monthly"></canvas>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:12px;">
+            <h3 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#7c3aed;">💡 種別別構成</h3>
+            <div style="position:relative;height:250px;">
+              <canvas id="chart-category"></canvas>
+            </div>
           </div>
         </div>
 
@@ -188,7 +220,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
 
         <!-- SNSシェアCTA -->
-        <div class="card" style="margin-top:8px;text-align:center;background:linear-gradient(135deg,#E0E7FF,#F0F4FF);" role="complementary" aria-label="SNSシェア">
+        <div class="card" style="margin-top:8px;text-align:center;background:#f0f9ff;" role="complementary" aria-label="SNSシェア">
             <p style="font-size:13px;font-weight:600;color:#374151;margin-bottom:10px;">📣 友人・家族にシェアする</p>
             <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
                 <a href="https://twitter.com/intent/tweet?text=%E5%85%89%E7%86%B1%E8%B2%BB%E6%8E%A8%E7%A7%BB%E8%A8%98%E9%8C%B2%E3%83%84%E3%83%BC%E3%83%AB%20%23無料ツール&url=https%3A%2F%2Fappadaycreator.com%2Futility-cost-tracker%2F" target="_blank" rel="noopener" aria-label="光熱費推移記録ツールをXでシェア" style="background:#1DA1F2;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">𝕏 シェア</a>
@@ -204,8 +236,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     
 <script>
-    // ★ここだけ実装（約12行）★
-    const KEY='utility-cost-tracker';
+    const KEY = 'utility-cost-tracker';
+    const GOAL_KEY = 'utility-cost-goal';
+    let entries = JSON.parse(localStorage.getItem(KEY)||'[]');
+    let goal = JSON.parse(localStorage.getItem(GOAL_KEY)||'{}');
+    let charts = { monthly: null, category: null };
+
     function getEntryData() {
       const month = document.getElementById('val-month')?.value || '';
       const type = document.getElementById('val-type')?.value || '';
@@ -213,10 +249,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if (!month || !amount) { alert('年月と金額を入力してください'); return null; }
       return { month, type, amount };
     }
+
     function renderEntry(e) {
       const icons = { '電気':'⚡', 'ガス':'🔥', '水道':'💧' };
       return `<div style="padding:10px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;"><span style="font-size:14px;">${icons[e.type]||''} ${e.month} ${e.type}</span><span style="font-weight:700;color:#7c3aed;">${e.amount.toLocaleString()}円 <button onclick="del(${e.id})" aria-label="${e.month} ${e.type}の記録を削除" style="color:#ef4444;border:none;background:none;cursor:pointer;font-size:16px;">×</button></span></div>`;
     }
+
     function getSummary(entries) {
       if (!entries.length) return '<p style="color:#bbb;font-size:14px;">記録なし</p>';
       const total = entries.reduce((s, e) => s + e.amount, 0);
@@ -224,17 +262,112 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       entries.forEach(e => { if (byType[e.type] !== undefined) byType[e.type] += e.amount; });
       return `<p style="font-size:14px;">合計: <b style="color:#7c3aed;">${total.toLocaleString()}円</b>（${entries.length}件）</p><p style="font-size:13px;color:#666;margin-top:6px;">⚡電気: ${byType['電気'].toLocaleString()}円 / 🔥ガス: ${byType['ガス'].toLocaleString()}円 / 💧水道: ${byType['水道'].toLocaleString()}円</p>`;
     }
-    // ★以下変更不要★
-    let entries=JSON.parse(localStorage.getItem(KEY)||'[]');
-    document.addEventListener('DOMContentLoaded',()=>{ renderAll(); });
-    function addEntry(){
-      const d=getEntryData(); if(!d) return;
+
+    function getCurrentMonthTotal() {
+      const now = new Date();
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+      return entries.filter(e => e.month === currentMonth).reduce((s, e) => s + e.amount, 0);
+    }
+
+    function updateGoal() {
+      const gprog = document.getElementById('goal-progress');
+      if (!goal.amount || goal.amount <= 0) {
+        if (gprog) gprog.style.display = 'none';
+        return;
+      }
+      gprog.style.display = 'block';
+      const current = getCurrentMonthTotal();
+      const percent = Math.min(Math.round(current * 100 / goal.amount), 100);
+      document.getElementById('goal-percent').textContent = percent + '%';
+      document.getElementById('goal-bar').style.width = percent + '%';
+      if (percent >= 100) {
+        document.getElementById('goal-msg').textContent = '🎉 今月の目標達成おめでとう！';
+      } else {
+        document.getElementById('goal-msg').textContent = `残り ¥${Math.max(0, goal.amount - current).toLocaleString()} で目標達成！`;
+      }
+    }
+
+    function setGoal() {
+      const amount = parseInt(document.getElementById('val-goal')?.value || '0', 10);
+      if (amount <= 0) { alert('正の金額を入力してください'); return; }
+      goal = { amount, date: new Date().toLocaleDateString('ja-JP') };
+      localStorage.setItem(GOAL_KEY, JSON.stringify(goal));
+      document.getElementById('val-goal').value = '';
+      alert('目標を設定しました：¥' + amount.toLocaleString());
+      updateGoal();
+    }
+
+    function getMonthlyData() {
+      const months = new Set();
+      entries.forEach(e => months.add(e.month));
+      const sorted = Array.from(months).sort().reverse().slice(0, 12).reverse();
+      return sorted.map(m => ({
+        month: m,
+        total: entries.filter(e => e.month === m).reduce((s, e) => s + e.amount, 0),
+        electric: entries.filter(e => e.month === m && e.type === '電気').reduce((s, e) => s + e.amount, 0),
+        gas: entries.filter(e => e.month === m && e.type === 'ガス').reduce((s, e) => s + e.amount, 0),
+        water: entries.filter(e => e.month === m && e.type === '水道').reduce((s, e) => s + e.amount, 0)
+      }));
+    }
+
+    function drawCharts() {
+      const data = getMonthlyData();
+      if (data.length === 0) {
+        document.getElementById('chart-monthly').style.display = 'none';
+        document.getElementById('chart-category').style.display = 'none';
+        return;
+      }
+      document.getElementById('chart-monthly').style.display = 'block';
+      document.getElementById('chart-category').style.display = 'block';
+
+      // 月別推移グラフ
+      if (charts.monthly) charts.monthly.destroy();
+      const ctx1 = document.getElementById('chart-monthly').getContext('2d');
+      charts.monthly = new Chart(ctx1, {
+        type: 'bar',
+        data: {
+          labels: data.map(d => d.month),
+          datasets: [
+            { label: '電気', data: data.map(d => d.electric), backgroundColor: '#fbbf24', borderColor: '#f59e0b', borderWidth: 1 },
+            { label: 'ガス', data: data.map(d => d.gas), backgroundColor: '#fca5a5', borderColor: '#ef4444', borderWidth: 1 },
+            { label: '水道', data: data.map(d => d.water), backgroundColor: '#93c5fd', borderColor: '#3b82f6', borderWidth: 1 }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins: { legend: { position: 'bottom' } } }
+      });
+
+      // 種別別構成グラフ
+      const totalByType = {'電気':0,'ガス':0,'水道':0};
+      entries.forEach(e => { if (totalByType[e.type] !== undefined) totalByType[e.type] += e.amount; });
+      if (charts.category) charts.category.destroy();
+      const ctx2 = document.getElementById('chart-category').getContext('2d');
+      charts.category = new Chart(ctx2, {
+        type: 'doughnut',
+        data: {
+          labels: ['電気', 'ガス', '水道'],
+          datasets: [{ data: [totalByType['電気'], totalByType['ガス'], totalByType['水道']], backgroundColor: ['#fbbf24', '#fca5a5', '#93c5fd'], borderColor: '#fff', borderWidth: 2 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => { renderAll(); });
+
+    function addEntry() {
+      const d = getEntryData(); if(!d) return;
       entries.unshift({id:Date.now(),date:new Date().toLocaleDateString('ja-JP'),...d});
       localStorage.setItem(KEY,JSON.stringify(entries));
       renderAll(); document.querySelectorAll('input:not([type=submit])').forEach(i=>i.value='');
       document.getElementById('result').classList.add('show');
     }
-    function del(id){ entries=entries.filter(e=>e.id!==id); localStorage.setItem(KEY,JSON.stringify(entries)); renderAll(); }
+
+    function del(id) {
+      if (!confirm('本当に削除しますか？')) return;
+      entries = entries.filter(e=>e.id!==id);
+      localStorage.setItem(KEY,JSON.stringify(entries));
+      renderAll();
+    }
+
     function exportCSV(){
       if(!entries.length){ alert('記録がありません'); return; }
       const rows=[['年月','種別','金額（円）']];
@@ -245,13 +378,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const a=document.createElement('a'); a.href=url; a.download='utility_cost.csv'; a.click();
       URL.revokeObjectURL(url);
     }
+
     function renderAll(){
       const c=document.getElementById('entries'); const ec=document.getElementById('entry-count');
       if(ec) ec.textContent=entries.length+'件';
       c.innerHTML=entries.length?entries.map(renderEntry).join(''):'<p style="text-align:center;color:#bbb;padding:16px;">まだ記録がありません</p>';
       const s=document.getElementById('summary'); if(s) s.innerHTML=getSummary(entries);
+      drawCharts();
+      updateGoal();
     }
-    </script>
+</script>
     <!-- rakuten-affiliate-block -->
     <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">
       <p style="font-size:0.85rem;color:#4b5563;margin-bottom:8px;">🛒 関連商品を楽天市場で探す</p>

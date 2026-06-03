@@ -42,7 +42,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"コンテンツカレンダー作成ツール【無料】自動作成ツールの使い方","totalTime":"PT5M","step":[{"@type":"HowToStep","position":1,"name":"対象期間と発信チャンネルを選ぶ","text":"カレンダーの対象月やSNS・ブログなど発信するチャンネルを設定する"},{"@type":"HowToStep","position":2,"name":"コンテンツテーマを入力する","text":"扱いたいテーマやキーワードを入力し「生成」ボタンを押す。AIが投稿アイデアを自動提案する"},{"@type":"HowToStep","position":3,"name":"カレンダーに投稿日を割り当てる","text":"提案されたコンテンツアイデアをドラッグ&ドロップで各日付に配置する"},{"@type":"HowToStep","position":4,"name":"カレンダーをダウンロード・共有する","text":"完成したカレンダーをCSV・画像でダウンロードするか、URLをチームメンバーと共有する"},{"@type":"HowToStep","position":5,"name":"投稿スケジュールに沿って運用する","text":"カレンダーを見ながらコンテンツを制作・予約投稿し、定期的に計画を見直す"}]}</script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', 'Noto Sans JP', sans-serif; background: linear-gradient(135deg, #CFFAFE 0%, #F0FDFA 100%); min-height: 100vh; color: #333; line-height: 1.6; }
+        body { font-family: 'Inter', 'Noto Sans JP', sans-serif; background: #f8fafc; min-height: 100vh; color: #333; line-height: 1.6; }
         .site-header { background: #0891B2; color: white; padding: 32px 20px; text-align: center; }
         .site-header .emoji { font-size: 52px; margin-bottom: 8px; }
         .site-header h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
@@ -169,7 +169,124 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
           font-weight: 600;
           cursor: pointer;
         }
-    
+        .view-toggle {
+          display: flex;
+          gap: 8px;
+          margin-bottom: 12px;
+          justify-content: center;
+        }
+        .view-toggle button {
+          padding: 8px 16px;
+          border: 1.5px solid #0891B2;
+          background: #fff;
+          color: #0891B2;
+          border-radius: 6px;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .view-toggle button.active {
+          background: #0891B2;
+          color: #fff;
+        }
+        .cal-list {
+          display: none;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .cal-list.show {
+          display: flex;
+        }
+        .cal-list-item {
+          display: flex;
+          padding: 12px;
+          border: 1.5px solid #e0f2fe;
+          border-radius: 8px;
+          background: #fff;
+          gap: 12px;
+          align-items: center;
+        }
+        .cal-list-item.has-post {
+          background: linear-gradient(135deg, #e0f2fe, #f0fdfa);
+          border-color: #0891B2;
+        }
+        .cal-list-date {
+          min-width: 80px;
+          font-weight: 700;
+          color: #0e7490;
+          font-size: 14px;
+        }
+        .cal-list-content {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .cal-list-label {
+          background: #0891B2;
+          color: #fff;
+          padding: 2px 8px;
+          border-radius: 4px;
+          font-size: 12px;
+          font-weight: 600;
+          display: inline-block;
+          width: fit-content;
+        }
+        .cal-list-title {
+          font-size: 13px;
+          color: #0e7490;
+          font-weight: 500;
+        }
+        .cal-day[draggable="true"] {
+          cursor: grab;
+        }
+        .cal-day.drag-over {
+          background: #cffafe !important;
+          border-color: #0891B2 !important;
+          box-shadow: 0 0 0 2px rgba(8,145,178,0.2);
+        }
+        .export-buttons {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+          margin-top: 10px;
+        }
+        .export-btn {
+          padding: 10px;
+          border: 1.5px solid #0891B2;
+          border-radius: 8px;
+          background: #fff;
+          color: #0891B2;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .export-btn:hover {
+          background: #0891B2;
+          color: #fff;
+        }
+        @media (min-width: 640px) {
+          .export-buttons {
+            grid-template-columns: repeat(3, 1fr);
+          }
+        }
+        .cal-grid {
+          display: grid;
+        }
+        .cal-grid.show {
+          display: grid;
+        }
+        @media (max-width: 639px) {
+          .cal-grid {
+            display: none;
+          }
+          .cal-grid.show {
+            display: grid;
+          }
+        }
+
 @media print{
   header,footer,nav,button,.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
@@ -248,13 +365,22 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <button class="btn" onclick="generateCalendar()" style="width:100%;margin-bottom:8px;">カレンダーを生成する</button>
 
           <div class="result" id="result" style="margin-top:16px;">
-            <div class="card" style="background:linear-gradient(135deg,#CFFAFE,#F0FDFA);padding:14px;">
+            <div class="card" style="background:#f0f9ff;padding:14px;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
                 <div style="font-size:14px;font-weight:700;color:#0e7490;" id="calTitle"></div>
                 <div style="font-size:12px;color:#0891B2;" id="calStats"></div>
               </div>
-              <div id="calendarArea"></div>
-              <button class="download-btn" onclick="downloadCSV()">CSVでダウンロード</button>
+              <div class="view-toggle" style="display:none;" id="viewToggle">
+                <button class="active" data-view="grid">📅 カレンダー</button>
+                <button data-view="list">📋 リスト</button>
+              </div>
+              <div id="calendarArea" class="cal-grid show"></div>
+              <div id="listArea" class="cal-list"></div>
+              <div class="export-buttons">
+                <button class="export-btn" onclick="downloadCSV()">📥 CSV</button>
+                <button class="export-btn" onclick="downloadJSON()">📥 JSON</button>
+                <button class="export-btn" onclick="downloadExcel()">📥 Excel</button>
+              </div>
             </div>
           </div>
         </div>
@@ -312,7 +438,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
 
         <!-- SNSシェアCTA -->
-        <div class="card" style="margin-top:8px;text-align:center;background:linear-gradient(135deg,#CFFAFE,#F0FDFA);" role="complementary" aria-label="SNSシェア">
+        <div class="card" style="margin-top:8px;text-align:center;background:#f0f9ff;" role="complementary" aria-label="SNSシェア">
             <p style="font-size:13px;font-weight:600;color:#374151;margin-bottom:10px;">📣 友人・家族にシェアする</p>
             <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
                 <a href="https://twitter.com/intent/tweet?text=%E3%82%B3%E3%83%B3%E3%83%86%E3%83%B3%E3%83%84%E3%82%AB%E3%83%AC%E3%83%B3%E3%83%80%E3%83%BC%E4%BD%9C%E6%88%90%E3%83%84%E3%83%BC%E3%83%AB%20%23無料ツール&url=https%3A%2F%2Fappadaycreator.com%2Fcontent-calendar-maker%2F" target="_blank" rel="noopener" aria-label="コンテンツカレンダー作成ツールをXでシェア" style="background:#1DA1F2;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">𝕏 シェア</a>
@@ -330,6 +456,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <script>
 
     let calendarData = [];
+    let draggedItem = null;
+    let currentMonth = null;
+    let currentYear = null;
 
     document.addEventListener('DOMContentLoaded', () => {
       const now = new Date();
@@ -340,7 +469,50 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.querySelectorAll('.tag-chip').forEach(chip => {
         chip.addEventListener('click', () => chip.classList.toggle('active'));
       });
+
+      document.querySelectorAll('.view-toggle button').forEach(btn => {
+        btn.addEventListener('click', (e) => switchView(e.target.dataset.view));
+      });
     });
+
+    function switchView(view) {
+      const toggle = document.getElementById('viewToggle');
+      const grid = document.getElementById('calendarArea');
+      const list = document.getElementById('listArea');
+      const buttons = toggle.querySelectorAll('button');
+
+      buttons.forEach(btn => btn.classList.remove('active'));
+      if (view === 'grid') {
+        buttons[0].classList.add('active');
+        grid.classList.add('show');
+        list.classList.remove('show');
+      } else {
+        buttons[1].classList.add('active');
+        grid.classList.remove('show');
+        list.classList.add('show');
+      }
+    }
+
+    function renderListView() {
+      const monthVal = document.getElementById('targetMonth').value;
+      const [y, m] = monthVal.split('-').map(Number);
+      let html = '';
+
+      calendarData.forEach(post => {
+        const dateStr = `${y}年${String(m).padStart(2,'0')}月${String(post.day).padStart(2,'0')}日`;
+        html += `
+          <div class="cal-list-item has-post">
+            <div class="cal-list-date">${dateStr}</div>
+            <div class="cal-list-content">
+              <div class="cal-list-label">${post.platform}</div>
+              <div class="cal-list-title">${post.title}</div>
+            </div>
+          </div>
+        `;
+      });
+
+      document.getElementById('listArea').innerHTML = html;
+    }
 
     function generateCalendar() {
       const monthVal = document.getElementById('targetMonth').value;
@@ -384,10 +556,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         }
       }
 
+      currentYear = y;
+      currentMonth = m;
       document.getElementById('calTitle').textContent = `${y}年${m}月 コンテンツカレンダー`;
       document.getElementById('calStats').textContent = `投稿予定: ${calendarData.length}件`;
 
       renderCalendar(y, m, daysInMonth, firstDay);
+      renderListView();
+      document.getElementById('viewToggle').style.display = 'flex';
       document.getElementById('result').classList.add('show');
     }
 
@@ -415,13 +591,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           } else {
             const post = calendarData.find(p => p.day === dayCount);
             if (post) {
-              html += `<div class="cal-day has-post">
+              html += `<div class="cal-day has-post" draggable="true" data-day="${dayCount}">
                 <div class="cal-day-num">${dayCount}</div>
                 <div class="cal-post-label">${post.platform}</div>
                 <div style="font-size:9px;color:#0e7490;margin-top:2px;line-height:1.3;">${post.title}</div>
               </div>`;
             } else {
-              html += `<div class="cal-day"><div class="cal-day-num">${dayCount}</div></div>`;
+              html += `<div class="cal-day" data-day="${dayCount}"><div class="cal-day-num">${dayCount}</div></div>`;
             }
             dayCount++;
           }
@@ -430,6 +606,49 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         if (dayCount > daysInMonth) break;
       }
       document.getElementById('calendarArea').innerHTML = html;
+      attachDragListeners();
+    }
+
+    function attachDragListeners() {
+      document.querySelectorAll('.cal-day[data-day]').forEach(day => {
+        day.addEventListener('dragstart', (e) => {
+          draggedItem = e.currentTarget;
+          e.currentTarget.style.opacity = '0.5';
+        });
+
+        day.addEventListener('dragend', (e) => {
+          e.currentTarget.style.opacity = '1';
+          document.querySelectorAll('.cal-day').forEach(d => d.classList.remove('drag-over'));
+        });
+
+        day.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.currentTarget.classList.add('drag-over');
+        });
+
+        day.addEventListener('dragleave', (e) => {
+          e.currentTarget.classList.remove('drag-over');
+        });
+
+        day.addEventListener('drop', (e) => {
+          e.preventDefault();
+          if (!draggedItem) return;
+
+          const fromDay = parseInt(draggedItem.dataset.day);
+          const toDay = parseInt(e.currentTarget.dataset.day);
+          if (fromDay === toDay) return;
+
+          const post = calendarData.find(p => p.day === fromDay);
+          if (!post) return;
+
+          post.day = toDay;
+          const m = parseInt(document.getElementById('targetMonth').value.split('-')[1]);
+          const daysInMonth = new Date(currentYear, m, 0).getDate();
+          const firstDay = new Date(currentYear, m - 1, 1).getDay();
+          renderCalendar(currentYear, m, daysInMonth, firstDay);
+          renderListView();
+        });
+      });
     }
 
     function downloadCSV() {
@@ -445,6 +664,40 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `content-calendar-${y}${String(m).padStart(2,'0')}.csv`;
+      a.click();
+    }
+
+    function downloadJSON() {
+      if (calendarData.length === 0) return;
+      const monthVal = document.getElementById('targetMonth').value;
+      const [y, m] = monthVal.split('-').map(Number);
+      const data = calendarData.map(d => ({
+        date: `${y}-${String(m).padStart(2,'0')}-${String(d.day).padStart(2,'0')}`,
+        platform: d.platform,
+        genre: d.genre,
+        title: d.title
+      }));
+      const json = JSON.stringify(data, null, 2);
+      const blob = new Blob([json], {type: 'application/json;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `content-calendar-${y}${String(m).padStart(2,'0')}.json`;
+      a.click();
+    }
+
+    function downloadExcel() {
+      if (calendarData.length === 0) return;
+      const monthVal = document.getElementById('targetMonth').value;
+      const [y, m] = monthVal.split('-').map(Number);
+      const rows = [['\u65E5\u4ED8', '\u30D7\u30E9\u30C3\u30C8\u30D5\u30A9\u30FC\u30E0', '\u30B8\u30E3\u30F3\u30EB', '\u30BF\u30A4\u30C8\u30EB\u6848']];
+      calendarData.forEach(d => {
+        rows.push([`${y}/${String(m).padStart(2,'0')}/${String(d.day).padStart(2,'0')}`, d.platform, d.genre, d.title]);
+      });
+      const tsv = rows.map(r => r.join('\t')).join('\n');
+      const blob = new Blob(['\uFEFF' + tsv], {type: 'text/tab-separated-values;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `content-calendar-${y}${String(m).padStart(2,'0')}.xlsx`;
       a.click();
     }
     </script>
@@ -484,7 +737,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         | <a href="privacy-policy.html" style="color:white;">プライバシーポリシー</a>
         | <a href="terms.html" style="color:white;">利用規約</a>
         | <a href="contact.html" style="color:white;">お問い合わせ</a></p>
-        <p style="margin-top:4px;font-size:11px;opacity:0.6;">最終更新: 2026年5月 | 本サービスはアフィリエイト広告を掲載しています（A8.net/Amazon）</p>
+        <p style="margin-top:4px;font-size:11px;opacity:0.6;">最終更新: 2026年6月 | 本サービスはアフィリエイト広告を掲載しています（A8.net/Amazon）</p>
         <p style="margin-top:6px;">© 2026 AppADayCreator. All services are free.</p>
     </footer>
 </body>

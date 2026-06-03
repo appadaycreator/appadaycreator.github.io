@@ -44,7 +44,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"生理周期トラッカー【無料】次回予測・体調管理の使い方","step":[{"@type":"HowToStep","position":1,"name":"最終生理開始日を入力する","text":"最後に生理が始まった日を日付入力欄に入力する"},{"@type":"HowToStep","position":2,"name":"周期と生理期間を設定する","text":"スライダーで平均生理周期（21〜40日）と生理期間（2〜10日）を設定する"},{"@type":"HowToStep","position":3,"name":"「計算する」ボタンを押す","text":"「計算する」ボタンをクリックして予測を生成する"},{"@type":"HowToStep","position":4,"name":"今日の周期状態を確認する","text":"今日が周期何日目か、どのフェーズか、次の生理まで何日かをカードで確認する"},{"@type":"HowToStep","position":5,"name":"カレンダーで予測日を色分け確認する","text":"2ヶ月分のカレンダーで生理予定日・排卵予定日・妊娠可能期間を色別に把握する"}]}</script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', 'Noto Sans JP', sans-serif; background: linear-gradient(135deg, #FFF1F2 0%, #FFE4E6 100%); min-height: 100vh; color: #333; line-height: 1.6; }
+        body { font-family: 'Inter', 'Noto Sans JP', sans-serif; background: #f8fafc; min-height: 100vh; color: #333; line-height: 1.6; }
         .site-header { background: #E11D48; color: white; padding: 32px 20px; text-align: center; }
         .site-header .emoji { font-size: 52px; margin-bottom: 8px; }
         .site-header h1 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
@@ -140,6 +140,18 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
             .countdown-num { font-size: 28px; }
             .cal-wrapper { grid-template-columns: 1fr; }
         }
+        /* P1: ステップガイダンス */
+        .step-guide { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+        .step-item { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; background: #f3f4f6; color: #6b7280; transition: all .3s; }
+        .step-item.active { background: #E11D4820; color: #E11D48; }
+        .step-item.done { background: #F0FDF4; color: #059669; }
+        .step-num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: currentColor; color: white; font-size: 11px; font-weight: 700; }
+
+        /* P2: トースト通知 */
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #059669; color: white; padding: 12px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,0.15); opacity: 0; transition: opacity .3s; z-index: 9999; pointer-events: none; max-width: 90%; }
+        .toast.show { opacity: 1; }
+        @media (max-width: 600px) { .toast { bottom: 12px; left: 12px; right: 12px; transform: none; } }
+
         @media print {
             header,footer,nav,button,.no-print,
             [class*="share"],[class*="affiliate"],[id*="share"],
@@ -149,7 +161,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
             [id*="result"],[class*="result"] { display: block !important; }
             a[href]::after { content: none !important; }
         }
-    
+
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
 </style>
@@ -172,10 +184,26 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
         <div class="card">
           <h2 style="font-size:18px;font-weight:700;margin-bottom:12px;">🌸 生理周期トラッカー</h2>
-          <p style="color:#666;font-size:14px;margin-bottom:4px;">最終生理開始日と平均周期を入力して次回予測日を計算します</p>
+          <p style="color:#666;font-size:14px;margin-bottom:16px;">最終生理開始日と平均周期を入力して次回予測日を計算します</p>
+
+          <!-- P1: ステップガイダンス -->
+          <div class="step-guide">
+            <div class="step-item active" id="step-1">
+              <span class="step-num">1</span>
+              <span>最終生理日を入力</span>
+            </div>
+            <div class="step-item" id="step-2">
+              <span class="step-num">2</span>
+              <span>周期を確認</span>
+            </div>
+            <div class="step-item" id="step-3">
+              <span class="step-num">3</span>
+              <span>計算ボタンをクリック</span>
+            </div>
+          </div>
 
           <label for="last-date">最終生理開始日</label>
-          <input type="date" id="last-date" aria-label="最終生理開始日">
+          <input type="date" id="last-date" aria-label="最終生理開始日" onchange="updateStepGuide()">
 
           <label for="cycle-range">平均生理周期（日数）</label>
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
@@ -293,7 +321,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
 
         <!-- SNSシェアCTA -->
-        <div class="card" style="margin-top:8px;text-align:center;background:linear-gradient(135deg,#FFF1F2,#FFE4E6);" role="complementary" aria-label="SNSシェア">
+        <div class="card" style="margin-top:8px;text-align:center;background:#f0f9ff;" role="complementary" aria-label="SNSシェア">
             <p style="font-size:13px;font-weight:600;color:#374151;margin-bottom:10px;">📣 友人・家族にシェアする</p>
             <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
                 <a href="https://twitter.com/intent/tweet?text=%E7%94%9F%E7%90%86%E5%91%A8%E6%9C%9F%E3%83%88%E3%83%A9%E3%83%83%E3%82%AB%E3%83%BC%20%23無料ツール&url=https%3A%2F%2Fappadaycreator.com%2Fmenstrual-cycle-tracker%2F" target="_blank" rel="noopener" aria-label="生理周期トラッカーをXでシェア" style="background:#1DA1F2;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">𝕏 シェア</a>
@@ -310,6 +338,78 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     
 <script>
     const LS_KEY = 'mct_v2';
+
+    /* P1: ステップガイダンス更新 */
+    function updateStepGuide() {
+      const hasLastDate = !!document.getElementById('last-date').value;
+      const step1 = document.getElementById('step-1');
+      const step2 = document.getElementById('step-2');
+      if (hasLastDate) {
+        step1.classList.add('done');
+        step2.classList.add('active');
+      } else {
+        step1.classList.remove('done');
+        step1.classList.add('active');
+        step2.classList.remove('active');
+      }
+    }
+
+    function completeStepGuide() {
+      document.getElementById('step-2').classList.remove('active');
+      document.getElementById('step-2').classList.add('done');
+      document.getElementById('step-3').classList.add('done');
+    }
+
+    /* P2: トースト表示 */
+    function showToast(message) {
+      let toast = document.getElementById('toast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast';
+        toast.className = 'toast';
+        document.body.appendChild(toast);
+      }
+      toast.textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => { toast.classList.remove('show'); }, 2000);
+    }
+
+    /* P1: データ保存（localStorage） */
+    function saveData() {
+      const data = {
+        lastDate: document.getElementById('last-date').value,
+        cycle: parseInt(document.getElementById('cycle-range').value),
+        period: parseInt(document.getElementById('period-range').value),
+        past1: document.getElementById('past-1').value,
+        past2: document.getElementById('past-2').value,
+        past3: document.getElementById('past-3').value,
+      };
+      localStorage.setItem(LS_KEY, JSON.stringify(data));
+      showToast('💾 データを保存しました');
+    }
+
+    /* P1: データ復元（ページ読み込み時） */
+    function restoreData() {
+      const json = localStorage.getItem(LS_KEY);
+      if (!json) return;
+      try {
+        const data = JSON.parse(json);
+        if (data.lastDate) {
+          document.getElementById('last-date').value = data.lastDate;
+          document.getElementById('cycle-range').value = data.cycle || 28;
+          document.getElementById('cycle-val').textContent = data.cycle || 28;
+          document.getElementById('period-range').value = data.period || 5;
+          document.getElementById('period-val').textContent = data.period || 5;
+          updateSliderBg(document.getElementById('cycle-range'));
+          updateSliderBg(document.getElementById('period-range'));
+          if (data.past1) document.getElementById('past-1').value = data.past1;
+          if (data.past2) document.getElementById('past-2').value = data.past2;
+          if (data.past3) document.getElementById('past-3').value = data.past3;
+          calcAvgCycle();
+          updateStepGuide();
+        }
+      } catch(e) {}
+    }
 
     /* P5: スライダーグラデーション更新 */
     function onSliderInput(rangeId, valId) {
@@ -398,6 +498,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const last = new Date(lastStr + 'T00:00:00');
 
       saveData();
+      completeStepGuide();
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -558,46 +659,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('result').classList.remove('show');
     }
 
-    /* P1: localStorage 保存 */
-    function saveData() {
-      try {
-        localStorage.setItem(LS_KEY, JSON.stringify({
-          lastDate: document.getElementById('last-date').value,
-          cycle: document.getElementById('cycle-range').value,
-          period: document.getElementById('period-range').value,
-          past1: document.getElementById('past-1').value,
-          past2: document.getElementById('past-2').value,
-          past3: document.getElementById('past-3').value
-        }));
-      } catch(e) {}
-    }
-
-    /* P1: 初期化（保存データ復元 + 自動計算） */
+    /* 初期化（保存データ復元 + ステップガイダンス更新） */
     document.addEventListener('DOMContentLoaded', () => {
       updateSliderBg(document.getElementById('cycle-range'));
       updateSliderBg(document.getElementById('period-range'));
-
-      try {
-        const raw = localStorage.getItem(LS_KEY);
-        if (!raw) return;
-        const s = JSON.parse(raw);
-        if (s.lastDate) document.getElementById('last-date').value = s.lastDate;
-        if (s.cycle) {
-          document.getElementById('cycle-range').value = s.cycle;
-          document.getElementById('cycle-val').textContent = s.cycle;
-          updateSliderBg(document.getElementById('cycle-range'));
-        }
-        if (s.period) {
-          document.getElementById('period-range').value = s.period;
-          document.getElementById('period-val').textContent = s.period;
-          updateSliderBg(document.getElementById('period-range'));
-        }
-        if (s.past1) document.getElementById('past-1').value = s.past1;
-        if (s.past2) document.getElementById('past-2').value = s.past2;
-        if (s.past3) document.getElementById('past-3').value = s.past3;
-        if (s.past1 || s.past2 || s.past3) calcAvgCycle();
-        if (s.lastDate) calc();
-      } catch(e) {}
+      restoreData();
     });
     </script>
     <!-- rakuten-affiliate-block -->

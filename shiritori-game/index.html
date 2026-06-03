@@ -29,7 +29,7 @@
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Noto Sans JP', 'Inter', sans-serif; background: linear-gradient(135deg, #0a0a1a 0%, #1a0a2e 50%, #0a0020 100%); min-height: 100vh; color: #e0e0ff; }
+    body { font-family: 'Noto Sans JP', 'Inter', sans-serif; background: #f8fafc; min-height: 100vh; color: #e0e0ff; }
     header { background: rgba(255,255,255,0.05);padding: 1rem 1.5rem; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); }
     header h1 { font-size: 1.8rem; color: #fff; font-weight: 700; }
     header p { font-size: 0.9rem; color: #b0bec5; margin-top: 0.3rem; }
@@ -40,12 +40,13 @@
     .status-item { text-align: center; }
     .status-label { font-size: 0.75rem; color: #b0bec5; }
     .status-value { font-size: 1.3rem; font-weight: 700; color: #80cbc4; }
+    .timer-badge { position: sticky; top: 1rem; background: rgba(255,200,0,0.15); border: 1px solid rgba(255,200,0,0.3); color: #ffd54f; padding: 0.3rem 0.8rem; border-radius: 12px; font-size: 0.85rem; font-weight: 700; z-index: 10; }
     .current-word-box { text-align: center; background: rgba(128,203,196,0.1); border: 2px solid rgba(128,203,196,0.3); border-radius: 16px; padding: 1.5rem; margin-bottom: 1.2rem; }
     .current-word-label { font-size: 0.85rem; color: #b0bec5; margin-bottom: 0.5rem; }
     .current-word { font-size: 2.5rem; font-weight: 700; color: #fff; letter-spacing: 2px; }
     .next-char { font-size: 1rem; color: #80cbc4; margin-top: 0.5rem; }
     .input-area { display: flex; gap: 0.8rem; margin-bottom: 1rem; }
-    .word-input { flex: 1; background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.2); border-radius: 12px; padding: 0.8rem 1rem; color: #fff; font-size: 1.2rem; font-family: inherit; transition: border-color 0.2s; }
+    .word-input { flex: 1; background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.2); border-radius: 12px; padding: 0.8rem 1rem; color: #fff; font-size: 1rem; font-family: inherit; transition: border-color 0.2s; -webkit-appearance: none; }
     .word-input:focus { outline: none; border-color: #80cbc4; }
     .word-input::placeholder { color: #666; font-size: 1rem; }
     .submit-btn { padding: 0.8rem 1.5rem; background: linear-gradient(90deg, #00796b, #26a69a); color: #fff; font-size: 1rem; font-weight: 700; border: none; border-radius: 12px; cursor: pointer; font-family: inherit; white-space: nowrap; }
@@ -198,6 +199,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
   <!-- ゲーム画面 -->
   <section class="card hidden" id="gameCard">
+    <div class="timer-badge" id="timerBadge" style="display:none;">⏱ 時間: <span id="timeLeft">-</span></div>
     <div class="game-status">
       <div class="status-item">
         <div class="status-label">ターン数</div>
@@ -206,10 +208,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <div class="status-item">
         <div class="status-label">使用単語数</div>
         <div class="status-value" id="wordCount">0</div>
-      </div>
-      <div class="status-item">
-        <div class="status-label">制限時間</div>
-        <div class="status-value" id="timeLeft">-</div>
       </div>
       <div class="status-item" id="pauseBtnWrap" style="display:none;">
         <button id="pauseBtn" onclick="togglePause()" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.3);border-radius:8px;padding:4px 10px;color:#fff;font-size:0.9rem;cursor:pointer;">⏸</button>
@@ -265,6 +263,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   </section>
 </main>
 
+<div class="max-w-lg mx-auto px-4 mb-4">
 <section style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 16px;margin-top:16px;">
   <h2 style="font-size:16px;font-weight:700;color:#1e293b;margin:0 0 16px;text-align:center;">❓ よくある質問（FAQ）</h2>
   <div style="max-width:680px;margin:0 auto;">
@@ -290,6 +289,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     </details>
   </div>
 </section>
+</div>
 
 <div class="max-w-lg mx-auto px-4"><section  style="background:#f0f9ff;border:1px solid #bae6fd;padding:16px;text-align:center;font-size:12px;color:#0369a1;border-radius:14px;margin-bottom:16px;">
   <p style="margin:0 0 4px;font-weight:600;">📧 お問い合わせ</p>
@@ -297,45 +297,45 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 </section></div>
 
         <script>
-// 大量の語彙データ
+// 大量の語彙データ（ひらがなのみ、「ん」で終わる語は除外）
 const WORD_DB = {
   easy: [
     'いぬ','ねこ','うさぎ','りす','さる','くま','らいおん','とら','ぞう','きりん',
     'かば','さい','うま','うし','ぶた','ひつじ','やぎ','にわとり','あひる','かも',
-    'はと','からす','すずめ','ひばり','つばめ','わし','たか','ふくろう','ペンギン','かもめ',
+    'はと','からす','すずめ','ひばり','つばめ','わし','たか','ふくろう','ぺんぎん','かもめ',
     'いるか','くじら','さかな','えび','かに','たこ','いか','かき','あさり','しじみ',
-    'りんご','みかん','いちご','ぶどう','なし','もも','うめ','さくらんぼ','すいか','メロン',
-    'トマト','なす','きゅうり','にんじん','だいこん','かぼちゃ','たまねぎ','じゃがいも','きゃべつ','レタス',
+    'りんご','みかん','いちご','ぶどう','なし','もも','うめ','さくらんぼ','すいか','めろん',
+    'とまと','なす','きゅうり','にんじん','だいこん','かぼちゃ','たまねぎ','じゃがいも','きゃべつ','れたす',
     'ほうれんそう','こまつな','ねぎ','にんにく','しょうが','あさ','ひる','よる','はな','そら',
     'うみ','やま','かわ','いけ','もり','さっぽろ','とうきょう','おおさか','なごや','ふくおか',
     'かばん','くつ','ぼうし','てぶくろ','めがね','とけい','ほん','えんぴつ','ノート','つくえ',
     'いす','まど','ドア','かがみ','でんわ','テレビ','れいぞうこ','ふろ','にわ','へや',
+    'ぺんぎん','きりん','ぶたさん','あびる','あたる','あばた','あばれ','あさり','あきら','あすか',
+    'いわし','いれぶみ','うどん','うどんや','うどんこ','える','えり','えれべーたー',
   ],
   normal: [
-    'アイスクリーム','イルカ','カレー','エビフライ','イカ','カニ','ニワトリ','リンゴ','ゴリラ',
-    'ラクダ','ダチョウ','うーたん','ンズ','ズッキーニ','イノシシ','シカ','カバ','バナナ',
-    'なんこつ','つばめ','めだか','カエル','ルビー','びわ','わかめ','めじろ','ろうそく',
-    'くまのプーさん','んー','おにぎり','りゅう','うたう','うみねこ','こけし','しろくま','まぐろ',
-    'ろばた','たぬき','きつね','ねずみ','みかん','んとく','くじら','らっこ','こうもり',
-    'りす','すし','しか','かたつむり','りす','すなはま','まほう','うきわ','わに','にもつ',
-    'つる','るびー','びいだま','まつり','りょう','うちゅう','うさぎ','ぎんが','がっこう',
-    'うきわ','わかば','ばいく','くるま','まほうびん','んじゃ','やきとり','りんご','ごりら',
-    'らじお','おもちゃ','やきいも','もみじ','じてんしゃ','やかん','かにみそ','そうめん',
-    'んがく','くわがた','たまご','ごはん','はんたい','いんこ','こうえん','えんがわ',
-    'わたあめ','めだかの','のうさぎ','ぎんなん','なんきんまめ','めだか','かがみ','みず',
-    'ずんだ','だいず','ずかん','かんじ','じどうしゃ','やとう','うまや','やなぎ','ぎょうざ',
+    'あいすくりーむ','いるか','かれー','えびふらい','いか','かに','にわとり','りんご','ごりら',
+    'らくだ','だちょう','おにぎり','りゅう','うたう','うみねこ','こけし','しろくま','まぐろ',
+    'ろばた','たぬき','きつね','ねずみ','みかん','くじら','らっこ','こうもり','りす','すし',
+    'しか','かたつむり','すなはま','まほう','うきわ','わに','にもつ','つる','るびー','びいだま',
+    'まつり','りょう','うちゅう','うさぎ','ぎんが','がっこう','わかば','ばいく','くるま','まほうびん',
+    'やきとり','らじお','おもちゃ','やきいも','もみじ','じてんしゃ','やかん','かにみそ','そうめん',
+    'くわがた','たまご','ごはん','はんたい','いんこ','こうえん','えんがわ','わたあめ','かがみ','みず',
+    'ずんだ','だいず','ずかん','かんじ','じどうしゃ','やとう','うまや','やなぎ','ぎょうざ','ざくろ',
+    'ろぼっと','とうもろこし','しょうがっこう','うんどうかい','いかめし','しおら','ぽすたる','るくせんぶるく',
+    'あいぼりー','ぼーりんぐ','ぐろーぶ','べるとこんべあ','あおきべとな','あんこ','こすもす','すあるぼ',
+    'ぼくしんぐ','ぐうぐる','るーるーと','ともだち','ちょこれーと','とまりぎ','ぎたー','たしろばくろ',
   ],
   hard: [
-    'アンコウ','ウグイス','スズメバチ','チンパンジー','ジンベエザメ','メダカ','カタツムリ',
-    'リュウグウノツカイ','イカナゴ','ゴイサギ','ギフチョウ','ウミウシ','シオマネキ','キリギリス',
-    'スッポン','ンバー','バッファロー','ロードランナー','ナメクジ','ジュゴン','ンギルト',
-    'トゲウオ','オグロワシ','シチメンチョウ','ウバザメ','メジロ','ロブスター','ターバン',
-    'ンボ','ボルトガル','ルアンダ','ダルメシアン','アルパカ','カワセミ','みじんこ',
-    'こびとかばすりやき','きんめだい','いなごのつくだに','にほんじか','かわにな','なんきょくてりく',
-    'くぼたのとらっく','くじゃく','くじらのほ','ほていあおい','いっかく','くろかわうそ',
-    'そどむ','むしくい','いぼいのしし','しろながすくじら','らくだ','だいおうぐそくむし',
-    'しらこ','こきじ','じごく','くじらぐも','もうふ','ふくみえ','えんじつ','つくば',
-    'ばっこう','うんりゅう','うなぎ','ぎちょう','うきし','しぼうのうみ','みなもと',
+    'あんこう','うぐいす','すずめばち','ちんぱんじー','じんべえざめ','めだか','かたつむり','りゅうぐうのつかい',
+    'いかなご','ごいさぎ','ぎふちょう','うみうし','しおまねき','きりぎりす','すっぽん','ばっふぁろー',
+    'ろーどらんなー','なめくじ','じゅごん','とげうお','おぐろわし','しちめんちょう','うばざめ','めじろ',
+    'ろぶすたー','ぎくぐりかじ','あるぱか','かわせみ','みじんこ','こびとかば','きんめだい','いなごのつくだに',
+    'にほんじか','かわにな','なんきょくてりく','くぼたのとらっく','くじゃく','くじらのほ','ほていあおい','いっかく',
+    'くろかわうそ','そどむ','むしくい','いぼいのしし','しろながすくじら','らくだ','だいおうぐそくむし','しらこ',
+    'こきじ','じごく','くじらぐも','もうふ','ふくみえ','えんじつ','つくば','ばっこう','うんりゅう','うなぎ',
+    'ぎちょう','うきし','しぼうのうみ','みなもと','とくがわいえやす','すいぎゅう','ゅうらしあ','あるたい',
+    'いびす','すぱいだーまん','んーてぃーたいむ','まっぎょ','ょえましん','んばんと','ぼーどげーむ','めっせんじゃー',
   ],
 };
 
@@ -353,6 +353,13 @@ let timeLeft = 30;
 let gameActive = false;
 let isPaused = false;
 let usedWords = new Set();
+
+// iOS最適化: input focus時にスクロール制御
+window.addEventListener('touchmove', function(e) {
+  if (gameActive && e.target === document.getElementById('wordInput')) {
+    e.preventDefault();
+  }
+}, { passive: false });
 
 const DIFF_DESC = {
   easy: 'CPUはかんたんな言葉だけ使います。制限時間: なし',
@@ -426,7 +433,12 @@ function startGame() {
 
 function startTimer() {
   clearInterval(timerInterval);
-  if (difficulty === 'easy') { document.getElementById('timeLeft').textContent = '∞'; return; }
+  const timerBadge = document.getElementById('timerBadge');
+  if (difficulty === 'easy') {
+    if (timerBadge) timerBadge.style.display = 'none';
+    return;
+  }
+  if (timerBadge) timerBadge.style.display = 'block';
   timeLeft = difficulty === 'hard' ? 15 : 30;
   document.getElementById('timeLeft').textContent = timeLeft;
   timerInterval = setInterval(() => {
@@ -498,14 +510,12 @@ function submitWord() {
 function cpuTurn() {
   if (!gameActive) return;
   const pool = WORD_DB[difficulty];
-  let candidates = pool.filter(w => w.startsWith(currentChar) && !usedWords.has(w));
+  let candidates = pool.filter(w => w.startsWith(currentChar) && !usedWords.has(w) && !w.endsWith('ん'));
   if (difficulty === 'hard') {
-    // Try to find words with ん or tricky words
-    const tricky = candidates.filter(w => !w.endsWith('ん') && w.length >= 4);
+    const tricky = candidates.filter(w => w.length >= 4);
     if (tricky.length) candidates = tricky;
   }
   if (!candidates.length) {
-    // CPU loses
     endGame('cpu_lose');
     return;
   }
@@ -517,13 +527,6 @@ function cpuTurn() {
     chosen = (long.length ? long : candidates)[Math.floor(Math.random() * (long.length ? long : candidates).length)];
   } else {
     chosen = candidates[Math.floor(Math.random() * candidates.length)];
-  }
-  if (chosen.endsWith('ん')) {
-    usedWords.add(chosen);
-    gameWords.push({ word: chosen, by: 'cpu' });
-    showMessage(`🤖 CPUが「${chosen}」と言いました。「ん」で終わったのでCPUの負けです！`, 'cpu');
-    setTimeout(() => endGame('cpu_lose'), 1500);
-    return;
   }
   usedWords.add(chosen);
   gameWords.push({ word: chosen, by: 'cpu' });
@@ -630,15 +633,19 @@ function downloadShiritoriCard() {
   a.href = c.toDataURL('image/png'); a.download = 'shiritori-result.png'; a.click();
 }
 
-// Enter key
+// Enter key (Shift+Enter allows newline)
 document.addEventListener('keydown', function(e) {
-  if (e.key === 'Enter' && gameActive) submitWord();
+  if (e.key === 'Enter' && !e.shiftKey && gameActive) {
+    e.preventDefault();
+    submitWord();
+  }
 });
 </script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"しりとりゲーム【無料】CPUと対戦！語彙力・国語力アップ","description":"AIとしりとり対戦しながら語彙力を鍛える無料ゲーム。一人でも家族でも楽しめる。登録不要。","url":"https://appadaycreator.com/shiritori-game/","applicationCategory":"GameApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"}}</script>
 <div style="margin:16px auto;max-width:800px;padding:14px;background:#fff8f0;border:1px solid #fed7aa;border-radius:12px;"><p style="font-size:0.82rem;font-weight:bold;color:#c2410c;margin-bottom:8px;">📦 関連おすすめ商品</p><div style="display:flex;flex-wrap:wrap;gap:8px;"><a class="js-track-affiliate" href="https://www.amazon.co.jp/s?k=語彙力+言葉遊び+本&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="background:#ff9900;color:#fff;padding:7px 12px;border-radius:7px;font-size:0.8em;font-weight:bold;text-decoration:none;" data-platform="Amazon" data-item-name="語彙力言葉遊び本" data-link-type="affiliate_link">🛒 語彙力・言葉遊び本 →</a><a class="js-track-affiliate" href="https://www.amazon.co.jp/s?k=語彙力+言葉遊び+本&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="background:#146eb4;color:#fff;padding:7px 12px;border-radius:7px;font-size:0.8em;font-weight:bold;text-decoration:none;" data-platform="Amazon" data-item-name="語彙力言葉遊び本" data-link-type="affiliate_link">📚 子ども向け辞書・学習本 →</a></div></div>
+<div class="max-w-lg mx-auto px-4 mb-4">
 <!-- Related Services -->
-<section style="margin-top:28px;padding:20px 16px;background:#f8fafc;border-radius:12px;">
+<section class="bg-white rounded-2xl shadow-md p-5">
   <h3 style="font-size:14px;font-weight:700;color:#64748b;margin-bottom:12px;letter-spacing:0.03em;">関連サービス</h3>
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
     <a href="https://appadaycreator.com/dog-walk-tracker/" class="related-link">犬の散歩記録アプリ</a>
@@ -647,6 +654,7 @@ document.addEventListener('keydown', function(e) {
     <a href="https://appadaycreator.com/content-calendar-maker/" class="related-link">コンテンツカレンダー作成ツール</a>
   </div>
 </section>
+</div>
 
     
     <div class="max-w-lg mx-auto px-4">
