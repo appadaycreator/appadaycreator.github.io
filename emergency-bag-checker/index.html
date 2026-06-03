@@ -41,7 +41,7 @@
     .score-label { font-size: 1rem; color: #ffcc80; margin-top: 0.3rem; }
     .score-bar { margin-top: 0.8rem; }
     .score-bar-bg { background: rgba(255,255,255,0.1); border-radius: 10px; height: 16px; overflow: hidden; }
-    .score-bar-fill { height: 100%; border-radius: 10px; transition: width 0.8s; }
+    .score-bar-fill { height: 100%; border-radius: 10px; transition: width 0.8s; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 0.8rem; }
     .score-bar-fill.low { background: linear-gradient(90deg, #c62828, #e53935); }
     .score-bar-fill.mid { background: linear-gradient(90deg, #e65100, #ff9800); }
     .score-bar-fill.high { background: linear-gradient(90deg, #2e7d32, #66bb6a); }
@@ -66,6 +66,8 @@
     .family-btn.active { background: rgba(255,152,0,0.3); border-color: #ffcc80; color: #fff; }
     .btn { display: block; width: 100%; padding: 0.85rem; background: linear-gradient(90deg, #e65100, #ff9800); color: #fff; font-size: 1rem; font-weight: 700; border: none; border-radius: 10px; cursor: pointer; margin-top: 1rem; font-family: inherit; }
     .btn:hover { opacity: 0.9; }
+    .btn:focus-visible, input:focus-visible, button:focus-visible { outline: 3px solid #ffd740; outline-offset: 2px; }
+    .item-checkbox:focus-visible { outline: 3px solid #ffd740; outline-offset: 1px; }
     .tips-list { list-style: none; }
     .tips-list li { padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.08); font-size: 0.9rem; color: #ccc; }
     .tips-list li::before { content: "🚨 "; }
@@ -194,6 +196,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
       </div>
     </div>
+    <div style="margin-bottom:1rem;">
+      <input type="text" id="searchInput" placeholder="🔍 アイテムを検索（例：水、薬、懐中電灯）"
+             onkeyup="filterSearch(this.value)"
+             style="width:100%;padding:0.6rem 0.8rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:#ccc;font-family:inherit;font-size:0.9rem;"
+             aria-label="チェックリスト項目の検索">
+      <button onclick="document.getElementById('searchInput').value='';filterSearch('');" style="margin-top:0.4rem;font-size:0.8rem;padding:0.4rem 0.8rem;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#ccc;border-radius:6px;cursor:pointer;">検索クリア</button>
+    </div>
     <div class="family-filter">
       <span style="font-size:0.85rem;color:#ffcc80;align-self:center;">家族構成：</span>
       <button class="family-btn active" onclick="filterFamily(this,'all')" aria-label="全員共通">全員共通</button>
@@ -203,6 +212,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <button class="family-btn" onclick="filterFamily(this,'medical')">＋持病あり</button>
     </div>
     <button class="btn" onclick="resetAll()">チェックをすべてリセット</button>
+    <button class="btn" onclick="exportChecklist()" style="background:linear-gradient(90deg,#1e7e34,#2d9d4a);margin-top:0.7rem;">📥 チェックリストをエクスポート</button>
   </section>
 
   <!-- チェックリスト -->
@@ -240,7 +250,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 </main>
 
 <div class="max-w-2xl mx-auto px-4 mb-4">
-<section style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 16px;margin-top:16px;">
+<section style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 16px;margin-top:16px;max-width:720px;margin-left:auto;margin-right:auto;">
   <h2 style="font-size:16px;font-weight:700;color:#1e293b;margin:0 0 16px;text-align:center;">❓ よくある質問（FAQ）</h2>
   <div style="max-width:680px;margin:0 auto;">
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
@@ -327,12 +337,25 @@ const CHECKLIST = [
 ];
 
 let checkedItems = JSON.parse(localStorage.getItem('emergencyChecked') || '{}');
+let expandedCategories = JSON.parse(localStorage.getItem('expandedCategories') || '{}');
 let activeFamily = 'all';
+let searchQuery = '';
 
 function filterFamily(btn, family) {
   document.querySelectorAll('.family-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   activeFamily = family;
+  renderChecklist();
+}
+
+function filterSearch(query) {
+  searchQuery = query.toLowerCase();
+  renderChecklist();
+}
+
+function toggleCategory(catName) {
+  expandedCategories[catName] = !expandedCategories[catName];
+  localStorage.setItem('expandedCategories', JSON.stringify(expandedCategories));
   renderChecklist();
 }
 
@@ -345,16 +368,24 @@ function renderChecklist() {
   let html = '';
   CHECKLIST.forEach(cat => {
     const visItems = cat.items.filter(isVisible);
-    if (!visItems.length) return;
-    const checkedCount = visItems.filter(i => checkedItems[i.id]).length;
-    const pct = Math.round(checkedCount / visItems.length * 100);
+    let filteredItems = visItems;
+    if (searchQuery) {
+      filteredItems = visItems.filter(item => item.text.toLowerCase().includes(searchQuery));
+    }
+    if (!filteredItems.length) return;
+    const checkedCount = filteredItems.filter(i => checkedItems[i.id]).length;
+    const pct = Math.round(checkedCount / filteredItems.length * 100);
+    const isExpanded = expandedCategories[cat.cat] !== false;
     html += `<div class="card category-section">
-      <div class="cat-header">
-        <div class="cat-title">${cat.cat}</div>
-        <div class="cat-progress">${checkedCount}/${visItems.length} (${pct}%)</div>
+      <div class="cat-header" onclick="toggleCategory('${cat.cat.replace(/'/g, "\\'")}'); return false;" style="cursor:pointer;">
+        <div style="display:flex;align-items:center;gap:0.5rem;flex:1;">
+          <span style="font-size:1.2rem;transition:transform 0.2s;transform:${isExpanded ? 'rotate(90deg)' : 'rotate(0deg)'};">▶</span>
+          <div class="cat-title">${cat.cat}</div>
+        </div>
+        <div class="cat-progress">${checkedCount}/${filteredItems.length} (${pct}%)</div>
       </div>
-      <div class="item-list">
-        ${visItems.map(item => {
+      ${isExpanded ? `<div class="item-list">
+        ${filteredItems.map(item => {
           const cls = ['critical','high','medium'].includes(item.priority) ? `p-${item.priority}` : '';
           const label = { critical:'必須', high:'重要', medium:'推奨' }[item.priority] || '';
           const isChecked = !!checkedItems[item.id];
@@ -367,7 +398,7 @@ function renderChecklist() {
             <span class="item-priority ${cls}">${label}</span>
           </div>`;
         }).join('')}
-      </div>
+      </div>` : ''}
     </div>`;
   });
   document.getElementById('checklistContainer').innerHTML = html;
@@ -396,11 +427,12 @@ function updateScore() {
   const bar = document.getElementById('scoreBar');
   bar.style.width = pct + '%';
   bar.className = 'score-bar-fill ' + (pct < 30 ? 'low' : pct < 60 ? 'mid' : pct < 90 ? 'high' : 'max');
-  const label = pct < 30 ? '⚠️ 準備が不十分です。今すぐ始めましょう！' :
-    pct < 60 ? '📋 準備中です。もう少し揃えましょう。' :
-    pct < 90 ? '👍 だいぶ揃ってきました。残りも確認を！' :
-    '✅ 素晴らしい！万全の備えができています！';
-  document.getElementById('scoreLabel').textContent = `${checkedCount}/${allItems.length}項目 - ${label}`;
+  bar.textContent = pct > 5 ? pct + '%' : '';
+  const label = pct < 30 ? '⚠️ 準備が不十分です' :
+    pct < 60 ? '📋 準備中です' :
+    pct < 90 ? '👍 だいぶ揃ってきました' :
+    '✅ 万全の備えができています';
+  document.getElementById('scoreLabel').innerHTML = `<div style="font-size:1.1rem;color:#fff;margin-bottom:0.3rem;font-weight:700;">${checkedCount}/${allItems.length}項目</div><div style="font-size:0.9rem;color:#ffcc80;">${label}</div>`;
   // Update cat progress
   CHECKLIST.forEach(cat => {
     const visItems = cat.items.filter(isVisible);
@@ -414,6 +446,42 @@ function resetAll() {
   checkedItems = {};
   localStorage.removeItem('emergencyChecked');
   renderChecklist();
+}
+
+function exportChecklist() {
+  const allItems = CHECKLIST.flatMap(c => c.items.filter(isVisible));
+  const checkedCount = allItems.filter(i => checkedItems[i.id]).length;
+  const pct = Math.round(checkedCount / allItems.length * 100);
+
+  let text = '防災チェックリスト - エクスポート\n';
+  text += '=' .repeat(40) + '\n\n';
+  text += `出力日時: ${new Date().toLocaleString('ja-JP')}\n`;
+  text += `準備状況: ${checkedCount}/${allItems.length}項目 (${pct}%)\n`;
+  text += '\n' + '=' .repeat(40) + '\n\n';
+
+  CHECKLIST.forEach(cat => {
+    const visItems = cat.items.filter(isVisible);
+    if (!visItems.length) return;
+    text += `【${cat.cat}】\n`;
+    visItems.forEach(item => {
+      const checked = checkedItems[item.id] ? '✓' : '☐';
+      text += `${checked} ${item.text}\n`;
+    });
+    text += '\n';
+  });
+
+  text += '=' .repeat(40) + '\n';
+  text += '※ 本チェックリストの出力日時のバージョンです\n';
+
+  const blob = new Blob([text], { type: 'text/plain; charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `emergency-checklist-${new Date().toISOString().split('T')[0]}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 renderChecklist();
@@ -507,7 +575,7 @@ renderChecklist();
   </div>
   <p>© 2026 AppADayCreator</p>
 
-                <div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:12px 16px;margin:0;font-size:11px;color:#64748b;text-align:center;line-height:1.7;">
+                <div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:12px 16px;margin:0 auto;max-width:720px;font-size:11px;color:#64748b;text-align:center;line-height:1.7;">
   <strong>免責事項</strong>：本ツールの計算・診断結果はあくまで参考情報です。本サービスの利用により生じた損害について、当サイトは一切の責任を負いません。
 </div>
   <div style="margin-top:8px;"><a href="privacy-policy.html" style="color:inherit;font-size:11px;opacity:0.7;text-decoration:underline;">プライバシーポリシー</a></div>
