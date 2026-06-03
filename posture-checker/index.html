@@ -119,7 +119,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     </header>
 
     <main id="main-content" class="container" role="main" aria-label="姿勢チェッカーのメインコンテンツ">
-        <ins class="adsbygoogle" style="display:block;min-height:0;margin:12px 0" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+        <ins class="adsbygoogle" style="display:block;min-height:90px;margin:12px 0" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
         <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
 
         <div class="card" id="quiz-start">
@@ -143,6 +143,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="card">
             <h3 id="r-title" style="font-size:20px;font-weight:700;margin-bottom:8px;"></h3>
             <div id="r-problems" style="margin-bottom:12px;"></div>
+            <!-- 診断時間 -->
+            <div id="r-time" style="font-size:12px;color:#666;margin-bottom:14px;padding:10px;background:#f3f4f6;border-radius:8px;"></div>
             <!-- スコアゲージ -->
             <div class="score-gauge-wrap">
               <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">姿勢スコア: <strong id="r-score-text"></strong></div>
@@ -151,6 +153,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             </div>
             <!-- アドバイスステップ -->
             <div id="r-advice"></div>
+            <!-- 次のステップ -->
+            <div id="r-next-steps" style="margin-top:16px;"></div>
             <!-- 結果シェアボタン -->
             <div id="r-share" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;"></div>
             <button class="btn" style="margin-top:16px;" onclick="resetQuiz()">もう一度チェック</button>
@@ -167,7 +171,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             </div>
         </div>
 
-        <ins class="adsbygoogle" style="display:block;min-height:0;margin:12px 0" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+        <ins class="adsbygoogle" style="display:block;min-height:90px;margin:12px 0" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
         <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
 
         <!-- 使い方セクション -->
@@ -234,8 +238,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       {text:'Q5. 立ったとき、お尻が後ろに突き出ている感じや、腰が反り過ぎる感じがありますか？',opts:['ない','少し気になる','よく言われる','腰痛持ちでもある']},
       {text:'Q6. 靴底の減り方は？',opts:['均一に減る','外側がよく減る','内側がよく減る','前の方だけ減る']},
     ];
-    const MAX_SCORE = 18; // 6問 × 最大3点
-    let cur=0; const ans=[];
+    const MAX_SCORE = 18;
+    const NEXT_STEPS={good:{title:'🎯 推奨されるアクション',links:[{text:'ストレッチタイマー - 予防ケア用',url:'https://appadaycreator.com/stretch-timer/'}]},light:{title:'🎯 推奨されるアクション',links:[{text:'ストレッチタイマー - 軽度改善向け',url:'https://appadaycreator.com/stretch-timer/'},{text:'睡眠の質チェッカー - リカバリー支援',url:'https://appadaycreator.com/sleep-quality-checker/'}]},moderate:{title:'🎯 重点改善アクション',links:[{text:'ストレッチタイマー - 肩甲骨寄せプログラム',url:'https://appadaycreator.com/stretch-timer/'},{text:'腰痛リスクチェッカー - 腰椎ケア',url:'https://appadaycreator.com/back-pain-checker/'}]},severe:{title:'🎯 専門家相談と並行して',links:[{text:'腰痛リスクチェッカー - 複合問題の診断',url:'https://appadaycreator.com/back-pain-checker/'},{text:'ストレッチタイマー - 基礎トレーニング',url:'https://appadaycreator.com/stretch-timer/'}]}};
+    let cur=0, ans=[], startTime=0;
 
     function setSideContent(hidden){
       document.querySelectorAll('.side-content').forEach(el=>{
@@ -245,12 +250,25 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     function startQuiz(){
       cur=0; ans.length=0;
+      startTime=Date.now();
       document.getElementById('quiz-start').style.display='none';
       document.getElementById('result').classList.remove('show');
       setSideContent(true);
       document.getElementById('quiz-area').style.display='block';
       document.getElementById('quiz-area').scrollIntoView({behavior:'smooth',block:'start'});
       renderQ();
+    }
+
+    function getTimeStr(ms){
+      const s=Math.floor(ms/1000);
+      return s<60?s+'秒':(Math.floor(s/60)+'分'+s%60+'秒');
+    }
+
+    function saveDiagnosis(type,score){
+      const hist=JSON.parse(localStorage.getItem('posture_hist')||'[]');
+      hist.unshift({date:new Date().toLocaleString('ja-JP'),type,score});
+      if(hist.length>10)hist.pop();
+      localStorage.setItem('posture_hist',JSON.stringify(hist));
     }
 
     function renderQ(){
@@ -296,30 +314,34 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     function showResult(){
       const score=ans.reduce((s,a)=>s+a,0);
-      let title, titleColor, problems=[], advice, gaugeColor;
+      const elapsed=getTimeStr(Date.now()-startTime);
+      let title, titleColor, problems=[], advice, gaugeColor, stepType;
 
       if(score<=3){
-        title='✨ 良好な姿勢タイプ'; titleColor='#059669'; gaugeColor='#10b981';
+        title='✨ 良好な姿勢タイプ'; titleColor='#059669'; gaugeColor='#10b981'; stepType='good';
         advice='姿勢バランスは良好です！現在の習慣を維持しながら、①30分に1回は席を立って軽く歩く ②胸を開くストレッチを1日1回取り入れる ③スマホは目の高さに持つ習慣をつける。予防ケアで良い姿勢をキープしましょう。';
       } else if(score<=8){
-        title='😐 軽度の姿勢崩れタイプ'; titleColor='#d97706'; gaugeColor='#f59e0b';
+        title='😐 軽度の姿勢崩れタイプ'; titleColor='#d97706'; gaugeColor='#f59e0b'; stepType='light';
         if(ans[0]>=2) problems.push('長時間のデバイス使用による前傾姿勢');
         if(ans[3]>=2) problems.push('慢性的な肩こり・首こり');
         advice='【改善エクササイズ】①壁立ち：後頭部・肩・お尻・かかとを壁につけて30秒キープ ②胸張りストレッチ：両手を後ろで組み胸を開く ③あご引き：あごを引いて首の後ろを伸ばす（各10回×3セット）';
       } else if(score<=14){
-        title='⚠️ 猫背・巻き肩タイプ'; titleColor='#ea580c'; gaugeColor='#f97316';
+        title='⚠️ 猫背・巻き肩タイプ'; titleColor='#ea580c'; gaugeColor='#f97316'; stepType='moderate';
         problems.push('猫背・巻き肩の傾向あり');
         if(ans[4]>=2) problems.push('腰椎前彎（反り腰）の可能性');
-        advice='【重点改善】①肩甲骨寄せ：胸を張り肩甲骨を中央に寄せて5秒キープ（10回） ②タオルストレッチ：タオルを両手で持ち上げ頭上から後ろへゆっくり下げる（10回） ③ドローイン：息を吐きながらお腹を凹ませ5秒キープ（10回） ④モニター高さ調整：画面上端が目線の高さになるよう設定する';
+        advice='【重点改善】①肩甲骨寄せ：胸を張り肩甲骨を中央に寄せて5秒キープ（10回） ②タオルストレッチ：タオルを両手で持ち上げ頭上から後ろへゆっくり下げる（10回） ③ドローイン：息を吐きながらお腹を凹ませ5秒キープ（10回）';
       } else {
-        title='🔴 姿勢改善が急務なタイプ'; titleColor='#dc2626'; gaugeColor='#ef4444';
+        title='🔴 姿勢改善が急務なタイプ'; titleColor='#dc2626'; gaugeColor='#ef4444'; stepType='severe';
         problems.push('複合的な姿勢問題（猫背＋骨盤歪み）');
-        advice='【専門家相談推奨】①座り姿勢を15分に1回リセット：一度立ち上がりその場で軽くストレッチ ②スマホを目の高さに：首への負担を減らす ③硬めのマットレスで就寝：腰のサポートを改善 ④腹筋・背筋バランストレーニング：プランク30秒×3セットから始める。整体・整形外科での診断も推奨します。';
+        advice='【専門家相談推奨】①座り姿勢を15分に1回リセット ②スマホを目の高さに ③硬めのマットレスで就寝 ④腹筋・背筋バランストレーニング。整体・整形外科での診断を推奨します。';
       }
 
       document.getElementById('r-title').textContent=title;
       document.getElementById('r-title').style.color=titleColor;
       document.getElementById('r-problems').innerHTML=problems.map(p=>`<span style="display:inline-block;background:#7C3AED20;color:#7C3AED;padding:4px 10px;border-radius:20px;font-size:12px;margin:2px;">${p}</span>`).join('');
+
+      // 診断時間表示
+      document.getElementById('r-time').innerHTML=`⏱ <strong>${elapsed}</strong>で診断完了`;
 
       // スコアゲージ（アニメーション付き）
       const pct=Math.round(score/MAX_SCORE*100);
@@ -332,12 +354,19 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       // アドバイスステップカード
       document.getElementById('r-advice').innerHTML=buildAdviceHTML(advice);
 
+      // 次のステップ
+      const nextStep=NEXT_STEPS[stepType];
+      document.getElementById('r-next-steps').innerHTML=`<div style="background:#f0f9ff;border-left:4px solid #0284c7;border-radius:8px;padding:12px;"><p style="font-size:13px;font-weight:700;color:#0c4a6e;margin-bottom:8px;">${nextStep.title}</p><div style="display:flex;flex-direction:column;gap:6px;">${nextStep.links.map(l=>`<a href="${l.url}" style="color:#0284c7;font-size:12px;text-decoration:none;padding:6px 0;">${l.text} →</a>`).join('')}</div></div>`;
+
       // 結果シェアボタン
       const shareText=encodeURIComponent(`私の姿勢タイプは「${title}」でした！あなたも診断してみて\u{1F447} #姿勢チェッカー`);
       const shareUrl=encodeURIComponent('https://appadaycreator.com/posture-checker/');
       document.getElementById('r-share').innerHTML=
         `<a href="https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}" target="_blank" rel="noopener" style="background:#1DA1F2;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">𝕏 結果をシェア</a>`+
         `<a href="https://line.me/R/msg/text/?${shareText}%0A${shareUrl}" target="_blank" rel="noopener" style="background:#00B900;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">LINE</a>`;
+
+      // 診断履歴を保存
+      saveDiagnosis(stepType,score);
 
       document.getElementById('quiz-area').style.display='none';
       document.getElementById('result').classList.add('show');
