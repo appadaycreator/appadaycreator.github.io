@@ -14,9 +14,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <title>太陽光発電診断【無料】設置費用・元が取れる年数を計算</title>
 <!-- phase8-favicon -->
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<link rel="apple-touch-icon" href="/apple-touch-icon.svg">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#7c3aed">
 <meta name="description" content="屋根面積・地域・電気使用量から太陽光発電の費用・発電量・回収期間を無料シミュレーション。登録不要・完全無料でご利用いただけます。スマホ・PC対応。">
@@ -79,6 +77,10 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
+
+/* P1: グラフレスポンシブ対応 */
+@media (max-width: 640px) { .responsive-chart { max-height: 250px !important; } }
+@media (min-width: 1024px) { .responsive-chart { max-height: 500px !important; } }
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"このサービスは無料ですか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要でご利用いただけます。"}},{"@type":"Question","name":"入力データはどこに保存されますか？","acceptedAnswer":{"@type":"Answer","text":"お使いのデバイス内にのみ保存されます。外部送信は行いません。"}},{"@type":"Question","name":"結果はどのくらい正確ですか？","acceptedAnswer":{"@type":"Answer","text":"あくまで参考情報です。重要な判断の際は専門家にご相談ください。"}},{"@type":"Question","name":"どのような人が使っていますか？","acceptedAnswer":{"@type":"Answer","text":"初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}},{"@type":"Question","name":"結果をシェアできますか？","acceptedAnswer":{"@type":"Answer","text":"はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}},{"@type":"Question","name":"有料プランはありますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、すべての機能を完全無料でご利用いただけます。"}}]}</script>
 <script type="application/ld+json">
@@ -176,7 +178,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <label>蓄電池も同時に設置しますか？</label>
         <select id="battery" class="input-field">
           <option value="no">太陽光のみ</option>
-          <option value="yes">蓄電池も設置する</option>
+          <option value="5">蓄電池 5kWh（約100万円）</option>
+          <option value="10">蓄電池 10kWh（約200万円）</option>
+          <option value="15">蓄電池 15kWh（約300万円）</option>
         </select>
       </div>
     </div>
@@ -191,7 +195,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <div class="metric-box"><div class="metric-label">投資回収期間</div><div class="metric-value text-xl" id="r-payback"></div></div>
       <div class="metric-box"><div class="metric-label">CO2削減量/年</div><div class="metric-value text-xl" id="r-co2"></div></div>
     </div>
-    <canvas id="paybackChart" style="max-height:300px;margin-bottom:20px;"></canvas>
+    <canvas id="paybackChart" style="max-height:400px;margin-bottom:20px;" class="responsive-chart"></canvas>
     <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
       <div class="font-bold text-green-800 text-sm mb-2">💰 活用できる補助金・制度</div>
       <div class="text-sm text-gray-700" id="r-subsidy"></div>
@@ -242,6 +246,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <script>
 var regionFactor={sunny:1.15,normal:1.0,cloudy:0.85};
 var roofData={small:{kw:3,cost:900000},medium:{kw:4.5,cost:1400000},large:{kw:6,cost:1800000}};
+var batteryData={no:{cost:0,capacity:0},5:{cost:1000000,capacity:5},10:{cost:2000000,capacity:10},15:{cost:3000000,capacity:15}};
+var subsidyData={sunny:{base:450000,battery:1000000},normal:{base:300000,battery:800000},cloudy:{base:200000,battery:600000}};
 var currentCalc={};
 var chartInstance=null;
 
@@ -249,20 +255,26 @@ function calculate(){
   var region=document.getElementById('region').value;
   var roofSize=document.getElementById('roof-size').value;
   var bill=parseInt(document.getElementById('electricity-bill').value)||15000;
-  var battery=document.getElementById('battery').value;
+  var batteryOption=document.getElementById('battery').value;
 
   var rf=regionFactor[region];
   var rd=roofData[roofSize];
+  var bd=batteryData[batteryOption];
   var kw=rd.kw;
   var baseCost=rd.cost;
-  var batteryCost=battery==='yes'?1200000:0;
+  var batteryCost=bd.cost;
   var totalCost=baseCost+batteryCost;
 
+  // P1: 月間電気代から推定月間kWh を逆算（電力単価30円で計算）
+  var monthlyKwh=bill/30;
   var annualKwh=kw*3.5*365*rf;
   var electricityUnitPrice=30;
   var fitPrice=16;
+  // P2: 蓄電池容量に応じた自家消費率調整
   var selfConsumptionRate=0.4;
-  if(battery==='yes')selfConsumptionRate=0.65;
+  if(bd.capacity>=5)selfConsumptionRate=0.55;
+  if(bd.capacity>=10)selfConsumptionRate=0.65;
+  if(bd.capacity>=15)selfConsumptionRate=0.72;
 
   var selfConsume=annualKwh*selfConsumptionRate;
   var sellAmount=annualKwh*(1-selfConsumptionRate);
@@ -270,16 +282,20 @@ function calculate(){
   var payback=totalCost/annualBenefit;
   var co2=annualKwh*0.000441;
 
-  currentCalc={region,roofSize,bill,battery,totalCost,annualBenefit,payback,co2,annualKwh,kw,selfConsume,sellAmount,electricityUnitPrice,fitPrice};
+  currentCalc={region,roofSize,bill,batteryOption,totalCost,annualBenefit,payback,co2,annualKwh,kw,selfConsume,sellAmount,electricityUnitPrice,fitPrice,monthlyKwh,batteryCapacity:bd.capacity};
 
   document.getElementById('r-cost').textContent=Math.round(totalCost/10000)+'万円';
   document.getElementById('r-annual-save').textContent=Math.round(annualBenefit/10000*10)/10+'万円';
   document.getElementById('r-payback').textContent=Math.round(payback*10)/10+'年';
   document.getElementById('r-co2').textContent=Math.round(co2*10)/10+'t';
 
-  var subsidy='• 自治体補助金（例：東京都は最大45万円）\n• 住宅省エネ2024「子育てエコホーム支援事業」（最大40万円相当）\n• 蓄電池導入補助金（自治体により最大100万円）';
-  if(battery==='yes')subsidy+=' ※蓄電池は補助金が特に充実しています';
-  document.getElementById('r-subsidy').innerHTML=subsidy.split('\n').map(function(s){return '<div>'+s+'</div>';}).join('');
+  // P2: 補助金を地域別・蓄電池有無で動的計算
+  var sd=subsidyData[region];
+  var baseSubsidy=sd.base;
+  var batterySubsidy=bd.capacity>0?sd.battery:0;
+  var subsidyText='• 自治体補助金（太陽光）：最大'+Math.round(baseSubsidy/10000)+'万円\n• 住宅省エネ2024「子育てエコホーム支援事業」：最大40万円相当';
+  if(bd.capacity>0)subsidyText+='\n• 蓄電池導入補助金：最大'+Math.round(batterySubsidy/10000)+'万円';
+  document.getElementById('r-subsidy').innerHTML=subsidyText.split('\n').map(function(s){return '<div>'+s+'</div>';}).join('');
 
   var judge,advice;
   if(payback<=10){judge='✅ 投資対効果が高い！設置をおすすめします';advice='補助金を活用すれば実質回収期間はさらに短縮。早めに設置するほど長期間お得に。';}
@@ -300,8 +316,10 @@ function calculate(){
 function displayCalculationDetails(){
   var c=currentCalc;
   var html='<p>◦ 年間発電量: '+Math.round(c.annualKwh)+' kWh = 設置容量('+c.kw+'kW) × 日照時間(3.5h) × 365日 × 地域係数</p>';
-  html+='<p>◦ 自家消費量: '+Math.round(c.selfConsume)+' kWh（年間発電量の60〜40%）</p>';
-  html+='<p>◦ 売電量: '+Math.round(c.sellAmount)+' kWh（残り容量を売電）</p>';
+  html+='<p>◦ 月間電気代から推定月間使用量: '+Math.round(c.monthlyKwh)+' kWh/月 = 月間電気代('+c.bill+'円) ÷ 電力単価(30円/kWh)</p>';
+  html+='<p>◦ 自家消費率: '+(c.batteryCapacity===0?'40%':c.batteryCapacity<10?'55%':c.batteryCapacity<15?'65%':'72%')+'（蓄電池'+c.batteryCapacity+'kWh時）</p>';
+  html+='<p>◦ 自家消費量: '+Math.round(c.selfConsume)+' kWh = 年間発電量('+Math.round(c.annualKwh)+'kWh) × 自家消費率</p>';
+  html+='<p>◦ 売電量: '+Math.round(c.sellAmount)+' kWh = 年間発電量('+Math.round(c.annualKwh)+'kWh) - 自家消費量('+Math.round(c.selfConsume)+'kWh)</p>';
   html+='<p>◦ 年間節約額: '+Math.round(c.annualBenefit)+' 円 = 自家消費('+c.selfConsume.toFixed(0)+'kWh × '+c.electricityUnitPrice+'円) + 売電('+c.sellAmount.toFixed(0)+'kWh × '+c.fitPrice+'円)</p>';
   html+='<p>◦ 投資回収期間: '+Math.round(currentCalc.payback*10)/10+'年 = 設置費用('+Math.round(c.totalCost)+' 円) ÷ 年間節約額('+Math.round(c.annualBenefit)+' 円)</p>';
   document.getElementById('calc-details').innerHTML=html;
@@ -322,7 +340,8 @@ function copyResults(){
   var text='【太陽光発電診断結果】\n';
   var regionLabel={sunny:'日照時間が長い',normal:'平均的',cloudy:'日照が少ない'};
   var roofLabel={small:'小さい',medium:'普通',large:'大きい'};
-  text+='地域: '+regionLabel[currentCalc.region]+'\n屋根面積: '+roofLabel[currentCalc.roofSize]+'\n月間電気代: '+currentCalc.bill+'円\n蓄電池: '+(currentCalc.battery==='yes'?'設置する':'太陽光のみ')+'\n\n';
+  var batteryLabel={no:'太陽光のみ',5:'5kWh',10:'10kWh',15:'15kWh'};
+  text+='地域: '+regionLabel[currentCalc.region]+'\n屋根面積: '+roofLabel[currentCalc.roofSize]+'\n月間電気代: '+currentCalc.bill+'円\n蓄電池: '+batteryLabel[currentCalc.batteryOption]+'\n\n';
   text+='【結果】\n設置費用: '+Math.round(currentCalc.totalCost/10000)+'万円\n年間節約額: '+Math.round(currentCalc.annualBenefit/10000*10)/10+'万円\n投資回収期間: '+Math.round(currentCalc.payback*10)/10+'年\nCO2削減量: '+Math.round(currentCalc.co2*10)/10+'t/年\n';
   text+='https://appadaycreator.com/solar-panel-advisor/';
   navigator.clipboard.writeText(text).then(function(){
@@ -373,7 +392,7 @@ function showToast(msg){
 }
 </script>
 <div style="max-width:512px;margin:0 auto;padding:0 16px;">
-<div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px 0;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">地域の日照係数・屋根面積・設置容量をもとに年間発電量を算出し、自家消費（節電）と売電収益から年間節約額を計算します。投資回収期間＝設置費用÷年間節約額。実際の値は業者・建物・設備により異なります。</p></div>
+<div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px auto;max-width:680px;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">地域の日照係数・屋根面積・設置容量をもとに年間発電量を算出し、自家消費（節電）と売電収益から年間節約額を計算します。投資回収期間＝設置費用÷年間節約額。実際の値は業者・建物・設備により異なります。</p></div>
 <section style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 16px;margin-top:16px;">
   <h2 style="font-size:16px;font-weight:700;color:#1e293b;margin:0 0 16px;text-align:center;">❓ よくある質問（FAQ）</h2>
   <div style="max-width:680px;margin:0 auto;">
@@ -400,12 +419,13 @@ function showToast(msg){
   </div>
 </section>
 
-<section style="background:#f0f9ff;border-top:1px solid #bae6fd;padding:16px;text-align:center;font-size:12px;color:#0369a1;">
+<div class="max-w-2xl mx-auto px-4"><section  style="background:#f0f9ff;border:1px solid #bae6fd;padding:16px;text-align:center;font-size:12px;color:#0369a1;border-radius:14px;margin-bottom:16px;">
   <p style="margin:0 0 4px;font-weight:600;">📧 お問い合わせ</p>
   <p style="margin:0;">ご意見・ご要望・不具合のご報告は <a href="mailto:appadaycreator@gmail.com" style="color:#0369a1;font-weight:bold;">appadaycreator@gmail.com</a> または <a href="contact.html" style="color:#0369a1;">お問い合わせフォーム</a> へ</p>
-</section>
+</section></div>
+<div class="max-w-2xl mx-auto px-4 mb-4">
 <!-- Related Services -->
-<section style="margin-top:28px;padding:20px 16px;background:#f8fafc;border-radius:12px;">
+<section class="bg-white rounded-2xl shadow-md p-5">
   <h3 style="font-size:14px;font-weight:700;color:#64748b;margin-bottom:12px;letter-spacing:0.03em;">関連サービス</h3>
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
     <a href="https://appadaycreator.com/carbon-footprint-calculator/" class="related-link">CO2排出量（カーボンフットプリント）計算</a>
@@ -414,9 +434,11 @@ function showToast(msg){
     <a href="https://appadaycreator.com/green-diary-app/" class="related-link">植物の水やり管理・成長記録アプリグリーンダイアリー</a>
   </div>
 </section>
+</div>
 
     
-    <!-- phase8-social-proof -->
+    <div class="max-w-2xl mx-auto px-4">
+<!-- phase8-social-proof -->
     <div class="card p-5 mb-4">
       <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
       <div class="space-y-3">
@@ -445,6 +467,7 @@ function showToast(msg){
       </div>
     </div>
     <section style="margin:32px auto;max-width:640px;padding:0 16px;" aria-labelledby="howto-h"><h2 id="howto-h" style="font-size:1.15rem;font-weight:700;margin-bottom:10px;border-left:4px solid #7c3aed;padding-left:10px;">使い方</h2><ol style="padding-left:20px;line-height:1.9;color:#374151;"><li>ページを開き、入力フォームの項目を確認する</li><li>必要な情報を入力または選択する</li><li>実行ボタンをクリックして結果を取得する</li><li>表示された結果・アドバイスを確認する</li><li>必要に応じてコピー・SNSシェアで活用する</li></ol></section>
+</div>
 <!-- rakuten-affiliate-block -->
     <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">
       <p style="font-size:0.85rem;color:#4b5563;margin-bottom:8px;">🛒 関連商品を楽天市場で探す</p>

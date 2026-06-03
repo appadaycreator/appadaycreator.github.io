@@ -7,9 +7,7 @@
   <title>ペット飼育費用シミュレーター | 犬・猫の年間コストを無料試算 | AppADayCreator</title>
 <!-- phase8-favicon -->
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<link rel="apple-touch-icon" href="/apple-touch-icon.svg">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#7c3aed">
   <meta name="description" content="犬・猫・小動物の種類・体格・医療費を考慮したペット飼育費用を無料シミュレーション。初期費用から年間維持費まで、ペットを迎える前に知っておきたい費用の目安を提示します。">
@@ -172,7 +170,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   <!-- AdSense -->
   <div class="my-6 text-center">
     <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
-    <script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
+    <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
   </div>
 
   <!-- Cross-links -->
@@ -195,7 +193,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   </div>
 </main>
 
-<div class="max-w-lg mx-auto px-4 mb-4">
+<div class="max-w-2xl mx-auto px-4 mb-4">
 <section style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 16px;margin-top:16px;">
   <h2 style="font-size:16px;font-weight:700;color:#1e293b;margin:0 0 16px;text-align:center;">❓ よくある質問（FAQ）</h2>
   <div style="max-width:680px;margin:0 auto;">
@@ -306,7 +304,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
   function calcCosts() {
     let initialCost = 0;
-    let annualCost = 0;
+    let costs = {
+      petPrice: 0,
+      equipment: 0,
+      food: 0,
+      grooming: 0,
+      vet: 0,
+      insurance: 0,
+      housing: 0,
+      other: 0
+    };
 
     // 初期費用（ペット代）
     const acquisitionMap = {
@@ -315,7 +322,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       '保護猫・保護犬の譲渡': 1,
       '知人・SNSからの譲渡（無料）': 0
     };
-    initialCost += acquisitionMap[answers.acquisition] || 10;
+    costs.petPrice = acquisitionMap[answers.acquisition] || 10;
 
     // 用品初期費用
     const typeInitial = {
@@ -327,7 +334,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       '小動物（うさぎ・ハムスター等）': 3,
       '鳥類・爬虫類等': 5
     };
-    initialCost += typeInitial[answers.pet_type] || 8;
+    costs.equipment = typeInitial[answers.pet_type] || 8;
+    initialCost = costs.petPrice + costs.equipment;
 
     // 年間フード代
     const foodMap = {
@@ -336,12 +344,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       'プレミアムフード・手作り食': 15,
       '獣医師推奨の療法食': 20
     };
-    annualCost += foodMap[answers.food_grade] || 8;
+    costs.food = foodMap[answers.food_grade] || 8;
 
-    // ペットによる補正
-    if (answers.pet_type.includes('大型犬')) annualCost *= 1.8;
-    else if (answers.pet_type.includes('中型犬')) annualCost *= 1.3;
-    else if (answers.pet_type.includes('小動物')) annualCost *= 0.4;
+    // ペットサイズによる食費補正
+    if (answers.pet_type.includes('大型犬')) costs.food *= 1.8;
+    else if (answers.pet_type.includes('中型犬')) costs.food *= 1.3;
+    else if (answers.pet_type.includes('小動物')) costs.food *= 0.4;
 
     // トリミング
     const groomMap = {
@@ -350,42 +358,94 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       '月1〜2回定期的にサロン利用': 12,
       '必要ないペット（短毛猫等）': 0
     };
-    annualCost += groomMap[answers.grooming] || 2;
+    costs.grooming = groomMap[answers.grooming] || 2;
 
-    // 医療費
+    // 医療費（ペットサイズ別補正付き）
     const vetMap = {
       '年1回の健康診断のみ': 2,
       '年2〜3回（ワクチン・定期検診）': 4,
       '月1回程度（既往症あり・高齢ペット）': 15,
       'できるだけ費用を抑えたい': 2
     };
-    annualCost += vetMap[answers.vet_frequency] || 4;
+    let vetBase = vetMap[answers.vet_frequency] || 4;
+    if (answers.pet_type.includes('大型犬')) vetBase *= 1.3;
+    else if (answers.pet_type.includes('中型犬')) vetBase *= 1.15;
+    costs.vet = Math.min(vetBase, 15); // 医療費の上限を15万円に設定
 
-    // 保険
-    if (answers.insurance === 'ペット保険に加入予定' || answers.insurance === '既に加入している') annualCost += 4;
+    // 住居情報による追加費用
+    let housingAddition = 0;
+    if (answers.housing === 'ペット可のマンション・アパート') housingAddition = 1;
+    else if (answers.housing === '現在ペット不可（引越し予定）') {
+      initialCost += 10; // 引越し代
+      housingAddition = 0.5;
+    }
+    costs.housing = housingAddition;
 
-    // その他（トイレ用品・おもちゃ・爪切り等）
-    annualCost += 3;
+    // 保険料
+    if (answers.insurance === 'ペット保険に加入予定' || answers.insurance === '既に加入している') {
+      costs.insurance = 4;
+    }
 
-    return { initialCost: Math.round(initialCost), annualCost: Math.round(annualCost) };
+    // その他（トイレ用品・おもちゃ等）
+    costs.other = 3;
+
+    const annualCost = costs.food + costs.grooming + costs.vet + costs.insurance + costs.housing + costs.other;
+    return {
+      initialCost: Math.round(initialCost),
+      annualCost: Math.round(annualCost),
+      costs
+    };
   }
 
   function showResult() {
     document.getElementById('quiz-section').classList.add('hidden');
     document.getElementById('result-section').classList.remove('hidden');
 
-    const { initialCost, annualCost } = calcCosts();
-    const lifespan = answers.pet_type.includes('猫') ? 15 : answers.pet_type.includes('小動物') ? 5 : 14;
+    const { initialCost, annualCost, costs } = calcCosts();
+
+    // 詳細なペット寿命計算
+    const lifespanMap = {
+      '犬（小型犬・5kg未満）': 15,
+      '犬（中型犬・5〜25kg）': 14,
+      '犬（大型犬・25kg以上）': 11,
+      '猫（室内飼い）': 16,
+      '猫（室内外）': 14,
+      '小動物（うさぎ・ハムスター等）': 5,
+      '鳥類・爬虫類等': 10
+    };
+    const lifespan = lifespanMap[answers.pet_type] || 14;
     const lifetimeCost = initialCost + annualCost * lifespan;
 
+    // 保険シミュレーション
+    const hasInsurance = answers.insurance === 'ペット保険に加入予定' || answers.insurance === '既に加入している';
     const noInsurance = answers.insurance === '保険には加入しない（自費で対応）';
+    const insuranceCost = hasInsurance ? costs.insurance : 0;
+    const emergencyFund = noInsurance ? Math.round((30 + lifetimeCost * 0.1) * 10) / 10 : 0;
+
+    // 費用内訳の視覚化（CSS棒グラフ）
+    const costLabels = [
+      { label: 'フード', amount: Math.round(costs.food), color: 'bg-amber-500' },
+      { label: '医療費', amount: Math.round(costs.vet), color: 'bg-red-500' },
+      { label: 'トリミング', amount: Math.round(costs.grooming), color: 'bg-blue-500' },
+      { label: '保険', amount: Math.round(costs.insurance), color: 'bg-green-500' },
+      { label: 'その他', amount: Math.round(costs.housing + costs.other), color: 'bg-gray-400' }
+    ];
+    const totalBar = costLabels.reduce((sum, c) => sum + c.amount, 0);
+    const breakdown = costLabels.map(c => {
+      const pct = totalBar > 0 ? Math.round((c.amount / totalBar) * 100) : 0;
+      return { ...c, pct };
+    }).filter(c => c.amount > 0);
 
     const advice = [];
-    if (noInsurance) advice.push('ペット保険なしの場合、重篤な病気・手術で30〜100万円の出費になることも。緊急時のための積立金（月5,000〜10,000円）も検討しましょう。');
-    advice.push(`${answers.pet_type.split('（')[0]}の平均寿命${lifespan}年間の生涯費用は約${lifetimeCost}万円が目安です。長期的な資金計画を立てておきましょう。`);
-    if (answers.acquisition === 'ブリーダー・ペットショップ（純血種）') advice.push('純血種は遺伝疾患リスクが高い場合があります。ブリーダー選びは実績・評判を十分確認してください。');
-    advice.push('フードの定期購入（サブスク）やふるさと納税でペット用品を調達することで年間1〜3万円の節約が可能です。');
-    advice.push('避妊・去勢手術（3〜10万円）は病気予防にもなり、長期的な医療費削減につながります。');
+    if (noInsurance) {
+      advice.push(`保険非加入の場合、生涯で${emergencyFund}万円の緊急資金を確保しておくことをお勧めします（重篤な病気・手術: 30〜100万円）`);
+    } else {
+      const monthlyInsurance = Math.round(costs.insurance / 12 * 10) / 10;
+      advice.push(`ペット保険加入で月${monthlyInsurance}万円の負担。生涯で約${Math.round(costs.insurance * lifespan)}万円ですが、重篤な病気時は大きなメリットになります。`);
+    }
+    advice.push(`${answers.pet_type.split('（')[0]}の平均寿命${lifespan}年間の生涯費用は約${lifetimeCost}万円です。毎月${Math.round(annualCost / 12 * 10) / 10}万円の積立を推奨します。`);
+    if (answers.acquisition === 'ブリーダー・ペットショップ（純血種）') advice.push('純血種は遺伝疾患リスクがあります。ブリーダーの実績・評判を十分確認してください。');
+    advice.push('フード定期購入やふるさと納税で年1〜3万円の節約可能です。');
 
     const html = `
       <div class="grid grid-cols-1 gap-4 mb-5">
@@ -404,7 +464,26 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <p class="text-3xl font-bold text-red-700">約${lifetimeCost}万円〜</p>
         </div>
       </div>
-      <h3 class="font-bold text-gray-700 mb-3">ペット飼育アドバイス</h3>
+
+      <div class="bg-white border border-gray-200 rounded-xl p-4 mb-5">
+        <p class="text-sm font-semibold text-gray-700 mb-3">📊 年間維持費の内訳</p>
+        <div class="space-y-2">
+          ${breakdown.map(item => `
+            <div class="flex items-center gap-2">
+              <div class="w-16">
+                <p class="text-xs text-gray-600 font-medium">${item.label}</p>
+                <p class="text-sm font-bold text-gray-800">${item.amount}万円</p>
+              </div>
+              <div class="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden">
+                <div class="${item.color} h-full transition-all" style="width: ${item.pct}%"></div>
+              </div>
+              <p class="text-xs text-gray-500 w-8 text-right">${item.pct}%</p>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <h3 class="font-bold text-gray-700 mb-3">💡 ペット飼育アドバイス</h3>
       <div class="space-y-3">
         ${advice.map(a => `<div class="flex gap-3 p-3 bg-gray-50 rounded-xl"><span class="text-xl">🐾</span><p class="text-sm text-gray-700">${a}</p></div>`).join('')}
       </div>`;
@@ -421,8 +500,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
   renderQuestion();
 </script>
+<div class="max-w-2xl mx-auto px-4 mb-4">
 <!-- Related Services -->
-<section style="margin-top:28px;padding:20px 16px;background:#f8fafc;border-radius:12px;">
+<section class="bg-white rounded-2xl shadow-md p-5">
   <h3 style="font-size:14px;font-weight:700;color:#64748b;margin-bottom:12px;letter-spacing:0.03em;">関連サービス</h3>
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
     <a href="https://appadaycreator.com/bike-cost-advisor/" class="related-link">バイク・原付購入維持費診断</a>
@@ -431,6 +511,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <a href="https://appadaycreator.com/retirement-fund-simulator/" class="related-link">老後資金シミュレーター</a>
   </div>
 </section>
+</div>
 
     
     <div class="max-w-2xl mx-auto px-4">

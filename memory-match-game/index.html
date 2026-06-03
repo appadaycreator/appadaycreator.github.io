@@ -14,9 +14,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <title>メモリーマッチ | 神経衰弱ゲーム - 都道府県・動物・英単語テーマ</title>
 <!-- phase8-favicon -->
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<link rel="apple-touch-icon" href="/apple-touch-icon.svg">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#7c3aed">
 <meta name="description" content="カードをめくってペアを合わせる記憶力ゲーム。都道府県・動物・果物・英単語・国旗の5テーマ。難易度3段階で脳トレ！。登録不要・完全無料でご利用いただけます。">
@@ -31,7 +29,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <script>(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-  .card-container { perspective: 800px; }
+  .card-container { perspective: 800px; position: relative; }
   .card-inner { transition: transform 0.4s; transform-style: preserve-3d; position: relative; }
   .card-container.flipped .card-inner { transform: rotateY(180deg); }
   .card-front, .card-back { backface-visibility: hidden; position: absolute; width: 100%; height: 100%; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center; }
@@ -39,10 +37,16 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
   .card-back { background: white; transform: rotateY(180deg); border: 2px solid #e5e7eb; }
   .card-container.matched .card-back { background: #d1fae5; border-color: #10b981; }
   .card-container { cursor: pointer; }
+  .card-container:focus { outline: 3px solid #7c3aed; outline-offset: 2px; }
   .card-container.matched { cursor: default; }
   #gameBoard { display: grid; gap: 8px; }
   @keyframes mm-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-5px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}
   .mm-shake{animation:mm-shake .35s ease;}
+  @keyframes mm-match-pop{0%{transform:scale(1)}50%{transform:scale(1.1)}100%{transform:scale(1)}}
+  @keyframes mm-match-glow{0%{box-shadow:0 0 0 0 rgba(16,185,129,0.7)}100%{box-shadow:0 0 0 10px rgba(16,185,129,0)}}
+  .mm-match-success{animation:mm-match-pop 0.6s ease-out,mm-match-glow 0.6s ease-out;}
+  @keyframes mm-wrong-fade{0%{opacity:1;filter:brightness(1)}50%{filter:brightness(0.7) saturate(2)}100%{opacity:1;filter:brightness(1)}}
+  .mm-wrong-shake{animation:mm-shake 0.35s ease,mm-wrong-fade 0.35s ease;}
 
 /* Phase 8: Mobile Optimization */
 input, select, textarea { font-size: 16px !important; }
@@ -143,7 +147,7 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
 
   <div class="mb-4 text-center">
     <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
-    <script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
+    <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
   </div>
 
   <!-- Start -->
@@ -183,7 +187,7 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
 
   <!-- Game -->
   <div id="gameScreen" class="hidden">
-    <div class="bg-white rounded-xl shadow p-4 mb-4 flex justify-between items-center">
+    <div class="bg-white rounded-xl shadow p-4 mb-4 flex justify-between items-center flex-wrap gap-2">
       <div class="text-center">
         <div class="text-xs text-gray-500">経過時間</div>
         <div class="text-lg font-bold text-purple-600" id="timeDisplay">0:00</div>
@@ -196,7 +200,21 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
         <div class="text-xs text-gray-500">ペア</div>
         <div class="text-lg font-bold text-green-600" id="pairsDisplay">0/<span id="totalPairs">8</span></div>
       </div>
+      <div class="text-center">
+        <div class="text-xs text-gray-500">スコア</div>
+        <div class="text-lg font-bold text-blue-600" id="scoreDisplay">0</div>
+      </div>
+      <button onclick="togglePause()" class="bg-yellow-100 hover:bg-yellow-200 text-gray-700 text-xs font-medium py-1 px-3 rounded-lg" aria-label="ゲームを一時停止">⏸ ポーズ</button>
       <button onclick="resetGame()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium py-1 px-3 rounded-lg">リセット</button>
+    </div>
+
+    <div id="pauseOverlay" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-2xl shadow-lg p-6 text-center max-w-sm">
+        <div class="text-4xl mb-3">⏸</div>
+        <h3 class="text-xl font-bold text-gray-800 mb-4">ゲーム中断中</h3>
+        <button onclick="togglePause()" class="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 rounded-lg mb-2">再開する</button>
+        <button onclick="resetGame()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 rounded-lg">スタート画面に戻る</button>
+      </div>
     </div>
 
     <div id="gameBoard" class="mb-4"></div>
@@ -302,6 +320,7 @@ const THEMES = {
 
 let theme = 'pref', gridSize = '4x4';
 let cards = [], flipped = [], matched = 0, moves = 0, startTime = null, timerInterval = null, canFlip = true;
+let isPaused = false, focusedCardIdx = -1, cardElements = [];
 
 function selectTheme(t) {
   theme = t;
@@ -333,16 +352,52 @@ function checkMmStreak() {
   }
 }
 
+function calculateScore() {
+  if (!startTime) return 0;
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const baseScore = Math.max(1000 - elapsed * 10, 0);
+  const moveBonus = Math.max(500 - moves * 20, 0);
+  return Math.round((baseScore + moveBonus) / 10) * 10;
+}
+
+function updateScore() {
+  const score = calculateScore();
+  document.getElementById('scoreDisplay').textContent = score;
+}
+
+function togglePause() {
+  isPaused = !isPaused;
+  const overlay = document.getElementById('pauseOverlay');
+  const gameBoard = document.getElementById('gameBoard');
+
+  if (isPaused) {
+    overlay.classList.remove('hidden');
+    clearInterval(timerInterval);
+    gameBoard.style.pointerEvents = 'none';
+    gameBoard.style.opacity = '0.5';
+  } else {
+    overlay.classList.add('hidden');
+    gameBoard.style.pointerEvents = 'auto';
+    gameBoard.style.opacity = '1';
+    if (startTime) {
+      timerInterval = setInterval(updateTimer, 1000);
+    }
+  }
+}
+
 function startGame() {
   checkMmStreak();
   clearInterval(timerInterval);
+  isPaused = false;
+  document.getElementById('pauseOverlay').classList.add('hidden');
+
   const [rows, cols] = gridSize.split('x').map(Number);
   const totalCards = rows * cols;
   const pairCount = totalCards / 2;
   const pool = [...THEMES[theme]].sort(() => Math.random() - 0.5).slice(0, pairCount);
   cards = [...pool.map(p => p[0]), ...pool.map(p => p[1])].sort(() => Math.random() - 0.5);
 
-  flipped = []; matched = 0; moves = 0; canFlip = true; startTime = null;
+  flipped = []; matched = 0; moves = 0; canFlip = true; startTime = null; focusedCardIdx = -1; cardElements = [];
 
   document.getElementById('startScreen').classList.add('hidden');
   document.getElementById('resultScreen').classList.add('hidden');
@@ -351,34 +406,63 @@ function startGame() {
   document.getElementById('pairsDisplay').textContent = '0/' + pairCount;
   document.getElementById('movesDisplay').textContent = '0';
   document.getElementById('timeDisplay').textContent = '0:00';
+  document.getElementById('scoreDisplay').textContent = '0';
 
   const board = document.getElementById('gameBoard');
   board.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
   board.innerHTML = '';
 
-  const cardH = gridSize === '4x4' ? '80px' : gridSize === '4x6' ? '70px' : '60px';
+  const cardH = gridSize === '4x4' ? '100px' : gridSize === '4x6' ? '80px' : '65px';
   cards.forEach((val, i) => {
     const container = document.createElement('div');
     container.className = 'card-container';
     container.style.height = cardH;
+    container.style.aspectRatio = '1';
     container.dataset.idx = i;
     container.dataset.val = val;
+    container.tabIndex = 0;
+    container.setAttribute('aria-label', `カード ${i + 1}`);
     container.innerHTML = `
       <div class="card-inner" style="height:${cardH}">
         <div class="card-front text-white text-2xl">🎴</div>
         <div class="card-back text-sm font-bold text-center px-1">${val}</div>
       </div>`;
+
+    let touchStartTime = 0;
     container.addEventListener('click', () => flipCard(container));
+    container.addEventListener('touchstart', (e) => { touchStartTime = Date.now(); }, { passive: true });
+    container.addEventListener('touchend', (e) => {
+      if (Date.now() - touchStartTime < 500) flipCard(container);
+    }, { passive: true });
+    container.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        flipCard(container);
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        focusedCardIdx = Math.min(focusedCardIdx + 1, cardElements.length - 1);
+        if (cardElements[focusedCardIdx]) cardElements[focusedCardIdx].focus();
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        focusedCardIdx = Math.max(focusedCardIdx - 1, 0);
+        if (cardElements[focusedCardIdx]) cardElements[focusedCardIdx].focus();
+      }
+    });
+    container.addEventListener('focus', () => { focusedCardIdx = i; });
+
     board.appendChild(container);
+    cardElements.push(container);
   });
+
+  if (cardElements.length > 0) cardElements[0].focus();
 }
 
 function flipCard(card) {
-  if (!canFlip || card.classList.contains('flipped') || card.classList.contains('matched')) return;
+  if (!canFlip || isPaused || card.classList.contains('flipped') || card.classList.contains('matched')) return;
 
   if (!startTime) {
     startTime = Date.now();
-    timerInterval = setInterval(updateTimer, 1000);
+    timerInterval = setInterval(() => { updateTimer(); updateScore(); }, 1000);
   }
 
   card.classList.add('flipped');
@@ -388,9 +472,13 @@ function flipCard(card) {
     canFlip = false;
     moves++;
     document.getElementById('movesDisplay').textContent = moves;
+    updateScore();
 
     if (flipped[0].dataset.val === flipped[1].dataset.val) {
-      flipped.forEach(c => c.classList.add('matched'));
+      flipped.forEach(c => {
+        c.classList.add('matched', 'mm-match-success');
+        setTimeout(() => c.classList.remove('mm-match-success'), 600);
+      });
       matched++;
       const totalPairs = parseInt(document.getElementById('totalPairs').textContent);
       document.getElementById('pairsDisplay').textContent = matched + '/' + totalPairs;
@@ -398,8 +486,7 @@ function flipCard(card) {
       canFlip = true;
       if (matched === totalPairs) setTimeout(showResult, 500);
     } else {
-      // 不正解シェイク
-      flipped.forEach(c => { c.classList.add('mm-shake'); setTimeout(()=>c.classList.remove('mm-shake'),350); });
+      flipped.forEach(c => { c.classList.add('mm-wrong-shake'); setTimeout(()=>c.classList.remove('mm-wrong-shake'),350); });
       setTimeout(() => {
         flipped.forEach(c => c.classList.remove('flipped'));
         flipped = [];
@@ -423,23 +510,22 @@ function showResult() {
   const elapsed = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
   const m = Math.floor(elapsed / 60), s = elapsed % 60;
   const timeStr = m + ':' + String(s).padStart(2, '0');
+  const finalScore = calculateScore();
 
   document.getElementById('gameScreen').classList.add('hidden');
   document.getElementById('resultScreen').classList.remove('hidden');
   document.getElementById('rTime').textContent = timeStr;
   document.getElementById('rMoves').textContent = moves + '手';
-  document.getElementById('rSub').textContent = `テーマ: ${theme} / サイズ: ${gridSize}`;
+  document.getElementById('rSub').textContent = `テーマ: ${theme} / サイズ: ${gridSize} / スコア: ${finalScore}`;
 
   const hsKey = `memHS_${theme}_${gridSize}`;
-  const hs = localStorage.getItem(hsKey);
-  const score = elapsed * 10 + moves;
-  if (!hs || score < parseInt(hs)) {
-    localStorage.setItem(hsKey, score);
-    document.getElementById('hsMsg').textContent = `🎉 新記録！ ${timeStr} / ${moves}手`;
+  const hsScore = localStorage.getItem(hsKey);
+  if (!hsScore || finalScore > parseInt(hsScore)) {
+    localStorage.setItem(hsKey, String(finalScore));
+    document.getElementById('hsMsg').textContent = `🎉 新記録！ スコア: ${finalScore}`;
     document.getElementById('highScore').textContent = `${timeStr} / ${moves}手`;
   } else {
-    const hsData = hs;
-    document.getElementById('hsMsg').textContent = 'ベスト記録更新を目指そう！';
+    document.getElementById('hsMsg').textContent = `スコア: ${finalScore} / ベスト: ${hsScore} (差分: ${parseInt(hsScore) - finalScore})`;
   }
 }
 
