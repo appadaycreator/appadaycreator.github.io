@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <!-- phase8-schema-enhanced -->
+<meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediBook - 医療機関向けWeb予約システム</title>
+<!-- phase8-favicon -->
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#7c3aed">
+    <meta name="description" content="中小クリニック向けの包括的なWeb予約管理システム。リアルタイム待ち時間表示、セキュアなデータ管理、PWA対応を実現。">
+    
+    <!-- OGP Tags -->
+    <meta property="og:title" content="MediBook - 医療機関向けWeb予約システム">
+    <meta property="og:description" content="中小クリニック向けの包括的なWeb予約管理システム。リアルタイム待ち時間表示、セキュアなデータ管理を実現。">
+    <meta property="og:image" content="https://cdn1.genspark.ai/user-upload-image/22_generated/1f2de782-151e-4db9-abe0-42b8381daca9">
+    <meta property="og:url" content="https://appadaycreator.github.io/medibook-reservation-system">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="MediBook - 医療機関向けWeb予約システム">
+    <meta name="twitter:description" content="中小クリニック向けの包括的なWeb予約管理システム。リアルタイム待ち時間表示、セキュアなデータ管理を実現。">
+    <meta name="twitter:image" content="https://cdn1.genspark.ai/user-upload-image/22_generated/1f2de782-151e-4db9-abe0-42b8381daca9">
+    
+    <!-- PWA Manifest -->
+        
+    <!-- Favicon -->
+        
+    <!-- Google Tag Manager -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-ZDPNYD2875"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-ZDPNYD2875',{send_page_view:false});</script>
+    <!-- End Google Tag Manager -->
+    
+    <!-- External Libraries -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    
+    <style>
+        :root {
+            --medical-blue: #3373dc;
+            --medical-light-blue: #dbf4ff;
+            --medical-green: #10b981;
+            --medical-red: #ef4444;
+            --medical-gray: #6b7280;
+            --base-font-size: 16px;
+        }
+
+        html {
+            font-size: var(--base-font-size);
+        }
+
+        @media (min-width: 1024px) {
+            :root {
+                --base-font-size: 18px;
+            }
+        }
+        
+        .medical-gradient {
+            background: linear-gradient(135deg, var(--medical-blue) 0%, #60a5fa 100%);
+        }
+        
+        .card-shadow {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .slide-up {
+            animation: slideUp 0.3s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .pulse-dot {
+            animation: pulse 2s infinite;
+        }
+
+        .slide-left {
+            animation: slideLeft 0.3s ease-out;
+        }
+
+        .slide-right {
+            animation: slideRight 0.3s ease-out;
+        }
+
+        @keyframes slideLeft {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        @keyframes slideRight {
+            from { transform: translateX(-100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .medical-input {
+            border: 2px solid #e5e7eb;
+            transition: all 0.3s ease;
+        }
+        
+        .medical-input:focus {
+            border-color: var(--medical-blue);
+            box-shadow: 0 0 0 3px rgba(51, 115, 220, 0.1);
+        }
+        
+        .appointment-card {
+            transition: all 0.3s ease;
+        }
+        
+        .appointment-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        #sidebar {
+            position: fixed;
+            top: 4rem;
+            bottom: 0;
+            overflow-y: auto;
+            transition: width 0.3s;
+            overflow-x: hidden;
+            padding-top: 2.5rem;
+        }
+        #sidebar + main {
+            margin-left: 15rem;
+        }
+        #sidebar.collapsed {
+            width: 4rem;
+        }
+        #sidebar.collapsed .sidebar-text {
+            display: none;
+        }
+        #sidebar.collapsed + main {
+            margin-left: 4rem;
+        }
+        @media (min-width: 768px) {
+            #sidebar { width: 15rem; }
+            #sidebar + main { margin-left: 15rem; }
+        }
+        @media (max-width: 767px) {
+            #sidebar { width: 12rem; }
+            #sidebar + main { margin-left: 12rem; }
+        }
+    
+/* Phase 8: Mobile Optimization */
+input, select, textarea { font-size: 16px !important; }
+button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min-width: 48px; touch-action: manipulation; }
+@media (max-width: 640px) {
+  body { font-size: 16px; }
+  .max-w-lg { padding-left: 1rem; padding-right: 1rem; }
+}
+</style>
+    <!-- Supabase Edge Functions を利用するためライブラリは不要 -->
+</head>
+<body class="bg-gray-50 font-sans pb-32">
+    <!-- Google Tag Manager (noscript) -->
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9"
+    height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <!-- End Google Tag Manager (noscript) -->
+
+    <div id="common-header"></div>
+    <script src="../constants.js"></script>
+    <script src="../header.js"></script>
+
+<div class="flex">
+    <aside id="sidebar" class="bg-gray-800 text-white min-h-screen p-4 space-y-4 relative">
+        <button id="toggleSidebar" class="absolute top-2 right-2 focus:outline-none"><i id="sidebarIcon" class="fas fa-angle-left"></i></button>
+        <a href="index.html" class="flex items-center space-x-2 hover:text-blue-200">
+            <i class="fas fa-chart-line"></i><span class="sidebar-text">ダッシュボード</span>
+        </a>
+        <a href="reservations.html" class="flex items-center space-x-2 hover:text-blue-200">
+            <i class="fas fa-list"></i><span class="sidebar-text">予約一覧</span>
+        </a>
+        <a href="../index.html" target="_blank" class="flex items-center space-x-2 hover:text-blue-200">
+            <i class="fas fa-home"></i><span class="sidebar-text">ユーザー画面</span>
+        </a>
+    </aside>
+    <!-- Main Content -->
+    <main class="mt-16 flex-1 container mx-auto px-4 py-8">
+        
+        <!-- Home Section -->
+        <section id="home" class="mb-12 hidden">
+            <div class="text-center mb-12">
+                <h1 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+                    MediBook
+                    <span class="text-blue-600">予約システム</span>
+                </h1>
+                <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+                    中小クリニック向けの包括的なWeb予約管理システム。<br>
+                    リアルタイム待ち時間表示とセキュアなデータ管理を実現。
+                </p>
+            </div>
+
+            <!-- Status Cards -->
+            <div class="grid md:grid-cols-3 gap-6 mb-12">
+                <div class="bg-white rounded-lg p-6 card-shadow">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-800">現在の待ち時間</h3>
+                        <div class="pulse-dot w-3 h-3 bg-green-500 rounded-full"></div>
+                    </div>
+                    <div class="text-3xl font-bold text-green-600 mb-2" id="currentWaitTime">約15分</div>
+                    <p class="text-sm text-gray-600">最新更新: <span id="lastUpdate">10:30</span></p>
+                </div>
+                
+                <div class="bg-white rounded-lg p-6 card-shadow">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-800">今日の予約数</h3>
+                        <i class="fas fa-calendar-check text-blue-500 text-xl"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-blue-600 mb-2" id="todayBookings">23</div>
+                    <p class="text-sm text-gray-600">空き枠: <span id="availableSlots">7</span>枠</p>
+                </div>
+                
+                <div class="bg-white rounded-lg p-6 card-shadow">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-800">診療状況</h3>
+                        <i class="fas fa-user-md text-purple-500 text-xl"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-purple-600 mb-2">診療中</div>
+                    <p class="text-sm text-gray-600">受付時間: 9:00-17:00</p>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="text-center space-x-4">
+                <button onclick="showSection('booking')" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors">
+                    <i class="fas fa-calendar-plus mr-2"></i>新規予約
+                </button>
+                <button onclick="showSection('status')" class="bg-gray-600 hover:bg-gray-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors">
+                    <i class="fas fa-search mr-2"></i>予約確認
+                </button>
+            </div>
+        </section>
+
+        <!-- Booking Section -->
+        <section id="booking" class="mb-12 hidden">
+            <div class="max-w-2xl mx-auto">
+                <div class="bg-white rounded-lg p-8 card-shadow">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-6 text-center">
+                        <i class="fas fa-calendar-plus text-blue-600 mr-3"></i>新規予約
+                    </h2>
+                    
+                    <form id="bookingForm" class="space-y-6">
+                        <!-- Patient Information -->
+                        <div class="bg-blue-50 p-6 rounded-lg">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4">患者情報</h3>
+                            <div class="grid md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">お名前 *</label>
+                                    <input type="text" id="patientName" required 
+                                           class="w-full px-4 py-3 medical-input rounded-lg focus:outline-none"
+                                           placeholder="山田 太郎">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">フリガナ *</label>
+                                    <input type="text" id="patientKana" required 
+                                           class="w-full px-4 py-3 medical-input rounded-lg focus:outline-none"
+                                           placeholder="ヤマダ タロウ">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">電話番号 *</label>
+                                    <input type="tel" id="patientPhone" required 
+                                           class="w-full px-4 py-3 medical-input rounded-lg focus:outline-none"
+                                           placeholder="090-1234-5678">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">年齢</label>
+                                    <input type="number" id="patientAge" min="0" max="120"
+                                           class="w-full px-4 py-3 medical-input rounded-lg focus:outline-none"
+                                           placeholder="30">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Appointment Details -->
+                        <div class="bg-green-50 p-6 rounded-lg">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4">予約詳細</h3>
+                            <div class="grid md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">希望日 *</label>
+                                    <input type="date" id="appointmentDate" required 
+                                           class="w-full px-4 py-3 medical-input rounded-lg focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">希望時間 *</label>
+                                    <select id="appointmentTime" required 
+                                            class="w-full px-4 py-3 medical-input rounded-lg focus:outline-none">
+                                        <option value="">時間を選択</option>
+                                        <option value="09:00">09:00 - 09:15</option>
+                                        <option value="09:15">09:15 - 09:30</option>
+                                        <option value="09:30">09:30 - 09:45</option>
+                                        <option value="09:45">09:45 - 10:00</option>
+                                        <option value="10:00">10:00 - 10:15</option>
+                                        <option value="10:15">10:15 - 10:30</option>
+                                        <option value="10:30">10:30 - 10:45</option>
+                                        <option value="10:45">10:45 - 11:00</option>
+                                        <option value="14:00">14:00 - 14:15</option>
+                                        <option value="14:15">14:15 - 14:30</option>
+                                        <option value="14:30">14:30 - 14:45</option>
+                                        <option value="14:45">14:45 - 15:00</option>
+                                        <option value="15:00">15:00 - 15:15</option>
+                                        <option value="15:15">15:15 - 15:30</option>
+                                        <option value="15:30">15:30 - 15:45</option>
+                                        <option value="15:45">15:45 - 16:00</option>
+                                        <option value="16:00">16:00 - 16:15</option>
+                                        <option value="16:15">16:15 - 16:30</option>
+                                        <option value="16:30">16:30 - 16:45</option>
+                                        <option value="16:45">16:45 - 17:00</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">受診区分 *</label>
+                                    <select id="visittype" required
+                                            class="w-full px-4 py-3 medical-input rounded-lg focus:outline-none">
+                                        <option value="">選択してください</option>
+                                        <option value="initial">初診</option>
+                                        <option value="followup">再診</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="mt-4">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">症状・相談内容</label>
+                                <textarea id="symptoms" rows="3"
+                                          class="w-full px-4 py-3 medical-input rounded-lg focus:outline-none"
+                                          placeholder="症状や相談したい内容があれば記入してください（任意）"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Consent -->
+                        <div class="bg-yellow-50 p-6 rounded-lg">
+                            <div class="flex items-start space-x-3">
+                                <input type="checkbox" id="consent" required class="mt-1">
+                                <label for="consent" class="text-sm text-gray-700 leading-relaxed">
+                                    <strong>個人情報の取扱いについて同意します。</strong><br>
+                                    入力いただいた個人情報は、診療予約管理のためのみに使用し、
+                                    適切なセキュリティ対策のもと管理いたします。
+                                    詳細は<a href="privacy.html" class="text-blue-600 underline">プライバシーポリシー</a>をご確認ください。
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="text-center">
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors">
+                                <i class="fas fa-check mr-2"></i>予約を確定する
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- Status Check Section -->
+        <section id="status" class="mb-12 hidden">
+            <div class="max-w-2xl mx-auto">
+                <div class="bg-white rounded-lg p-8 card-shadow">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-6 text-center">
+                        <i class="fas fa-search text-green-600 mr-3"></i>予約状況確認
+                    </h2>
+                    
+                    <form id="statusForm" class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">予約ID または 電話番号</label>
+                            <input type="text" id="searchQuery" required 
+                                   class="w-full px-4 py-3 medical-input rounded-lg focus:outline-none"
+                                   placeholder="予約ID (例: MB202312010001) または 電話番号を入力">
+                        </div>
+                        <div class="text-center">
+                            <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors">
+                                <i class="fas fa-search mr-2"></i>検索
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Search Results -->
+                    <div id="searchResults" class="mt-8 hidden">
+                        <div class="bg-gray-50 p-6 rounded-lg">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4">予約情報</h3>
+                            <div id="appointmentDetails" class="space-y-3">
+                                <!-- Results will be populated here -->
+                            </div>
+                            <div class="mt-6 flex space-x-4">
+                                <button onclick="generateQRTicket()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg">
+                                    <i class="fas fa-qrcode mr-2"></i>QR受付票
+                                </button>
+                                <button onclick="shareAppointment()" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg">
+                                    <i class="fas fa-share mr-2"></i>シェア
+                                </button>
+                                <button onclick="cancelAppointment()" class="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg">
+                                    <i class="fas fa-times mr-2"></i>キャンセル
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Admin Section -->
+        <section id="admin" class="mb-12">
+            <div class="max-w-6xl mx-auto">
+                <!-- Admin Login -->
+                <div id="adminLogin" class="max-w-md mx-auto bg-white rounded-lg p-8 card-shadow">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-6 text-center">
+                        <i class="fas fa-shield-alt text-red-600 mr-3"></i>管理者ログイン
+                    </h2>
+                    <form id="adminLoginForm" class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">管理者ID</label>
+                            <input type="text" id="adminId" required 
+                                   class="w-full px-4 py-3 medical-input rounded-lg focus:outline-none"
+                                   placeholder="admin">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">パスワード</label>
+                            <input type="password" id="adminPassword" required 
+                                   class="w-full px-4 py-3 medical-input rounded-lg focus:outline-none"
+                                   placeholder="password">
+                        </div>
+                        <div class="text-center">
+                            <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors">
+                                <i class="fas fa-sign-in-alt mr-2"></i>ログイン
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Admin Dashboard -->
+                <div id="adminDashboard" class="hidden">
+                    <div class="flex justify-between items-center mb-8">
+                        <h2 class="text-2xl font-bold text-gray-900">管理者ダッシュボード</h2>
+                        <button onclick="adminLogout()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg">
+                            <i class="fas fa-sign-out-alt mr-2"></i>ログアウト
+                        </button>
+                    </div>
+                    <div class="mb-4 flex items-center space-x-2">
+                        <input type="date" id="statsStart" class="border rounded px-2 py-1"/>
+                        <span>〜</span>
+                        <input type="date" id="statsEnd" class="border rounded px-2 py-1"/>
+                    </div>
+
+                    <!-- Statistics -->
+                    <div class="grid md:grid-cols-5 gap-6 mb-8">
+                        <a id="rangeCard" href="#" class="block bg-white rounded-lg p-6 card-shadow cursor-pointer">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600">期間内予約</p>
+                                    <p class="text-2xl font-bold text-blue-600" id="adminRangeCount">23</p>
+                                </div>
+                                <i class="fas fa-calendar-day text-3xl text-blue-500"></i>
+                            </div>
+                        </a>
+                        <div class="bg-white rounded-lg p-6 card-shadow">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600">承認待ち</p>
+                                    <p class="text-2xl font-bold text-gray-600" id="adminPendingCount">0</p>
+                                </div>
+                                <i class="fas fa-hourglass-half text-3xl text-gray-500"></i>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-lg p-6 card-shadow">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600">完了済み</p>
+                                    <p class="text-2xl font-bold text-green-600" id="adminCompletedCount">16</p>
+                                </div>
+                                <i class="fas fa-check-circle text-3xl text-green-500"></i>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-lg p-6 card-shadow">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600">待機中</p>
+                                    <p class="text-2xl font-bold text-yellow-600" id="adminWaitingCount">5</p>
+                                </div>
+                                <i class="fas fa-clock text-3xl text-yellow-500"></i>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-lg p-6 card-shadow">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600">キャンセル</p>
+                                    <p class="text-2xl font-bold text-red-600" id="adminCancelledCount">2</p>
+                                </div>
+                                <i class="fas fa-times-circle text-3xl text-red-500"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Appointment Management -->
+                    <div class="bg-white rounded-lg p-6 card-shadow mb-8">
+                        <h3 class="text-xl font-semibold text-gray-800 mb-4">予約管理</h3>
+                        <div class="flex flex-wrap gap-2 mb-4">
+                            <input id="adminSearch" type="text" placeholder="検索 (ID・名前・電話番号)"
+                                   class="medical-input px-2 py-1 flex-grow">
+                            <select id="statusFilter" class="medical-input px-2 py-1">
+                                <option value="">全て</option>
+                                <option value="pending">承認待ち</option>
+                                <option value="waiting">待機中</option>
+                                <option value="completed">完了</option>
+                                <option value="cancelled">キャンセル</option>
+                            </select>
+                            <select id="sortOrder" class="medical-input px-2 py-1">
+                                <option value="asc">予約日時昇順</option>
+                                <option value="desc">予約日時降順</option>
+                            </select>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="border-b border-gray-200">
+                                        <th class="text-left py-3 px-4">予約ID</th>
+                                        <th class="text-left py-3 px-4">患者名</th>
+                                        <th class="text-left py-3 px-4">区分</th>
+                                        <th class="text-left py-3 px-4">予約日時</th>
+                                        <th class="text-left py-3 px-4">電話番号</th>
+                                        <th class="text-left py-3 px-4">状態</th>
+                                        <th class="text-left py-3 px-4">問診票</th>
+                                        <th class="text-left py-3 px-4">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="appointmentTable">
+                                    <!-- Table content will be populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Appointment Calendar -->
+                    <div class="bg-white rounded-lg p-6 card-shadow mb-8">
+                        <h3 class="text-xl font-semibold text-gray-800 mb-4">予約枠カレンダー</h3>
+                        <div class="mb-4">
+                            <label for="calendarMonth" class="mr-2">月を選択:</label>
+                            <input id="calendarMonth" type="month" class="medical-input px-2 py-1">
+                            <button id="jumpToday" class="ml-2 px-2 py-1 bg-blue-500 text-white rounded">今日</button>
+                        </div>
+                        <div id="adminCalendar"></div>
+                    </div>
+
+                    <!-- Analytics Chart -->
+                    <div class="bg-white rounded-lg p-6 card-shadow">
+                        <h3 class="text-xl font-semibold text-gray-800 mb-4">予約推移グラフ</h3>
+                        <div class="mb-4 flex items-center">
+                            <label for="analyticsDays" class="mr-2">期間:</label>
+                            <select id="analyticsDays" class="medical-input px-2 py-1">
+                                <option value="7">7日間</option>
+                                <option value="14">14日間</option>
+                                <option value="30">30日間</option>
+                            </select>
+                        </div>
+                        <div style="height: 400px;">
+                            <canvas id="analyticsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer Sections -->
+        <section id="footer-info" class="mt-16">
+            <!-- Slot Information Modal -->
+            <div id="slotModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+                <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                    <h3 class="text-xl font-bold text-gray-900 mb-4"><span id="slotModalDate"></span> の予約情報</h3>
+                    <div id="slotModalTable" class="max-h-60 overflow-y-auto mb-4"></div>
+                    <div class="flex space-x-2">
+                        <button id="saveSlotBtn" class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">保存</button>
+                        <button onclick="closeSlotModal()" class="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400 transition-colors">閉じる</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SNS Share Modal -->
+            <div id="shareModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+                <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+                    <h3 class="text-xl font-bold text-gray-900 mb-4">シェア</h3>
+                    <div class="space-y-3">
+                        <button onclick="shareToX()" class="w-full bg-black text-white py-3 px-4 rounded-lg hover:bg-gray-800 transition-colors">
+                            <i class="fab fa-x-twitter mr-2"></i>X (Twitter) でシェア
+                        </button>
+                        <button onclick="shareToLine()" class="w-full bg-green-500 text-white py-3 px-4 rounded-lg hover:bg-green-600 transition-colors">
+                            <i class="fab fa-line mr-2"></i>LINE でシェア
+                        </button>
+                        <button onclick="copyLink()" class="w-full bg-blue-500 text-white py-3 px-4 rounded-lg hover:bg-blue-600 transition-colors">
+                            <i class="fas fa-link mr-2"></i>リンクをコピー
+                        </button>
+                    </div>
+                    <button onclick="closeShareModal()" class="mt-4 w-full bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400 transition-colors">
+                        閉じる
+                    </button>
+                </div>
+            </div>
+
+            <!-- QR Code Modal -->
+            <div id="qrModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+                <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+                    <h3 class="text-xl font-bold text-gray-900 mb-4 text-center">受付用QRコード</h3>
+                    <div id="qrCode" class="text-center mb-4"></div>
+                    <div class="text-center text-sm text-gray-600 mb-4">
+                        受付でこのQRコードをご提示ください
+                    </div>
+                    <button onclick="closeQRModal()" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">
+                        閉じる
+                    </button>
+                </div>
+            </div>
+
+            <!-- Questionnaire Modal -->
+            <div id="questionnaireModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+                <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                    <h3 class="text-xl font-bold text-gray-900 mb-4">問診票回答</h3>
+                    <div id="questionnaireContent" class="space-y-2 mb-4"></div>
+                    <button onclick="closeQuestionnaire()" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors">閉じる</button>
+                </div>
+            </div>
+        </section>
+    </main>
+</div>
+
+    
+    
+    <!-- phase8-social-proof -->
+    <div class="card p-5 mb-4">
+      <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
+      <div class="space-y-3">
+        <div class="bg-gray-50 rounded-lg p-3">
+          <p class="text-xs text-gray-700">「すぐに結果が出て使いやすかったです。友人にも勧めました！」</p>
+          <p class="text-xs text-gray-400 mt-1">— 田中さん（30代・会社員）★★★★★</p>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <p class="text-xs text-gray-700">「無料でここまで詳しく調べられるとは思いませんでした。」</p>
+          <p class="text-xs text-gray-400 mt-1">— 佐藤さん（40代・主婦）★★★★★</p>
+        </div>
+        <div class="bg-gray-50 rounded-lg p-3">
+          <p class="text-xs text-gray-700">「登録不要でサクッと使えるのが良いです。また利用します。」</p>
+          <p class="text-xs text-gray-400 mt-1">— 山本さん（20代・学生）★★★★☆</p>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-4">
+        <a href="https://line.me/R/share?text=MediBook - 医療機関向けWeb予約システム%20https://appadaycreator.com/admin/" target="_blank" rel="noopener"
+           style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
+          LINEでシェア
+        </a>
+        <a href="https://twitter.com/intent/tweet?text=MediBook - 医療機関向けWeb予約システム&url=https://appadaycreator.com/admin/&via=appadaycreator" target="_blank" rel="noopener"
+           style="flex:1;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
+          Xでシェア
+        </a>
+      </div>
+    </div>
+    <!-- rakuten-affiliate-block -->
+    <div class="card" style="border:1px solid #BF0000;background:#fff9f9;padding:16px;margin-bottom:16px;text-align:center;">
+      <p style="font-size:0.85rem;color:#4b5563;margin-bottom:8px;">🛒 関連商品を楽天市場で探す</p>
+      <a href="https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2FMediBook%2520-%2520%25E5%258C%25BB%25E7%2599%2582%25E6%25A9%259F%25E9%2596%25A2%25E5%2590%2591%25E3%2581%2591Web%2F&link_type=text" target="_blank" rel="nofollow sponsored noopener"
+         style="display:inline-block;background:#BF0000;color:white;padding:10px 24px;border-radius:8px;font-weight:bold;font-size:14px;text-decoration:none;">
+        楽天市場で「MediBook - 医療機関向けWeb」を検索 →
+      </a>
+    </div>
+    <!-- Footer -->
+    <div id="common-footer"></div>
+    <script>
+        fetch('../footer.html')
+          .then(res => res.text())
+          .then(html => {
+            document.getElementById('common-footer').innerHTML = html;
+          });
+    </script>
+
+    <script>
+        // Supabase Edge Function のエンドポイントURL
+        const FUNCTION_URL = 'https://mdzpjdugshzyjmskjgkt.functions.supabase.co/appointments';
+        const QUESTIONNAIRE_URL = 'https://mdzpjdugshzyjmskjgkt.functions.supabase.co/questionnaires';
+
+        // Data Storage
+        let appointments = [];
+        let questionnaires = [];
+        let slotCapacities = JSON.parse(localStorage.getItem('medibook_slot_capacities') || '{}');
+        const TIME_SLOTS = ['09:00','09:15','09:30','09:45','10:00','10:15','10:30','10:45','14:00','14:15','14:30','14:45','15:00','15:15','15:30','15:45','16:00','16:15','16:30','16:45'];
+        let currentAppointment = null;
+        let isAdminLoggedIn = false;
+
+        // Utility Functions
+        function formatDate(date) {
+            const y = date.getFullYear();
+            const m = (date.getMonth() + 1).toString().padStart(2, '0');
+            const d = date.getDate().toString().padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        function generateId() {
+            const date = new Date();
+            const dateStr = date.getFullYear().toString() +
+                           (date.getMonth() + 1).toString().padStart(2, '0') +
+                           date.getDate().toString().padStart(2, '0');
+            const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+            return `MB${dateStr}${random}`;
+        }
+
+        async function fetchAppointments() {
+            try {
+                const res = await fetch(FUNCTION_URL);
+                if (!res.ok) throw new Error(await res.text());
+                appointments = await res.json() || [];
+                saveData();
+            } catch (error) {
+                console.warn('予約データの取得に失敗しました。ローカル保存データを使用します。');
+                appointments = JSON.parse(localStorage.getItem('medibook_appointments') || '[]');
+            }
+        }
+
+        async function fetchQuestionnaires() {
+            try {
+                const res = await fetch(QUESTIONNAIRE_URL);
+                if (!res.ok) throw new Error(await res.text());
+                questionnaires = await res.json() || [];
+                localStorage.setItem('medibook_questionnaires', JSON.stringify(questionnaires));
+            } catch (error) {
+                console.warn('問診票データの取得に失敗しました');
+                questionnaires = JSON.parse(localStorage.getItem('medibook_questionnaires') || '[]');
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('medibook_appointments', JSON.stringify(appointments));
+        }
+
+        function saveSlotCapacities() {
+            localStorage.setItem('medibook_slot_capacities', JSON.stringify(slotCapacities));
+        }
+
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('lastUpdate').textContent = now.toLocaleTimeString('ja-JP', {hour: '2-digit', minute: '2-digit'});
+        }
+
+        function calculateWaitTime() {
+            const todayStr = formatDate(new Date());
+            const waitingCount = appointments.filter(
+                apt => apt.status === 'waiting' && apt.date === todayStr
+            ).length;
+            const avgTime = 15; // 平均診療時間（分）
+            return Math.max(5, waitingCount * avgTime);
+        }
+
+        function updateStats() {
+            const todayStr = formatDate(new Date());
+            const todayAppointments = appointments.filter(apt => apt.date === todayStr);
+
+            document.getElementById('todayBookings').textContent = todayAppointments.length;
+            document.getElementById('currentWaitTime').textContent = `約${calculateWaitTime()}分`;
+            const todayKey = formatDate(new Date());
+            const todaySlots = slotCapacities[todayKey] || {};
+            const todayCapacity = TIME_SLOTS.reduce((s, t) => s + (todaySlots[t] !== undefined ? todaySlots[t] : 1), 0);
+            const activeAppointments = todayAppointments.filter(apt => apt.status !== 'cancelled').length;
+            document.getElementById('availableSlots').textContent = Math.max(0, todayCapacity - activeAppointments);
+
+            if (isAdminLoggedIn) {
+                const startStr = document.getElementById('statsStart').value || todayStr;
+                const endStr = document.getElementById('statsEnd').value || startStr;
+                const startDate = new Date(startStr);
+                const endDate = new Date(endStr);
+                const rangeAppointments = appointments.filter(apt => {
+                    const d = new Date(apt.date);
+                    return d >= startDate && d <= endDate;
+                });
+                document.getElementById('adminRangeCount').textContent = rangeAppointments.length;
+                document.getElementById('adminPendingCount').textContent = rangeAppointments.filter(apt => apt.status === 'pending').length;
+                document.getElementById('adminCompletedCount').textContent = rangeAppointments.filter(apt => apt.status === 'completed').length;
+                document.getElementById('adminWaitingCount').textContent = rangeAppointments.filter(apt => apt.status === 'waiting').length;
+                document.getElementById('adminCancelledCount').textContent = rangeAppointments.filter(apt => apt.status === 'cancelled').length;
+            }
+        }
+
+
+        // Navigation
+        function showSection(sectionId) {
+            const sections = ['home', 'booking', 'status', 'admin'];
+            sections.forEach(section => {
+                document.getElementById(section).classList.add('hidden');
+            });
+            document.getElementById(sectionId).classList.remove('hidden');
+            
+            if (sectionId === 'booking') {
+                setMinDate();
+            }
+        }
+
+        function setMinDate() {
+            const today = new Date();
+            // 当日から予約可能
+            const minDate = formatDate(today);
+            document.getElementById('appointmentDate').min = minDate;
+        }
+
+
+        // Booking Form
+        document.getElementById('bookingForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                id: generateId(),
+                name: document.getElementById('patientName').value,
+                kana: document.getElementById('patientKana').value,
+                phone: document.getElementById('patientPhone').value,
+                age: document.getElementById('patientAge').value || '未記入',
+                date: document.getElementById('appointmentDate').value,
+                time: document.getElementById('appointmentTime').value,
+                visittype: document.getElementById('visittype').value,
+                symptoms: document.getElementById('symptoms').value || '特になし',
+                status: 'pending',
+                createdat: new Date().toISOString()
+            };
+
+            // Validation
+            if (!formData.name || !formData.phone || !formData.date || !formData.time || !formData.visittype) {
+                alert('必須項目をすべて入力してください。');
+                return;
+            }
+
+            // Check for conflicts
+            const conflictExists = appointments.some(apt =>
+                apt.date === formData.date &&
+                apt.time === formData.time &&
+                apt.status !== 'cancelled'
+            );
+
+            if (conflictExists) {
+                alert('選択された日時は既に予約済みです。別の時間をお選びください。');
+                return;
+            }
+
+            const daySlots = slotCapacities[formData.date] || {};
+            const slotCapacity = daySlots[formData.time] !== undefined ? daySlots[formData.time] : 1;
+            const slotAppointments = appointments.filter(apt => apt.date === formData.date && apt.time === formData.time && apt.status !== 'cancelled');
+            if (slotAppointments.length >= slotCapacity) {
+                alert('選択された時間帯の予約枠が上限に達しています。別の時間をお選びください。');
+                return;
+            }
+
+            appointments.push(formData);
+            saveData();
+            updateStats();
+            fetch(FUNCTION_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            }).then(async res => {
+                if (!res.ok) {
+                    const msg = await res.text();
+                    throw new Error(msg);
+                }
+            })
+                .then(() => {
+                    location.reload();
+                })
+                .catch(err => {
+                console.warn('予約データの送信に失敗しました。', err);
+                alert('予約データの送信に失敗しました: ' + err.message);
+            });
+
+            // Show confirmation
+            alert(`予約が送信されました。管理者の承認をお待ちください。\n\n予約ID: ${formData.id}\n日時: ${formData.date} ${formData.time}\n\n予約IDは必ずメモしてください。`);
+            
+            // Reset form
+            document.getElementById('bookingForm').reset();
+            showSection('home');
+        });
+
+        // Status Check
+        document.getElementById('statusForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const query = document.getElementById('searchQuery').value.trim();
+            const results = appointments.filter(apt => 
+                apt.id === query || apt.phone === query
+            );
+
+            const resultsDiv = document.getElementById('searchResults');
+            const detailsDiv = document.getElementById('appointmentDetails');
+
+            if (results.length === 0) {
+                alert('該当する予約が見つかりませんでした。');
+                resultsDiv.classList.add('hidden');
+                return;
+            }
+
+            currentAppointment = results[0];
+            
+            const statusText = STATUS_TEXT;
+            const statusColor = STATUS_COLOR;
+
+            detailsDiv.innerHTML = `
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div><strong>予約ID:</strong> ${escapeHtml(currentAppointment.id)}</div>
+                    <div><strong>患者名:</strong> ${escapeHtml(currentAppointment.name)}</div>
+                    <div><strong>日時:</strong> ${escapeHtml(currentAppointment.date)} ${escapeHtml(currentAppointment.time)}</div>
+                    <div><strong>電話番号:</strong> ${escapeHtml(currentAppointment.phone)}</div>
+                    <div><strong>区分:</strong> ${currentAppointment.visittype === 'followup' ? '再診' : '初診'}</div>
+                    <div><strong>状態:</strong> <span class="${statusColor[currentAppointment.status]}">${statusText[currentAppointment.status]}</span></div>
+                    <div><strong>症状:</strong> ${escapeHtml(currentAppointment.symptoms)}</div>
+                </div>
+            `;
+
+            resultsDiv.classList.remove('hidden');
+        });
+
+        // Admin Functions
+        document.getElementById('adminLoginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const id = document.getElementById('adminId').value;
+            const password = document.getElementById('adminPassword').value;
+            
+            // Simple authentication (in production, use proper authentication)
+            if (id === 'admin' && password === 'password') {
+                isAdminLoggedIn = true;
+                localStorage.setItem('medibook_admin_login', 'true');
+                document.getElementById('adminLogin').classList.add('hidden');
+                document.getElementById('adminDashboard').classList.remove('hidden');
+                const affiliateElem = document.getElementById('affiliateRecommendations');
+                if (affiliateElem) {
+                    affiliateElem.classList.add('hidden');
+                }
+                await location.reload();
+            } else {
+                alert('ログイン情報が正しくありません。');
+            }
+        });
+
+        function adminLogout() {
+            isAdminLoggedIn = false;
+            localStorage.removeItem('medibook_admin_login');
+            document.getElementById('adminLogin').classList.remove('hidden');
+            document.getElementById('adminDashboard').classList.add('hidden');
+            const affiliateElem = document.getElementById('affiliateRecommendations');
+            if (affiliateElem) {
+                affiliateElem.classList.remove('hidden');
+            }
+            document.getElementById('adminLoginForm').reset();
+        }
+
+      async function loadAdminData() {
+          await fetchAppointments();
+          await fetchQuestionnaires();
+          updateStats();
+          loadAppointmentTable();
+          loadAnalyticsChart();
+           const val = document.getElementById('calendarMonth').value;
+           if (val) {
+               const [y, m] = val.split('-').map(Number);
+               loadAdminCalendar(y, m - 1);
+           } else {
+               loadAdminCalendar();
+           }
+      }
+
+        function loadAppointmentTable() {
+            const tbody = document.getElementById('appointmentTable');
+            const search = document.getElementById('adminSearch').value.trim().toLowerCase();
+            const status = document.getElementById('statusFilter').value;
+            const order = document.getElementById('sortOrder').value;
+
+            let list = appointments.slice();
+
+            if (search) {
+                list = list.filter(apt =>
+                    apt.id.toLowerCase().includes(search) ||
+                    apt.name.toLowerCase().includes(search) ||
+                    apt.phone.includes(search)
+                );
+            }
+
+            if (status) {
+                list = list.filter(apt => apt.status === status);
+            }
+
+            list.sort((a, b) => {
+                const aDate = new Date(`${a.date} ${a.time}`);
+                const bDate = new Date(`${b.date} ${b.time}`);
+                return order === 'desc' ? bDate - aDate : aDate - bDate;
+            });
+
+            tbody.innerHTML = list.map(apt => {
+                const q = questionnaires.find(q => q.appointmentid === apt.id);
+
+                return `
+                    <tr class="border-b border-gray-100">
+                        <td class="py-3 px-4 text-sm">${escapeHtml(apt.id)}</td>
+                        <td class="py-3 px-4 text-sm">${escapeHtml(apt.name)}</td>
+                        <td class="py-3 px-4 text-sm">${apt.visittype === 'followup' ? '再診' : '初診'}</td>
+                        <td class="py-3 px-4 text-sm">${escapeHtml(apt.date)} ${escapeHtml(apt.time)}</td>
+                        <td class="py-3 px-4 text-sm">${escapeHtml(apt.phone)}</td>
+                        <td class="py-3 px-4">${STATUS_BADGE[apt.status]}</td>
+                        <td class="py-3 px-4 text-sm">${q ? `<button onclick=\"showQuestionnaire('${q.id}')\" class=\"bg-indigo-500 text-white px-2 py-1 rounded text-xs hover:bg-indigo-600\">表示</button>` : ''}</td>
+                        <td class="py-3 px-4">
+                            <div class="flex space-x-2">
+                                ${apt.status === 'pending' ? `
+                                    <button onclick="updateAppointmentStatus('${apt.id}', 'waiting')"
+                                            class="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600">
+                                        承認
+                                    </button>
+                                ` : ''}
+                                ${apt.status === 'waiting' ? `
+                                    <button onclick="updateAppointmentStatus('${apt.id}', 'completed')"
+                                            class="bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600">
+                                        完了
+                                    </button>
+                                ` : ''}
+                                ${apt.status !== 'cancelled' ? `
+                                    <button onclick="updateAppointmentStatus('${apt.id}', 'cancelled')"
+                                            class="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600">
+                                        キャンセル
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function updateAppointmentStatus(appointmentId, newStatus) {
+            const appointment = appointments.find(apt => apt.id === appointmentId);
+            if (appointment) {
+                appointment.status = newStatus;
+                saveData();
+                fetch(FUNCTION_URL, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: appointmentId, status: newStatus })
+                }).then(async res => {
+                    if (!res.ok) {
+                        const msg = await res.text();
+                        throw new Error(msg);
+                    }
+                }).then(() => {
+                    location.reload();
+                }).catch(err => {
+                    console.warn('予約ステータスの更新に失敗しました。', err);
+                    alert('予約ステータスの更新に失敗しました: ' + err.message);
+                });
+            }
+        }
+
+        function showQuestionnaire(id) {
+            const q = questionnaires.find(q => q.id === id);
+            if (!q) return;
+            const c = document.getElementById('questionnaireContent');
+            c.innerHTML = `
+                <div><strong>予約ID:</strong> ${escapeHtml(q.appointmentid || '')}</div>
+                <div><strong>お名前:</strong> ${escapeHtml(q.name)}</div>
+                <div><strong>年齢:</strong> ${q.age !== null ? escapeHtml(q.age) : ''}</div>
+                <div><strong>性別:</strong> ${escapeHtml(q.gender || '')}</div>
+                <div><strong>電話番号:</strong> ${escapeHtml(q.phone)}</div>
+                <div><strong>主な症状:</strong> ${escapeHtml(q.symptoms)}</div>
+                <div><strong>症状が始まった時期:</strong> ${escapeHtml(q.onset || '')}</div>
+                <div><strong>アレルギー:</strong> ${escapeHtml(q.allergies)}</div>
+                <div><strong>服用中の薬:</strong> ${escapeHtml(q.medications)}</div>
+                <div><strong>過去の病歴:</strong> ${escapeHtml(q.history || '')}</div>
+                ${q.photo ? `<div class="mt-2"><img src="${escapeHtml(q.photo)}" alt="患部写真" class="max-w-full"></div>` : ''}
+                <div><strong>送信日時:</strong> ${escapeHtml(new Date(q.createdat).toLocaleString('ja-JP'))}</div>
+            `;
+            document.getElementById('questionnaireModal').classList.remove('hidden');
+        }
+
+        function closeQuestionnaire() {
+            document.getElementById('questionnaireModal').classList.add('hidden');
+        }
+
+        function loadAnalyticsChart(direction) {
+            const canvas = document.getElementById('analyticsChart');
+            const ctx = canvas.getContext('2d');
+
+            if (analyticsChart) {
+                analyticsChart.destroy();
+            }
+
+            const days = parseInt(document.getElementById('analyticsDays').value, 10) || 7;
+            const labels = [];
+            const appointmentCounts = [];
+
+            for (let i = days - 1; i >= 0; i--) {
+                const date = new Date();
+                date.setDate(date.getDate() - i - analyticsOffset);
+                const isoDate = formatDate(date);
+
+                labels.push(date.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric' }));
+                appointmentCounts.push(
+                    appointments.filter(apt => apt.date === isoDate && apt.status !== 'cancelled').length
+                );
+            }
+
+            analyticsChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '予約数',
+                        data: appointmentCounts,
+                        borderColor: '#3373dc',
+                        backgroundColor: 'rgba(51, 115, 220, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    }
+                }
+            });
+
+            if (direction) {
+                const cls = direction === 'left' ? 'slide-left' : 'slide-right';
+                canvas.classList.add(cls);
+                canvas.addEventListener('animationend', () => {
+                    canvas.classList.remove('slide-left', 'slide-right');
+                }, { once: true });
+            }
+        }
+
+        function loadAdminCalendar(year, month) {
+            const calendar = document.getElementById('adminCalendar');
+            calendar.innerHTML = '';
+
+            const now = new Date();
+            year = year !== undefined ? year : now.getFullYear();
+            month = month !== undefined ? month : now.getMonth();
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+
+            const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+            const grid = document.createElement('div');
+            grid.className = 'grid grid-cols-7 gap-2 text-center text-sm';
+
+            dayNames.forEach(d => {
+                const cell = document.createElement('div');
+                cell.className = 'font-semibold';
+                cell.textContent = d;
+                grid.appendChild(cell);
+            });
+
+            for (let i = 0; i < firstDay.getDay(); i++) {
+                grid.appendChild(document.createElement('div'));
+            }
+
+           const todayStr = formatDate(new Date());
+           for (let day = 1; day <= lastDay.getDate(); day++) {
+               const cell = document.createElement('div');
+                const dateStr = formatDate(new Date(year, month, day));
+                cell.className = 'border p-1 rounded cursor-pointer hover:bg-blue-50';
+                if (dateStr === todayStr) {
+                    cell.classList.add('bg-yellow-100');
+                }
+                const count = appointments.filter(apt => apt.date === dateStr && apt.status !== 'cancelled').length;
+                const daySlots = slotCapacities[dateStr] || {};
+                const capacity = TIME_SLOTS.reduce((s, t) => s + (daySlots[t] !== undefined ? daySlots[t] : 1), 0);
+                const dayDiv = document.createElement('div');
+                dayDiv.className = 'font-bold';
+                dayDiv.textContent = day;
+                const countDiv = document.createElement('div');
+                countDiv.className = 'text-blue-600 cursor-pointer';
+                countDiv.textContent = `${count}/${capacity}`;
+                countDiv.addEventListener('click', (e) => { e.stopPropagation(); openSlotModal(dateStr); });
+                cell.appendChild(dayDiv);
+                cell.appendChild(countDiv);
+                cell.addEventListener('click', () => openSlotModal(dateStr));
+                grid.appendChild(cell);
+           }
+
+           calendar.appendChild(grid);
+       }
+
+       function openSlotModal(dateStr) {
+           document.getElementById('slotModalDate').textContent = dateStr;
+           const list = appointments
+               .filter(apt => apt.date === dateStr && apt.status !== 'cancelled')
+               .sort((a, b) => new Date(`1970-01-01T${a.time}`) - new Date(`1970-01-01T${b.time}`));
+
+           const byTime = {};
+           TIME_SLOTS.forEach(ts => { byTime[ts] = []; });
+           list.forEach(apt => {
+               if (!byTime[apt.time]) byTime[apt.time] = [];
+               byTime[apt.time].push(apt);
+           });
+
+           const statusText = STATUS_TEXT;
+           const statusClass = STATUS_CLASS;
+
+           const container = document.getElementById('slotModalTable');
+           const daySlots = slotCapacities[dateStr] || {};
+           let html = '<table class="w-full text-sm"><thead><tr><th class="border px-2 py-1">時間</th><th class="border px-2 py-1">枠数</th><th class="border px-2 py-1">予約状況</th></tr></thead><tbody>';
+           TIME_SLOTS.forEach(ts => {
+               const slotList = byTime[ts] || [];
+               const cap = daySlots[ts] !== undefined ? daySlots[ts] : 1;
+               const input = `<input type="number" min="0" value="${cap}" data-slot="${ts}" class="w-16 border rounded px-1">`;
+               const reservations = slotList
+                   .map(apt => `<div><span class="${statusClass[apt.status]} text-white px-1 rounded mr-1">${statusText[apt.status]}</span>${apt.name}</div>`) 
+                   .join('') || '-';
+               html += `<tr><td class="border px-2 py-1">${ts}</td><td class="border px-2 py-1">${input}</td><td class="border px-2 py-1">${reservations}</td></tr>`;
+           });
+           html += '</tbody></table>';
+           container.innerHTML = html;
+
+           document.getElementById('slotModal').classList.remove('hidden');
+       }
+
+       function closeSlotModal() {
+           document.getElementById('slotModal').classList.add('hidden');
+       }
+
+        // Share Functions
+        function shareAppointment() {
+            document.getElementById('shareModal').classList.remove('hidden');
+        }
+
+        function closeShareModal() {
+            document.getElementById('shareModal').classList.add('hidden');
+        }
+
+        function shareToX() {
+            const text = `MediBookで予約を取りました！\n\n📅 予約日時: ${currentAppointment.date} ${currentAppointment.time}\n🏥 待ち時間も確認できて便利です\n\n#継続は力なり #医療DX #予約システム`;
+            const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(window.location.href)}`;
+            window.open(url, '_blank');
+            closeShareModal();
+        }
+
+        function shareToLine() {
+            const text = `MediBookで予約を取りました！\n予約日時: ${currentAppointment.date} ${currentAppointment.time}`;
+            const url = `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(window.location.href)}&text=${encodeURIComponent(text)}`;
+            window.open(url, '_blank');
+            closeShareModal();
+        }
+
+        function copyLink() {
+            navigator.clipboard.writeText(window.location.href).then(() => {
+                alert('リンクをコピーしました！');
+                closeShareModal();
+            });
+        }
+
+        // QR Code Functions
+        function generateQRTicket() {
+            const qrData = `MediBook予約\n予約ID: ${currentAppointment.id}\n患者名: ${currentAppointment.name}\n日時: ${currentAppointment.date} ${currentAppointment.time}`;
+            
+            const qrDiv = document.getElementById('qrCode');
+            qrDiv.innerHTML = '';
+            
+            QRCode.toCanvas(qrDiv, qrData, {
+                width: 200,
+                height: 200,
+                margin: 2,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                }
+            }, function (error) {
+                if (error) console.warn('QRコードの生成に失敗しました。', error);
+            });
+
+            document.getElementById('qrModal').classList.remove('hidden');
+        }
+
+        function closeQRModal() {
+            document.getElementById('qrModal').classList.add('hidden');
+        }
+
+        function cancelAppointment() {
+            if (confirm('予約をキャンセルしますか？')) {
+                currentAppointment.status = 'cancelled';
+                saveData();
+                updateStats();
+                alert('予約をキャンセルしました。');
+                document.getElementById('searchResults').classList.add('hidden');
+            }
+        }
+
+
+        // Navigation Links
+        document.querySelectorAll('a[href^="#"]').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const targetId = this.getAttribute('href').substring(1);
+                
+                if (['home', 'booking', 'status', 'admin'].includes(targetId)) {
+                    showSection(targetId);
+                } else {
+                    const element = document.getElementById(targetId);
+                    if (element) {
+                        element.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+                
+                // Close mobile menu
+                document.getElementById('mobileMenu').classList.add('hidden');
+            });
+        });
+
+        // Service Worker Registration for PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('data:application/javascript;base64,Ly8gU2VydmljZSBXb3JrZXIgZm9yIE1lZGlCb29rIFBXQQpjb25zdCBDQUNIRV9OQU1FID0gJ21lZGlib29rLXYxJzsKY29uc3QgdXJsc1RvQ2FjaGUgPSBbCiAgJy4vJywKICAnLi9pbmRleC5odG1sJywKXTsKCnNlbGYuYWRkRXZlbnRMaXN0ZW5lcignaW5zdGFsbCcsIGV2ZW50ID0+IHsKICBldmVudC53YWl0VW50aWwoCiAgICBjYWNoZXMub3BlbihDQUNIRV9OQU1FKQogICAgICAudGhlbihjYWNoZSA9PiBjYWNoZS5hZGRBbGwodXJsc1RvQ2FjaGUpKQogICk7Cn0pOwoKc2VsZi5hZGRFdmVudExpc3RlbmVyKCdmZXRjaCcsIGV2ZW50ID0+IHsKICBldmVudC5yZXNwb25kV2l0aCgKICAgIGNhY2hlcy5tYXRjaChldmVudC5yZXF1ZXN0KQogICAgICAudGhlbihyZXNwb25zZSA9PiB7CiAgICAgICAgcmV0dXJuIHJlc3BvbnNlIHx8IGZldGNoKGV2ZW50LnJlcXVlc3QpOwogICAgICB9KQogICk7Cn0pOw==')
+                .then(() => console.log('Service Worker registered'))
+                .catch(err => console.log('Service Worker registration failed'));
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async function() {
+            if (localStorage.getItem('medibook_admin_login') === 'true') {
+                isAdminLoggedIn = true;
+                document.getElementById('adminLogin').classList.add('hidden');
+                document.getElementById('adminDashboard').classList.remove('hidden');
+                await loadAdminData();
+            }
+            const monthInput = document.getElementById('calendarMonth');
+            const analyticsDays = document.getElementById('analyticsDays');
+            const today = new Date();
+            const statsStart = document.getElementById("statsStart");
+            const statsEnd = document.getElementById("statsEnd");
+            statsStart.value = formatDate(today);
+            statsEnd.value = formatDate(today);
+            monthInput.value = formatDate(today).slice(0,7);
+            statsStart.addEventListener("change", updateStats);
+            statsEnd.addEventListener("change", updateStats);
+            monthInput.addEventListener('change', function() {
+                const [y, m] = this.value.split('-').map(Number);
+                loadAdminCalendar(y, m - 1);
+            });
+            analyticsDays.addEventListener('change', loadAnalyticsChart);
+
+            const chartEl = document.getElementById('analyticsChart');
+            let swipeStartX = null;
+            chartEl.addEventListener('pointerdown', e => { swipeStartX = e.clientX; });
+            chartEl.addEventListener('pointermove', e => {
+                if (swipeStartX === null) return;
+                const diff = e.clientX - swipeStartX;
+                const delta = Math.round(diff / 50);
+                if (delta !== 0) {
+                    analyticsOffset += delta;
+                    loadAnalyticsChart(delta > 0 ? 'right' : 'left');
+                    swipeStartX = e.clientX;
+                }
+            });
+            ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => {
+                chartEl.addEventListener(ev, () => { swipeStartX = null; });
+            });
+            document.getElementById('saveSlotBtn').addEventListener('click', function() {
+                const dateStr = document.getElementById('slotModalDate').textContent;
+                const inputs = document.querySelectorAll('#slotModalTable input[data-slot]');
+                const data = {};
+                inputs.forEach(inp => {
+                    const val = parseInt(inp.value, 10);
+                    if (!isNaN(val) && val >= 0) {
+                        data[inp.dataset.slot] = val;
+                    }
+                });
+                slotCapacities[dateStr] = data;
+                saveSlotCapacities();
+                const [y, m] = dateStr.split('-').map(Number);
+                loadAdminCalendar(y, m - 1);
+                updateStats();
+                closeSlotModal();
+            });
+            document.getElementById('jumpToday').addEventListener('click', function() {
+                const t = new Date();
+                monthInput.value = formatDate(t).slice(0,7);
+                loadAdminCalendar(t.getFullYear(), t.getMonth());
+            });
+            document.getElementById('adminSearch').addEventListener('input', loadAppointmentTable);
+            document.getElementById('statusFilter').addEventListener('change', loadAppointmentTable);
+            document.getElementById('sortOrder').addEventListener('change', loadAppointmentTable);
+            const sidebar = document.getElementById('sidebar');
+            const icon = document.getElementById('sidebarIcon');
+            document.getElementById('toggleSidebar').addEventListener('click', function() {
+                sidebar.classList.toggle('collapsed');
+                icon.classList.toggle('fa-angle-left');
+                icon.classList.toggle('fa-angle-right');
+            });
+            if (sidebar.classList.contains('collapsed')) {
+                icon.classList.remove('fa-angle-left');
+                icon.classList.add('fa-angle-right');
+            }
+            document.getElementById('rangeCard').addEventListener('click', function(e) {
+                e.preventDefault();
+                const start = document.getElementById('statsStart').value;
+                const end = document.getElementById('statsEnd').value;
+                const url = `reservations.html?start=${start}&end=${end}`;
+                this.setAttribute('href', url);
+                window.location.href = url;
+            });
+            loadAdminCalendar(today.getFullYear(), today.getMonth());
+            updateTime();
+            updateStats();
+            showSection('admin');
+            setInterval(updateTime, 60000); // Update time every minute
+            setInterval(async () => { await loadAdminData(); }, 300000); // every 5 minutes
+        });
+    </script>
+</body>
+</html>

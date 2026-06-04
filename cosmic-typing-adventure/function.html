@@ -1,0 +1,1033 @@
+<!--
+【主要クラスの現状の責務・役割まとめ】
+
+■ CosmicTypingApp
+- アプリ全体の状態管理（現在の惑星、練習状態、ユーザー入力など）
+- DOM要素の取得・管理
+- イベントリスナーのセットアップ
+- TypingEngineの初期化・管理
+- 惑星選択・練習画面遷移・リザルト表示などUI制御
+- startMission等のUI連携関数の実体
+
+■ TypingEngine
+- タイピング練習のロジック（WPM/正確率計算、進捗管理、エラー検出など）
+- テキスト表示・入力監視・進捗コールバック
+- セッションごとの状態管理
+- テキストのバリデーション・サニタイズ
+
+■ TimeAttackMode
+- タイムアタックモードの状態管理（残り時間、セッションデータなど）
+- タイマー制御・UI切り替え
+- タイピングセッションの開始・終了
+- タイムアタック用のテキスト選択・表示
+
+■ LanguageManager
+- 練習テキスト（日本語/英語）のロード・管理
+- 惑星ごとのテキスト取得
+
+■ AchievementSystem
+- 実績の管理・判定・通知
+- ユーザーステータスに応じたアンロック処理
+
+■ Supabase連携（CosmicSupabase）
+- Supabase初期化・データ保存/取得
+- エラーハンドリング
+
+-->
+<!--
+【理想的な責務分離・依存関係設計】
+
+■ CosmicTypingApp
+- アプリ全体の「オーケストレーター」として、UI・状態・各サブシステムの連携を担う
+- TypingEngine, TimeAttackMode, LanguageManager, AchievementSystem, SupabaseAPI等を「インスタンスとして保持」し、必要なタイミングで呼び出す
+- 依存注入（constructor等でインスタンスを受け取る/生成する）を基本とし、window直下のグローバル参照は極力避ける
+
+■ TypingEngine
+- タイピング練習のロジックに専念し、UIや外部APIには直接依存しない
+- 状態変化や進捗はコールバック/イベントでCosmicTypingAppに通知
+
+■ TimeAttackMode
+- タイムアタック専用の状態・タイマー・UI切り替えを管理
+- TypingEngineを内部で利用する場合も、CosmicTypingApp経由で依存注入
+
+■ LanguageManager
+- テキストデータの取得・管理のみを担当し、UIや他ロジックには依存しない
+- CosmicTypingAppから必要なタイミングで呼び出される
+
+■ AchievementSystem
+- 実績判定・通知のみを担当し、ユーザーステータスやセッションデータを受け取って判定
+- CosmicTypingAppから進捗/結果を渡される形で連携
+
+■ SupabaseAPI（CosmicSupabase）
+- データ保存/取得APIとして独立し、UIや他ロジックには依存しない
+- CosmicTypingAppが必要なタイミングで呼び出す
+
+■ その他ユーティリティ
+- 必要に応じてCosmicTypingAppのコンストラクタ等で依存注入、またはローカルスコープで利用
+
+【設計方針】
+- すべての主要クラスは「単一責任原則」を意識し、役割を明確化
+- 依存関係は「上位（CosmicTypingApp）→下位（サブシステム）」の一方向とし、下位から上位を直接参照しない
+- グローバルwindow参照はUI連携や外部APIの最小限に限定
+- テスト容易性・保守性を重視し、将来的な機能追加や差し替えが容易な構造を目指す
+
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":
+new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
+"https://www.googletagmanager.com/gtm.js?id="+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,"script","dataLayer","GTM-TXQGZRF9");</script>
+<!-- End Google Tag Manager -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmic Typing Adventure - 未実装機能一覧</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 100%);
+            color: #e5e7eb;
+        }
+        
+        .container {
+            background: rgba(30, 30, 50, 0.9);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            color: #06b6d4;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        
+        h2 {
+            color: #10b981;
+            border-bottom: 2px solid #10b981;
+            padding-bottom: 10px;
+            margin-top: 40px;
+        }
+        
+        h3 {
+            color: #f59e0b;
+            margin-top: 25px;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .status.implemented {
+            background: #10b981;
+            color: white;
+        }
+        
+        .status.partial {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .status.not-implemented {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .feature-card {
+            background: rgba(55, 65, 81, 0.5);
+            border: 1px solid #374151;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+        
+        .feature-card h4 {
+            color: #06b6d4;
+            margin-top: 0;
+        }
+        
+        .priority {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.7em;
+            margin-left: 10px;
+        }
+        
+        .priority.high {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .priority.medium {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .priority.low {
+            background: #10b981;
+            color: white;
+        }
+        
+        .code-block {
+            background: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            overflow-x: auto;
+        }
+        
+        .implementation-steps {
+            background: rgba(16, 185, 129, 0.1);
+            border-left: 4px solid #10b981;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .technical-details {
+            background: rgba(6, 182, 212, 0.1);
+            border-left: 4px solid #06b6d4;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .ui-mockup {
+            background: rgba(245, 158, 11, 0.1);
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+    <div class="container">
+        <h1>🚀 Cosmic Typing Adventure - 未実装機能一覧</h1>
+        
+        <p>このドキュメントは、Cosmic Typing Adventureアプリケーションの未実装機能を詳細に整理したものです。</p>
+        
+        <h2>📊 実装状況サマリー</h2>
+        <ul>
+            <li><strong>基本機能</strong>: 95% 実装済み</li>
+            <li><strong>音效・音楽</strong>: 90% 実装済み</li>
+            <li><strong>実績システム</strong>: 85% 実装済み</li>
+            <li><strong>多言語対応</strong>: 30% 実装済み</li>
+            <li><strong>宇宙船強化</strong>: 20% 実装済み</li>
+            <li><strong>PWA機能</strong>: 70% 実装済み</li>
+        </ul>
+
+        <h2>🔧 1. 多言語対応システム <span class="status partial">部分実装</span></h2>
+        
+        <div class="feature-card">
+            <h4>英語テキストの追加 <span class="priority high">高優先度</span></h4>
+            <p><strong>現状</strong>: UIの言語切り替えは実装済みだが、実際のテキスト翻訳が不完全</p>
+            
+            <div class="implementation-steps">
+                <h5>実装手順:</h5>
+                <ol>
+                    <li>練習テキストの英語版を作成</li>
+                    <li>UI要素の英語翻訳を追加</li>
+                    <li>言語切り替えロジックの完全実装</li>
+                    <li>ローカルストレージでの言語設定保存</li>
+                </ol>
+            </div>
+            
+            <div class="code-block">
+// 必要なファイル構造
+data/
+├── practice-texts.json (日本語版)
+├── practice-texts-en.json (英語版)
+└── ui-translations.json (UI翻訳)
+
+// 実装が必要な関数
+function switchLanguage(lang) {
+    currentLanguage = lang;
+    localStorage.setItem('language', lang);
+    updateAllTexts();
+    updatePracticeTexts();
+}
+
+function updateAllTexts() {
+    // UI要素の翻訳更新
+    document.querySelectorAll('[data-translate]').forEach(element => {
+        const key = element.getAttribute('data-translate');
+        element.textContent = translations[currentLanguage][key];
+    });
+}
+            </div>
+        </div>
+
+        <h2>🚀 2. 宇宙船強化システム <span class="status not-implemented">未実装</span></h2>
+        
+        <div class="feature-card">
+            <h4>強化ロジックの実装 <span class="priority medium">中優先度</span></h4>
+            <p><strong>現状</strong>: UIは存在するが、実際の強化効果とXP消費が未実装</p>
+            
+            <div class="implementation-steps">
+                <h5>実装手順:</h5>
+                <ol>
+                    <li>強化コスト計算システム</li>
+                    <li>強化効果の適用ロジック</li>
+                    <li>XP消費とバリデーション</li>
+                    <li>強化レベルに応じた効果計算</li>
+                </ol>
+            </div>
+            
+            <div class="code-block">
+// 強化システムの実装
+class ShipUpgradeSystem {
+    constructor() {
+        this.upgrades = {
+            engine: { level: 1, cost: 100, effect: 0.05 },
+            fuel: { level: 1, cost: 150, effect: 0.02 },
+            shield: { level: 1, cost: 200, effect: 0.10 }
+        };
+    }
+    
+    upgradeShip(upgradeType) {
+        const upgrade = this.upgrades[upgradeType];
+        const cost = upgrade.cost * upgrade.level;
+        
+        if (userStats.xp >= cost) {
+            userStats.xp -= cost;
+            upgrade.level++;
+            this.applyUpgradeEffects();
+            this.saveUpgrades();
+        }
+    }
+    
+    applyUpgradeEffects() {
+        // 強化効果をタイピング統計に適用
+        const engineBonus = (this.upgrades.engine.level - 1) * this.upgrades.engine.effect;
+        const fuelBonus = (this.upgrades.fuel.level - 1) * this.upgrades.fuel.effect;
+        const shieldBonus = (this.upgrades.shield.level - 1) * this.upgrades.shield.effect;
+        
+        // 効果を適用
+        gameState.speedMultiplier = 1 + engineBonus;
+        gameState.accuracyBonus = fuelBonus;
+        gameState.comboPenaltyReduction = shieldBonus;
+    }
+}
+            </div>
+        </div>
+
+        <h2>📱 3. PWA機能の完全実装 <span class="status partial">部分実装</span></h2>
+        
+        <div class="feature-card">
+            <h4>インストール機能 <span class="priority medium">中優先度</span></h4>
+            <p><strong>現状</strong>: Service Workerとマニフェストは実装済み、インストール機能が不完全</p>
+            
+            <div class="implementation-steps">
+                <h5>実装手順:</h5>
+                <ol>
+                    <li>インストールボタンの追加</li>
+                    <li>beforeinstallpromptイベントの処理</li>
+                    <li>インストール後の動作確認</li>
+                    <li>オフライン機能のテスト</li>
+                </ol>
+            </div>
+            
+            <div class="code-block">
+// PWAインストール機能
+let deferredPrompt;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    showInstallButton();
+});
+
+function showInstallButton() {
+    const installBtn = document.createElement('button');
+    installBtn.textContent = 'アプリをインストール';
+    installBtn.onclick = installApp;
+    document.body.appendChild(installBtn);
+}
+
+async function installApp() {
+    if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            console.log('PWA installed successfully');
+        }
+        deferredPrompt = null;
+    }
+}
+            </div>
+        </div>
+
+        <h2>🎮 4. ゲームモード拡張 <span class="status not-implemented">未実装</span></h2>
+        
+        <div class="feature-card">
+            <h4>タイムアタックモード <span class="priority low">低優先度</span></h4>
+            <p><strong>現状</strong>: 基本的なタイピング練習のみ、時間制限モードが未実装</p>
+            
+            <div class="technical-details">
+                <h5>技術仕様:</h5>
+                <ul>
+                    <li>1分間、3分間、5分間の時間制限</li>
+                    <li>時間経過での自動終了</li>
+                    <li>残り時間の視覚的表示</li>
+                    <li>時間制限内での最高スコア記録</li>
+                </ul>
+            </div>
+            
+            <div class="code-block">
+// タイムアタックモード
+class TimeAttackMode {
+    constructor(duration) {
+        this.duration = duration; // 秒
+        this.remainingTime = duration;
+        this.isActive = false;
+    }
+    
+    start() {
+        this.isActive = true;
+        this.timer = setInterval(() => {
+            this.remainingTime--;
+            this.updateDisplay();
+            
+            if (this.remainingTime <= 0) {
+                this.end();
+            }
+        }, 1000);
+    }
+    
+    end() {
+        this.isActive = false;
+        clearInterval(this.timer);
+        this.calculateFinalScore();
+    }
+}
+            </div>
+        </div>
+
+        <h2>📈 5. 統計・分析機能の拡張 <span class="status partial">部分実装</span></h2>
+        
+        <div class="feature-card">
+            <h4>詳細分析機能 <span class="priority low">低優先度</span></h4>
+            <p><strong>現状</strong>: 基本的な統計は実装済み、詳細分析が不足</p>
+            
+            <div class="technical-details">
+                <h5>追加機能:</h5>
+                <ul>
+                    <li>日別・週別・月別の統計</li>
+                    <li>キー別の詳細分析</li>
+                    <li>練習時間の分布分析</li>
+                    <li>進歩率の可視化</li>
+                </ul>
+            </div>
+            
+            <div class="code-block">
+// 詳細統計システム
+class AdvancedAnalytics {
+    constructor() {
+        this.dailyStats = {};
+        this.weeklyStats = {};
+        this.monthlyStats = {};
+    }
+    
+    recordSession(sessionData) {
+        const date = new Date().toISOString().split('T')[0];
+        if (!this.dailyStats[date]) {
+            this.dailyStats[date] = {
+                sessions: 0,
+                totalWPM: 0,
+                totalAccuracy: 0,
+                totalTime: 0
+            };
+        }
+        
+        this.dailyStats[date].sessions++;
+        this.dailyStats[date].totalWPM += sessionData.wpm;
+        this.dailyStats[date].totalAccuracy += sessionData.accuracy;
+        this.dailyStats[date].totalTime += sessionData.time;
+    }
+    
+    getProgressTrend() {
+        // 進歩率の計算
+        const dates = Object.keys(this.dailyStats).sort();
+        const trends = dates.map(date => ({
+            date,
+            avgWPM: this.dailyStats[date].totalWPM / this.dailyStats[date].sessions,
+            avgAccuracy: this.dailyStats[date].totalAccuracy / this.dailyStats[date].sessions
+        }));
+        
+        return trends;
+    }
+}
+            </div>
+        </div>
+
+        <h2>🎨 6. UI/UX改善 <span class="status partial">部分実装</span></h2>
+        
+        <div class="feature-card">
+            <h4>アニメーション強化 <span class="priority low">低優先度</span></h4>
+            <p><strong>現状</strong>: 基本的なアニメーションは実装済み、より洗練された効果が不足</p>
+            
+            <div class="ui-mockup">
+                <h5>追加アニメーション:</h5>
+                <ul>
+                    <li>タイピング時の文字ハイライトアニメーション</li>
+                    <li>コンボ数に応じたパーティクル効果</li>
+                    <li>レベルアップ時の特別エフェクト</li>
+                    <li>惑星発見時の宇宙エフェクト</li>
+                </ul>
+            </div>
+            
+            <div class="code-block">
+// アニメーションシステム
+class AnimationManager {
+    constructor() {
+        this.particles = [];
+    }
+    
+    createTypingEffect(char, x, y) {
+        const particle = document.createElement('div');
+        particle.className = 'typing-particle';
+        particle.textContent = char;
+        particle.style.left = x + 'px';
+        particle.style.top = y + 'px';
+        
+        document.body.appendChild(particle);
+        
+        // アニメーション
+        setTimeout(() => {
+            particle.remove();
+        }, 1000);
+    }
+    
+    createComboEffect(combo) {
+        if (combo >= 10) {
+            this.createParticleExplosion();
+        }
+    }
+}
+            </div>
+        </div>
+
+        <h2>🔧 7. パフォーマンス最適化 <span class="status partial">部分実装</span></h2>
+        
+        <div class="feature-card">
+            <h4>メモリ管理とレンダリング最適化 <span class="priority medium">中優先度</span></h4>
+            <p><strong>現状</strong>: 基本的な最適化は実装済み、大規模データ処理での最適化が必要</p>
+            
+            <div class="technical-details">
+                <h5>最適化項目:</h5>
+                <ul>
+                    <li>Chart.jsのデータ更新最適化</li>
+                    <li>DOM操作のバッチ処理</li>
+                    <li>メモリリークの防止</li>
+                    <li>画像の遅延読み込み</li>
+                </ul>
+            </div>
+            
+            <div class="code-block">
+// パフォーマンス最適化
+class PerformanceOptimizer {
+    constructor() {
+        this.updateQueue = [];
+        this.isUpdating = false;
+    }
+    
+    queueUpdate(updateFunction) {
+        this.updateQueue.push(updateFunction);
+        if (!this.isUpdating) {
+            this.processQueue();
+        }
+    }
+    
+    processQueue() {
+        this.isUpdating = true;
+        
+        requestAnimationFrame(() => {
+            while (this.updateQueue.length > 0) {
+                const update = this.updateQueue.shift();
+                update();
+            }
+            
+            this.isUpdating = false;
+        });
+    }
+    
+    optimizeChartUpdates(chart, newData) {
+        // Chart.jsの更新を最適化
+        chart.data.datasets[0].data = newData;
+        chart.update('none'); // アニメーション無効で高速更新
+    }
+}
+            </div>
+        </div>
+
+        <h2>📱 8. モバイル最適化 <span class="status partial">部分実装</span></h2>
+        
+        <div class="feature-card">
+            <h4>タッチ操作とモバイルUI <span class="priority medium">中優先度</span></h4>
+            <p><strong>現状</strong>: レスポンシブデザインは実装済み、モバイル専用機能が不足</p>
+            
+            <div class="ui-mockup">
+                <h5>モバイル専用機能:</h5>
+                <ul>
+                    <li>仮想キーボードの最適化</li>
+                    <li>スワイプジェスチャー</li>
+                    <li>モバイル専用の統計表示</li>
+                    <li>タッチフィードバック</li>
+                </ul>
+            </div>
+            
+            <div class="code-block">
+// モバイル最適化
+class MobileOptimizer {
+    constructor() {
+        this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        this.setupMobileFeatures();
+    }
+    
+    setupMobileFeatures() {
+        if (this.isMobile) {
+            this.setupTouchGestures();
+            this.optimizeVirtualKeyboard();
+            this.setupMobileUI();
+        }
+    }
+    
+    setupTouchGestures() {
+        let startX, startY;
+        
+        document.addEventListener('touchstart', (e) => {
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+        });
+        
+        document.addEventListener('touchend', (e) => {
+            const endX = e.changedTouches[0].clientX;
+            const endY = e.changedTouches[0].clientY;
+            
+            const diffX = startX - endX;
+            const diffY = startY - endY;
+            
+            if (Math.abs(diffX) > Math.abs(diffY)) {
+                if (diffX > 50) {
+                    // 左スワイプ - 次のセクション
+                    this.navigateToNextSection();
+                } else if (diffX < -50) {
+                    // 右スワイプ - 前のセクション
+                    this.navigateToPreviousSection();
+                }
+            }
+        });
+    }
+}
+            </div>
+        </div>
+
+        <h2>🎯 実装優先度マトリックス</h2>
+        
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+            <thead>
+                <tr style="background: rgba(6, 182, 212, 0.2);">
+                    <th style="padding: 12px; border: 1px solid #374151;">機能</th>
+                    <th style="padding: 12px; border: 1px solid #374151;">優先度</th>
+                    <th style="padding: 12px; border: 1px solid #374151;">実装時間</th>
+                    <th style="padding: 12px; border: 1px solid #374151;">影響度</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="padding: 12px; border: 1px solid #374151;">英語テキスト追加</td>
+                    <td style="padding: 12px; border: 1px solid #374151; color: #ef4444;">高</td>
+                    <td style="padding: 12px; border: 1px solid #374151;">2-3日</td>
+                    <td style="padding: 12px; border: 1px solid #374151;">高</td>
+                </tr>
+                <tr>
+                    <td style="padding: 12px; border: 1px solid #374151;">宇宙船強化ロジック</td>
+                    <td style="padding: 12px; border: 1px solid #374151; color: #f59e0b;">中</td>
+                    <td style="padding: 12px; border: 1px solid #374151;">3-4日</td>
+                    <td style="padding: 12px; border: 1px solid #374151;">中</td>
+                </tr>
+                <tr>
+                    <td style="padding: 12px; border: 1px solid #374151;">PWAインストール機能</td>
+                    <td style="padding: 12px; border: 1px solid #374151; color: #f59e0b;">中</td>
+                    <td style="padding: 12px; border: 1px solid #374151;">1-2日</td>
+                    <td style="padding: 12px; border: 1px solid #374151;">中</td>
+                </tr>
+                <tr>
+                    <td style="padding: 12px; border: 1px solid #374151;">モバイル最適化</td>
+                    <td style="padding: 12px; border: 1px solid #374151; color: #f59e0b;">中</td>
+                    <td style="padding: 12px; border: 1px solid #374151;">2-3日</td>
+                    <td style="padding: 12px; border: 1px solid #374151;">中</td>
+                </tr>
+                <tr>
+                    <td style="padding: 12px; border: 1px solid #374151;">タイムアタックモード</td>
+                    <td style="padding: 12px; border: 1px solid #374151; color: #10b981;">低</td>
+                    <td style="padding: 12px; border: 1px solid #374151;">2-3日</td>
+                    <td style="padding: 12px; border: 1px solid #374151;">低</td>
+                </tr>
+                <tr>
+                    <td style="padding: 12px; border: 1px solid #374151;">詳細統計分析</td>
+                    <td style="padding: 12px; border: 1px solid #374151; color: #10b981;">低</td>
+                    <td style="padding: 12px; border: 1px solid #374151;">3-4日</td>
+                    <td style="padding: 12px; border: 1px solid #374151;">低</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>📝 実装チェックリスト</h2>
+        
+        <div class="feature-card">
+            <h4>Phase 1: 高優先度機能（完了）</h4>
+            <ul>
+                <li>✅ 音效システム実装</li>
+                <li>✅ 実績システム実装</li>
+                <li>✅ 英語テキスト追加</li>
+                <li>✅ 言語切り替えロジック完成</li>
+                <li>✅ 宇宙船強化ロジック実装</li>
+                <li>✅ PWAインストール機能完成</li>
+                <li>✅ モバイル最適化強化</li>
+                <li>✅ パフォーマンス最適化</li>
+                <li>✅ タイムアタックモード</li>
+                <li>✅ 詳細統計分析</li>
+                <li>✅ アニメーション強化</li>
+            </ul>
+        </div>
+        
+        <div class="feature-card">
+            <h4>Phase 2: 中優先度機能（次期実装予定）</h4>
+            <ul>
+                <li>⏳ マルチプレイヤーモード</li>
+                <li>⏳ AI対戦システム</li>
+                <li>⏳ カスタムテキスト作成</li>
+                <li>⏳ 高度な統計分析</li>
+            </ul>
+        </div>
+        
+        <div class="feature-card">
+            <h4>Phase 3: 低優先度機能（将来実装予定）</h4>
+            <ul>
+                <li>⏳ VR/AR対応</li>
+                <li>⏳ 音声認識タイピング</li>
+                <li>⏳ 機械学習による個人化</li>
+                <li>⏳ ブロックチェーン実績システム</li>
+            </ul>
+        </div>
+
+        <h2>🔍 技術的考慮事項</h2>
+        
+        <div class="technical-details">
+            <h5>実装時の注意点:</h5>
+            <ul>
+                <li><strong>ブラウザ互換性</strong>: 古いブラウザでの動作確認</li>
+                <li><strong>パフォーマンス</strong>: 大量データ処理時の最適化</li>
+                <li><strong>セキュリティ</strong>: ユーザーデータの安全な保存</li>
+                <li><strong>アクセシビリティ</strong>: スクリーンリーダー対応の維持</li>
+                <li><strong>オフライン対応</strong>: ネットワーク切断時の動作</li>
+            </ul>
+        </div>
+
+        <h2>📊 完了予定スケジュール</h2>
+        
+        <div class="feature-card">
+            <h4>実装スケジュール</h4>
+            <ul>
+                <li><strong>Week 1-2</strong>: Phase 1 完了（高優先度機能）</li>
+                <li><strong>Week 3-4</strong>: Phase 2 完了（中優先度機能）</li>
+                <li><strong>Week 5-6</strong>: Phase 3 完了（低優先度機能）</li>
+                <li><strong>Week 7</strong>: 総合テストとバグ修正</li>
+                <li><strong>Week 8</strong>: 最終リリース準備</li>
+            </ul>
+        </div>
+
+        <h2>✅ 実装済み機能（2026年5月）</h2>
+
+        <div class="feature-card">
+            <h4>F1〜F5: 第1フェーズ実装</h4>
+            <ul>
+                <li><strong>F1 LP→ゲーム統合</strong>: ストリーク有ユーザーをapp.htmlへ自動リダイレクト（<code>?lp</code>パラメータで回避可）</li>
+                <li><strong>F2 連続練習ストリーク</strong>: <code>js/streak.js</code>による日次ストリーク追跡・ヘッダーに🔥表示</li>
+                <li><strong>F3 苦手キーヒートマップ</strong>: <code>js/heatmap.js</code>によるQWERTYキーボードSVG色分け（統計タブ）</li>
+                <li><strong>F4 コードモード強化</strong>: <code>data/practice-texts.json</code>にcode_snippets 20件追加・コードモードボタン設置</li>
+                <li><strong>F5 結果シェアカード</strong>: ClipboardAPIによるWPM・正確率・評価のコピー機能</li>
+            </ul>
+        </div>
+
+        <div class="feature-card">
+            <h4>P0〜P4: 第2フェーズ（バグ修正＋機能追加）</h4>
+            <ul>
+                <li><strong>P0 ゲームボタン全修正</strong>: startTyping/pauseTyping/resetTyping/playAgain等8関数をwindowグローバル公開</li>
+                <li><strong>P1 残り文字数カウンター</strong>: タイピング中に「残りN文字」をリアルタイム表示（色変化付き）</li>
+                <li><strong>P2 デイリーチャレンジ</strong>: 日付シードで毎日異なる惑星お題・完了バッジ・ストリーク連携</li>
+                <li><strong>P3 初回チュートリアルモーダル</strong>: 初回訪問時3ステップ説明・スキップ可・localStorage管理</li>
+                <li><strong>P4 リアルタイムWPMグラフ</strong>: Chart.jsで3秒ごとWPM折れ線グラフ表示</li>
+            </ul>
+        </div>
+
+        <div class="feature-card">
+            <h4>P0〜P4: 第3フェーズ（設定・UI・ゲームシステム改善）</h4>
+            <ul>
+                <li><strong>P0 設定機能接続</strong>: フォントサイズ・言語・効果音・BGM・パイロット名が実際に動作するよう接続</li>
+                <li><strong>P1 ベストスコア記録</strong>: localStorageにbestWPM/bestAccuracy保存・自己ベスト更新時🏆バナー表示・統計ページ反映</li>
+                <li><strong>P2 タイムアタックUI有効化</strong>: <code>timeAttackResults</code>パネルを実際に表示するよう<code>app.js showResults()</code>を修正</li>
+                <li><strong>P3 XP・レベルアップ表示</strong>: ゲーム完了時にXP計算（WPM×2×正確率補正）・LvUPトースト通知・localStorage永続化</li>
+                <li><strong>P4 テキスト重複回避</strong>: <code>language-manager.js</code>で直近5件の履歴管理・同テキストの連続出題を防止</li>
+            </ul>
+        </div>
+
+        <div class="feature-card">
+            <h4>ファイル構成（2026年5月現在）</h4>
+            <ul>
+                <li><code>app.html</code> - メインゲームUI（設定・タイムアタック・チュートリアル・残り文字数等）</li>
+                <li><code>js/app.js</code> - アプリメインロジック（showResults P2対応・hideAllSections拡張）</li>
+                <li><code>js/streak.js</code> - 連続練習ストリーク管理</li>
+                <li><code>js/heatmap.js</code> - キーヒートマップ（SVGキーボード色分け）</li>
+                <li><code>js/features.js</code> - 残り文字数・進行バー・デイリーチャレンジ・チュートリアル・WPMグラフ（通常+TA）・ベストスコア・XP管理・実績解放</li>
+                <li><code>js/language-manager.js</code> - テキスト取得（重複回避ロジック追加）</li>
+                <li><code>data/practice-texts.json</code> - 練習テキスト220件（5カテゴリ: daily/business/programming/literature/code_snippets）</li>
+            </ul>
+        </div>
+
+        <div class="feature-card">
+            <h2>Round 4 追加機能（2026-05-26）</h2>
+
+            <div class="feature-card" style="margin-top:12px;">
+                <h3>P0-1: タイムアタックシェアIDバグ修正</h3>
+                <p><strong>目的:</strong> タイムアタック結果シェア時にWPM/精度が常に「?」になっていた問題を修正</p>
+                <p><strong>変更:</strong> <code>shareTimeAttackResults()</code> 内のquerySelectorを <code>ta-finalWPM</code> / <code>ta-finalAccuracy</code> に修正</p>
+            </div>
+
+            <div class="feature-card" style="margin-top:12px;">
+                <h3>P1-1: タイピング進行バー</h3>
+                <p><strong>目的:</strong> 現在のテキストのどこまで入力したかを1.5pxの細いバーで視覚化</p>
+                <p><strong>仕様:</strong></p>
+                <ul>
+                    <li>要素: <code>#typingProgressBar</code>（typingInterface内、テキストエリア上部）</li>
+                    <li>更新タイミング: <code>typingInput</code> の <code>input</code> イベント毎</li>
+                    <li>算出式: <code>(入力文字数 / テキスト全長) * 100%</code></li>
+                    <li>カラー: 緑→シアンのグラデーション（linear-gradient）</li>
+                </ul>
+                <p><strong>実装箇所:</strong> <code>features.js</code> の <code>initRemainingChars</code>IIFE内</p>
+            </div>
+
+            <div class="feature-card" style="margin-top:12px;">
+                <h3>P1-2: データインポート機能</h3>
+                <p><strong>目的:</strong> 設定画面の「データをアップロード」ボタンが無反応だった問題を修正</p>
+                <p><strong>仕様:</strong></p>
+                <ul>
+                    <li>JSONファイルを選択 → FileReaderで読み込み → <code>cosmicTyping_</code> プレフィックスのキーのみlocalStorageに復元</li>
+                    <li>成功時: 件数トースト表示 → 1.5秒後にページリロード</li>
+                    <li>失敗時: エラートースト表示</li>
+                </ul>
+                <p><strong>実装箇所:</strong> <code>app.html</code> スクリプトブロック内 <code>setupImport()</code> IIFE</p>
+            </div>
+
+            <div class="feature-card" style="margin-top:12px;">
+                <h3>P2-1: 実績（Achievement）自動解放システム</h3>
+                <p><strong>目的:</strong> 実績リストが常にグレーのまま（解放されない）問題を修正</p>
+                <p><strong>実績定義:</strong></p>
+                <table style="width:100%;border-collapse:collapse;font-size:0.9em;">
+                    <tr style="background:#1e3a5f"><th style="padding:6px;">ID</th><th style="padding:6px;">名称</th><th style="padding:6px;">解放条件</th></tr>
+                    <tr><td><code>first_flight</code></td><td>初回航行</td><td>セッション1回完了</td></tr>
+                    <tr><td><code>speed_pilot</code></td><td>スピードパイロット</td><td>最高WPM ≥ 50</td></tr>
+                    <tr><td><code>planet_finder</code></td><td>惑星発見者</td><td>セッション1回完了</td></tr>
+                </table>
+                <p><strong>ストレージ:</strong> <code>cosmicTyping_achievements</code> = JSON配列（解放済みID）</p>
+                <p><strong>動作:</strong> 結果パネル表示時にMutationObserver経由で自動チェック → 新規解放時トースト通知</p>
+                <p><strong>実装箇所:</strong> <code>features.js</code> 末尾 <code>AchievementUnlocker</code> IIFE</p>
+            </div>
+
+            <div class="feature-card" style="margin-top:12px;">
+                <h3>P2-2: 宇宙船強化ボタン機能実装</h3>
+                <p><strong>目的:</strong> 艦隊画面の強化ボタンが無反応だった問題を修正</p>
+                <p><strong>仕様:</strong></p>
+                <table style="width:100%;border-collapse:collapse;font-size:0.9em;">
+                    <tr style="background:#1e3a5f"><th style="padding:6px;">部品</th><th style="padding:6px;">初期コスト</th><th style="padding:6px;">最大Lv</th><th style="padding:6px;">効果</th></tr>
+                    <tr><td>エンジン</td><td>100 XP × 現在Lv</td><td>Lv.5</td><td>タイピング速度 +5%/Lv</td></tr>
+                    <tr><td>燃料システム</td><td>150 XP × 現在Lv</td><td>Lv.5</td><td>正確率ボーナス +2%/Lv</td></tr>
+                    <tr><td>シールド</td><td>200 XP × 現在Lv</td><td>Lv.5</td><td>ミス時ペナルティ -10%/Lv</td></tr>
+                </table>
+                <p><strong>ストレージ:</strong> <code>cosmicTyping_shipUpgrades</code> = <code>{"engine":1,"fuel":1,"shield":1}</code></p>
+                <p><strong>実装箇所:</strong> <code>app.html</code> スクリプトブロック内 <code>upgradeShip(type)</code> / <code>refreshShipUpgradeUI()</code></p>
+            </div>
+
+            <div class="feature-card" style="margin-top:12px;">
+                <h3>P3-1: タイムアタック中のWPMグラフ表示</h3>
+                <p><strong>目的:</strong> タイムアタック中もWPM推移グラフを確認できるようにする</p>
+                <p><strong>仕様:</strong></p>
+                <ul>
+                    <li>追加要素: <code>#taWpmChartContainer</code> / <code>#taLiveWPMChart</code>（timeAttackInterface内）</li>
+                    <li>WPM取得元: <code>#timeAttackWPM</code>（タイムアタック用リアルタイム表示）</li>
+                    <li>タイムアタックボタン押下で <code>isTimeAttackMode=true</code> としてトラッキング開始</li>
+                    <li>通常モードと独立したChartインスタンス（<code>taChartInstance</code>）を使用</li>
+                </ul>
+                <p><strong>実装箇所:</strong> <code>features.js</code> の <code>initWPMChart</code> IIFE（<code>startTracking(timeAttack)</code> 引数で分岐）</p>
+            </div>
+
+            <div class="feature-card" style="margin-top:12px;">
+                <h3>P3-2: キーボードショートカット</h3>
+                <p><strong>目的:</strong> マウスなしでゲームを操作できる利便性向上</p>
+                <p><strong>仕様:</strong></p>
+                <table style="width:100%;border-collapse:collapse;font-size:0.9em;">
+                    <tr style="background:#1e3a5f"><th style="padding:6px;">キー</th><th style="padding:6px;">動作</th><th style="padding:6px;">条件</th></tr>
+                    <tr><td><code>Enter</code></td><td>タイピング開始</td><td>startBtnが表示中 かつ 入力欄にフォーカスなし</td></tr>
+                    <tr><td><code>Escape</code></td><td>一時停止</td><td>pauseBtnが表示中 かつ 入力欄にフォーカスなし</td></tr>
+                </table>
+                <p>各ボタンに <code>title</code> 属性でショートカット表示（ホバー時にツールチップ）</p>
+                <p><strong>実装箇所:</strong> <code>app.html</code> スクリプトブロック内 <code>setupKeyboardShortcuts()</code> IIFE</p>
+            </div>
+        </div>
+
+        <div class="feature-card">
+            <h4>localStorage キー一覧（全キー）</h4>
+            <table style="width:100%;border-collapse:collapse;font-size:0.9em;">
+                <tr style="background:#1e3a5f"><th style="padding:6px;text-align:left;">キー</th><th style="padding:6px;">型</th><th style="padding:6px;">説明</th></tr>
+                <tr><td><code>cosmicTyping_streak</code></td><td>JSON</td><td>連続練習ストリーク {lastDate, count, maxCount}</td></tr>
+                <tr><td><code>cosmicTyping_keyMisses</code></td><td>JSON</td><td>キーごとのミス回数 {key: {hits, misses}}</td></tr>
+                <tr><td><code>cosmicTyping_daily_YYYY-MM-DD</code></td><td>string</td><td>デイリーチャレンジ完了フラグ</td></tr>
+                <tr><td><code>cosmicTyping_tutorialDone</code></td><td>string</td><td>チュートリアル完了フラグ</td></tr>
+                <tr><td><code>cosmicTyping_bestWPM</code></td><td>number</td><td>自己ベストWPM</td></tr>
+                <tr><td><code>cosmicTyping_bestAccuracy</code></td><td>number</td><td>自己ベスト正確率</td></tr>
+                <tr><td><code>cosmicTyping_totalSessions</code></td><td>number</td><td>累積セッション数</td></tr>
+                <tr><td><code>cosmicTyping_avgWPM</code></td><td>number</td><td>累積平均WPM</td></tr>
+                <tr><td><code>cosmicTyping_xp</code></td><td>number</td><td>累積XP</td></tr>
+                <tr><td><code>cosmicTyping_level</code></td><td>number</td><td>現在レベル</td></tr>
+                <tr><td><code>cosmicTyping_fontSize</code></td><td>string</td><td>フォントサイズ設定 (xs/sm/md/lg/xl)</td></tr>
+                <tr><td><code>cosmicTyping_pilotName</code></td><td>string</td><td>パイロット名</td></tr>
+                <tr><td><code>cosmicTyping_sound</code></td><td>string</td><td>効果音ON/OFF ('true'/'false')</td></tr>
+                <tr><td><code>cosmicTyping_bgm</code></td><td>string</td><td>BGM ON/OFF ('true'/'false')</td></tr>
+                <tr><td><code>cosmicTyping_lastTimeAttack</code></td><td>number</td><td>最後のタイムアタック秒数</td></tr>
+                <tr><td><code>cosmicTyping_dailyActive</code></td><td>string</td><td>デイリーチャレンジ進行中フラグ</td></tr>
+                <tr><td><code>cosmicTyping_achievements</code></td><td>JSON</td><td>解放済み実績IDの配列（Round4追加）</td></tr>
+                <tr><td><code>cosmicTyping_shipUpgrades</code></td><td>JSON</td><td>宇宙船強化レベル {engine, fuel, shield}（Round4追加）</td></tr>
+                <tr><td><code>cosmicTyping_totalSeconds</code></td><td>number</td><td>累積練習時間（秒）（Round5追加）</td></tr>
+                <tr><td><code>cosmicTyping_discoveries</code></td><td>JSON</td><td>最近の発見リスト [{planet,wpm,time}×5件]（Round5追加）</td></tr>
+                <tr><td><code>cosmicTyping_codeDone</code></td><td>string</td><td>コードモード完了フラグ（Round5追加）</td></tr>
+            </table>
+        </div>
+
+        <div class="feature-card">
+            <h2>Round 5 追加機能（2026-05-27）</h2>
+            <ul>
+                <li><strong>P0-1</strong>: タイムアタック中の進行バー対応 — <code>timeAttackInput</code> inputイベントで <code>typingProgressBar</code> 更新</li>
+                <li><strong>P1-1</strong>: 統計「総練習時間」実装 — <code>cosmicTyping_totalSeconds</code> に累積、統計タブに分表示</li>
+                <li><strong>P1-2</strong>: 最近の発見リスト — <code>DiscoveryManager</code> IIFE、セッション完了時に惑星名・WPM・時刻を先頭追加（最大5件）</li>
+                <li><strong>P2-1</strong>: 実績を3→9種類に拡充 — 精密操縦士(100%)/ハイパードライブ(WPM80)/マラソンパイロット(10回)/3日連続/デイリーヒーロー/コードパイロット</li>
+                <li><strong>P2-2</strong>: Xでシェアボタン — 通常結果・タイムアタック結果両方に追加、<code>x.com/intent/tweet</code> 経由で投稿</li>
+                <li><strong>P3-1</strong>: 宇宙船アンロック — avgWPM≥40→スピードクルーザー解放 / sessions≥5→エクスプローラー解放</li>
+                <li><strong>P3-2</strong>: コードモードmonospaceフォント — <code>.code-mode-text</code> CSS + <code>startCodeMission()</code> 関数</li>
+            </ul>
+            <p>コミット: 11265b8</p>
+        </div>
+
+        <div class="feature-card">
+            <h2>Round 6 追加機能（2026-05-27）</h2>
+            <ul>
+                <li><strong>P0-1</strong>: 宇宙船ステータスバーをリアルタイム更新 — SidebarUpdater（250ms間隔でliveWPM/Accuracy/Comboを監視してspeedBar/fuelBar/shieldBarを更新）</li>
+                <li><strong>P0-2</strong>: コードモードフォントリセット — <code>_clearCodeMode()</code> を selectNewMission/playAgain/resetTyping に追加</li>
+                <li><strong>P1-1</strong>: 発見した惑星カウント — DiscoveryManager.addDiscovery内で <code>cosmicTyping_planetCount</code> をインクリメント、planetsDiscovered/explorationBar/totalPlanetsを更新</li>
+                <li><strong>P1-2</strong>: 詳細分析タブ実装 — data-analyticsボタンのイベントリスナー + <code>buildAnalyticsHTML(type)</code> 関数（日別/週別/月別/キー分析/進歩トレンド）</li>
+                <li><strong>P2-1</strong>: タイムアタック結果に獲得XP表示 — <code>#ta-earnedXP</code> HTML追加、XPManagerから更新</li>
+                <li><strong>P2-2</strong>: データリセット二段階確認 — confirm()後にprompt('DELETE入力')を追加</li>
+                <li><strong>P3-1</strong>: カウントダウン表示 — CountdownManager IIFE（3→2→1→GO! 0.7秒間隔、typingInterface上にオーバーレイ）</li>
+                <li><strong>P3-2</strong>: モバイル自動フォーカス — navigator.maxTouchPoints > 0 のとき startTyping()後にtypingInput.focus()呼出</li>
+            </ul>
+            <p>コミット: 5de9085 | localStorage追加キー: <code>cosmicTyping_planetCount</code></p>
+        </div>
+
+        <div class="feature-card">
+            <h2>Round 7 バグ修正・品質改善（2026-05-27）</h2>
+            <ul>
+                <li><strong>P0-1: CountdownManager タイミングバグ修正</strong><br>
+                    <em>問題</em>: startBtn クリック時、<code>startTyping()</code> と app.js の addEventListener の両方が即座に <code>startPractice()</code> を呼び出し、カウントダウン中（3秒間）にWPMタイマーが動作していた。<br>
+                    <em>修正</em>: CountdownManager を <code>{ capture: true }</code> キャプチャフェーズで登録し、<code>e.stopImmediatePropagation()</code> で他のリスナーをブロック。GO! 表示後のコールバック内でのみ <code>window.app.startPractice()</code> を呼び出す。startBtn の onclick 属性を空文字に変更。<br>
+                    <em>キーボードショートカット対応</em>: Enterキーのハンドラを <code>startTyping()</code> から <code>startBtn.click()</code> に変更し、カウントダウンを経由させる。</li>
+                <li><strong>P0-2: SidebarUpdater コンボ上書きバグ修正</strong><br>
+                    <em>問題</em>: SidebarUpdater が <code>timeAttackCombo</code>（timeAttackInterface 内）を参照していたが、このインターフェイスは実際には使用されていないため常に 0 → サイドバーのコンボが常に「0x」と表示。<br>
+                    <em>修正</em>: <code>timeAttackCombo</code> 参照を削除。コンボ表示は「−」（ライブコンボ非対応）に変更。shieldBar は精度（accuracy）で代替表示。</li>
+                <li><strong>P1-1: アチーブメント「惑星発見者」条件重複修正</strong><br>
+                    <em>問題</em>: <code>first_flight</code> と <code>planet_finder</code> が両方 <code>sessions >= 1</code> で同時アンロック。<br>
+                    <em>修正</em>: <code>planet_finder</code> の条件を <code>sessions >= 3</code>・説明文を「3回のセッションを完了」に変更。</li>
+                <li><strong>P1-2: タイムアタック初期タイマー表示修正</strong><br>
+                    <em>問題</em>: <code>timeAttackTimer</code> の初期値が「01:00」ハードコードで、30秒・3分・5分を選択しても表示が変わらなかった。<br>
+                    <em>修正</em>: <code>initTATimerDisplay()</code> IIFE を app.html に追加。各 <code>.time-attack-btn</code> クリック時に <code>data-time-attack</code> 値を MM:SS 形式に変換して即座に表示更新。</li>
+                <li><strong>P2-2: キーボードショートカットのUI可視化</strong><br>
+                    ゲームコントロールボタン下部に <kbd>Enter</kbd> 開始 / <kbd>Esc</kbd> 一時停止 のショートカットヒントを常時表示。</li>
+            </ul>
+            <p>コミット: 未確定 | 変更ファイル: <code>js/features.js</code>, <code>app.html</code></p>
+        </div>
+
+        <div class="feature-card">
+            <h2>Round 8 機能追加・バグ修正（2026-05-27）</h2>
+            <ul>
+                <li><strong>P0-1: WPMチャートTAモード修正</strong><br>
+                    <em>問題</em>: <code>initWPMChart</code>がTAモード時に<code>taLiveWPMChart</code>（非表示のtimeAttackInterface内）を参照していたためグラフが表示されなかった。<br>
+                    <em>修正</em>: <code>renderChart()</code>のTA分岐を削除し、常に<code>liveWPMChart</code>/<code>wpmChartContainer</code>を使用。wpmDisplayIdも<code>liveWPM</code>に統一。</li>
+                <li><strong>P1-1: 残り文字数カウンター修正</strong><br>
+                    <em>問題</em>: <code>window.app.currentText</code>が未定義のため残り文字数が常に0だった。<br>
+                    <em>修正</em>: <code>window.app.typingEngine.currentText → textDisplay.textContent</code>の順にフォールバック取得。</li>
+                <li><strong>P1-2: ミッション選択カードに難易度バッジ追加</strong><br>
+                    各ミッションカードに難易度（★☆☆初級 / ★★☆中級 / ★★★上級）とカテゴリ例（日常会話/文学/プログラミング等）を表示。</li>
+                <li><strong>P1-3: WPM数値にアニメーション追加</strong><br>
+                    <code>liveWPM</code>要素に<code>transition: color 0.4s ease</code>を付与。目標WPM達成時のゴールドカラー変化が滑らかに。</li>
+                <li><strong>P2-1: カスタムテキスト練習モード</strong><br>
+                    ミッション選択にカスタムテキストボタン追加。<code>startCustomMission()</code>: prompt()でテキスト入力→<code>selectPlanet('earth')</code>→200ms後に<code>textDisplay.textContent</code>差し替え→<code>typingEngine.reset()</code>でカスタムテキストを反映。localStorage(<code>cosmicTyping_customText</code>)に保存。</li>
+                <li><strong>P2-2: WPM目標設定</strong><br>
+                    textDisplay上部に目標WPM入力欄追加。<code>WpmTargetManager</code> IIFE（features.js）: 500ms間隔でliveWPMを監視し目標超過時にゴールド色＋一度だけトースト表示。<code>saveWpmTarget()</code>でlocalStorage(<code>cosmicTyping_wpmTarget</code>)保存。</li>
+                <li><strong>P2-3: フォントサイズ調整</strong><br>
+                    textDisplay上部に小/中/大ボタン追加。<code>setTextSize(size)</code>: textDisplayにtext-sm/base/lgクラス切り替え。localStorageに保存しページロード時復元。</li>
+                <li><strong>P3-1: Xシェア文にストリーク情報追加</strong><br>
+                    <code>shareToX()</code>にストリーク日数を追加（例: 🔥3日連続！）。</li>
+                <li><strong>P3-2: 統計タブ「日別」にChart.jsグラフ追加</strong><br>
+                    <code>buildAnalyticsHTML('daily')</code>内で直近7セッションのWPM棒グラフ（Chart.js）を動的生成。canvas要素を返しsetTimeout(50ms)後に描画。</li>
+            </ul>
+            <p>コミット: 未確定 | localStorage追加キー: <code>cosmicTyping_customText</code>, <code>cosmicTyping_wpmTarget</code>, <code>cosmicTyping_fontSize</code></p>
+        </div>
+
+        <div class="feature-card">
+            <h2>Round 9 機能追加（2026-05-27）</h2>
+            <ul>
+                <li><strong>P0-1: 宇宙船エンジン強化のXP倍率を実際に適用</strong><br>
+                    <code>XPManager.calcXPGain()</code>に<code>cosmicTyping_shipUpgrades.engine</code>レベルに応じたXP倍率を追加（Lv1=×1.0, Lv2=×1.2, Lv3=×1.5, Lv4=×1.8, Lv5=×2.0）。結果画面の獲得XP下に倍率バッジ（<code>id="xpMultiplierBadge"</code>）を表示。</li>
+                <li><strong>P0-2: コンボシステム修正（通常モード対応）</strong><br>
+                    新IIFE <code>ComboTracker</code>（features.js）: <code>typingInput</code>のinputイベントで入力文字列がprefixとして一致している限りコンボカウントアップ、不一致でリセット。サイドバー<code>currentCombo</code>をリアルタイム更新し、セッション終了時に<code>finalCombo</code>に最大コンボを反映。</li>
+                <li><strong>P1-1: 結果画面に「次の文章へ」ボタン追加</strong><br>
+                    <code>nextText()</code>関数: <code>window.app.currentPlanet</code>で同惑星を再選択し次テキストをロード。結果ボタン列の先頭に配置（青色ボタン）。</li>
+                <li><strong>P1-3: 結果画面に前回セッション比較（WPM差分）表示</strong><br>
+                    新IIFE <code>LastSessionCompare</code>（features.js）: セッション終了時にWPMを<code>cosmicTyping_lastSessionWPM</code>に保存し、次回結果表示時に<code>▲+5.2 WPM（前回比）</code>形式で差分表示（<code>id="wpmDiff"</code>）。上昇=緑、下降=赤。</li>
+                <li><strong>P2-1: デイリーチャレンジに具体的ゴール追加</strong><br>
+                    <code>DailyChallengeManager</code>に<code>GOALS</code>配列（5種: 60WPM達成/正確率95%以上/WPM50かつ正確率90%/コンボ30x以上/40WPM達成）を追加。日付ベースseedで毎日変わる目標を選択し<code>dailyChallengeGoal</code>要素に表示。ゴール達成時に+200XP、未達成時は「もう一度挑戦！」トースト。</li>
+                <li><strong>P2-2: 実績解放の演出強化（全画面モーダル）</strong><br>
+                    <code>AchievementUnlocker</code>に<code>showAchievementModal(def)</code>追加。実績解放時に<code>#achievementModal</code>（固定位置、z-[500]）でアイコン・タイトル・説明を大きく表示。CSSアニメーション<code>achievePopIn</code>（弾むスケール演出）付き。2.8秒後自動クローズ。</li>
+                <li><strong>P3-1: 週次タブにWPM推移グラフ追加</strong><br>
+                    <code>buildAnalyticsHTML('weekly')</code>改修: 直近14セッションのWPM推移をChart.js折れ線グラフ（紫系）で表示。daily同様の動的canvas生成パターン。</li>
+                <li><strong>P3-2: キーヒートマップをQWERTYキーボード形状で表示</strong><br>
+                    <code>buildAnalyticsHTML('keys')</code>改修: 3段のQWERTYキーボードをHTML divで描画。ミス率に応じて各キーを赤〜ダーク系グラデーションで着色（<code>rgb(180, g, g)</code>形式）。苦手キーTop5も補足表示。</li>
+            </ul>
+            <p>localStorage追加キー: <code>cosmicTyping_lastSessionWPM</code> | 変更ファイル: js/features.js, app.html</p>
+        </div>
+
+        <p style="text-align: center; margin-top: 40px; color: #9ca3af;">
+            最終更新: 2026年5月27日 Round9 | Cosmic Typing Adventure Development Team
+        </p>
+    </div>
+</body>
+</html>

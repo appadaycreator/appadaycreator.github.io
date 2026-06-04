@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":
+new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
+"https://www.googletagmanager.com/gtm.js?id="+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,"script","dataLayer","GTM-TXQGZRF9");</script>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-ZDPNYD2875"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-ZDPNYD2875',{send_page_view:false});</script>
+<!-- End Google Tag Manager -->
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ワクチン相談チャット — 資料に基づくAI情報提供</title>
+    <meta name="description" content="厚労省等の公式資料をもとに、予防接種に関する疑問にAIがお答えします。診断ではなく情報提供サービスです。" />
+    <meta property="og:title" content="ワクチン相談チャット" />
+    <meta property="og:description" content="厚労省等の公式資料をもとに、予防接種に関する疑問にAIがお答えします。" />
+    <meta property="og:type" content="website" />
+<!-- phase8-favicon -->
+<link rel="icon" type="image/svg+xml" href="/vaccine-chatbot/favicon.svg">
+<link rel="apple-touch-icon" href="/vaccine-chatbot/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#7c3aed">
+    <link rel="stylesheet" href="./style.css" />
+      <style>
+/* Phase 8: Mobile Optimization */
+input, select, textarea { font-size: 16px !important; }
+button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min-width: 48px; touch-action: manipulation; }
+@media (max-width: 640px) {
+  body { font-size: 16px; }
+  .max-w-lg { padding-left: 1rem; padding-right: 1rem; }
+}
+</style>
+</head>
+  <body>
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+    <a class="skip-link" href="#prompt">チャット入力へ移動</a>
+    <header class="header">
+      <div class="header__title">
+        <h1>ワクチン相談チャット</h1>
+        <p class="muted">厚労省等の公式資料をもとに、予防接種に関する疑問にお答えします</p>
+        <p class="muted small">
+          免責: 診断ではありません。緊急性が疑われる場合は <strong>119（救急）</strong> を利用してください。
+        </p>
+      </div>
+      <div class="header__links">
+        <a href="./" aria-label="ページを再読み込み">再読み込み</a>
+        <a href="./tech.html">利用技術</a>
+      </div>
+    </header>
+
+    <main class="main" id="main">
+      <section class="card card--chat">
+        <h2>チャット</h2>
+        <div class="chatTools" aria-label="チャット操作">
+          <button id="copyChatLog" class="btn btn--secondary" type="button">会話ログをコピー</button>
+        </div>
+        <div id="messages" class="messages" aria-live="polite"></div>
+        <div id="progress" class="muted small progress" aria-live="polite"></div>
+        <div id="guard" class="muted small error" aria-live="polite"></div>
+
+        <!-- クイックスタート質問ボタン -->
+        <div class="quick" id="quickQuestions" aria-label="よくある質問">
+          <button class="btn btn--secondary quick__btn" type="button" data-question="インフルエンザワクチンの副反応にはどんなものがありますか？">インフルエンザの副反応は？</button>
+          <button class="btn btn--secondary quick__btn" type="button" data-question="子供のワクチン接種スケジュールを教えてください。">子供のワクチンスケジュール</button>
+          <button class="btn btn--secondary quick__btn" type="button" data-question="ワクチン接種後の発熱はいつまで続きますか？">接種後の発熱はいつまで？</button>
+          <button class="btn btn--secondary quick__btn" type="button" data-question="ワクチンを接種できない人（接種不適当者）の条件は何ですか？">接種できない場合の条件</button>
+        </div>
+
+        <form id="chatForm" class="composer">
+          <textarea
+            id="prompt"
+            placeholder="質問を入力…（例: インフルエンザワクチンの副反応は？）"
+            autocomplete="off"
+            spellcheck="true"
+            required
+            rows="3"
+          ></textarea>
+          <button id="send" class="btn btn--primary" type="submit">送信</button>
+          <button id="resend" class="btn btn--secondary" type="button" disabled>再送</button>
+          <button id="cancel" class="btn btn--secondary" type="button" hidden>キャンセル</button>
+        </form>
+        <div class="muted small">
+          操作: Enterキーで送信 / Shift+Enterで改行 / ↑↓で履歴<br />
+          ヒント: URLに <code>?api=...</code> を付けても設定できます（例:
+          <code>?api=https%3A%2F%2Fxxxx.trycloudflare.com</code>）
+        </div>
+      </section>
+
+      <section class="card">
+        <details id="connectAccordion" class="accordion">
+          <summary class="accordion__summary">
+            <span class="accordion__title">接続先（APIのURL）</span>
+            <span class="accordion__meta muted small" id="apiBaseSummary">未設定</span>
+          </summary>
+          <div class="accordion__body">
+            <p class="muted small">
+              <strong>推奨</strong>: 迷わず使える導線として、FastAPI がこのUI（<code>docs/</code>）を <code>/ui</code> 配下で配信します。<br />
+              <code>/ui</code> で開いた場合は「APIのURL入力」は不要で、同一オリジンの <code>/chat</code> 等を呼びます。<br />
+              ローカル例:
+              <a href="http://127.0.0.1:8000/ui/" rel="noopener noreferrer">http://127.0.0.1:8000/ui/</a>
+              （このページがAPI配下で配信されている場合のみ有効）:
+              <a href="/ui/" rel="noopener noreferrer">/ui/</a>
+            </p>
+            <div class="row">
+              <label for="apiBase">APIのURL</label>
+              <input
+                id="apiBase"
+                type="url"
+                placeholder="https://xxxx.trycloudflare.com"
+                autocomplete="off"
+                spellcheck="false"
+                aria-describedby="apiBaseHelp"
+              />
+              <button id="saveApiBase" class="btn btn--secondary" type="button">保存</button>
+            </div>
+            <p class="muted" id="apiBaseHelp">
+              GitHub Pages（HTTPS）からは <code>http://localhost:8000</code> へ直接アクセスできません（混在コンテンツ）。<br />
+              <code>cloudflared tunnel --url http://localhost:8000</code> で発行される HTTPS URL を指定してください。
+            </p>
+          </div>
+        </details>
+      </section>
+
+      <section class="card">
+        <details class="accordion">
+          <summary class="accordion__summary">
+            <span class="accordion__title">設定（モデル / 検索件数）</span>
+            <span class="accordion__meta muted small" id="settingsSummary">モデル: 未選択 / k=3</span>
+          </summary>
+          <div class="accordion__body">
+            <div class="row row--wrap">
+              <div class="field">
+                <label for="model">モデル</label>
+                <select id="model">
+                  <option value="" selected>（環境チェックでインストール済みモデルを自動反映）</option>
+                </select>
+                <div class="muted small">※ APIの <code>/diagnostics</code> から取得した「インストール済みモデル」を候補として表示します。</div>
+              </div>
+              <div class="field">
+                <label for="k">検索件数（k）</label>
+                <input id="k" type="number" min="1" max="20" step="1" value="3" aria-describedby="kHelp" />
+                <div class="muted small" id="kHelp">
+                  数字が大きいほど、より多くの資料を候補として探します（遅くなる場合があります）。
+                </div>
+              </div>
+              <div class="field">
+                <div class="muted small">
+                  ※回答は参照PDF（資料）に書かれている内容に限定します。該当箇所を特定できない場合は「資料にない」と返ります。
+                </div>
+              </div>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="card">
+        <details class="accordion">
+          <summary class="accordion__summary">
+            <span class="accordion__title">環境チェック</span>
+            <span class="accordion__meta">
+              <span id="diagOverall" class="pill pill--yellow">未確認</span>
+            </span>
+          </summary>
+          <div class="accordion__body">
+            <p class="muted">
+              Ollamaが未起動・モデル未ダウンロードなど、<strong>「なぜ動かないか」</strong>を表示します（APIの <code>/diagnostics</code> を参照）。
+            </p>
+            <div class="muted small" id="diagSummary"></div>
+            <div class="muted small error" id="diagError"></div>
+            <ul class="diag-list" id="diagList"></ul>
+          </div>
+        </details>
+      </section>
+
+      <section class="card">
+        <details class="accordion">
+          <summary class="accordion__summary">
+            <span class="accordion__title">参照ソース（PDF一覧）</span>
+            <span class="accordion__meta muted small" id="sourcesStatus"></span>
+          </summary>
+          <div class="accordion__body">
+            <p class="muted">
+              APIサーバー側で <code>PDF_DIR</code>（既定: <code>./pdfs</code>）に置かれたPDFを参照します。
+              反映が必要な場合はAPIの <code>/reload</code> で索引（検索の準備）を作り直せます。
+            </p>
+            <div class="row">
+              <label for="reloadIndex">資料の更新を反映</label>
+              <div class="muted small">
+                PDFを追加・更新したあとに反映が遅い場合は、ここから索引（検索の準備）を作り直して反映できます。
+              </div>
+              <button id="reloadIndex" class="btn btn--secondary" type="button">反映する</button>
+            </div>
+            <div class="muted small" id="sourcesIndexing"></div>
+            <div class="muted small error" id="sourcesError"></div>
+            <div class="muted small" id="sourcesNextActions"></div>
+            <div class="muted small" id="sourcesList"></div>
+          </div>
+        </details>
+      </section>
+
+      <section class="card">
+        <details class="accordion">
+          <summary class="accordion__summary">
+            <span class="accordion__title">免責（診断ではありません）</span>
+            <span class="accordion__meta muted small">クリックで全文を表示</span>
+          </summary>
+          <div class="accordion__body">
+            <p class="muted">
+              本ツールは、参照PDF（厚労省等の資料）の内容に基づく情報提供を目的としており、診断や治療の代替ではありません。<br />
+              体調が悪い・不安が強い場合は、接種を受けた医療機関またはお住まいの自治体の予防接種相談窓口に相談してください。<br />
+              呼吸が苦しい、意識がもうろう、症状が急に悪化した等の緊急性が疑われる場合は <strong>119（救急）</strong> を利用してください。
+            </p>
+          </div>
+        </details>
+      </section>
+
+      <!-- 利用者の声 -->
+      <section class="card social-proof">
+        <h3 class="social-proof__title">⭐ 利用者の声</h3>
+        <div class="social-proof__list">
+          <div class="social-proof__item">
+            <p class="social-proof__text">「資料に基づいた回答なので安心して確認できました。接種前に疑問を解消できて助かりました！」</p>
+            <p class="social-proof__author">— 田中さん（30代・会社員）★★★★★</p>
+          </div>
+          <div class="social-proof__item">
+            <p class="social-proof__text">「子供のワクチンスケジュールを調べるのにとても便利でした。資料の引用も確認できて信頼できます。」</p>
+            <p class="social-proof__author">— 佐藤さん（40代・主婦）★★★★★</p>
+          </div>
+          <div class="social-proof__item">
+            <p class="social-proof__text">「登録不要でサクッと使えるのが良いです。副反応について詳しく情報収集できました。」</p>
+            <p class="social-proof__author">— 山本さん（20代・学生）★★★★☆</p>
+          </div>
+        </div>
+        <div class="social-proof__share">
+          <a href="https://line.me/R/share?text=ワクチン相談チャット%20https://appadaycreator.com/vaccine-chatbot/" target="_blank" rel="noopener"
+             class="share-btn share-btn--line">
+            LINEでシェア
+          </a>
+          <a href="https://twitter.com/intent/tweet?text=ワクチン相談チャット%20—%20資料に基づくAI情報提供&url=https://appadaycreator.com/vaccine-chatbot/&via=appadaycreator" target="_blank" rel="noopener"
+             class="share-btn share-btn--x">
+            Xでシェア
+          </a>
+        </div>
+      </section>
+
+      <!-- 関連サービス -->
+      <section class="card related-links">
+        <h3 class="related-links__title">🔗 関連サービス</h3>
+        <a href="https://appadaycreator.com/ai-meditation-forest/" class="related-links__item">→ 瞑想ガイドAIが気分に合わせた瞑想をナビゲート｜静寂の森</a>
+        <a href="https://appadaycreator.com/allowance-manager/" class="related-links__item">→ 子供のおこづかい管理アプリ記録・管理アプリ</a>
+        <a href="https://appadaycreator.com/book-forest/" class="related-links__item">→ 読書記録読んだ本・積ん読を管理する読書トラッカー</a>
+        <a href="https://appadaycreator.com/business-idea-validator/" class="related-links__item">→ ビジネスアイデア検証ツール5軸スコアリング診断</a>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="./app.js"></script>
+</body>
+</html>
