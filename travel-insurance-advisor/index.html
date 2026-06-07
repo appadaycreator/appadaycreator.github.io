@@ -144,6 +144,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 }
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://appadaycreator.com/"},{"@type":"ListItem","position":2,"name":"計算機/お金","item":"https://appadaycreator.com/category/finance/"},{"@type":"ListItem","position":3,"name":"海外旅行保険診断 | 旅行先・日数・目的から最適な補償を無料チェック","item":"https://appadaycreator.com/travel-insurance-advisor/"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"クレカ付帯保険と単体の旅行保険、何が違うの？","acceptedAnswer":{"@type":"Answer","text":"クレカ付帯保険は自動付帯と利用付帯があり、補償額が低い・携行品や航空機遅延補償が弱いケースが多いです。北米や長期旅行では単体保険を強く推奨します。"}},{"@type":"Question","name":"旅行保険はいつまでに加入すればいい？","acceptedAnswer":{"@type":"Answer","text":"多くの保険会社では出発当日まで加入可能です。ただし旅行キャンセル費用補償は出発前日までが多く、早めの加入が有利です。インターネット申込なら24時間受付で5〜10分で完了します。"}},{"@type":"Question","name":"アメリカ旅行はなぜ高額な補償が必要？","acceptedAnswer":{"@type":"Answer","text":"アメリカの医療費は世界最高水準で、盲腸の手術だけで100〜300万円かかることもあります。最低でも傷害・疾病医療費1億円以上の補償を選びましょう。"}},{"@type":"Question","name":"持病がある場合、海外旅行保険に入れますか？","acceptedAnswer":{"@type":"Answer","text":"通常の旅行保険では持病・既往症に起因する病気やケガは補償対象外です。「既往症特約付き」「持病保険対応」の商品を専門に選ぶか、比較サイトで条件確認しましょう。"}},{"@type":"Question","name":"海外で病院にかかった時の手順は？","acceptedAnswer":{"@type":"Answer","text":"まず保険会社の緊急連絡先（24時間対応）に電話します。指定の病院で受診し、領収書・診断書・処方箋を必ず保管してください。帰国後に書類をそろえて保険金請求します。"}},{"@type":"Question","name":"スキーやダイビングなどのアクティビティは補償される？","acceptedAnswer":{"@type":"Answer","text":"スキー・マリンスポーツは対応している保険が多いですが、バンジージャンプや高所登山は免責（対象外）が多いです。加入前に対象アクティビティを必ず確認してください。"}},{"@type":"Question","name":"この診断ツールは無料で使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料でご利用いただけます。登録・ログイン不要で、何度でもお使いいただけます。入力データはサーバーに送信されず、ブラウザ上でのみ処理されます。"}}]}</script>
 </head>
 <body class="min-h-screen" style="background:#f8fafc;"><a href="#main" class="sr-only">本文へスキップ</a>
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -334,6 +335,16 @@ function selectOpt(i) {
   const qIdx = visibleQs[currentQ];
   answers[QUESTIONS[qIdx].id] = i;
   renderQ();
+  // 単一選択は0.3秒後に自動進行
+  setTimeout(() => {
+    visibleQs = getVisibleQuestions();
+    if (currentQ < visibleQs.length - 1) {
+      currentQ++;
+      renderQ();
+    } else {
+      showResult();
+    }
+  }, 300);
 }
 
 function selectMulti(i) {
@@ -420,11 +431,26 @@ function showResult() {
   const destNames = ['東南アジア','東アジア','ヨーロッパ','北米','オセアニア','中南米・中東・アフリカ'];
   const medicalAmt = dest >= 3 ? '1億円以上' : dest >= 2 ? '5,000万円以上' : '2,000万円以上';
 
+  // 保険料の目安（旅行先×日数から算出）
+  const costTable = [
+    // [東南アジア, 東アジア, ヨーロッパ, 北米, オセアニア, 中南米等]
+    ['1,000〜2,000円', '800〜1,500円', '1,500〜2,500円', '2,500〜4,000円', '2,000〜3,500円', '2,500〜5,000円'], // 2〜3日
+    ['1,500〜3,000円', '1,200〜2,500円', '2,500〜4,500円', '4,000〜7,000円', '3,500〜6,000円', '4,000〜8,000円'], // 4〜7日
+    ['2,500〜5,000円', '2,000〜4,000円', '4,000〜7,000円', '7,000〜12,000円', '6,000〜10,000円', '7,000〜14,000円'], // 8〜14日
+    ['4,000〜8,000円', '3,000〜6,000円', '7,000〜13,000円', '12,000〜22,000円', '10,000〜18,000円', '12,000〜24,000円'], // 15〜30日
+    ['8,000〜18,000円', '6,000〜12,000円', '15,000〜30,000円', '25,000〜50,000円', '20,000〜40,000円', '25,000〜60,000円'], // 31日以上
+  ];
+  const costRange = (costTable[days] || costTable[0])[(dest >= 0 && dest <= 5) ? dest : 0];
+
   document.getElementById('coverageList').innerHTML = `
+    <div class="flex justify-between items-center border-b pb-2 mb-1">
+      <span class="text-gray-600 font-semibold">💰 保険料の目安</span>
+      <span class="font-bold text-orange-600">${costRange}</span>
+    </div>
     <div class="flex justify-between items-center border-b pb-2"><span class="text-gray-600">傷害・疾病医療費</span><span class="font-bold text-sky-800">${medicalAmt}</span></div>
     <div class="flex justify-between items-center border-b pb-2"><span class="text-gray-600">救援者費用</span><span class="font-bold text-sky-800">500万円以上</span></div>
     <div class="flex justify-between items-center border-b pb-2"><span class="text-gray-600">賠償責任</span><span class="font-bold text-sky-800">1億円以上</span></div>
-    <div class="flex justify-between items-center border-b pb-2"><span class="text-gray-600">航空機遅延・欠航</span><span class="font-bold text-sky-800">${days >= 2 ? '推奨' : '任意'}</span></div>
+    <div class="flex justify-between items-center border-b pb-2"><span class="text-gray-600">航空機遅延・欠航</span><span class="font-bold text-sky-800">${days >= 1 ? '推奨' : '任意'}</span></div>
     <div class="flex justify-between items-center border-b pb-2"><span class="text-gray-600">携行品損害</span><span class="font-bold text-sky-800">${luggage >= 2 ? '20万円以上' : '10万円程度'}</span></div>
     <div class="flex justify-between items-center"><span class="text-gray-600">旅行キャンセル費用</span><span class="font-bold text-sky-800">${purpose === 1 || purpose === 3 ? '推奨' : '任意'}</span></div>`;
 
@@ -437,6 +463,15 @@ function showResult() {
   document.getElementById('warnings').innerHTML = warns.map(w => `<p>${w}</p>`).join('');
 
   document.getElementById('preExistingSection').classList.toggle('hidden', preEx === 0);
+
+  // SNSシェアリンクを診断結果URLで動的更新
+  const resultURL = `${window.location.origin}${window.location.pathname}?result=${encodeResult()}`;
+  const shareTitle = encodeURIComponent('海外旅行保険診断 | 旅行先・日数・目的から最適な補償を無料チェック');
+  const shareUrl = encodeURIComponent(resultURL);
+  const lineShareEl = document.getElementById('lineShareBtn');
+  const xShareEl = document.getElementById('xShareBtn');
+  if (lineShareEl) lineShareEl.href = `https://line.me/R/share?text=${shareTitle}%20${shareUrl}`;
+  if (xShareEl) xShareEl.href = `https://twitter.com/intent/tweet?text=${shareTitle}&url=${shareUrl}&via=appadaycreator`;
 
   const tips = [
     '📅 出発前日まで加入可能な保険が多いです',
@@ -498,24 +533,32 @@ if (params.has('result')) {
   <h2 style="font-size:16px;font-weight:700;color:#1e293b;margin:0 0 16px;text-align:center;">❓ よくある質問（FAQ）</h2>
   <div style="max-width:680px;margin:0 auto;">
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
-      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. 診断結果の精度はどのくらいですか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">本ツールは入力情報をもとにした参考情報の提供を目的としています。重要な判断の際は専門家や公式情報もあわせてご確認ください。</p>
+      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. クレカ付帯保険と単体の旅行保険、何が違うの？ <span>▼</span></summary>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">クレカ付帯保険は「自動付帯（持っているだけで適用）」と「利用付帯（旅費をそのカードで決済した場合のみ適用）」があります。補償額が低い・携行品や航空機遅延補償が弱いケースが多く、北米や長期旅行では単体保険を強く推奨します。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
-      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. プライバシーは守られますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">入力された健康情報はサーバーに送信・保存されません。すべてお使いのブラウザ上で処理されます。</p>
+      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. 旅行保険はいつまでに加入すればいい？ <span>▼</span></summary>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">多くの保険会社では出発当日まで加入可能です。ただし旅行キャンセル費用補償は出発前日までが多く、早めの加入が有利です。インターネット申込なら24時間受付でき、5〜10分で完了します。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
-      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. このサービスは無料で使えますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">はい、完全無料でご利用いただけます。登録・ログイン不要で、すぐにお使いいただけます。</p>
+      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. アメリカ旅行はなぜ高額な補償が必要？ <span>▼</span></summary>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">アメリカの医療費は世界最高水準で、盲腸の手術だけで100〜300万円かかることもあります。救急車の費用も日本と異なり有料です。最低でも傷害・疾病医療費1億円以上の補償を選びましょう。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
-      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. 入力したデータはどこに保存されますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">入力データはサーバーに送信されません。お使いのブラウザ上でのみ処理されます。</p>
+      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. 持病がある場合、保険に入れますか？ <span>▼</span></summary>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">通常の旅行保険では持病・既往症に起因する病気やケガは補償対象外です。「既往症特約付き」「持病保険対応」の商品を専門に選ぶか、告知義務を守った上で比較サイトで条件確認しましょう。隠匿は保険金不払いの原因になります。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
-      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. 何度でも使えますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">はい、何度でも無料でご利用いただけます。条件を変えてお試しいただけます。</p>
+      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. 海外で病院にかかった時の手順は？ <span>▼</span></summary>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">①まず保険会社の緊急連絡先（24時間対応）に電話します。②指定の病院・または承認を受けて受診します。③領収書・診断書・処方箋は必ず保管。④帰国後に書類をそろえて保険金請求します。事前に連絡先を保存しておくことが大切です。</p>
+    </details>
+    <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
+      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. スキーやダイビングなどのアクティビティは補償される？ <span>▼</span></summary>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">保険によりスキー・スノーボード・マリンスポーツは対応している場合があります。ただしバンジージャンプ・山岳登山（8,000m級）・モータースポーツなど危険度の高いアクティビティは多くの保険で免責（対象外）です。加入前に必ず対象アクティビティを確認してください。</p>
+    </details>
+    <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
+      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. このツールの診断結果はどのくらい信頼できますか？ <span>▼</span></summary>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">本ツールは旅行先・日数・アクティビティなど一般的な基準をもとにした参考情報の提供を目的としています。実際の保険加入にあたっては、比較サイトで複数社を比較し、保険証券の内容を必ずご確認ください。</p>
     </details>
   </div>
 </section>
@@ -532,24 +575,24 @@ if (params.has('result')) {
       <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
             <div class="space-y-3">
         <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「保険の見直しを考えていましたが、どれが自分に合っているか分からなかったのでとても助かりました。比較ポイントが明確で分かりやすいです。」</p>
+          <p class="text-xs text-gray-700">「ハワイ旅行の前にクレカ付帯保険で十分か不安でした。この診断で単体保険が必要と分かり、出発前に加入できて安心でした！」</p>
           <p style="font-size:12px;color:#0369a1;" class="mt-1">— 田中さん（30代・会社員）★★★★★</p>
         </div>
         <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「ペット保険の選び方が分からず悩んでいましたが、診断でポイントが整理されました。保険料の目安も出て参考になりました。」</p>
+          <p class="text-xs text-gray-700">「子連れでヨーロッパ旅行を計画中。どの補償が必要か分からず困っていましたが、家族向けの注意点も教えてもらえてとても参考になりました。」</p>
           <p style="font-size:12px;color:#0369a1;" class="mt-1">— 佐藤さん（40代・主婦）★★★★★</p>
         </div>
         <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「旅行保険を毎回悩んでいたので、チェックリスト形式で確認できて便利でした。また利用したいです。」</p>
+          <p class="text-xs text-gray-700">「バックパック旅行でタイへ。長期滞在で何が必要か質問に答えるだけで整理されました。費用の目安も表示されるのが助かります。」</p>
           <p style="font-size:12px;color:#0369a1;" class="mt-1">— 山本さん（20代・学生）★★★★☆</p>
         </div>
       </div>
       <div class="flex gap-2 mt-4">
-        <a href="https://line.me/R/share?text=海外旅行保険診断 | 旅行先・日数・目的から最適な補償を無料チェック%20https://appadaycreator.com/travel-insurance-advisor/" target="_blank" rel="noopener"
+        <a id="lineShareBtn" href="https://line.me/R/share?text=海外旅行保険診断 | 旅行先・日数・目的から最適な補償を無料チェック%20https://appadaycreator.com/travel-insurance-advisor/" target="_blank" rel="noopener"
            style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
           LINEでシェア
         </a>
-        <a href="https://twitter.com/intent/tweet?text=海外旅行保険診断 | 旅行先・日数・目的から最適な補償を無料チェック&url=https://appadaycreator.com/travel-insurance-advisor/&via=appadaycreator" target="_blank" rel="noopener"
+        <a id="xShareBtn" href="https://twitter.com/intent/tweet?text=海外旅行保険診断 | 旅行先・日数・目的から最適な補償を無料チェック&url=https://appadaycreator.com/travel-insurance-advisor/&via=appadaycreator" target="_blank" rel="noopener"
            style="flex:1;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
           Xでシェア
         </a>

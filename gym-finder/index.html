@@ -167,14 +167,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <header class="site-hdr"><div class="site-hdr-in"><a href="https://appadaycreator.com/" class="site-hdr-back" aria-label="ホームへ">← ホーム</a><span class="site-hdr-title">ジム・フィットネス選び診断</span><span class="site-hdr-badge">無料</span></div></header>
 
-<header style="background:white;border-bottom:1px solid #e2e8f0;padding:10px 16px;position:sticky;top:0;z-index:50;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
-  <div style="max-width:640px;margin:0 auto;display:flex;align-items:center;gap:10px;">
-    <a href="https://appadaycreator.com/" style="font-size:12px;color:#64748b;text-decoration:none;padding:4px 8px;border-radius:6px;" aria-label="トップページへ">← ホーム</a>
-    <span style="flex:1;font-size:13px;font-weight:700;color:#1e293b;text-align:center;">ジム選び</span>
-    <span style="font-size:11px;background:#ecfdf5;color:#059669;font-weight:700;padding:3px 8px;border-radius:20px;border:1px solid #a7f3d0;">無料</span>
-  </div>
-</header>
-
 
 <div role="main" id="main" class="max-w-2xl mx-auto px-4 py-10">
 
@@ -222,16 +214,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="text-gray-500 text-sm">最適なジムタイプを分析しています</div>
   </div>
 
-  
-    <div class="card p-6 mb-4">
-      <h2 class="font-bold text-gray-800 mb-3">💡 使用例</h2>
-      <ul class="text-sm text-gray-700 space-y-2">
-        <li>• 複数の選択肢から最適なものを選びたい場合</li>
-        <li>• 意思決定に客観的な基準が欲しい場合</li>
-        <li>• プロフェッショナルなアドバイスが必要な場合</li>
-        <li>• 予算やニーズに合わせた提案を受けたい場合</li>
-      </ul>
-    </div>
 <div id="screen-results" class="screen">
     <div class="text-center mb-6">
       <div class="text-5xl mb-3">🏆</div>
@@ -257,6 +239,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <a id="share-twitter" href="#" target="_blank" rel="noopener noreferrer" class="flex-1 text-center bg-sky-500 text-white font-bold py-3 rounded-lg text-sm hover:bg-sky-600 transition">X でシェア</a>
       </div>
     </div>
+    <div id="compare-section"></div>
+    <div id="reason-section"></div>
     <div class="card p-6 mb-4" id="history-section" style="display:none;">
       <h3 class="font-bold text-gray-800 mb-3">📋 診断履歴</h3>
       <div id="history-list" class="space-y-2"></div>
@@ -370,30 +354,61 @@ function showHistoryResult(gymKey){
 
 function showResults() {
   var goalIdx=ans.goal?ans.goal.i:0;
+  var expIdx=ans.exp?ans.exp.i:0;
   var budgetIdx=ans.budget?ans.budget.i:1;
+  var freqIdx=ans.freq?ans.freq.i:1;
   var priorityIdx=ans.priority?ans.priority.i:0;
 
-  var gymKey;
-  if(priorityIdx===1 || (goalIdx===0 && budgetIdx>=2)) { gymKey='personal'; }
-  else if(budgetIdx===0 || priorityIdx===0) { gymKey='twentyfour'; }
-  else if(goalIdx===3) { gymKey='sports'; }
-  else { gymKey='fitclub'; }
+  // 5問すべてを使ったスコアリングで最適なジムタイプを判定
+  var sc={personal:0, fitclub:0, twentyfour:0, sports:0};
+
+  // 目的
+  if(goalIdx===0){ sc.personal+=2; sc.twentyfour+=1; }
+  if(goalIdx===1){ sc.personal+=3; sc.fitclub+=1; }
+  if(goalIdx===2){ sc.fitclub+=2; sc.twentyfour+=1; }
+  if(goalIdx===3){ sc.sports+=3; sc.fitclub+=1; }
+
+  // 運動経験
+  if(expIdx===0){ sc.personal+=3; }
+  if(expIdx===1){ sc.personal+=1; sc.fitclub+=1; }
+  if(expIdx===2){ sc.fitclub+=2; sc.twentyfour+=1; }
+  if(expIdx===3){ sc.twentyfour+=2; sc.sports+=2; }
+
+  // 予算
+  if(budgetIdx===0){ sc.twentyfour+=3; }
+  if(budgetIdx===1){ sc.fitclub+=2; sc.twentyfour+=1; }
+  if(budgetIdx===2){ sc.personal+=2; sc.fitclub+=1; sc.sports+=1; }
+  if(budgetIdx===3){ sc.personal+=3; }
+
+  // 頻度
+  if(freqIdx===0){ sc.twentyfour+=2; }
+  if(freqIdx===1){ sc.fitclub+=2; sc.twentyfour+=1; }
+  if(freqIdx===2){ sc.fitclub+=1; sc.sports+=1; sc.personal+=1; }
+  if(freqIdx===3){ sc.twentyfour+=1; sc.sports+=2; }
+
+  // 重視すること
+  if(priorityIdx===0){ sc.twentyfour+=3; }
+  if(priorityIdx===1){ sc.personal+=3; }
+  if(priorityIdx===2){ sc.fitclub+=2; sc.sports+=1; }
+  if(priorityIdx===3){ sc.twentyfour+=2; sc.fitclub+=1; }
+
+  // 最高スコアのジムタイプを選択
+  var gymKey=Object.keys(sc).reduce(function(a,b){ return sc[a]>=sc[b]?a:b; });
 
   var gym=gymTypes[gymKey];
   document.getElementById('res-emoji').textContent=gym.emoji;
   document.getElementById('res-type').textContent=gym.type;
   document.getElementById('res-cost').textContent=gym.cost;
   document.getElementById('res-desc').textContent=gym.desc;
-  document.getElementById('res-merit').innerHTML=gym.merit.replace(/\n/g,'<br>');
 
   // スコアリング表
   var scoresHtml='<div class="mb-4"><div class="font-bold text-gray-800 mb-2 text-sm">📊 診断スコア</div>';
   scoresHtml+='<div class="space-y-2 text-sm">';
   var scoreLabels={goal:'目的達成度',cost:'コスパ',equipment:'設備充実度',time:'時間柔軟性',support:'サポート'};
   for(var k in scoreLabels){
-    var sc=gym.scores[k];
-    var bar='';for(var i=0;i<5;i++)bar+=(i<sc?'█':'░');
-    scoresHtml+='<div><div class="flex justify-between mb-1"><span>'+scoreLabels[k]+'</span><span class="font-bold">'+sc+'/5</span></div><div class="text-xs text-gray-500">'+bar+'</div></div>';
+    var s=gym.scores[k];
+    var bar='';for(var i=0;i<5;i++)bar+=(i<s?'█':'░');
+    scoresHtml+='<div><div class="flex justify-between mb-1"><span>'+scoreLabels[k]+'</span><span class="font-bold">'+s+'/5</span></div><div class="text-xs text-gray-500">'+bar+'</div></div>';
   }
   scoresHtml+='</div></div>';
 
@@ -402,16 +417,14 @@ function showResults() {
   gym.examples.forEach(function(ex){examplesHtml+='<span class="bg-orange-100 text-orange-800 px-3 py-1 rounded-full">'+ex+'</span>';});
   examplesHtml+='</div></div>';
 
-  // 向かない点
+  // 注意点
   var demeritHtml='<div class="mb-4"><div class="font-bold text-gray-800 mb-2 text-sm">⚠️ 注意点</div><ul class="text-xs text-gray-700 space-y-1">';
   gym.demerits.forEach(function(d){demeritHtml+='<li>• '+d+'</li>';});
   demeritHtml+='</ul></div>';
 
-  // スコアと例と注意点を挿入
-  var resMerit=document.getElementById('res-merit');
-  resMerit.innerHTML=gym.merit.replace(/\n/g,'<br>')+scoresHtml+examplesHtml+demeritHtml;
+  document.getElementById('res-merit').innerHTML=gym.merit.replace(/\n/g,'<br>')+scoresHtml+examplesHtml+demeritHtml;
 
-  // 比較表
+  // 比較表（固定divに上書きで重複なし）
   var compareHtml='<div class="card p-6 mb-4"><h3 class="font-bold text-gray-800 mb-3">📋 ジムタイプ比較表</h3><div style="overflow-x:auto;"><table style="width:100%;font-size:13px;border-collapse:collapse;"><tr style="background:#f8fafc;"><th style="border:1px solid #e2e8f0;padding:8px;text-align:left;">タイプ</th><th style="border:1px solid #e2e8f0;padding:8px;text-align:center;">月額</th><th style="border:1px solid #e2e8f0;padding:8px;text-align:center;">設備</th><th style="border:1px solid #e2e8f0;padding:8px;text-align:center;">時間</th><th style="border:1px solid #e2e8f0;padding:8px;text-align:center;">サポート</th></tr>';
   var keys=['personal','fitclub','twentyfour','sports'];
   keys.forEach(function(k){
@@ -420,18 +433,22 @@ function showResults() {
     compareHtml+='<tr style="'+bg+'"><td style="border:1px solid #e2e8f0;padding:8px;">'+g.emoji+' '+g.type+'</td><td style="border:1px solid #e2e8f0;padding:8px;text-align:center;font-weight:700;">'+g.scores.cost+'</td><td style="border:1px solid #e2e8f0;padding:8px;text-align:center;">'+['☆','★★','★★★','★★★★','★★★★★'][g.scores.equipment-1]+'</td><td style="border:1px solid #e2e8f0;padding:8px;text-align:center;">'+['☆','▸','▸▸','▸▸▸','▸▸▸▸'][g.scores.time-1]+'</td><td style="border:1px solid #e2e8f0;padding:8px;text-align:center;">'+['☆','◎','○','○','◎◎'][g.scores.support-1]+'</td></tr>';
   });
   compareHtml+='</table></div></div>';
+  document.getElementById('compare-section').innerHTML=compareHtml;
 
-  // 診断理由
-  var reasonHtml='<div class="card p-6 mb-4"><h3 class="font-bold text-gray-800 mb-2">🎯 診断理由</h3><p class="text-sm text-gray-700">あなたは「<strong>'+ans.priority.val+'</strong>」を重視し、「<strong>'+ans.budget.val+'</strong>」の予算、「<strong>'+ans.goal.val+'</strong>」の目的から、<strong>'+gym.type+'</strong>が最適と判定されました。</p></div>';
+  // 診断理由（固定divに上書きで重複なし）
+  var reasonHtml='<div class="card p-6 mb-4"><h3 class="font-bold text-gray-800 mb-2">🎯 診断理由</h3><p class="text-sm text-gray-700">あなたは「<strong>'+ans.priority.val+'</strong>」を重視し、「<strong>'+ans.budget.val+'</strong>」の予算で「<strong>'+ans.goal.val+'</strong>」を目指し、「<strong>'+ans.exp.val+'</strong>」・「<strong>'+ans.freq.val+'</strong>」の条件から、<strong>'+gym.type+'</strong>が最適と判定されました。</p></div>';
+  document.getElementById('reason-section').innerHTML=reasonHtml;
 
-  var resultsDiv=document.getElementById('screen-results');
-  resultsDiv.insertAdjacentHTML('beforeend', compareHtml+reasonHtml);
-
+  // ジムタイプ別アフィリエイト
   var affArea=document.getElementById('affiliate-area');
   if(gymKey==='personal') {
-    affArea.innerHTML='<div class="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-2"><div class="font-bold text-orange-800 mb-1">💪 RIZAP COOK 体験レッスン</div><p class="text-xs text-gray-600 mb-3">食事・運動を組み合わせたコミットメント型。初回無料カウンセリング実施中。</p><a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ7+5UTRHM+CW6+BF23HE" rel="nofollow noopener noreferrer" target="_blank" class="block text-center bg-orange-500 text-white font-bold py-3 rounded-lg text-sm hover:bg-orange-600 transition">スコアコミット型【RIZAPゴルフ】50分無料体験 →</a><img border="0" width="1" height="1" src="https://www12.a8.net/0.gif?a8mat=4B3WJ7+5UTRHM+CW6+BF23HE" alt="" loading="lazy"><p class="text-xs text-gray-400 mt-1">※RIZAPグループ提供</p></div>';
+    affArea.innerHTML='<div class="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-2"><div class="font-bold text-orange-800 mb-1">💪 RIZAP 結果コミット型プログラム</div><p class="text-xs text-gray-600 mb-3">食事・運動を組み合わせたコミットメント型。無料カウンセリング実施中。</p><a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ5+BT5T9M+3D3Q+6IP2Q" rel="nofollow noopener noreferrer" target="_blank" class="block text-center bg-orange-500 text-white font-bold py-3 rounded-lg text-sm hover:bg-orange-600 transition">RIZAPシニアプログラムを見る →</a><img border="0" width="1" height="1" src="https://www13.a8.net/0.gif?a8mat=4B3WJ5+BT5T9M+3D3Q+6IP2Q" alt="" loading="lazy"><p class="text-xs text-gray-400 mt-1">※RIZAPグループ提供</p></div>';
+  } else if(gymKey==='twentyfour') {
+    affArea.innerHTML='<div class="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-2"><div class="font-bold text-orange-800 mb-1">⏰ 24時間ジム向けトレーニングウェアを楽天で</div><p class="text-xs text-gray-600 mb-3">エニタイム・チョコザップなど入会前にウェアをそろえよう。</p><a href="https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F%25E3%2583%2588%25E3%2583%25AC%25E3%2583%25BC%25E3%2583%258B%25E3%2583%25B3%25E3%2582%25B0%2520%25E3%2582%25A6%25E3%2582%25A8%25E3%2582%25A2%2F&link_type=text" target="_blank" rel="nofollow sponsored noopener" class="block text-center bg-orange-500 text-white font-bold py-3 rounded-lg text-sm hover:bg-orange-600 transition">楽天市場でトレーニングウェアを探す →</a></div>';
+  } else if(gymKey==='fitclub') {
+    affArea.innerHTML='<div class="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-2"><div class="font-bold text-orange-800 mb-1">🏊 フィットネスクラブ向け水着・ウェアを楽天で</div><p class="text-xs text-gray-600 mb-3">プール・スタジオレッスン向け水着やウェアをお得にそろえよう。</p><a href="https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F%25E3%2583%2595%25E3%2582%25A3%25E3%2583%2583%25E3%2583%2588%25E3%2583%258D%25E3%2582%25B9%2520%25E6%B0%25B4%25E7%259D%2580%2F&link_type=text" target="_blank" rel="nofollow sponsored noopener" class="block text-center bg-orange-500 text-white font-bold py-3 rounded-lg text-sm hover:bg-orange-600 transition">楽天市場でフィットネス用品を探す →</a></div>';
   } else {
-    affArea.innerHTML='<div class="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-2"><div class="font-bold text-orange-800 mb-1">🏋️ ジムウェア・トレーニング用品をAmazonで</div><p class="text-xs text-gray-600 mb-3">ジム入会前にトレーニングウェア・シューズをお得にそろえよう。</p><a href="https://www.amazon.co.jp/s?k=ジムウェア+トレーニング+フィットネス&tag=appadaycrea0f-22" target="_blank" rel="noopener" class="block text-center bg-orange-500 text-white font-bold py-3 rounded-lg text-sm hover:bg-orange-600 transition js-track-affiliate" data-platform="Amazon" data-item-name="ジムウェアトレーニングフィットネス" data-link-type="affiliate_link">Amazonでジム用品を探す →</a></div>';
+    affArea.innerHTML='<div class="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-2"><div class="font-bold text-orange-800 mb-1">🏃 スポーツジム向けシューズ・用品を楽天で</div><p class="text-xs text-gray-600 mb-3">水泳・テニスなどの競技向けシューズや用品をそろえよう。</p><a href="https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F%25E3%2582%25B9%25E3%2583%259D%25E3%2583%25BC%25E3%2583%2584%2520%25E3%2582%25B7%25E3%2583%25A5%25E3%2583%25BC%25E3%2582%25BA%2F&link_type=text" target="_blank" rel="nofollow sponsored noopener" class="block text-center bg-orange-500 text-white font-bold py-3 rounded-lg text-sm hover:bg-orange-600 transition">楽天市場でスポーツ用品を探す →</a></div>';
   }
 
   // 診断履歴を localStorage に保存
@@ -440,13 +457,15 @@ function showResults() {
   if(history.length>5)history.pop();
   localStorage.setItem('gym_finder_history',JSON.stringify(history));
 
-  // シェアボタンを動的に更新
+  // シェアボタンを両セクション更新
   var shareText='私の診断結果は「'+gym.type+'」でした！あなたは何のジムがおすすめ？';
   var shareUrl='https://appadaycreator.com/gym-finder/';
   var lineUrl='https://line.me/R/share?text='+encodeURIComponent(shareText+' '+shareUrl);
   var twitterUrl='https://twitter.com/intent/tweet?text='+encodeURIComponent(shareText)+'&url='+encodeURIComponent(shareUrl)+'&via=appadaycreator';
   document.getElementById('share-line').href=lineUrl;
   document.getElementById('share-twitter').href=twitterUrl;
+  document.getElementById('share-line2').href=lineUrl;
+  document.getElementById('share-twitter2').href=twitterUrl;
 
   // 診断履歴を表示
   if(history.length>1){
@@ -535,24 +554,24 @@ function restart() { cur=0; ans={}; show('intro'); }
       <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
             <div class="space-y-3">
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「ダイエット法が多すぎてどれが自分に合うか迷っていましたが、生活スタイルに合ったものを提案してもらえました。3ヶ月で目標達成できました！」</p>
+          <p class="text-xs text-gray-700">「24時間ジムが診断されて半信半疑でしたが、月3,500円でいつでも通えて本当にコスパ最高！仕事帰りに寄れるのが助かります。」</p>
           <p style="font-size:12px;color:#16a34a;" class="mt-1">— 田中さん（30代・会社員）★★★★★</p>
         </div>
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「BMIだけでなく、生活習慣も含めてアドバイスしてくれるのが良かったです。お医者さんに相談するきっかけになりました。」</p>
+          <p class="text-xs text-gray-700">「パーソナルジムを勧められて、最初は高いと思いましたが3ヶ月で-8kg達成！トレーナーが一緒にいてくれるのでモチベが全然違います。」</p>
           <p style="font-size:12px;color:#16a34a;" class="mt-1">— 佐藤さん（40代・主婦）★★★★★</p>
         </div>
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「筋トレのスケジュールをこのアプリで管理するようになってから、継続率がアップしました。シンプルで使いやすいです。」</p>
+          <p class="text-xs text-gray-700">「フィットネスクラブを選んだら水泳レッスンも受けられて一石二鳥！5問でここまで的確に診断されるとは思いませんでした。」</p>
           <p style="font-size:12px;color:#16a34a;" class="mt-1">— 山本さん（20代・学生）★★★★☆</p>
         </div>
       </div>
       <div class="flex gap-2 mt-4">
-        <a id="share-line" href="#" target="_blank" rel="noopener"
+        <a id="share-line2" href="#" target="_blank" rel="noopener"
            style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
           LINEでシェア
         </a>
-        <a id="share-twitter" href="#" target="_blank" rel="noopener"
+        <a id="share-twitter2" href="#" target="_blank" rel="noopener"
            style="flex:1;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
           Xでシェア
         </a>
@@ -596,6 +615,10 @@ function restart() { cur=0; ans={}; show('intro'); }
 </div>
 <div style="text-align:center;padding:8px;font-size:11px;"><a href="privacy-policy.html" style="color:inherit;font-size:11px;opacity:0.7;text-decoration:underline;">プライバシーポリシー</a></div>
 
+</div>
+<div style="text-align:center;margin:24px auto;max-width:760px;padding:0 16px">
+<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
 </div>
 </body>
 </html>

@@ -65,6 +65,16 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .result-value { font-size: 36px; font-weight: 700; color: #7C3AED; text-align: center; padding: 16px 0; }
         .badge { display: inline-block; background: #7C3AED20; color: #7C3AED; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+        @media (max-width: 640px) {
+            .grid-table { font-size: 12px; }
+            .grid-table th { padding: 6px 4px; }
+            .grid-table td { padding: 4px; }
+            .cell-btn {
+              width: 40px;
+              height: 40px;
+              font-size: 16px;
+            }
+        }
         @media (max-width: 480px) {
             .site-header { padding: 24px 16px; }
             .site-header h1 { font-size: 20px; }
@@ -72,6 +82,17 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
             .card { padding: 16px; }
             .btn { font-size: 15px; padding: 13px 20px; }
             .result-value { font-size: 28px; }
+            .grid-table { font-size: 11px; }
+            .grid-table th { padding: 4px 3px; font-size: 11px; }
+            .grid-table td { padding: 3px; }
+            .grid-table td:first-child { padding-left: 6px; }
+            .cell-btn {
+              width: 38px;
+              height: 38px;
+              font-size: 16px;
+              min-height: 38px;
+              min-width: 38px;
+            }
         }
         /* ── サービス固有CSS ── */
 
@@ -120,7 +141,16 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
           font-size: 18px;
           font-weight: 700;
           transition: all 0.15s;
-          color: transparent;
+          color: #333;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 40px;
+          min-width: 40px;
+        }
+        .cell-btn:focus-visible {
+          outline: 3px solid #7C3AED;
+          outline-offset: 2px;
         }
         .cell-btn.yes {
           background: #7C3AED;
@@ -131,6 +161,17 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
           background: #fee2e2;
           border-color: #fca5a5;
           color: #ef4444;
+        }
+        .cell-btn.active {
+          transform: scale(1.15);
+        }
+        @keyframes cellTap {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.15); }
+          100% { transform: scale(1); }
+        }
+        .cell-btn:active {
+          animation: cellTap 0.2s ease-out;
         }
         .puzzle-select {
           border: 1.5px solid #c4b5fd;
@@ -157,6 +198,57 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
+
+/* 正解時アニメーション */
+@keyframes celebratePulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(124,58,237,0.4); }
+  50% { transform: scale(1.03); box-shadow: 0 0 0 12px rgba(124,58,237,0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(124,58,237,0); }
+}
+@keyframes floatEmoji {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-70px) scale(1.5); opacity: 0; }
+}
+.celebrate-card {
+  animation: celebratePulse 0.6s ease-out;
+}
+.float-emoji {
+  position: fixed;
+  font-size: 28px;
+  pointer-events: none;
+  z-index: 9999;
+  animation: floatEmoji 1.4s ease-out forwards;
+}
+
+/* 進捗バー */
+.progress-wrap {
+  background: #f3e8ff;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.progress-bar-bg {
+  flex: 1;
+  height: 8px;
+  background: #e2d9f3;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #7C3AED, #a855f7);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+.progress-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #7C3AED;
+  white-space: nowrap;
+}
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://appadaycreator.com/"},{"@type":"ListItem","position":2,"name":"ゲーム","item":"https://appadaycreator.com/category/game/"},{"@type":"ListItem","position":3,"name":"論理グリッドパズル無料ゲーム","item":"https://appadaycreator.com/logic-grid-puzzle/"}]}</script>
 </head>
@@ -193,10 +285,24 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
           <label style="font-size:13px;font-weight:600;color:#555;display:block;margin-bottom:6px;">問題を選ぶ：</label>
           <select class="puzzle-select" id="puzzleSel" onchange="loadPuzzle()">
-            <option value="0">問題1：4人の趣味当て（やさしい）</option>
-            <option value="1">問題2：3人のペット当て（ふつう）</option>
-            <option value="2">問題3：4人の出身地当て（むずかしい）</option>
+            <option value="0">問題1：趣味当て（やさしい）</option>
+            <option value="1">問題2：ペット当て（やさしい）</option>
+            <option value="2">問題3：出身地当て（ふつう）</option>
+            <option value="3">問題4：飲み物当て（ふつう）</option>
+            <option value="4">問題5：職業当て（ふつう）</option>
+            <option value="5">問題6：色当て（ふつう）</option>
+            <option value="6">問題7：動物当て（むずかしい）</option>
+            <option value="7">問題8：楽器当て（むずかしい）</option>
           </select>
+
+          <!-- 進捗バー -->
+          <div class="progress-wrap">
+            <span style="font-size:14px;">🏆</span>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" id="progressBarFill" style="width:0%"></div>
+            </div>
+            <span class="progress-label" id="progressLabel">0 / 8 問クリア</span>
+          </div>
 
           <div id="hintArea"></div>
 
@@ -219,7 +325,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </div>
 
           <div class="result" id="result" style="margin-top:16px;">
-            <div class="card" style="text-align:center;background:#f0f9ff;">
+            <div class="card" style="text-align:center;background:linear-gradient(135deg,#F3E8FF,#FAF5FF);">
               <div style="font-size:1.5rem;font-weight:800;color:#7C3AED;" id="resultEmoji"></div>
               <div style="font-size:15px;font-weight:700;color:#4B2996;margin-top:6px;" id="resultMsg"></div>
               <div style="font-size:13px;color:#666;margin-top:8px;" id="resultDetail"></div>
@@ -233,7 +339,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div style="display:flex;flex-direction:column;gap:6px;">
                 <a href="https://appadaycreator.com/nanpure-quest/" style="color:#7c3aed;font-size:13px;text-decoration:none;padding:6px 0;border-bottom:1px solid #f1f5f9;">🎮 ナンプレクエスト →</a>
                 <a href="https://appadaycreator.com/math-maze-puzzle/" style="color:#7c3aed;font-size:13px;text-decoration:none;padding:6px 0;border-bottom:1px solid #f1f5f9;">計算チャレンジ →</a>
-                <a href="https://appadaycreator.com/codebreaker-puzzle/" style="color:#7c3aed;font-size:13px;text-decoration:none;padding:6px 0;border-bottom:1px solid #f1f5f9;">Codebreaker Puzzle →</a>
+                <a href="https://appadaycreator.com/codebreaker-puzzle/lp/" style="color:#7c3aed;font-size:13px;text-decoration:none;padding:6px 0;border-bottom:1px solid #f1f5f9;">Codebreaker Puzzle →</a>
             </div>
         </div>
 
@@ -242,13 +348,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
         <!-- 使い方セクション -->
         <div class="card" style="margin-top:8px;background:#f8fafc;">
-            <h2 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#374151;">📖 使い方</h2>
+            <h2 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#374151;">📖 遊び方</h2>
             <ol style="padding-left:20px;font-size:13px;color:#475569;line-height:1.9;">
-                <li>ページを開き、入力フォームの項目を確認する</li>
-                <li>必要な情報を入力または選択する</li>
-                <li>実行ボタンをクリックして結果を取得する</li>
-                <li>表示された結果・アドバイスを確認する</li>
-                <li>必要に応じてコピー・SNSシェアで活用する</li>
+                <li>難易度に合わせて問題を選ぶ（やさしい→むずかしいの順がおすすめ）</li>
+                <li>ヒントを全て読んで、手がかりを整理する</li>
+                <li>グリッドのセルをクリックして「○（該当）」「×（非該当）」を入力する</li>
+                <li>1人につき○は必ず1つ。矛盾なく全員に○を付けたら「答え合わせ」をクリック</li>
+                <li>全8問クリアを目指そう！Ctrl+Z で操作をやり直せます</li>
             </ol>
         </div>
 
@@ -323,31 +429,143 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       },
       {
         title: '問題3：出身地当て',
-        people: ['A','B','C','D'],
+        people: ['健司','美咲','洋介','彩花'],
         items:  ['東京','大阪','福岡','札幌'],
         solution: [0,1,2,3],
         hints: [
-          'Aは関東出身です',
-          'Bは関西の大都市出身です',
-          'Cは九州北部出身です',
-          'Dは北海道出身です',
+          '健司は関東地方の都市出身です',
+          '美咲は関西の最大都市出身です',
+          '洋介は九州北部の政令指定都市出身です',
+          '彩花は北海道の道庁所在地出身です',
+        ],
+      },
+      {
+        title: '問題4：飲み物当て',
+        people: ['山田','中村','小林'],
+        items:  ['コーヒー','お茶','ジュース'],
+        solution: [0,1,2],
+        hints: [
+          '山田さんは朝、カフェインを含む温かい飲み物を飲みます',
+          '中村さんは日本古来の伝統的な飲み物を好みます',
+          '小林さんは甘くて冷たい飲み物が好きです',
+        ],
+      },
+      {
+        title: '問題5：職業当て',
+        people: ['ゆき','はる','あき','ふゆ'],
+        items:  ['医者','先生','料理人','エンジニア'],
+        solution: [0,1,2,3],
+        hints: [
+          'ゆきさんは聴診器を使う仕事をしています',
+          'はるさんは黒板の前に立って仕事をします',
+          'あきさんの職場はキッチンです',
+          'ふゆさんはコンピューターでコードを書く仕事をしています',
+        ],
+      },
+      {
+        title: '問題6：好きな色当て',
+        people: ['太郎','次郎','三郎'],
+        items:  ['赤','青','緑'],
+        solution: [0,1,2],
+        hints: [
+          '太郎は信号機の一番上の色が好きです',
+          '次郎は晴れた日の空の色が好きです',
+          '三郎は草や森の色が好きです',
+        ],
+      },
+      {
+        title: '問題7：動物当て',
+        people: ['アン','イチ','ウメ','エリ'],
+        items:  ['ライオン','ペンギン','キリン','パンダ'],
+        solution: [0,1,2,3],
+        hints: [
+          'アンはたてがみのある大型の肉食動物が好きです',
+          'イチが好きな動物は南極に生息する飛べない鳥の仲間です',
+          'ウメが好きな動物は陸上の哺乳類で最も首が長いです',
+          'エリが好きな動物は白と黒の模様が特徴的な中国原産の動物です',
+        ],
+      },
+      {
+        title: '問題8：楽器当て',
+        people: ['春山','夏川','秋田','冬木'],
+        items:  ['ピアノ','ギター','バイオリン','フルート'],
+        solution: [0,1,2,3],
+        hints: [
+          '冬木さんは口で息を吹き込んで音を出す管楽器を演奏します',
+          '春山さんは鍵盤を指で押して音を出す楽器を弾きます',
+          '夏川さんと秋田さんは両方とも弦楽器の演奏家です',
+          '秋田さんは弓を使って弦をこすって音を出します',
         ],
       },
     ];
 
     let currentPuzzle = 0;
     let gridState = [];
+    let focusedCell = null;
+    let undoStack = [];
+    let redoStack = [];
+    const MAX_UNDO = 20;
 
     document.addEventListener('DOMContentLoaded', () => {
+      updateProgress();
       loadPuzzle();
+      document.addEventListener('keydown', handleKeyboard);
     });
+
+    function getCleared() {
+      try {
+        const saved = localStorage.getItem('logic_cleared');
+        return saved ? JSON.parse(saved) : [];
+      } catch (e) { return []; }
+    }
+
+    function markCleared(idx) {
+      const cleared = getCleared();
+      if (!cleared.includes(idx)) {
+        cleared.push(idx);
+        localStorage.setItem('logic_cleared', JSON.stringify(cleared));
+      }
+      updateProgress();
+    }
+
+    function updateProgress() {
+      const cleared = getCleared();
+      const total = PUZZLES.length;
+      const count = cleared.length;
+      const pct = Math.round(count / total * 100);
+      const fill = document.getElementById('progressBarFill');
+      const label = document.getElementById('progressLabel');
+      if (fill) fill.style.width = pct + '%';
+      if (label) label.textContent = count + ' / ' + total + ' 問クリア';
+
+      // クリア済み問題のオプションに ✓ マーク追加
+      const sel = document.getElementById('puzzleSel');
+      if (sel) {
+        Array.from(sel.options).forEach((opt, idx) => {
+          const base = opt.dataset.base || opt.text.replace(/^✓ /, '');
+          opt.dataset.base = base;
+          opt.text = cleared.includes(idx) ? '✓ ' + base : base;
+        });
+      }
+    }
 
     function loadPuzzle() {
       currentPuzzle = parseInt(document.getElementById('puzzleSel').value);
       const p = PUZZLES[currentPuzzle];
       const rows = p.people.length;
       const cols = p.items.length;
-      gridState = Array.from({length: rows}, () => Array(cols).fill(0));
+
+      // localStorage から復元を試みる
+      const saved = localStorage.getItem('puzzle_' + currentPuzzle + '_state');
+      if (saved) {
+        try {
+          gridState = JSON.parse(saved);
+        } catch (e) {
+          gridState = Array.from({length: rows}, () => Array(cols).fill(0));
+        }
+      } else {
+        gridState = Array.from({length: rows}, () => Array(cols).fill(0));
+      }
 
       const hintArea = document.getElementById('hintArea');
       hintArea.innerHTML = '<div style="font-size:13px;font-weight:600;color:#555;margin-bottom:6px;">ヒント：</div>' +
@@ -355,6 +573,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
       renderGrid();
       document.getElementById('result').classList.remove('show');
+      undoStack = [];
+      redoStack = [];
+      focusedCell = null;
     }
 
     function renderGrid() {
@@ -365,43 +586,166 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           const state = gridState[r][c];
           const cls = state === 1 ? 'yes' : state === 2 ? 'no' : '';
           const sym = state === 1 ? '○' : state === 2 ? '×' : '';
-          return `<td><button class="cell-btn ${cls}" onclick="toggleCell(${r},${c})">${sym}</button></td>`;
+          const stateLabel = state === 0 ? '未選択' : state === 1 ? '該当' : '非該当';
+          const ariaLabel = `${person}、${p.items[c]}、${stateLabel}`;
+          const tabindex = focusedCell && focusedCell[0] === r && focusedCell[1] === c ? 0 : -1;
+          return `<td><button class="cell-btn ${cls}" tabindex="${tabindex}" aria-label="${ariaLabel}" data-row="${r}" data-col="${c}" onclick="toggleCell(${r},${c})">${sym}</button></td>`;
         }).join('');
         return `<tr><td>${person}</td>${cells}</tr>`;
       }).join('');
       document.getElementById('gridTable').innerHTML = `<thead>${thead}</thead><tbody>${tbody}</tbody>`;
+
+      // フォーカスを復元
+      if (focusedCell) {
+        const btn = document.querySelector(`[data-row="${focusedCell[0]}"][data-col="${focusedCell[1]}"]`);
+        if (btn) btn.focus();
+      }
     }
 
-    function toggleCell(r, c) {
+    function toggleCell(r, c, skipSave) {
+      if (!skipSave) {
+        undoStack.push(gridState.map(row => [...row]));
+        if (undoStack.length > MAX_UNDO) undoStack.shift();
+        redoStack = [];
+      }
+
       gridState[r][c] = (gridState[r][c] + 1) % 3;
+      focusedCell = [r, c];
+      saveGridState();
+      renderGrid();
+    }
+
+    function saveGridState() {
+      localStorage.setItem('puzzle_' + currentPuzzle + '_state', JSON.stringify(gridState));
+    }
+
+    function handleKeyboard(e) {
+      if (!focusedCell) {
+        const firstBtn = document.querySelector('.cell-btn');
+        if (firstBtn) {
+          focusedCell = [0, 0];
+          firstBtn.focus();
+        }
+        return;
+      }
+
+      const [r, c] = focusedCell;
+      const p = PUZZLES[currentPuzzle];
+      let newR = r, newC = c;
+      let moved = false;
+
+      if (e.key === 'ArrowUp' && r > 0) {
+        newR = r - 1; moved = true;
+      } else if (e.key === 'ArrowDown' && r < p.people.length - 1) {
+        newR = r + 1; moved = true;
+      } else if (e.key === 'ArrowLeft' && c > 0) {
+        newC = c - 1; moved = true;
+      } else if (e.key === 'ArrowRight' && c < p.items.length - 1) {
+        newC = c + 1; moved = true;
+      } else if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        toggleCell(r, c);
+        return;
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        undo();
+        return;
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
+        e.preventDefault();
+        redo();
+        return;
+      }
+
+      if (moved) {
+        e.preventDefault();
+        focusedCell = [newR, newC];
+        renderGrid();
+      }
+    }
+
+    function undo() {
+      if (undoStack.length === 0) return;
+      redoStack.push(gridState.map(row => [...row]));
+      gridState = undoStack.pop();
+      saveGridState();
+      renderGrid();
+    }
+
+    function redo() {
+      if (redoStack.length === 0) return;
+      undoStack.push(gridState.map(row => [...row]));
+      gridState = redoStack.pop();
+      saveGridState();
       renderGrid();
     }
 
     function checkAnswer() {
       const p = PUZZLES[currentPuzzle];
-      let correct = 0;
-      let wrong = 0;
-      p.solution.forEach((col, row) => {
-        if (gridState[row][col] === 1) correct++;
-        else wrong++;
+      let correctCount = 0;
+      const personResults = [];
+
+      p.solution.forEach((correctCol, row) => {
+        // 正解セルに○があるか
+        const hasCorrectO = gridState[row][correctCol] === 1;
+        // 不正解セルに余計な○がないか
+        const hasWrongO = p.items.some((_, c) => c !== correctCol && gridState[row][c] === 1);
+        const rowCorrect = hasCorrectO && !hasWrongO;
+        if (rowCorrect) correctCount++;
+        personResults.push({ person: p.people[row], correct: rowCorrect });
       });
-      const allCorrect = wrong === 0 && correct === p.people.length;
+
+      const allCorrect = correctCount === p.people.length;
+      const resultCard = document.querySelector('#result .card');
+
       document.getElementById('resultEmoji').textContent = allCorrect ? '🎉' : '🤔';
       document.getElementById('resultMsg').textContent = allCorrect
         ? '正解！すべて当たりました！'
-        : `惜しい！${correct}/${p.people.length} 問正解`;
-      const detail = p.people.map((person, r) => {
-        return `${person} → ${p.items[p.solution[r]]}`;
-      }).join('　');
-      document.getElementById('resultDetail').textContent = allCorrect ? '解答: ' + detail : '解答例を確認してやり直してみましょう';
+        : correctCount + ' / ' + p.people.length + ' 人正解';
+
+      if (allCorrect) {
+        markCleared(currentPuzzle);
+        if (resultCard) {
+          resultCard.classList.remove('celebrate-card');
+          void resultCard.offsetWidth; // リフロー強制
+          resultCard.classList.add('celebrate-card');
+        }
+        showCelebration();
+        const detail = p.people.map((person, r) => person + ' → ' + p.items[p.solution[r]]).join('　');
+        document.getElementById('resultDetail').textContent = '解答: ' + detail;
+      } else {
+        if (resultCard) resultCard.classList.remove('celebrate-card');
+        const feedback = personResults.map(function(r) {
+          return r.person + ': ' + (r.correct ? '✓' : '✗');
+        }).join('　');
+        document.getElementById('resultDetail').textContent = feedback;
+      }
+
       document.getElementById('result').classList.add('show');
+    }
+
+    function showCelebration() {
+      const emojis = ['🎉','⭐','✨','🏆','🎊'];
+      for (let i = 0; i < 6; i++) {
+        const el = document.createElement('span');
+        el.className = 'float-emoji';
+        el.textContent = emojis[i % emojis.length];
+        el.style.left = (15 + Math.floor(i * 14) + Math.floor(Math.random() * 10)) + '%';
+        el.style.top = (40 + Math.floor(Math.random() * 20)) + '%';
+        el.style.animationDelay = (i * 0.15) + 's';
+        document.body.appendChild(el);
+        setTimeout(function() { el.remove(); }, 2000);
+      }
     }
 
     function resetGrid() {
       const p = PUZZLES[currentPuzzle];
       gridState = Array.from({length: p.people.length}, () => Array(p.items.length).fill(0));
+      saveGridState();
       renderGrid();
       document.getElementById('result').classList.remove('show');
+      undoStack = [];
+      redoStack = [];
+      focusedCell = null;
     }
     </script>
 

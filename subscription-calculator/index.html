@@ -674,6 +674,17 @@
             margin-top: var(--space-2);
             line-height: 1.4;
         }
+
+        .subscription-item.warning-item {
+            border-left-width: 6px !important;
+            border-left-color: var(--error-500) !important;
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(255,255,255,0.95)) !important;
+            box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.2);
+        }
+        .subscription-item.warning-item .meta-value {
+            color: var(--error-500) !important;
+            font-weight: 700;
+        }
         
         /* Sidebar */
         .sidebar {
@@ -1513,7 +1524,7 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
 </style>
-    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "サブスク断捨離計算機", "url": "https://appadaycreator.com/subscription-calculator/", "description": "毎月のサブスクリプション費用を可視化。無駄なサービスを見直して節約。", "operatingSystem": "Any", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "JPY"}, "aggregateRating": {"@type": "AggregateRating","itemReviewed":{"@id":"https://appadaycreator.com/subscription-calculator/"}, "ratingValue": "4.7", "reviewCount": "189", "bestRating": "5", "worstRating": "1"}, "applicationCategory": "FinanceApplication"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"サブスク断捨離計算機","url":"https://appadaycreator.com/subscription-calculator/","description":"毎月のサブスクリプション費用を可視化。無駄なサービスを見直して節約。","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"aggregateRating":{"@type":"AggregateRating","ratingValue":"4.7","reviewCount":"189","bestRating":"5","worstRating":"1"},"applicationCategory":"FinanceApplication"}</script>
     <meta property="og:type" content="website">
         <meta property="og:image" content="https://appadaycreator.com/subscription-calculator/ogp.png">
 <meta property="og:image:width" content="1200">
@@ -2025,7 +2036,10 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 form.addEventListener('submit', (e) => this.handleFormSubmit(e));
                 
                 // Real-time validation
-                document.getElementById('serviceName').addEventListener('input', (e) => this.validateField(e.target));
+                document.getElementById('serviceName').addEventListener('input', (e) => {
+                    this.validateField(e.target);
+                    this.populateServiceList(e.target.value);
+                });
                 document.getElementById('monthlyFee').addEventListener('input', (e) => this.validateField(e.target));
                 document.getElementById('usageFreq').addEventListener('input', (e) => this.validateField(e.target));
                 document.getElementById("serviceName").addEventListener("change", (e) => { this.handleServiceSelect(e.target.value); this.updateProgress(); });
@@ -2141,10 +2155,11 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 document.getElementById('progressFill').style.width = progress + '%';
             }
             
-            populateServiceList() {
+            populateServiceList(query = "") {
                 const list = document.getElementById("serviceList");
                 list.innerHTML = "";
-                services.forEach(s => {
+                const filtered = query.trim() ? filterServices(query) : services;
+                filtered.forEach(s => {
                     const option = document.createElement("option");
                     option.value = s.name;
                     list.appendChild(option);
@@ -2203,7 +2218,10 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 const hint = document.getElementById("monthlyEquivHint");
                 if (cycle === 'yearly' && fee > 0) {
                     const monthly = Math.round(fee / 12);
-                    hint.textContent = `📅 月換算: ¥${monthly.toLocaleString()}/月`;
+                    const monthlyIfMonthly = fee; // 仮の月額
+                    const discount = Math.round((1 - (monthly / (monthlyIfMonthly / 12))) * 100);
+                    const discountText = discount > 0 ? ` (年払い割引: ${discount}%)` : '';
+                    hint.textContent = `📅 月換算: ¥${monthly.toLocaleString()}/月${discountText}`;
                     hint.style.display = 'block';
                 } else {
                     hint.style.display = 'none';
@@ -2520,6 +2538,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
 
                 const barWidth = Math.max(4, Math.round((sub.monthlyFee / maxFee) * 100));
                 const cancelClass = sub.cancelSelected ? ' cancel-selected' : '';
+                const warningClass = sub.usageFreq === 0 ? ' warning-item' : '';
 
                 const usageLabel = sub.usageFreq === 0
                     ? '<span style="color:var(--error-500);font-weight:600;">利用なし（コスト浪費）</span>'
@@ -2528,7 +2547,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 const catLabel = sub.category || 'その他';
 
                 return `
-                    <div class="subscription-item priority-${sub.priority}${cancelClass}" data-id="${sub.id}">
+                    <div class="subscription-item priority-${sub.priority}${cancelClass}${warningClass}" data-id="${sub.id}">
                         <div class="subscription-header">
                             <div>
                                 <div class="subscription-name">${sub.serviceName}</div>
@@ -2590,11 +2609,13 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 const sub = this.subscriptions.find(s => s.id === id);
                 if (!sub) return;
                 sub.cancelSelected = isSelected;
+                this.saveCancelCandidates();
                 this.updateResults();
             }
 
             clearCancelCandidates() {
                 this.subscriptions.forEach(s => { s.cancelSelected = false; });
+                this.saveCancelCandidates();
                 this.updateResults();
             }
 
@@ -2640,15 +2661,19 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 return reasons.join('、');
             }
             
-            removeSubscription(id) {
+            async removeSubscription(id) {
                 const subscription = this.subscriptions.find(sub => sub.id === id);
                 if (!subscription) return;
-                
+
+                // 削除確認ダイアログを表示
+                const confirmed = await showCustomConfirm(`「${subscription.serviceName}」を削除しますか？`);
+                if (!confirmed) return;
+
                 // Animate removal
                 const element = document.querySelector(`[data-id="${id}"]`);
                 element.style.transform = 'translateX(100%)';
                 element.style.opacity = '0';
-                
+
                 setTimeout(() => {
                     this.subscriptions = this.subscriptions.filter(sub => sub.id !== id);
 
@@ -2662,6 +2687,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
 
                     this.saveToHistory();
                     this.saveSubscriptions();
+                    this.saveCancelCandidates();
                     this.showNotification(`${subscription.serviceName} を削除しました`, 'info');
                 }, 300);
             }
@@ -2815,9 +2841,35 @@ ${window.location.href}`;
                         addedAt: new Date(s.addedAt),
                         cancelSelected: false
                     }));
+                    this.restoreCancelCandidates();
                     this.updateResults();
                 } catch (e) {
                     this.subscriptions = [];
+                }
+            }
+
+            saveCancelCandidates() {
+                try {
+                    const cancelMap = {};
+                    this.subscriptions.forEach(sub => {
+                        if (sub.cancelSelected) {
+                            cancelMap[sub.serviceName] = true;
+                        }
+                    });
+                    localStorage.setItem('cancelCandidates', JSON.stringify(cancelMap));
+                } catch (e) {
+                    console.warn('Failed to save cancel candidates:', e);
+                }
+            }
+
+            restoreCancelCandidates() {
+                try {
+                    const cancelMap = JSON.parse(localStorage.getItem('cancelCandidates') || '{}');
+                    this.subscriptions.forEach(sub => {
+                        sub.cancelSelected = !!cancelMap[sub.serviceName];
+                    });
+                } catch (e) {
+                    console.warn('Failed to restore cancel candidates:', e);
                 }
             }
             
@@ -2838,13 +2890,14 @@ ${window.location.href}`;
                 if (this.history.length >= 2) {
                     const graphData = [...this.history].reverse().slice(0, 8); // 古い順、最大8件
                     const maxVal = Math.max(...graphData.map(r => r.totalYearly));
-                    graphHTML = `<div class="history-graph">` +
+                    const graphLabel = `年間サブスク料金の推移グラフ。最新8ヶ月の月別合計コスト。${graphData.map(r => `${r.date}:${r.totalYearly.toLocaleString()}円`).join(', ')}`;
+                    graphHTML = `<div class="history-graph" role="img" aria-label="${graphLabel}">` +
                         graphData.map(r => {
                             const h = maxVal > 0 ? Math.max(4, Math.round((r.totalYearly / maxVal) * 72)) : 4;
                             const dateLabel = r.date.slice(5); // M/D 形式
-                            return `<div class="hg-bar-wrap" data-tip="${r.date} ¥${r.totalYearly.toLocaleString()}">` +
-                                `<div class="hg-bar" style="height:${h}px"></div>` +
-                                `<div class="hg-bar-label">${dateLabel}</div>` +
+                            return `<div class="hg-bar-wrap" data-tip="${r.date} ¥${r.totalYearly.toLocaleString()}" aria-label="${r.date}: ${r.totalYearly.toLocaleString()}円, 登録サービス数: ${r.subscriptionCount}個">` +
+                                `<div class="hg-bar" style="height:${h}px" aria-hidden="true"></div>` +
+                                `<div class="hg-bar-label" aria-hidden="true">${dateLabel}</div>` +
                                 `</div>`;
                         }).join('') +
                     `</div>`;
@@ -3049,7 +3102,7 @@ ${window.location.href}`;
 <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
 <script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
 </div>
-<section style="max-width:800px;margin:0 auto 16px;padding:14px;background:#f0fdf4;border-radius:12px;"><h2 style="font-size:0.88rem;font-weight:bold;color:#166534;margin-bottom:10px;text-align:center;">💰 節約・家計サービス</h2><div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"><a href="https://appadaycreator.com/household-budget-analyzer/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.3rem;">📊</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">家計診断</div></a><a href="https://appadaycreator.com/fire-calculator/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.3rem;">🔥</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">FIRE計算</div></a><a href="https://appadaycreator.com/nisa-ideco-simulator/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.3rem;">📈</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">NISA・iDeCo</div></a><a href="https://appadaycreator.com/credit-card-finder/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.3rem;">💳</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">クレカ診断</div></a></div></section>
+<section style="max-width:800px;margin:0 auto 16px;padding:14px;background:#f0fdf4;border-radius:12px;"><h2 style="font-size:0.88rem;font-weight:bold;color:#166534;margin-bottom:10px;text-align:center;">💰 節約・家計サービス</h2><div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"><a href="https://appadaycreator.com/household-budget-analyzer/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.3rem;">📊</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">家計診断</div></a><a href="https://appadaycreator.com/fire-calculator/lp/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.3rem;">🔥</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">FIRE計算</div></a><a href="https://appadaycreator.com/nisa-ideco-simulator/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.3rem;">📈</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">NISA・iDeCo</div></a><a href="https://appadaycreator.com/credit-card-finder/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.3rem;">💳</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">クレカ診断</div></a></div></section>
 <div style="text-align:center;margin:16px auto;max-width:800px;padding:0 16px;">
 <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
 <script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
@@ -3114,8 +3167,8 @@ ${window.location.href}`;
   <h3 style="font-size:14px;font-weight:700;color:#64748b;margin-bottom:12px;letter-spacing:0.03em;">関連サービス</h3>
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
     <a href="https://appadaycreator.com/furusato-tax-calculator/" class="related-link">ふるさと納税限度額計算ツール</a>
-    <a href="https://appadaycreator.com/side-job-aptitude-test/" class="related-link">副業適性診断テスト</a>
-    <a href="https://appadaycreator.com/fire-calculator/" class="related-link">FIRE計算機</a>
+    <a href="https://appadaycreator.com/side-job-aptitude-test/lp/" class="related-link">副業適性診断テスト</a>
+    <a href="https://appadaycreator.com/fire-calculator/lp/" class="related-link">FIRE計算機</a>
     <a href="https://appadaycreator.com/wedding-cost-calculator/" class="related-link">結婚式費用計算機</a>
   </div>
 </section>

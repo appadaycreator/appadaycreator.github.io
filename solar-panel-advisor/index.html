@@ -83,6 +83,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 /* P1: グラフレスポンシブ対応 */
 @media (max-width: 640px) { .responsive-chart { max-height: 250px !important; } }
 @media (min-width: 1024px) { .responsive-chart { max-height: 500px !important; } }
+.input-error { border-color: #ef4444 !important; }
+.error-msg { color: #ef4444; font-size: 0.75rem; margin-top: 0.25rem; display: none; }
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"このサービスは無料ですか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要でご利用いただけます。"}},{"@type":"Question","name":"入力データはどこに保存されますか？","acceptedAnswer":{"@type":"Answer","text":"お使いのデバイス内にのみ保存されます。外部送信は行いません。"}},{"@type":"Question","name":"結果はどのくらい正確ですか？","acceptedAnswer":{"@type":"Answer","text":"あくまで参考情報です。重要な判断の際は専門家にご相談ください。"}},{"@type":"Question","name":"どのような人が使っていますか？","acceptedAnswer":{"@type":"Answer","text":"初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}},{"@type":"Question","name":"結果をシェアできますか？","acceptedAnswer":{"@type":"Answer","text":"はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}},{"@type":"Question","name":"有料プランはありますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、すべての機能を完全無料でご利用いただけます。"}}]}</script>
 <script type="application/ld+json">
@@ -158,7 +160,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="space-y-4">
       <div>
         <label>お住まいの地域</label>
-        <select id="region" class="input-field">
+        <select id="region" class="input-field" onchange="calculate()">
           <option value="sunny">日照時間が長い（九州・四国・東海・関東）</option>
           <option value="normal" selected>平均的（関西・北関東・中国地方）</option>
           <option value="cloudy">日照が少ない（北海道・東北・北陸）</option>
@@ -166,7 +168,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       </div>
       <div>
         <label>屋根の広さ・設置可能面積</label>
-        <select id="roof-size" class="input-field">
+        <select id="roof-size" class="input-field" onchange="calculate()">
           <option value="small">小さい（〜20㎡・3kW未満）</option>
           <option value="medium" selected>普通（20〜40㎡・3〜5kW）</option>
           <option value="large">大きい（40㎡以上・5kW以上）</option>
@@ -174,11 +176,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       </div>
       <div>
         <label>現在の月間電気代（円）</label>
-        <input type="number" id="electricity-bill" class="input-field" placeholder="例: 15000" min="0" value="15000" aria-label="例: 15000">
+        <input type="number" id="electricity-bill" class="input-field" placeholder="例: 15000" min="1000" max="100000" value="15000" aria-label="例: 15000" onchange="calculate()">
+        <div id="bill-error" class="error-msg">月間電気代は 1,000〜100,000 円の範囲で入力してください</div>
+      </div>
+      <div>
+        <label>電力単価（円/kWh）<span style="font-weight:400;color:#6b7280;font-size:0.8rem;">　※電気代明細で確認できます</span></label>
+        <input type="number" id="unit-price" class="input-field" min="20" max="50" step="1" value="30" aria-label="電力単価 20〜50円" onchange="calculate()">
       </div>
       <div>
         <label>蓄電池も同時に設置しますか？</label>
-        <select id="battery" class="input-field">
+        <select id="battery" class="input-field" onchange="calculate()">
           <option value="no">太陽光のみ</option>
           <option value="5">蓄電池 5kWh（約100万円）</option>
           <option value="10">蓄電池 10kWh（約200万円）</option>
@@ -252,8 +259,26 @@ var batteryData={no:{cost:0,capacity:0},5:{cost:1000000,capacity:5},10:{cost:200
 var subsidyData={sunny:{base:450000,battery:1000000},normal:{base:300000,battery:800000},cloudy:{base:200000,battery:600000}};
 var currentCalc={};
 var chartInstance=null;
+var lastValidCalc=null;
+var isInitialLoad=true;
+
+// バリデーション関数（インラインエラー表示）
+function validateInputs(){
+  var bill=parseInt(document.getElementById('electricity-bill').value)||0;
+  var errorEl=document.getElementById('bill-error');
+  var inputEl=document.getElementById('electricity-bill');
+  if(bill<1000||bill>100000){
+    errorEl.style.display='block';
+    inputEl.classList.add('input-error');
+    return false;
+  }
+  errorEl.style.display='none';
+  inputEl.classList.remove('input-error');
+  return true;
+}
 
 function calculate(){
+  if(!validateInputs()){return;}
   var region=document.getElementById('region').value;
   var roofSize=document.getElementById('roof-size').value;
   var bill=parseInt(document.getElementById('electricity-bill').value)||15000;
@@ -267,10 +292,10 @@ function calculate(){
   var batteryCost=bd.cost;
   var totalCost=baseCost+batteryCost;
 
-  // P1: 月間電気代から推定月間kWh を逆算（電力単価30円で計算）
-  var monthlyKwh=bill/30;
+  // 月間電気代から推定月間kWh を逆算（カスタム電力単価）
+  var electricityUnitPrice=Math.max(20,Math.min(50,parseInt(document.getElementById('unit-price').value)||30));
+  var monthlyKwh=bill/electricityUnitPrice;
   var annualKwh=kw*3.5*365*rf;
-  var electricityUnitPrice=30;
   var fitPrice=16;
   // P2: 蓄電池容量に応じた自家消費率調整
   var selfConsumptionRate=0.4;
@@ -285,6 +310,7 @@ function calculate(){
   var co2=annualKwh*0.000441;
 
   currentCalc={region,roofSize,bill,batteryOption,totalCost,annualBenefit,payback,co2,annualKwh,kw,selfConsume,sellAmount,electricityUnitPrice,fitPrice,monthlyKwh,batteryCapacity:bd.capacity};
+  lastValidCalc=currentCalc;
 
   document.getElementById('r-cost').textContent=Math.round(totalCost/10000)+'万円';
   document.getElementById('r-annual-save').textContent=Math.round(annualBenefit/10000*10)/10+'万円';
@@ -312,30 +338,43 @@ function calculate(){
 
   document.getElementById('results').style.display='block';
   document.getElementById('affiliate-section').style.display='block';
-  document.getElementById('results').scrollIntoView({behavior:'smooth'});
+  if(!isInitialLoad){document.getElementById('results').scrollIntoView({behavior:'smooth'});}
 }
 
 function displayCalculationDetails(){
   var c=currentCalc;
   var html='<p>◦ 年間発電量: '+Math.round(c.annualKwh)+' kWh = 設置容量('+c.kw+'kW) × 日照時間(3.5h) × 365日 × 地域係数</p>';
-  html+='<p>◦ 月間電気代から推定月間使用量: '+Math.round(c.monthlyKwh)+' kWh/月 = 月間電気代('+c.bill+'円) ÷ 電力単価(30円/kWh)</p>';
+  html+='<p>◦ 月間電気代から推定月間使用量: '+Math.round(c.monthlyKwh)+' kWh/月 = 月間電気代('+c.bill+'円) ÷ 電力単価('+c.electricityUnitPrice+'円/kWh)</p>';
   html+='<p>◦ 自家消費率: '+(c.batteryCapacity===0?'40%':c.batteryCapacity<10?'55%':c.batteryCapacity<15?'65%':'72%')+'（蓄電池'+c.batteryCapacity+'kWh時）</p>';
   html+='<p>◦ 自家消費量: '+Math.round(c.selfConsume)+' kWh = 年間発電量('+Math.round(c.annualKwh)+'kWh) × 自家消費率</p>';
   html+='<p>◦ 売電量: '+Math.round(c.sellAmount)+' kWh = 年間発電量('+Math.round(c.annualKwh)+'kWh) - 自家消費量('+Math.round(c.selfConsume)+'kWh)</p>';
   html+='<p>◦ 年間節約額: '+Math.round(c.annualBenefit)+' 円 = 自家消費('+c.selfConsume.toFixed(0)+'kWh × '+c.electricityUnitPrice+'円) + 売電('+c.sellAmount.toFixed(0)+'kWh × '+c.fitPrice+'円)</p>';
   html+='<p>◦ 投資回収期間: '+Math.round(currentCalc.payback*10)/10+'年 = 設置費用('+Math.round(c.totalCost)+' 円) ÷ 年間節約額('+Math.round(c.annualBenefit)+' 円)</p>';
+  html+='<p style="color:#6b7280;font-size:0.85rem;margin-top:8px;">※ グラフは 25 年のパネル寿命を想定。10年目以降の年間メンテナンスコスト 1.5万円を反映。パネル発電効率は年 0.7% 低下を想定。</p>';
   document.getElementById('calc-details').innerHTML=html;
 }
 
 function drawPaybackChart(totalCost,annualBenefit,yearsToPayback){
-  var years=[],cumulative=[];
-  for(var i=0;i<=Math.min(yearsToPayback+2,25);i++){
+  var panelLifespan=25;
+  var totalCostMan=Math.round(totalCost/10000);
+  // 年0を初期値として設定
+  var years=['0年'],cumulative=[0],costRef=[totalCostMan];
+  var cumBenefit=0,degradationFactor=1.0;
+  for(var i=1;i<=panelLifespan;i++){
     years.push(i+'年');
-    cumulative.push(Math.round(annualBenefit*i/10000));
+    degradationFactor*=0.993; // 年0.7%効率劣化
+    var yearBenefit=annualBenefit*degradationFactor;
+    var yearMaint=i>10?15000:0; // 10年目以降メンテ1.5万円/年
+    cumBenefit+=yearBenefit-yearMaint;
+    cumulative.push(Math.round(Math.max(0,cumBenefit)/10000));
+    costRef.push(totalCostMan);
   }
   var ctx=document.getElementById('paybackChart').getContext('2d');
   if(chartInstance)chartInstance.destroy();
-  chartInstance=new Chart(ctx,{type:'line',data:{labels:years,datasets:[{label:'累積節約額（万円）',data:cumulative,borderColor:'#10b981',backgroundColor:'rgba(16,185,129,0.1)',tension:0.4,fill:true,pointBackgroundColor:'#10b981',pointRadius:4}]},options:{responsive:true,plugins:{legend:{display:true}},scales:{y:{beginAtZero:true}}}});
+  chartInstance=new Chart(ctx,{type:'line',data:{labels:years,datasets:[
+    {label:'累積節約額（万円）',data:cumulative,borderColor:'#10b981',backgroundColor:'rgba(16,185,129,0.1)',tension:0.4,fill:true,pointBackgroundColor:'#10b981',pointRadius:3},
+    {label:'設置費用（万円）',data:costRef,borderColor:'#ef4444',borderDash:[6,4],backgroundColor:'transparent',tension:0,fill:false,pointRadius:0,borderWidth:2}
+  ]},options:{responsive:true,plugins:{legend:{display:true},tooltip:{callbacks:{afterLabel:function(c){return c.datasetIndex===0&&c.raw>0?'（パネル交換・メンテ込み）':'';}}}}  ,scales:{y:{beginAtZero:true}}}});
 }
 
 function copyResults(){
@@ -343,7 +382,7 @@ function copyResults(){
   var regionLabel={sunny:'日照時間が長い',normal:'平均的',cloudy:'日照が少ない'};
   var roofLabel={small:'小さい',medium:'普通',large:'大きい'};
   var batteryLabel={no:'太陽光のみ',5:'5kWh',10:'10kWh',15:'15kWh'};
-  text+='地域: '+regionLabel[currentCalc.region]+'\n屋根面積: '+roofLabel[currentCalc.roofSize]+'\n月間電気代: '+currentCalc.bill+'円\n蓄電池: '+batteryLabel[currentCalc.batteryOption]+'\n\n';
+  text+='地域: '+regionLabel[currentCalc.region]+'\n屋根面積: '+roofLabel[currentCalc.roofSize]+'\n月間電気代: '+currentCalc.bill+'円\n電力単価: '+currentCalc.electricityUnitPrice+'円/kWh\n蓄電池: '+batteryLabel[currentCalc.batteryOption]+'\n\n';
   text+='【結果】\n設置費用: '+Math.round(currentCalc.totalCost/10000)+'万円\n年間節約額: '+Math.round(currentCalc.annualBenefit/10000*10)/10+'万円\n投資回収期間: '+Math.round(currentCalc.payback*10)/10+'年\nCO2削減量: '+Math.round(currentCalc.co2*10)/10+'t/年\n';
   text+='https://appadaycreator.com/solar-panel-advisor/';
   navigator.clipboard.writeText(text).then(function(){
@@ -367,15 +406,21 @@ function loadScenarios(){
   var scenarios=JSON.parse(localStorage.getItem('solar_scenarios')||'[]');
   var html='';
   if(scenarios.length>0){
-    html='<table style="width:100%;border-collapse:collapse;font-size:0.875rem;">';
+    html='<table style="width:100%;border-collapse:collapse;font-size:0.875rem;margin-bottom:12px;">';
     html+='<tr style="background:#f3f4f6;"><th style="border:1px solid #e5e7eb;padding:8px;text-align:left;">名前</th><th style="border:1px solid #e5e7eb;padding:8px;">費用</th><th style="border:1px solid #e5e7eb;padding:8px;">年間節約</th><th style="border:1px solid #e5e7eb;padding:8px;">回収期間</th><th style="border:1px solid #e5e7eb;padding:8px;">操作</th></tr>';
     scenarios.forEach(function(s,i){
       html+='<tr style="border:1px solid #e5e7eb;"><td style="border:1px solid #e5e7eb;padding:8px;">'+s.name+'</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center;">'+Math.round(s.calc.totalCost/10000)+'万円</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center;">'+Math.round(s.calc.annualBenefit/10000*10)/10+'万円</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center;">'+Math.round(s.calc.payback*10)/10+'年</td><td style="border:1px solid #e5e7eb;padding:8px;text-align:center;"><button onclick="deleteScenario('+i+')" style="background:#ef4444;color:white;border:none;padding:4px 8px;border-radius:4px;font-size:12px;cursor:pointer;">削除</button></td></tr>';
     });
     html+='</table>';
+    if(scenarios.length>=2){
+      html+='<canvas id="scenarioChart" style="max-height:300px;margin-top:12px;" class="responsive-chart"></canvas>';
+    }
   }
   document.getElementById('scenarios-list').innerHTML=html;
   document.getElementById('scenarios-section').style.display=scenarios.length>0?'block':'none';
+  if(scenarios.length>=2){
+    drawScenarioChart(scenarios);
+  }
 }
 
 function deleteScenario(idx){
@@ -392,6 +437,50 @@ function showToast(msg){
   toast.style.display='block';
   setTimeout(function(){toast.style.display='none';},1500);
 }
+
+function drawScenarioChart(scenarios){
+  var ctx=document.getElementById('scenarioChart');
+  if(!ctx)return;
+  ctx=ctx.getContext('2d');
+  var data=scenarios.map(function(s,i){
+    return {
+      x:Math.round(s.calc.totalCost/10000),
+      y:Math.round(s.calc.payback*10)/10,
+      label:s.name
+    };
+  });
+  if(window.scenarioChartInstance)window.scenarioChartInstance.destroy();
+  window.scenarioChartInstance=new Chart(ctx,{
+    type:'scatter',
+    data:{
+      datasets:[{
+        label:'シナリオ比較（費用 vs 回収期間）',
+        data:data,
+        borderColor:'#7c3aed',
+        backgroundColor:'rgba(124,58,237,0.5)',
+        pointRadius:6,
+        pointHoverRadius:8
+      }]
+    },
+    options:{
+      responsive:true,
+      plugins:{
+        legend:{display:true},
+        tooltip:{callbacks:{label:function(ctx){return ctx.raw.label+': 費用'+ctx.raw.x+'万円、回収期間'+ctx.raw.y+'年';}}}
+      },
+      scales:{
+        x:{title:{display:true,text:'設置費用（万円）'},beginAtZero:true},
+        y:{title:{display:true,text:'投資回収期間（年）'},beginAtZero:true}
+      }
+    }
+  });
+}
+
+// ページ読み込み時に初期計算を実行（スクロールは行わない）
+window.addEventListener('load',function(){
+  calculate();
+  isInitialLoad=false;
+});
 </script>
 <div style="max-width:512px;margin:0 auto;padding:0 16px;">
 <div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px auto;max-width:680px;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">地域の日照係数・屋根面積・設置容量をもとに年間発電量を算出し、自家消費（節電）と売電収益から年間節約額を計算します。投資回収期間＝設置費用÷年間節約額。実際の値は業者・建物・設備により異なります。</p></div>
@@ -433,7 +522,7 @@ function showToast(msg){
     <a href="https://appadaycreator.com/carbon-footprint-calculator/" class="related-link">CO2排出量（カーボンフットプリント）計算</a>
     <a href="https://appadaycreator.com/eco-shopping-advisor/" class="related-link">エコ・サステナブル買い物診断</a>
     <a href="https://appadaycreator.com/recycling-advisor/" class="related-link">ゴミ分別・リサイクル診断</a>
-    <a href="https://appadaycreator.com/green-diary-app/" class="related-link">植物の水やり管理・成長記録アプリグリーンダイアリー</a>
+    <a href="https://appadaycreator.com/green-diary-app/lp/" class="related-link">植物の水やり管理・成長記録アプリグリーンダイアリー</a>
   </div>
 </section>
 </div>
@@ -516,6 +605,10 @@ function showToast(msg){
 <div style="text-align:center;padding:8px;font-size:11px;"><a href="privacy-policy.html" style="color:inherit;font-size:11px;opacity:0.7;text-decoration:underline;">プライバシーポリシー</a></div>
 <p style="text-align:center;font-size:12px;color:#9ca3af;margin:8px 0 0;">© 2026 AppADayCreator. All rights reserved.</p>
 
+</div>
+<div style="text-align:center;margin:24px auto;max-width:760px;padding:0 16px">
+<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
 </div>
 </body>
 </html>

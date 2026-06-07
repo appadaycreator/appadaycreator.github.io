@@ -147,14 +147,21 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <input type="number" id="val3" placeholder="5000" min="0">
           <p style="font-size:12px;color:#888;margin:4px 0 16px;">予算帯に合わせた商品カテゴリをご提案します（未入力でも診断可）</p>
           <button class="btn" id="calculate-btn" style="width:100%;margin-top:4px;" onclick="calculate()">ルーティンを診断する</button>
-          <div class="result" id="result" style="margin-top:16px;">
+          <div class="result" id="result" aria-live="polite" style="margin-top:16px;">
+            <div id="history-section" style="margin-bottom:12px;padding:12px;background:#f0f9ff;border-radius:8px;border:1px solid #bbf7d0;display:none;">
+              <p style="font-size:12px;font-weight:600;color:#166534;margin-bottom:8px;">⏰ 最近の診断</p>
+              <div id="history-list" style="display:flex;flex-direction:column;gap:4px;"></div>
+            </div>
             <div class="card">
               <div id="output" style="font-size:1.2rem;font-weight:700;color:#DB2777;padding:8px 0 2px;"></div>
               <p id="detail" style="color:#666;font-size:13px;margin-top:4px;margin-bottom:12px;"></p>
               <div id="routine-detail"></div>
-              <div style="margin-top:12px;padding-top:12px;border-top:1px solid #FCE7F3;display:flex;gap:8px;">
-                <button style="flex:1;background:#f0f0f0;color:#333;border:none;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;" onclick="resetDiagnosis()">新しい診断をする</button>
-                <button style="flex:1;background:#f0f0f0;color:#333;border:none;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;" onclick="window.print()">プリント</button>
+              <div id="share-section" style="margin-top:12px;padding-top:12px;border-top:1px solid #FCE7F3;">
+                <button style="width:100%;background:#DB2777;color:#fff;border:none;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;margin-bottom:8px;" onclick="copyShareUrl()">🔗 このURLをシェア</button>
+                <div style="display:flex;gap:8px;">
+                  <button style="flex:1;background:#f0f0f0;color:#333;border:none;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;" onclick="resetDiagnosis()">新しい診断をする</button>
+                  <button style="flex:1;background:#f0f0f0;color:#333;border:none;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;" onclick="window.print()">プリント</button>
+                </div>
               </div>
             </div>
           </div>
@@ -233,14 +240,25 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       inputs: ['val1', 'val2', 'val3'],
       error: '肌タイプを選択してください',
       storageKey: 'skincareRoutineBuilder_inputs',
+      historyKey: 'skincareRoutineBuilder_history',
       maxBudget: 100000,
     };
+
+    function getTierInfo(budget) {
+      if (!budget) return { tier: '未設定', example: '' };
+      if (budget < 2000) return { tier: '超プチプラ', example: '無印良品・ベルサンテ等' };
+      if (budget < 5000) return { tier: 'プチプラ', example: 'ちふれ・キュレル等' };
+      if (budget < 10000) return { tier: 'ミドルレンジ', example: 'ビオレ・ユースキン等' };
+      if (budget < 20000) return { tier: 'プレミアム', example: '資生堂・HABA等' };
+      return { tier: 'ラグジュアリー', example: 'SK-Ⅱ・クリニーク等' };
+    }
 
     function calcLogic(vals) {
       const skinNames = ['', '普通肌', '乾燥肌', '脂性肌', '混合肌', '敏感肌'];
       const concernNames = ['', '乾燥ケア', 'ニキビケア', '毛穴ケア', '美白ケア', 'エイジングケア'];
       const st = Math.round(vals[0]), cn = Math.round(vals[1]), budget = Math.max(0, vals[2]);
-      const tier = !budget ? '未設定' : budget < 3000 ? 'プチプラ' : budget < 10000 ? 'ミドルレンジ' : 'ハイエンド';
+      const tierInfo = getTierInfo(budget);
+      const tier = tierInfo.tier;
       const am = ['洗顔（ぬるま湯）', '化粧水', '乳液', '日焼け止め（SPF30以上）'];
       const pm = ['クレンジング', '洗顔', '化粧水', '美容液', 'クリーム'];
       const extra = {
@@ -252,17 +270,24 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }[cn] || { am: [], pm: [], p: [] };
       const amSteps = [...am.slice(0, -1), ...extra.am, am[am.length - 1]];
       const pmSteps = [...pm, ...extra.pm];
-      const mkStep = (color, step, idx) =>
-        `<div style="display:flex;align-items:center;padding:8px 0;font-size:13px;border-bottom:1px solid #FCE7F3;">` +
-        `<span style="background:${color};color:#fff;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;margin-right:10px;flex-shrink:0;">${idx}</span><span style="flex:1;">${step}</span></div>`;
-      const amHtml = amSteps.map((s, i) => mkStep('#DB2777', s, i + 1)).join('');
-      const pmHtml = pmSteps.map((s, i) => mkStep('#9D174D', s, i + 1)).join('');
+
+      const mkStep = (idx, isNight) => {
+        const baseHue = 330;
+        const lightness = isNight ? 40 - idx * 2 : 50 + idx * 1;
+        const color = `hsl(${baseHue}, 70%, ${Math.max(30, Math.min(60, lightness))}%)`;
+        return (step) =>
+          `<div style="display:flex;align-items:center;padding:12px 0;font-size:13px;border-bottom:1px solid #FCE7F3;">` +
+          `<span style="background:${color};color:#fff;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;margin-right:10px;flex-shrink:0;">${idx}</span><span style="flex:1;">${step}</span></div>`;
+      };
+
+      const amHtml = amSteps.map((s, i) => mkStep(i + 1, false)(s)).join('');
+      const pmHtml = pmSteps.map((s, i) => mkStep(i + 1, true)(s)).join('');
       const prodHtml = extra.p.map(p => `<span style="display:inline-block;background:#FCE7F3;color:#9D174D;border-radius:20px;padding:6px 12px;font-size:12px;margin:4px;">${p}</span>`).join('');
       const rd = document.getElementById('routine-detail');
       if (rd) rd.innerHTML =
         `<div style="margin-bottom:14px;"><p style="font-size:13px;font-weight:600;color:#DB2777;margin-bottom:8px;">☀️ 朝のルーティン（${amSteps.length}ステップ）</p>${amHtml}</div>` +
         `<div style="margin-bottom:14px;"><p style="font-size:13px;font-weight:600;color:#9D174D;margin-bottom:8px;">🌙 夜のルーティン（${pmSteps.length}ステップ）</p>${pmHtml}</div>` +
-        `<div><p style="font-size:13px;font-weight:600;color:#DB2777;margin-bottom:8px;">🛍️ おすすめ商品カテゴリ（${tier}）</p>${prodHtml}</div>`;
+        `<div><p style="font-size:13px;font-weight:600;color:#DB2777;margin-bottom:8px;">🛍️ おすすめ商品カテゴリ（${tier}）</p><p style="font-size:12px;color:#666;margin-bottom:8px;">例：${tierInfo.example}</p>${prodHtml}</div>`;
       return { result: `${skinNames[st]} × ${concernNames[cn]}ルーティン`, detail: budget ? `予算帯：${tier}（月${budget.toLocaleString()}円）` : `予算帯：${tier}` };
     }
 
@@ -275,7 +300,64 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       localStorage.setItem(CFG.storageKey, JSON.stringify(data));
     }
 
+    function saveToHistory() {
+      const vals = CFG.inputs.map(id => parseFloat(document.getElementById(id)?.value) || 0);
+      const st = Math.round(vals[0]), cn = Math.round(vals[1]), budget = Math.max(0, vals[2]);
+      const skinNames = ['', '普通肌', '乾燥肌', '脂性肌', '混合肌', '敏感肌'];
+      const concernNames = ['', '乾燥ケア', 'ニキビケア', '毛穴ケア', '美白ケア', 'エイジングケア'];
+      const item = {
+        s: vals[0], c: vals[1], b: vals[2],
+        label: `${skinNames[st]}×${concernNames[cn]}`,
+        time: new Date().getTime()
+      };
+      let history = [];
+      const stored = localStorage.getItem(CFG.historyKey);
+      if (stored) {
+        try { history = JSON.parse(stored); } catch (e) {}
+      }
+      history.unshift(item);
+      history = history.slice(0, 5);
+      localStorage.setItem(CFG.historyKey, JSON.stringify(history));
+      displayHistory();
+    }
+
+    function displayHistory() {
+      const stored = localStorage.getItem(CFG.historyKey);
+      if (!stored) return;
+      try {
+        const history = JSON.parse(stored);
+        const histSection = document.getElementById('history-section');
+        const histList = document.getElementById('history-list');
+        if (history.length === 0) {
+          histSection.style.display = 'none';
+          return;
+        }
+        histSection.style.display = 'block';
+        histList.innerHTML = history.map((h, i) =>
+          `<button style="background:#fff;border:1px solid #bbf7d0;padding:8px;border-radius:6px;text-align:left;font-size:12px;color:#166534;cursor:pointer;font-weight:600;" onclick="restoreFromHistory(${h.s},${h.c},${h.b})">→ ${h.label} (¥${Math.round(h.b).toLocaleString()})</button>`
+        ).join('');
+      } catch (e) {}
+    }
+
+    function restoreFromHistory(s, c, b) {
+      document.getElementById('val1').value = s;
+      document.getElementById('val2').value = c;
+      document.getElementById('val3').value = b;
+      saveInputs();
+      calculate();
+    }
+
     function restoreInputs() {
+      const params = new URLSearchParams(window.location.search);
+      const urlS = params.get('s'), urlC = params.get('c'), urlB = params.get('b');
+
+      if (urlS && urlC) {
+        document.getElementById('val1').value = urlS;
+        document.getElementById('val2').value = urlC;
+        if (urlB) document.getElementById('val3').value = urlB;
+        return;
+      }
+
       const stored = localStorage.getItem(CFG.storageKey);
       if (stored) {
         try {
@@ -301,8 +383,25 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       resetDiagnosis();
     }
 
+    function copyShareUrl() {
+      const vals = CFG.inputs.map(id => parseFloat(document.getElementById(id)?.value) || 0);
+      const url = `${window.location.origin}${window.location.pathname}?s=${Math.round(vals[0])}&c=${Math.round(vals[1])}&b=${Math.round(vals[2])}`;
+      navigator.clipboard.writeText(url).then(() => {
+        showToast('URLをコピーしました！');
+      }).catch(err => alert('コピーに失敗しました: ' + err));
+    }
+
+    function showToast(msg) {
+      const toast = document.createElement('div');
+      toast.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#333;color:#fff;padding:12px 20px;border-radius:8px;font-size:13px;z-index:10000;';
+      toast.textContent = msg;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 1500);
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       restoreInputs();
+      displayHistory();
       const btn = document.getElementById('calculate-btn');
       CFG.inputs.forEach(id => {
         const el = document.getElementById(id);
@@ -331,6 +430,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         document.getElementById('output').textContent = typeof result === 'number' ? result.toLocaleString() : result;
         const d = document.getElementById('detail'); if (d) d.textContent = detail || '';
         document.getElementById('result').classList.add('show');
+
+        const params = new URLSearchParams();
+        params.set('s', Math.round(vals[0]));
+        params.set('c', Math.round(vals[1]));
+        params.set('b', Math.round(vals[2]));
+        window.history.pushState({}, '', `?${params.toString()}`);
+
+        saveToHistory();
         btn.style.opacity = '1';
         btn.disabled = false;
       }, 200);

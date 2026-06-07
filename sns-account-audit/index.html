@@ -103,6 +103,17 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
             .card { padding: 16px; }
             .btn { font-size: 15px; padding: 13px 20px; }
             .result-value { font-size: 28px; }
+            .gauge-svg { width: 120px; height: 120px; }
+            .gauge-score-text { font-size: 28px; }
+            .share-row { flex-direction: column; }
+            .share-btn { width: 100%; }
+            .cat-label { font-size: 11px; }
+        }
+        @media (max-width: 375px) {
+            .site-header h1 { font-size: 18px; }
+            .card { padding: 12px; }
+            .gauge-svg { width: 110px; height: 110px; }
+            .cat-row { margin-bottom: 8px; }
         }
         /* ── サービス固有CSS ── */
         .quiz-opt { width:100%; padding:12px 14px; margin-bottom:8px; border:2px solid #e5e7eb; border-radius:10px; font-size:14px; cursor:pointer; background:#fff; text-align:left; transition:border-color .15s, background .15s; }
@@ -231,6 +242,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
                 <li>表示される質問に順番に回答する（約1〜2分）</li>
                 <li>すべて回答すると100点満点のスコアと詳細評価が自動表示される</li>
                 <li>結果のアドバイスを確認してスコア付きでSNSにシェアする</li>
+                <li>定期的に再診断して成長を追跡し、改善を重ねていく</li>
             </ol>
         </div>
 
@@ -252,11 +264,23 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             </div>
             <div style="border-bottom:1px solid #f1f5f9;padding-bottom:12px;">
               <p style="font-size:14px;font-weight:600;color:#374151;margin-bottom:4px;">Q: 診断結果は保存されますか？</p>
-              <p style="font-size:13px;color:#6b7280;line-height:1.7;">A: 結果はブラウザには保存されません。スクリーンショットやSNSシェアでご記録ください。</p>
+              <p style="font-size:13px;color:#6b7280;line-height:1.7;">A: 結果はブラウザに保存され、前回スコアとの比較表示や成長追跡ができます。ブラウザのサイトデータ削除で初期化されます。</p>
             </div>
             <div style="border-bottom:1px solid #f1f5f9;padding-bottom:12px;">
               <p style="font-size:14px;font-weight:600;color:#374151;margin-bottom:4px;">Q: 入力したデータはサーバーに送信されますか？</p>
               <p style="font-size:13px;color:#6b7280;line-height:1.7;">A: いいえ。すべての処理はブラウザ内で完結し、個人情報・入力データのサーバー送信は行いません。</p>
+            </div>
+            <div style="border-bottom:1px solid #f1f5f9;padding-bottom:12px;">
+              <p style="font-size:14px;font-weight:600;color:#374151;margin-bottom:4px;">Q: スコアの計算方法は？</p>
+              <p style="font-size:13px;color:#6b7280;line-height:1.7;">A: 5問の回答を 0〜3点で評価し、合計 0〜15点を 100点満点に換算しています。カテゴリ別評価は各質問の回答度合いを反映しています。</p>
+            </div>
+            <div style="border-bottom:1px solid #f1f5f9;padding-bottom:12px;">
+              <p style="font-size:14px;font-weight:600;color:#374151;margin-bottom:4px;">Q: 診断結果を改善するには？</p>
+              <p style="font-size:13px;color:#6b7280;line-height:1.7;">A: 結果画面に表示される「カテゴリ別評価」セクションの改善ヒントを参考に、弱い項目から優先的に対策してください。定期的に再診断して進捗を確認しましょう。</p>
+            </div>
+            <div style="border-bottom:1px solid #f1f5f9;padding-bottom:12px;">
+              <p style="font-size:14px;font-weight:600;color:#374151;margin-bottom:4px;">Q: このツールは有料になるのですか？</p>
+              <p style="font-size:13px;color:#6b7280;line-height:1.7;">A: いいえ。現在も将来も完全無料でご利用いただけます。AppADayCreator では 300以上の無料ツールを公開・運用しています。</p>
             </div>
             </div>
         </div>
@@ -327,10 +351,25 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     let cur = 0;
     let ans = [];
+    const HISTORY_KEY = 'sns_audit_history';
+    const MAX_HISTORY = 10;
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('q-total').textContent = QUESTIONS.length;
     });
+
+    function getHistory() {
+      const h = localStorage.getItem(HISTORY_KEY);
+      return h ? JSON.parse(h) : [];
+    }
+
+    function saveToHistory(score, phase, categories) {
+      const h = getHistory();
+      h.unshift({ date: new Date().toLocaleString('ja-JP'), score, phaseIdx: PHASES.indexOf(phase), categories });
+      if (h.length > MAX_HISTORY) h.pop();
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(h));
+      return h[1] || null; // 前回のデータ
+    }
 
     function startQuiz() {
       cur = 0;
@@ -381,9 +420,22 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const phase = PHASES.find(p => score >= p.min && score <= p.max) || PHASES[PHASES.length - 1];
       const phaseIdx = PHASES.indexOf(phase);
 
+      /* カテゴリ別スコア */
+      const categories = ans.map(a => ({ cat: a.cat, pct: Math.round(a.idx / 3 * 100) }));
+
+      /* 履歴保存・前回スコア取得 */
+      const prev = saveToHistory(score, phase, categories);
+      let compMsg = '';
+      if (prev) {
+        const diff = score - prev.score;
+        if (diff > 0) compMsg = `<p style="background:#ecfdf5;color:#065f46;border-left:3px solid #10b981;padding:10px;border-radius:4px;margin-bottom:12px;font-size:13px;"><strong>✨ 前回比 +${diff}点！成長中です</strong></p>`;
+        else if (diff < 0) compMsg = `<p style="background:#fef2f2;color:#7f1d1d;border-left:3px solid #ef4444;padding:10px;border-radius:4px;margin-bottom:12px;font-size:13px;">📉 前回比 ${diff}点</p>`;
+        else compMsg = `<p style="background:#f3f4f6;color:#4b5563;border-left:3px solid #9ca3af;padding:10px;border-radius:4px;margin-bottom:12px;font-size:13px;">▶ 前回と同じスコアです</p>`;
+      }
+
       document.getElementById('r-title').textContent = phase.title;
       document.getElementById('r-title').style.color = phase.color;
-      document.getElementById('r-desc').textContent = DESCS[phaseIdx];
+      document.getElementById('r-desc').innerHTML = compMsg + '<p>' + DESCS[phaseIdx] + '</p>';
 
       /* ゲージアニメーション */
       const circumference = 314;
@@ -406,8 +458,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       });
 
       /* カテゴリ別バー */
-      const catsHtml = ans.map(a => {
-        const pct = Math.round(a.idx / 3 * 100);
+      const catsHtml = ans.map((a, i) => {
+        const pct = categories[i].pct;
         const barColor = pct <= 33 ? '#ef4444' : pct <= 66 ? '#f59e0b' : '#10b981';
         const warn = pct <= 33 ? '<span class="warn-badge">⚠️ 要改善</span>' : '';
         return `<div class="cat-row">
@@ -425,9 +477,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         });
       }, 200);
 
-      /* 動的シェアURL（スコア入り） */
+      /* 動的シェアURL（スコア入り・強み含む） */
       const phaseName = phase.title.replace(/^[\S]+\s/, '');
-      const shareText = `私のSNS健全性スコアは${score}点（${phaseName}）でした！あなたのSNSアカウントも診断してみよう👇`;
+      const strongest = categories.reduce((a, b) => a.pct >= b.pct ? a : b);
+      let shareText = `私のSNS健全性スコアは${score}点（${phaseName}）！強みは「${strongest.cat}」${strongest.pct}%です`;
+      if (score >= 80) shareText += '✨ あなたも診断してみよう👇';
+      else shareText += '📱 あなたのSNSもチェック👇';
       const shareUrl = 'https://appadaycreator.com/sns-account-audit/';
       document.getElementById('share-x').href =
         `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;

@@ -214,6 +214,12 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
       <p class="result-desc-text" id="result-desc"></p>
     </div>
 
+    <!-- 年収・審査難易度アドバイスカード -->
+    <div id="income-advice-card" class="card p-5 mb-4" style="display:none;"></div>
+
+    <!-- 目的別アドバイスカード -->
+    <div id="purpose-advice-card" class="card p-5 mb-4" style="display:none;"></div>
+
     <div class="card p-5 mb-4">
       <h3 class="section-title">🏦 おすすめのローン種別</h3>
       <div id="loan-options" class="space-y-3"></div>
@@ -221,10 +227,10 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 
     <div class="card p-5 mb-4">
       <h3 class="section-title">📊 月々返済シミュレーション</h3>
-      <p class="text-sm text-gray-500 mb-3">借入額: <span id="borrow-amount" class="font-bold text-blue-800"></span> 万円</p>
+      <p class="text-sm text-gray-500 mb-3">借入額: <span id="borrow-amount" class="font-bold text-blue-800"></span> 万円<span id="borrow-note" class="text-xs text-gray-400 ml-2"></span></p>
       <div class="overflow-x-auto">
         <table class="sim-table">
-          <thead><tr><th>返済期間</th><th>金利1.5%</th><th>金利2.0%</th><th>金利3.0%</th></tr></thead>
+          <thead><tr><th>返済期間</th><th>金利1.5%</th><th>金利2.0%</th><th>金利3.0%</th><th>総返済額(2%)</th></tr></thead>
           <tbody id="sim-table-body"></tbody>
         </table>
       </div>
@@ -366,7 +372,7 @@ function renderQuestion() {
   document.getElementById('question-text').textContent = q.text;
   document.getElementById('step-badge').textContent = `STEP ${currentQ+1} / ${questions.length}`;
   document.getElementById('q-label').textContent = q.label || '';
-  const pct = Math.round(currentQ / questions.length * 100);
+  const pct = Math.round((currentQ + 1) / questions.length * 100);
   document.getElementById('q-pct').textContent = pct + '%';
   document.getElementById('progress-fill').style.width = pct + '%';
 
@@ -429,10 +435,19 @@ function calculateResult() {
   const borrowAmount = scaleOpt ? scaleOpt.amount : 200;
   const propertyVal = propertyOpt ? propertyOpt.value : 'house';
   const mortgageVal = mortgageOpt ? mortgageOpt.value : 'little';
+  const incomeVal = incomeOpt ? incomeOpt.value : 'mid_low';
+  const incomeMultiplier = incomeOpt ? incomeOpt.multiplier : 1.0;
   const purposeVal = purposeOpt ? purposeOpt.value : 'repair';
   const termYears = termOpt ? termOpt.years : 10;
 
+  // 年収ベースの借入可能目安（年収の7倍、上限はローン種別で異なる）
+  const incomeCapMap = { low: 210, mid_low: 280, mid: 420, mid_high: 700, high: 1400 };
+  const incomeCap = incomeCapMap[incomeVal] || 280;
+  // リフォームローン（無担保）上限500万を考慮した実質上限
+  const reformLoanCap = Math.min(incomeCap, 500);
+
   document.getElementById('borrow-amount').textContent = borrowAmount;
+  document.getElementById('borrow-note').textContent = '（診断上の目安額）';
 
   let loanType = 'reform_only';
   let resultIcon = '🏦';
@@ -459,6 +474,63 @@ function calculateResult() {
     resultIcon = '📋';
     resultTitle = 'リフォームローン単独がおすすめ';
     resultDesc = 'ご状況からは、リフォームローン単独での資金調達が最適です。複数の金融機関・フラット35を比較して、最も有利な条件を選びましょう。';
+  }
+
+  // 年収ベースの審査難易度アドバイス
+  const incomeCard = document.getElementById('income-advice-card');
+  const isLowIncome = incomeVal === 'low';
+  const isTightBorrow = borrowAmount > reformLoanCap;
+
+  let incomeHTML = '<h3 class="section-title">💡 年収からのアドバイス</h3>';
+  incomeHTML += `<div class="text-sm text-gray-600 mb-3">借入可能目安（年収の目安×7）: <strong class="text-blue-800">${reformLoanCap}万円まで</strong></div>`;
+
+  if (isLowIncome && borrowAmount > 100) {
+    incomeHTML += `<div style="background:#fef3c7;border-left:4px solid #f59e0b;border-radius:6px;padding:12px;font-size:13px;color:#78350f;">
+      ⚠️ <strong>審査が厳しくなる可能性があります</strong><br>
+      年収300万未満では無担保リフォームローンの審査通過率が低くなりがちです。ろうきん・信用金庫・地方銀行など複数の金融機関に相談することをおすすめします。
+    </div>`;
+  } else if (isTightBorrow) {
+    incomeHTML += `<div style="background:#fef9c3;border-left:4px solid #eab308;border-radius:6px;padding:12px;font-size:13px;color:#713f12;">
+      ℹ️ ご希望のリフォーム額（${borrowAmount}万円）は年収ベースの借入目安（${reformLoanCap}万円）を上回っています。担保型ローンや住宅ローンへの組み込みも視野に入れると有利です。
+    </div>`;
+  } else {
+    incomeHTML += `<div style="background:#dcfce7;border-left:4px solid #22c55e;border-radius:6px;padding:12px;font-size:13px;color:#14532d;">
+      ✅ 年収から見た借入額は審査通過の目安範囲内です。引き続き複数の金融機関を比較して最良の条件を選びましょう。
+    </div>`;
+  }
+  incomeCard.innerHTML = incomeHTML;
+  incomeCard.style.display = 'block';
+
+  // 目的別アドバイス
+  const purposeCard = document.getElementById('purpose-advice-card');
+  const purposeAdviceMap = {
+    eco: {
+      icon: '🌿',
+      title: '省エネ改修：補助金を先に確認しましょう',
+      body: '省エネ目的のリフォームは「先進的窓リノベ事業（最大200万円）」「こどもエコすまい支援事業（最大60万円）」の補助金が使えます。<strong>補助金を先に申請して、残額にローンを充てる</strong>ことで実質負担を大幅に減らせます。補助金は申請期間が限られるため早めの手続きを。',
+      color: '#d1fae5', border: '#10b981', text: '#065f46'
+    },
+    barrier_free: {
+      icon: '♿',
+      title: 'バリアフリー改修：介護保険給付を先に確認',
+      body: '要介護・要支援認定を受けている方は<strong>介護保険住宅改修費（最大18万円、自己負担1割）</strong>が給付されます。まずケアマネジャーに相談し、給付後の自己負担額にローンを充てることで実質コストを最小化できます。',
+      color: '#ede9fe', border: '#8b5cf6', text: '#4c1d95'
+    },
+    purchase: {
+      icon: '🏡',
+      title: '購入同時リフォーム：一体ローンが有利',
+      body: '中古住宅購入と同時のリフォームは、<strong>購入費用＋リフォーム費用を住宅ローンとして一本化</strong>できる「リノベーション一体ローン」が有利です。フラット35リノベや各金融機関の購入＋リフォームパッケージを不動産会社・金融機関に相談してください。',
+      color: '#dbeafe', border: '#3b82f6', text: '#1e3a8a'
+    }
+  };
+
+  const advice = purposeAdviceMap[purposeVal];
+  if (advice) {
+    purposeCard.innerHTML = `<h3 class="section-title">${advice.icon} ${advice.title}</h3>
+      <div style="background:${advice.color};border-left:4px solid ${advice.border};border-radius:6px;padding:12px;font-size:13px;color:${advice.text};line-height:1.7;">${advice.body}</div>`;
+    purposeCard.style.display = 'block';
+  } else {
+    purposeCard.style.display = 'none';
   }
 
   const loanOptions = [
@@ -489,12 +561,16 @@ function calculateResult() {
   const tbody = document.getElementById('sim-table-body');
   tbody.innerHTML = termOptions.map(yrs => {
     const months = yrs * 12;
-    const cols = rates.map(rate => {
-      const m = calcMonthlyPayment(principal, rate, months);
-      const isHighlight = yrs === termYears;
-      return `<td${isHighlight?' class="highlight"':''}>${Math.round(m/1000).toLocaleString()}千円</td>`;
-    });
-    return `<tr${yrs === termYears?' style="background:#eff6ff;"':''}><td>${yrs}年${yrs === termYears ? '<span style="font-size:.65rem;color:#1e40af;margin-left:2px;">★</span>':''}</td>${cols.join('')}</tr>`;
+    const isSelected = yrs === termYears;
+    const m15 = calcMonthlyPayment(principal, 1.5, months);
+    const m20 = calcMonthlyPayment(principal, 2.0, months);
+    const m30 = calcMonthlyPayment(principal, 3.0, months);
+    const total20 = Math.round(m20 * months / 10000);
+    const fmtWan = v => (v >= 10000 ? (v/10000).toFixed(1) + '万円' : Math.round(v/1000) + '千円');
+    const rowStyle = isSelected ? ' style="background:#eff6ff;border-left:3px solid #1e40af;"' : '';
+    const mark = isSelected ? '<span style="font-size:.65rem;background:#1e40af;color:white;padding:1px 4px;border-radius:3px;margin-left:4px;">選択</span>' : '';
+    const tdClass = isSelected ? ' class="highlight"' : '';
+    return `<tr${rowStyle}><td>${yrs}年${mark}</td><td${tdClass}>${fmtWan(m15)}</td><td${tdClass}>${fmtWan(m20)}</td><td${tdClass}>${fmtWan(m30)}</td><td${tdClass} style="color:#64748b;">${total20}万円</td></tr>`;
   }).join('');
 
   const allSubsidies = [

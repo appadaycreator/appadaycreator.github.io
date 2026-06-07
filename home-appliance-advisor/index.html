@@ -158,9 +158,31 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
         <p class="text-gray-600 text-sm" id="rDesc"></p>
       </div>
 
+      <!-- 買い替え緊急度ゲージ -->
+      <div class="bg-gray-50 rounded-xl p-4 mb-4">
+        <h3 class="font-bold text-gray-800 mb-2 text-sm">📊 買い替え緊急度スコア</h3>
+        <div class="flex justify-between text-xs text-gray-400 mb-1">
+          <span>まだ使える</span><span>要検討</span><span>今すぐ必要</span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-4 mb-2 overflow-hidden">
+          <div id="urgencyBar" class="h-4 rounded-full transition-all duration-700" style="width:0%"></div>
+        </div>
+        <div class="flex justify-between items-center mb-3">
+          <span class="text-sm text-gray-600" id="urgencyScoreLabel"></span>
+          <span class="text-sm font-bold text-gray-700" id="urgencyScoreNum"></span>
+        </div>
+        <div id="urgencyBreakdown" class="grid grid-cols-2 gap-2 text-xs"></div>
+      </div>
+
       <div class="bg-indigo-50 rounded-xl p-4 mb-4">
         <h3 class="font-bold text-indigo-800 mb-2">📊 省エネ効果試算</h3>
         <div id="energySaving" class="text-sm text-indigo-700"></div>
+      </div>
+
+      <!-- 修理 vs 買い替え コスト試算 -->
+      <div class="bg-blue-50 rounded-xl p-4 mb-4" id="costCompareBlock">
+        <h3 class="font-bold text-blue-800 mb-2 text-sm">💸 修理 vs 買い替え コスト試算（5年間）</h3>
+        <div id="costCompareTable"></div>
       </div>
 
       <div class="bg-gray-50 rounded-xl p-4 mb-4">
@@ -260,6 +282,114 @@ const QUESTIONS = [
 
 let answers = {}, currentQ = 0;
 
+// 家電別データ（標準寿命・省エネ節約額レンジ）
+const APPLIANCE_DATA = {
+  'エアコン':   { life: 10, savLow: 15000, savHigh: 40000 },
+  '冷蔵庫':    { life: 12, savLow: 5000,  savHigh: 15000 },
+  '洗濯機':    { life: 10, savLow: 3000,  savHigh: 8000  },
+  'テレビ':    { life: 10, savLow: 2000,  savHigh: 6000  },
+  '電子レンジ': { life: 10, savLow: 1000,  savHigh: 3000  },
+  '掃除機':    { life: 7,  savLow: 500,   savHigh: 2000  },
+  '給湯器':    { life: 13, savLow: 8000,  savHigh: 20000 },
+  'その他':    { life: 10, savLow: 2000,  savHigh: 8000  }
+};
+// 使用年数インデックスに対応する省エネ効果係数
+const SAVE_FACTOR = [0, 0.3, 0.6, 0.85, 1.0];
+// 修理費選択肢の代表値（円）
+const REPAIR_COST_MID = [0, 5000, 20000, 40000, 70000];
+// 予算選択肢の代表値（円）
+const BUDGET_MID_MAP = [20000, 55000, 115000, 225000, 400000];
+// 家電別のお得な購入シーズン
+const SEASON_TIPS = {
+  'エアコン':   [[2, 3, '2〜3月（春の決算セール）'], [10, 11, '10〜11月（オフシーズン）']],
+  '冷蔵庫':    [[3, 4, '3〜4月（決算）'], [10, 11, '10〜11月（新モデル発売前）']],
+  '洗濯機':    [[2, 3, '2〜3月（決算セール）'], [9, 10, '9〜10月（新モデル前）']],
+  'テレビ':    [[3, 4, '3〜4月（決算）'], [9, 10, '9〜10月（新モデル前）']],
+  '電子レンジ': [[2, 3, '2〜3月（決算）'], [10, 11, '10〜11月（年末商戦前）']],
+  '掃除機':    [[3, 4, '3〜4月（決算）'], [9, 10, '9〜10月（秋の新モデル前）']],
+  '給湯器':    [[2, 3, '2〜3月（決算セール）'], [10, 11, '10〜11月（冬前）']],
+  'その他':    [[2, 3, '2〜3月（決算）'], [9, 10, '9〜10月（秋のセール）']]
+};
+
+// 寿命消化率バーを生成してHTML文字列を返す
+function renderLifeBar(yearsIdx, standardLife) {
+  const YEAR_VALS = [2, 4.5, 8.5, 13, 17];
+  const usedYears = YEAR_VALS[yearsIdx];
+  const pct = Math.min(100, Math.round(usedYears / standardLife * 100));
+  const color = pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-orange-400' : pct >= 60 ? 'bg-yellow-400' : 'bg-green-400';
+  return '<div class="mt-2"><div class="flex justify-between text-xs text-indigo-600 mb-1"><span>寿命消化率</span><span>' + pct + '%（平均寿命' + standardLife + '年）</span></div>'
+    + '<div class="w-full bg-indigo-100 rounded-full h-2 overflow-hidden"><div class="h-2 rounded-full ' + color + '" style="width:' + pct + '%"></div></div></div>';
+}
+
+// 緊急度ゲージをDOMに描画する
+function renderUrgencyGauge(urgency, ysScore, syScore, elScore, rpScore) {
+  var MAX = 13;
+  var pct = Math.round(urgency / MAX * 100);
+  var bar = document.getElementById('urgencyBar');
+  var colorClass = urgency >= 10 ? 'bg-red-500' : urgency >= 6 ? 'bg-yellow-400' : 'bg-green-400';
+  bar.className = 'h-4 rounded-full transition-all duration-700 ' + colorClass;
+  setTimeout(function() { bar.style.width = pct + '%'; }, 100);
+  var levelLabel = urgency >= 10 ? '🚨 高（今すぐ検討を）' : urgency >= 6 ? '⚠️ 中（近い将来検討を）' : '✅ 低（まだ余裕あり）';
+  document.getElementById('urgencyScoreLabel').textContent = levelLabel;
+  document.getElementById('urgencyScoreNum').textContent = urgency + ' / ' + MAX + '点';
+  var items = [
+    { label: '使用年数', score: ysScore, max: 4 },
+    { label: '故障状況', score: syScore, max: 4 },
+    { label: '電気代変化', score: elScore, max: 2 },
+    { label: '修理費', score: rpScore, max: 3 }
+  ];
+  document.getElementById('urgencyBreakdown').innerHTML = items.map(function(b) {
+    var ratio = b.max > 0 ? b.score / b.max : 0;
+    var sc = ratio >= 0.7 ? 'text-red-500' : ratio >= 0.4 ? 'text-yellow-500' : 'text-green-500';
+    return '<div class="bg-white rounded-lg p-2 flex items-center justify-between border border-gray-100"><span class="text-gray-600">' + b.label + '</span><span class="font-bold ' + sc + '">' + b.score + '/' + b.max + '点</span></div>';
+  }).join('');
+}
+
+// 修理 vs 買い替えのコスト比較をDOMに描画する
+function renderCostCompare(appliance, repairIdx, budgetIdx, yearsIdx) {
+  var appData = APPLIANCE_DATA[appliance] || APPLIANCE_DATA['その他'];
+  var annualWaste = Math.round(appData.savLow * SAVE_FACTOR[yearsIdx]);
+  var repairCost = REPAIR_COST_MID[repairIdx];
+  var newCost = BUDGET_MID_MAP[budgetIdx];
+  var block = document.getElementById('costCompareBlock');
+  if (annualWaste === 0 && repairCost === 0) { block.style.display = 'none'; return; }
+  block.style.display = '';
+  var keepCost5y = repairCost + annualWaste * 5;
+  var buyCost5y = Math.max(0, newCost - annualWaste * 5);
+  var isBetterToBuy = buyCost5y <= keepCost5y;
+  var diff = Math.abs(keepCost5y - buyCost5y);
+  var keepLabel = repairCost > 0 ? '修理して使い続ける' : 'このまま使い続ける';
+  document.getElementById('costCompareTable').innerHTML =
+    '<div class="grid grid-cols-2 gap-2 mb-2">'
+    + '<div class="bg-white rounded-lg p-3 text-center border ' + (!isBetterToBuy ? 'border-green-300' : 'border-gray-200') + '">'
+    + '<div class="text-xs text-gray-500 mb-1">' + keepLabel + '</div>'
+    + '<div class="text-base font-bold text-gray-800">約' + keepCost5y.toLocaleString() + '円</div>'
+    + (!isBetterToBuy ? '<div class="text-xs text-green-600 mt-1">✅ こちらがお得</div>' : '')
+    + '</div>'
+    + '<div class="bg-white rounded-lg p-3 text-center border ' + (isBetterToBuy ? 'border-blue-300' : 'border-gray-200') + '">'
+    + '<div class="text-xs text-gray-500 mb-1">今すぐ買い替える</div>'
+    + '<div class="text-base font-bold text-gray-800">約' + buyCost5y.toLocaleString() + '円</div>'
+    + (isBetterToBuy ? '<div class="text-xs text-blue-600 mt-1">✅ こちらがお得</div>' : '')
+    + '</div></div>'
+    + '<p class="text-xs text-blue-700">差額: 約' + diff.toLocaleString() + '円 / ' + (isBetterToBuy ? '買い替えが5年で有利' : '維持の方が5年で安い') + '</p>'
+    + '<p class="text-xs text-gray-400 mt-1">※購入費は回答の中央値・省エネ試算は概算（平均家庭・電気代単価29円/kWh）</p>';
+}
+
+// 次のお得な購入シーズンまでの月数を返す
+function getNextSeasonTip(applianceName) {
+  var tips = SEASON_TIPS[applianceName] || SEASON_TIPS['その他'];
+  var now = new Date().getMonth() + 1;
+  var best = null, minMonths = 13;
+  for (var i = 0; i < tips.length; i++) {
+    var mStart = tips[i][0], mEnd = tips[i][1], label = tips[i][2];
+    if (now >= mStart && now <= mEnd) return { label: label, months: 0 };
+    var diff = mStart - now;
+    if (diff <= 0) diff += 12;
+    if (diff < minMonths) { minMonths = diff; best = { label: label, months: diff }; }
+  }
+  return best;
+}
+
 function renderQuestion() {
   const q = QUESTIONS[currentQ];
   document.getElementById('qNum').textContent = currentQ + 1;
@@ -301,23 +431,22 @@ function showResult() {
   document.getElementById('quizArea').classList.add('hidden');
   document.getElementById('resultArea').classList.remove('hidden');
 
-  const years = answers.years; // 0-4
-  const symptom = answers.symptom; // 0-4
-  const electricity = answers.electricity; // 0-3
-  const repair = answers.repair; // 0-4
-  const appliance = QUESTIONS[0].opts[answers.appliance];
-  const priority = QUESTIONS[6].opts[answers.priority];
-  const budget = QUESTIONS[5].opts[answers.budget];
-  const family = QUESTIONS[7].opts[answers.family];
+  var years = answers.years; // 0-4
+  var symptom = answers.symptom; // 0-4
+  var electricity = answers.electricity; // 0-3
+  var repair = answers.repair; // 0-4
+  var budget = answers.budget; // 0-4
+  var appliance = QUESTIONS[0].opts[answers.appliance];
+  var priority = QUESTIONS[6].opts[answers.priority];
 
-  // Score calculation
-  let urgency = 0;
-  urgency += [0, 1, 2, 3, 4][years];
-  urgency += [0, 1, 2, 3, 4][symptom];
-  urgency += [0, 1, 2, 1][electricity];
-  urgency += [0, 0, 1, 2, 3][repair];
+  // スコア計算（各要因を個別に記録）
+  var ysScore = [0, 1, 2, 3, 4][years];
+  var syScore = [0, 1, 2, 3, 4][symptom];
+  var elScore = [0, 1, 2, 1][electricity];
+  var rpScore = [0, 0, 1, 2, 3][repair];
+  var urgency = ysScore + syScore + elScore + rpScore;
 
-  let emoji, title, badge, badgeClass, desc;
+  var emoji, title, badge, badgeClass, desc;
   if (urgency >= 10) {
     emoji = '🚨'; title = '今すぐ買い替えを強く推奨';
     badge = '緊急：今すぐ買い替え'; badgeClass = 'bg-red-100 text-red-700';
@@ -333,41 +462,54 @@ function showResult() {
   }
 
   document.getElementById('rEmoji').textContent = emoji;
-  document.getElementById('rTitle').textContent = `${appliance}の診断結果`;
+  document.getElementById('rTitle').textContent = appliance + 'の診断結果';
   document.getElementById('rBadge').textContent = badge;
-  document.getElementById('rBadge').className = `inline-block px-4 py-1 rounded-full text-sm font-bold mb-2 ${badgeClass}`;
+  document.getElementById('rBadge').className = 'inline-block px-4 py-1 rounded-full text-sm font-bold mb-2 ' + badgeClass;
   document.getElementById('rDesc').textContent = desc;
 
-  // Energy saving estimate
-  const savings = years >= 2 ? [3000, 5000, 8000, 15000, 25000][years] : 0;
-  const applianceType = appliance;
-  let savingsDesc = '10年以上前の古い家電から新しい機種に買い替えると大きな節約効果が期待できます';
-  if (years <= 1) savingsDesc = '新しい家電なので、買い替え時の節約効果は限定的です。ただし、機能アップのメリットがあります。';
-  else if (years <= 3) savingsDesc = '3年以内の新しい家電です。まだ十分に使えますが、買い替えると徐々に節約効果が出ます。';
-  else if (years <= 6) savingsDesc = '使用年数に応じた実感的な節約効果があります。';
+  // 緊急度ゲージ描画
+  renderUrgencyGauge(urgency, ysScore, syScore, elScore, rpScore);
 
-  document.getElementById('energySaving').innerHTML = `
-    <p>現在の使用年数: <strong>${QUESTIONS[1].opts[answers.years]}</strong></p>
-    <p class="mt-1">省エネ効果（年間試算）: <strong class="text-indigo-900">約 ${savings.toLocaleString()}円〜 節約見込み</strong></p>
-    <p class="text-xs text-indigo-600 mt-2">📊 試算根拠：</p>
-    <p class="text-xs text-indigo-600">古い${appliance}から最新型への買い替えを想定（電気代単価29円/kWh、使用パターン：平均家庭）</p>
-    <p class="text-xs text-indigo-600 mt-1">${savingsDesc}</p>
-    <p class="text-xs text-indigo-500 mt-2">※数値はあくまで目安です。実際の効果はメーカー・機種・使用環境により大きく異なります</p>`;
+  // 省エネ効果試算（家電別データ使用）
+  var appData = APPLIANCE_DATA[appliance] || APPLIANCE_DATA['その他'];
+  var savLow = Math.round(appData.savLow * SAVE_FACTOR[years]);
+  var savHigh = Math.round(appData.savHigh * SAVE_FACTOR[years]);
+  var savingsDesc = '';
+  if (years === 0) savingsDesc = '使用年数が短いため、省エネ効果は限定的です。機能・利便性の向上が主なメリットです。';
+  else if (years === 1) savingsDesc = '3〜6年使用の場合、機種によっては省エネ効果が出始める時期です。';
+  else if (years === 2) savingsDesc = '7〜10年の使用では、最新機種への買い替えで着実な節約が期待できます。';
+  else savingsDesc = '10年以上の使用では最新省エネ機種との差が大きく、節約効果が高くなります。';
 
-  // Tips
-  const tips = [];
+  document.getElementById('energySaving').innerHTML =
+    '<p>この家電の平均寿命: <strong>' + appData.life + '年</strong> ／ あなたの使用年数: <strong>' + QUESTIONS[1].opts[answers.years] + '</strong></p>'
+    + renderLifeBar(years, appData.life)
+    + '<p class="mt-2">省エネ効果（年間試算）: <strong class="text-indigo-900">'
+    + (savLow > 0 ? '約 ' + savLow.toLocaleString() + '〜' + savHigh.toLocaleString() + '円' : 'ほぼなし（まだ新しい家電）')
+    + '</strong></p>'
+    + '<p class="text-xs text-indigo-600 mt-1">' + savingsDesc + '</p>'
+    + '<p class="text-xs text-indigo-500 mt-1">※電気代単価29円/kWh・平均家庭での概算。実際の効果は機種・使用環境により異なります</p>';
+
+  // 修理 vs 買い替えコスト比較
+  renderCostCompare(appliance, repair, budget, years);
+
+  // 選び方ポイント
+  var tips = [];
   if (priority === '省エネ・電気代削減') tips.push('⚡ 省エネ性能（APF・統一省エネラベル）を重視して選びましょう');
   if (priority === '機能・利便性アップ') tips.push('🔧 最新機能（AI制御・スマホ連携など）をチェックしましょう');
-  tips.push('📅 電気店は決算期（2・3月、8・9月）がお得なことが多いです');
+  var seasonTip = getNextSeasonTip(appliance);
+  if (seasonTip) {
+    if (seasonTip.months === 0) tips.push('📅 今がお得な時期！ ' + seasonTip.label + 'は特売・決算セールが多い時期です');
+    else tips.push('📅 次の買いどき: あと約' + seasonTip.months + 'ヶ月（' + seasonTip.label + '）');
+  }
   if (answers.family >= 2) tips.push('👨‍👩‍👧 家族人数に合わせたサイズ選びが重要です');
   tips.push('🔖 メーカー保証＋延長保証への加入を検討しましょう');
   tips.push('♻️ 古い家電は家電リサイクル法に従って処分してください');
 
-  document.getElementById('buyingTips').innerHTML = tips.map(t => `<p>• ${t}</p>`).join('');
+  document.getElementById('buyingTips').innerHTML = tips.map(function(t) { return '<p>• ' + t + '</p>'; }).join('');
 
-  // Amazon link
-  document.getElementById('amazonLink').href = `https://www.amazon.co.jp/s?k=${encodeURIComponent(appliance + ' 省エネ')}&tag=appadaycrea0f-22`;
-  document.getElementById('amazonLink').textContent = `🛒 Amazon で ${appliance} を探す`;
+  // Amazonリンク更新
+  document.getElementById('amazonLink').href = 'https://www.amazon.co.jp/s?k=' + encodeURIComponent(appliance + ' 省エネ') + '&tag=appadaycrea0f-22';
+  document.getElementById('amazonLink').textContent = '🛒 Amazon で ' + appliance + ' を探す';
 }
 
 function restart() {

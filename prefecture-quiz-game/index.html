@@ -76,7 +76,7 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
 </style>
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"このサービスは無料ですか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要でご利用いただけます。"}},{"@type":"Question","name":"入力データはどこに保存されますか？","acceptedAnswer":{"@type":"Answer","text":"お使いのデバイス内にのみ保存されます。外部送信は行いません。"}},{"@type":"Question","name":"結果はどのくらい正確ですか？","acceptedAnswer":{"@type":"Answer","text":"あくまで参考情報です。重要な判断の際は専門家にご相談ください。"}},{"@type":"Question","name":"どのような人が使っていますか？","acceptedAnswer":{"@type":"Answer","text":"初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}},{"@type":"Question","name":"結果をシェアできますか？","acceptedAnswer":{"@type":"Answer","text":"はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}},{"@type":"Question","name":"有料プランはありますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、すべての機能を完全無料でご利用いただけます。"}},{"@type":"Question","name":"スコアは保存されますか？","acceptedAnswer":{"@type":"Answer","text":"スコアはブラウザのローカルストレージに保存されます。ブラウザのデータを削除するとリセットされます。"}},{"@type":"Question","name":"オフラインで遊べますか？","acceptedAnswer":{"@type":"Answer","text":"初回表示後はキャッシュを利用して遊べる場合があります。ただし一部の機能はオンライン接続が必要です。"}}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"問題はどのように出題されますか？","acceptedAnswer":{"@type":"Answer","text":"毎回ランダムに出題されます。エリア（全国・東日本・西日本・九州沖縄）と問題カテゴリ（県庁所在地・名産品・地方区分）を選ぶと、そのフィルタ内からシャッフルして出題されます。"}},{"@type":"Question","name":"スコアはどうやって計算されますか？","acceptedAnswer":{"@type":"Answer","text":"基本点（難易度によって10〜20点）＋連続正解ボーナス（最大10点）＋残り時間ボーナスが加算されます。素早く答えるほど高得点を狙えます。"}},{"@type":"Question","name":"ハイスコアはどこに保存されますか？","acceptedAnswer":{"@type":"Answer","text":"ブラウザのローカルストレージに保存されます。同じブラウザを使う限りスコアは引き継がれますが、ブラウザのデータを削除するとリセットされます。"}},{"@type":"Question","name":"制限時間はどのくらいですか？","acceptedAnswer":{"@type":"Answer","text":"初級は30秒、中級は20秒、上級は15秒です。タイムアウトになると不正解扱いとなり、間違いノートに記録されます。"}},{"@type":"Question","name":"間違いノートの使い方は？","acceptedAnswer":{"@type":"Answer","text":"ゲーム終了後の結果画面に、不正解だった問題と正解が一覧表示されます。苦手な都道府県を把握して、次のチャレンジで重点的に復習しましょう。"}},{"@type":"Question","name":"このサービスは無料ですか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要でご利用いただけます。"}},{"@type":"Question","name":"スマートフォンで遊べますか？","acceptedAnswer":{"@type":"Answer","text":"はい、スマートフォン・タブレット・PCすべてでお楽しみいただけます。モバイルファーストのレスポンシブデザインです。"}},{"@type":"Question","name":"オフラインで遊べますか？","acceptedAnswer":{"@type":"Answer","text":"初回表示後はPWA対応によりキャッシュを利用して遊べる場合があります。ただし一部の機能はオンライン接続が必要です。"}}]}</script>
 <script type="application/ld+json">
 
 </script>
@@ -208,7 +208,14 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
     <!-- Timer -->
     <div class="bg-white rounded-xl shadow p-3 mb-4 flex justify-between items-center">
       <span class="text-sm text-gray-600">⏱ 残り時間</span>
-      <span id="timer" class="text-2xl font-bold text-orange-600">--</span>
+      <div style="position:relative;width:52px;height:52px;flex-shrink:0;">
+        <svg width="52" height="52" style="transform:rotate(-90deg);">
+          <circle cx="26" cy="26" r="22" fill="none" stroke="#e5e7eb" stroke-width="4"/>
+          <circle id="timerCircle" cx="26" cy="26" r="22" fill="none" stroke="#f97316" stroke-width="4"
+            stroke-dasharray="138.2" stroke-dashoffset="0" style="transition:stroke-dashoffset 0.9s linear,stroke 0.3s;"/>
+        </svg>
+        <span id="timer" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#f97316;">--</span>
+      </div>
       <span class="text-sm text-gray-500" id="comboDisplay">連続正解: <span id="comboCount">0</span></span>
     </div>
 
@@ -491,12 +498,29 @@ function showQuestion() {
   clearInterval(timerInterval);
   const timeLimit = selectedDifficulty === 'easy' ? 30 : selectedDifficulty === 'medium' ? 20 : 15;
   timeLeft = timeLimit;
-  document.getElementById('timer').textContent = timeLeft + 's';
+  const CIRCUMFERENCE = 138.2;
+  function updateTimerUI(t) {
+    const timerEl = document.getElementById('timer');
+    const circleEl = document.getElementById('timerCircle');
+    if (!timerEl || !circleEl) return;
+    timerEl.textContent = t + 's';
+    const ratio = t / timeLimit;
+    circleEl.style.strokeDashoffset = CIRCUMFERENCE * (1 - ratio);
+    if (t <= 5) {
+      circleEl.style.stroke = '#ef4444';
+      timerEl.style.color = '#ef4444';
+    } else if (t <= 10) {
+      circleEl.style.stroke = '#f97316';
+      timerEl.style.color = '#f97316';
+    } else {
+      circleEl.style.stroke = '#f97316';
+      timerEl.style.color = '#f97316';
+    }
+  }
+  updateTimerUI(timeLeft);
   timerInterval = setInterval(() => {
     timeLeft--;
-    document.getElementById('timer').textContent = timeLeft + 's';
-    if (timeLeft <= 5) document.getElementById('timer').className = 'text-2xl font-bold text-red-500';
-    else document.getElementById('timer').className = 'text-2xl font-bold text-orange-600';
+    updateTimerUI(timeLeft);
     if (timeLeft <= 0) {
       clearInterval(timerInterval);
       selectAnswer('', questions[currentQ].answer, questions[currentQ].explanation);
@@ -596,6 +620,18 @@ function showResult() {
       '<p style="font-size:.72rem;font-weight:700;color:#6b7280;margin-bottom:6px;">🏅 ランキング（Top5）</p>' +
       rk.slice(0,5).map((r,i)=>`<div style="display:flex;justify-content:space-between;font-size:.78rem;padding:2px 0;border-bottom:1px solid #f3f4f6;"><span>${['🥇','🥈','🥉','4位','5位'][i]} ${r.date}</span><span style="font-weight:700;color:#f97316">${r.score}点</span><span style="color:#6b7280">${r.acc}%</span></div>`).join('') + '</div>';
   } catch(e) {}
+
+  // シェアリンクをスコア付きで動的更新
+  const url = 'https://appadaycreator.com/prefecture-quiz-game/';
+  const diffLabel = selectedDifficulty === 'easy' ? '初級' : selectedDifficulty === 'medium' ? '中級' : '上級';
+  const shareText = `【都道府県クイズ】${diffLabel}モードで${score}点・正答率${accuracy}%達成！あなたはこのスコアを超えられる？ #都道府県 #地理クイズ`;
+  const challengeText = `【都道府県クイズ】この記録（${score}点・${accuracy}%）を超えろ！ #都道府県 #地理クイズ`;
+  const lineEl = document.getElementById('share-line');
+  const xEl = document.getElementById('share-x');
+  const challengeEl = document.getElementById('share-challenge');
+  if (lineEl) lineEl.href = `https://line.me/R/share?text=${encodeURIComponent(shareText + ' ' + url)}`;
+  if (xEl) xEl.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(url)}&via=appadaycreator`;
+  if (challengeEl) challengeEl.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(challengeText)}&url=${encodeURIComponent(url)}`;
 }
 
 function showStart() {
@@ -609,29 +645,29 @@ window.addEventListener('load', () => {
   document.getElementById('highScore').textContent = hs ? hs + '点' : '---';
 });
 </script>
-<div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px auto;max-width:680px;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">入力された値を計算式やスコアリングロジックで処理し、あなたに合った結果を算出します。本ツールの結果はあくまで参考情報です。重要な判断の際は専門家にご相談ください。</p></div>
+<div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px auto;max-width:680px;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🎮 スコアの計算方法</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">正解するたびに基本点（初級10点・中級15点・上級20点）が加算されます。さらに、連続正解ボーナス（最大10点）と残り時間ボーナスも上乗せ。素早く連続正解するほど高スコアを狙えます！</p></div>
 <section style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 16px;margin-top:16px;max-width:720px;margin-left:auto;margin-right:auto;">
   <h2 style="font-size:16px;font-weight:700;color:#1e293b;margin:0 0 16px;text-align:center;">❓ よくある質問（FAQ）</h2>
   <div style="max-width:680px;margin:0 auto;">
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
-      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. 診断結果はどのくらい正確ですか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">入力内容に基づいたアルゴリズム診断のため、あくまで参考情報です。最終的な判断はご自身でお願いします。</p>
+      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. 問題はどのように出題されますか？ <span>▼</span></summary>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">毎回ランダムに出題されます。エリア（全国・東日本・西日本・九州沖縄）と問題カテゴリ（県庁所在地・名産品・地方区分）を選ぶと、そのフィルタ内からシャッフルして出題されます。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
-      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. 何度でも診断し直せますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">はい、何度でも無料でご利用いただけます。条件を変えてシミュレーションにもご活用ください。</p>
+      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. スコアはどうやって計算されますか？ <span>▼</span></summary>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">基本点（難易度によって10〜20点）＋連続正解ボーナス（最大10点）＋残り時間ボーナスが加算されます。素早く答えるほど高得点を狙えます。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
-      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. このサービスは無料で使えますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">はい、完全無料でご利用いただけます。登録・ログイン不要で、すぐにお使いいただけます。</p>
+      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. ハイスコアはどこに保存されますか？ <span>▼</span></summary>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">ブラウザのローカルストレージに保存されます。同じブラウザを使う限りスコアは引き継がれますが、ブラウザのデータを削除するとリセットされます。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
-      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. 入力したデータはどこに保存されますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">入力データはサーバーに送信されません。お使いのブラウザ上でのみ処理されます。</p>
+      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. 制限時間はどのくらいですか？ <span>▼</span></summary>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">初級は30秒、中級は20秒、上級は15秒です。タイムアウトになると不正解扱いとなり、間違いノートに記録されます。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
-      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. 何度でも使えますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">はい、何度でも無料でご利用いただけます。条件を変えてお試しいただけます。</p>
+      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. 間違いノートの使い方は？ <span>▼</span></summary>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">ゲーム終了後の結果画面に、不正解だった問題と正解が一覧表示されます。苦手な都道府県を把握して、次のチャレンジで重点的に復習しましょう。</p>
     </details>
   </div>
 </section>
@@ -660,47 +696,47 @@ window.addEventListener('load', () => {
       <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
             <div class="space-y-3">
         <div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「質問に答えるだけで自分に合ったアドバイスが出てきて、迷っていたことがすっきり整理されました。短時間で使えるのも良いです。」</p>
+          <p class="text-xs text-gray-700">「上級モードで全47都道府県を制覇しました！連続正解ボーナスが気持ちよくて、ついつい何周も挑戦してしまいます。」</p>
           <p style="font-size:12px;color:#475569;" class="mt-1">— 田中さん（30代・会社員）★★★★★</p>
         </div>
         <div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「無料でここまで詳しく分析してもらえるとは思いませんでした。専門家への相談前の情報整理に最適です。」</p>
+          <p class="text-xs text-gray-700">「子どもと一緒に名産品クイズで遊んでいます。間違いノートで苦手な都道府県がわかるので、学習にもなって一石二鳥です！」</p>
           <p style="font-size:12px;color:#475569;" class="mt-1">— 佐藤さん（40代・主婦）★★★★★</p>
         </div>
         <div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「登録不要でサクッと使えて助かります。結果が分かりやすく表示されるので、何度も参考にしています。」</p>
+          <p class="text-xs text-gray-700">「地理が苦手で初級から始めましたが、毎日続けていたら正答率が大幅アップ。連続記録バッジが励みになります。」</p>
           <p style="font-size:12px;color:#475569;" class="mt-1">— 山本さん（20代・学生）★★★★☆</p>
         </div>
       </div>
       <div class="flex gap-2 mt-4">
-        <a href="https://line.me/R/share?text=都道府県クイズ | 日本地理マスター - 場所・県庁所在地・名産品クイズ%20https://appadaycreator.com/prefecture-quiz-game/" target="_blank" rel="noopener"
+        <a id="share-line" href="#" target="_blank" rel="noopener"
            style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
           LINEでシェア
         </a>
-        <a href="https://twitter.com/intent/tweet?text=都道府県クイズ | 日本地理マスター - 場所・県庁所在地・名産品クイズ&url=https://appadaycreator.com/prefecture-quiz-game/&via=appadaycreator" target="_blank" rel="noopener"
+        <a id="share-x" href="#" target="_blank" rel="noopener"
            style="flex:1;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
           Xでシェア
         </a>
-          <a href="https://twitter.com/intent/tweet?text=%E3%80%90%E9%83%BD%E9%81%93%E5%BA%9C%E7%9C%8C%E3%82%AF%E3%82%A4%E3%82%BA%E3%80%91%E3%81%93%E3%81%AE%E8%A8%98%E9%8C%B2%E3%82%92%E8%B6%85%E3%81%88%E3%82%89%E3%82%8C%E3%82%8B%EF%BC%9F%20%23%E9%83%BD%E9%81%93%E5%BA%9C%E7%9C%8C%20%23%E5%9C%B0%E7%90%86%E3%82%AF%E3%82%A4%E3%82%BA&url=https%3A//appadaycreator.com/prefecture-quiz-game/" target="_blank" rel="noopener" style="display:block;background:#f97316;color:#fff;padding:8px 16px;border-radius:8px;font-size:12px;text-decoration:none;font-weight:bold;margin-top:6px;text-align:center;" title="この記録を超えろ！">🏆 チャレンジシェア（超えろ！）</a>
       </div>
+      <a id="share-challenge" href="#" target="_blank" rel="noopener" style="display:block;background:#f97316;color:#fff;padding:8px 16px;border-radius:8px;font-size:12px;text-decoration:none;font-weight:bold;margin-top:6px;text-align:center;" title="この記録を超えろ！">🏆 チャレンジシェア（超えろ！）</a>
     </div>
     <section style="margin:32px auto;max-width:640px;padding:0 16px;" aria-labelledby="howto-h">
   <h2 id="howto-h" style="font-size:1.15rem;font-weight:700;margin-bottom:10px;border-left:4px solid #7c3aed;padding-left:10px;">使い方</h2>
   <ol style="padding-left:20px;line-height:1.9;color:#374151;">
-    <li>ページを開き、フォームの項目を確認する</li>
-    <li>必要な情報を入力または選択する</li>
-    <li>実行ボタンをクリックして結果を取得する</li>
-    <li>表示された結果・アドバイスを確認する</li>
-    <li>必要に応じてコピー・SNSシェアで活用する</li>
+    <li>エリア（全国・東日本・西日本・九州沖縄）を選ぶ</li>
+    <li>難易度（初級・中級・上級）と問題カテゴリを選択する</li>
+    <li>「ゲームスタート！」ボタンを押して挑戦開始</li>
+    <li>制限時間内に4択の中から正解を選んで得点を積み上げる</li>
+    <li>ゲーム終了後に間違いノートで苦手地域を確認・SNSでスコアをシェアしよう</li>
   </ol>
 </section>
 </div>
 <!-- rakuten-affiliate-block -->
     <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">
       <p style="font-size:0.85rem;color:#4b5563;margin-bottom:8px;">🛒 関連商品を楽天市場で探す</p>
-      <a href="https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2Fprefecture%2520%25E3%2582%25B0%25E3%2583%2583%25E3%2582%25BA%2F&link_type=text" target="_blank" rel="nofollow sponsored noopener"
+      <a href="https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F%25E9%2583%25BD%25E9%2581%2593%25E5%25BA%259C%25E7%259C%258C+%25E3%2582%25B0%25E3%2583%2583%25E3%2582%25BA%2F&link_type=text" target="_blank" rel="nofollow sponsored noopener"
          style="display:inline-block;background:#BF0000;color:white;padding:10px 24px;border-radius:8px;font-weight:bold;font-size:14px;text-decoration:none;">
-        楽天市場で「prefecture グッズ」を検索 →
+        楽天市場で「都道府県 グッズ」を検索 →
       </a>
     </div>
 <!-- phase10-rakuten-updated -->

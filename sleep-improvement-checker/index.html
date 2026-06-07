@@ -57,6 +57,19 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
   .screen.active { display: block; }
   .progress-track { background: #c7d2fe; border-radius: 9999px; height: 8px; }
   .progress-bar { background: #7c3aed; height: 8px; border-radius: 9999px; transition: width .4s ease; }
+  /* ローディングアニメーション */
+  .loading-dots::after { content: ''; animation: dots 1.5s steps(4, end) infinite; }
+  @keyframes dots { 0%, 100% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+  /* 戻るボタン */
+  .btn-back { background: none; border: 1px solid #e5e7eb; border-radius: .75rem; padding: .6rem 1rem; font-size: .85rem; color: #6b7280; cursor: pointer; transition: all .2s; }
+  .btn-back:hover { border-color: #7c3aed; color: #7c3aed; background: #f5f3ff; }
+  /* スコアメーター */
+  .score-axis { display: flex; justify-content: space-between; font-size: 10px; color: #9ca3af; margin-top: 2px; }
+  /* シェアボタン */
+  .share-line { background: #06C755; color: white; border-radius: 8px; padding: 10px; font-size: 13px; font-weight: bold; text-decoration: none; text-align: center; display: block; transition: opacity .2s; }
+  .share-line:hover { opacity: .85; }
+  .share-x { background: #000; color: white; border-radius: 8px; padding: 10px; font-size: 13px; font-weight: bold; text-decoration: none; text-align: center; display: block; transition: opacity .2s; }
+  .share-x:hover { opacity: .75; }
 
 input, select, textarea { font-size: 16px !important; }
 button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min-width: 48px; touch-action: manipulation; }
@@ -171,12 +184,13 @@ ins.adsbygoogle[data-ad-status="unfilled"] { display: none !important; margin: 0
       <p class="text-xs text-gray-500 mb-1">過去1ヶ月の状態についてお答えください</p>
       <h2 class="text-base font-bold text-gray-800 mb-4" id="q-text"></h2>
       <div id="opts"></div>
+      <div class="mt-3" id="back-area"></div>
     </div>
   </div>
 
   <div id="screen-loading" class="screen text-center py-20">
-    <div class="text-5xl mb-4">😴</div>
-    <div class="text-gray-700 font-bold text-lg mb-2">分析中...</div>
+    <div class="text-5xl mb-4">🌙</div>
+    <div class="text-gray-700 font-bold text-lg mb-2">分析中<span class="loading-dots"></span></div>
     <div class="text-gray-500 text-sm">睡眠スコアを計算しています</div>
   </div>
 
@@ -190,12 +204,17 @@ ins.adsbygoogle[data-ad-status="unfilled"] { display: none !important; margin: 0
         <div class="text-3xl font-bold mb-1" id="res-level" style="color:#7c3aed;"></div>
         <div class="text-gray-500 text-sm" id="res-score"></div>
       </div>
-      <div class="bg-gray-100 rounded-full h-5 mb-4"><div class="h-5 rounded-full" id="res-meter" style="width:50%;background:#7c3aed;transition:width 0.8s;"></div></div>
-      <p class="text-sm text-gray-700 mb-3" id="res-desc"></p>
-      <div class="bg-indigo-50 rounded-lg p-4">
+      <div class="bg-gray-100 rounded-full h-5 mb-1"><div class="h-5 rounded-full" id="res-meter" style="width:50%;background:#7c3aed;transition:width 0.8s;"></div></div>
+      <div class="score-axis"><span>0点（最良）</span><span>15点</span><span>30点（最悪）</span></div>
+      <p class="text-sm text-gray-700 mb-3 mt-3" id="res-desc"></p>
+      <div class="bg-indigo-50 rounded-lg p-4 mb-3">
         <div class="font-bold text-indigo-800 text-sm mb-2">💡 今夜からできる改善策</div>
         <ul class="text-sm text-gray-700 space-y-1" id="res-tips"></ul>
       </div>
+      <!-- スコア内訳 -->
+      <div id="res-breakdown" class="mb-3"></div>
+      <!-- シェアボタン -->
+      <div id="res-share" class="mt-2"></div>
     </div>
     <div class="card p-6 mb-4">
       <h3 class="font-bold text-gray-800 mb-3">🛏️ 快眠グッズを探す</h3>
@@ -223,8 +242,10 @@ var Qs=[
   "寝室の環境（温度・音・光）に問題を感じますか？",
   "ストレスや心配事が頭から離れず眠れないことがありますか？"
 ];
+/* 各質問の短縮ラベル（内訳表示用） */
+var Q_LABELS=["入眠時間","夜中覚醒","早朝覚醒","熟睡感","日中眠気","就寝前スマホ","就寝リズム","カフェイン","寝室環境","ストレス"];
 var OPTS=[["10分以内（0）","15〜30分（1）","30〜60分（2）","60分以上（3）"],["全くない（0）","週1〜2回（1）","週3〜4回（2）","ほぼ毎日（3）"],["全くない（0）","少しある（1）","ときどき（2）","ほぼ毎日（3）"],["満足（0）","やや不満（1）","不満（2）","とても不満（3）"],["全くない（0）","少しある（1）","ときどき（2）","ほぼ毎日（3）"],["全く使わない（0）","たまに（1）","よく使う（2）","毎日必ず（3）"],["ほぼ一定（0）","少しバラツキ（1）","かなりバラツキ（2）","全くバラバラ（3）"],["全く飲まない（0）","たまに（1）","よく飲む（2）","毎日必ず（3）"],["問題なし（0）","少し気になる（1）","気になる（2）","かなり問題（3）"],["全くない（0）","少しある（1）","ときどき（2）","ほぼ毎日（3）"]];
-var cur=0,total=0;
+var cur=0,total=0,answers=[];
 var levels=[
   {max:8,emoji:'😊',text:'良好な睡眠',color:'#16a34a',desc:'現在の睡眠の質は良好です。現在の生活リズムを維持して予防的なケアを続けましょう。',tips:['現在の就寝・起床時間を守る','適度な運動を継続する（週3回以上）','カフェインは午後3時までに']},
   {max:16,emoji:'😐',text:'やや低下した睡眠の質',color:'#f59e0b',desc:'睡眠の質に改善の余地があります。いくつかの習慣を見直すことで大幅に改善できます。',tips:['【今夜から】就寝1時間前からスマホをオフ','【1週間で】寝室温度を18〜22℃に調整','【継続】カフェインを午後3時以降は控える','【運動】週3回以上の軽い運動を取り入れる']},
@@ -242,29 +263,82 @@ function renderQ(){
   document.getElementById('q-text').textContent=Qs[cur];
   var c=document.getElementById('opts');c.innerHTML='';
   OPTS[cur].forEach(function(opt,i){var b=document.createElement('button');b.className='option-btn';b.textContent=opt;b.onclick=function(){pick(i);};c.appendChild(b);});
+  /* 戻るボタン（2問目以降のみ表示） */
+  var ba=document.getElementById('back-area');
+  if(cur>0){
+    ba.innerHTML='<button class="btn-back" onclick="goBack()" aria-label="前の質問に戻る">← 前の質問に戻る</button>';
+  } else {
+    ba.innerHTML='';
+  }
 }
 function pick(score){
+  answers[cur]=score;
   total+=score;
   document.querySelectorAll('.option-btn').forEach(function(b,j){b.classList.toggle('selected',j===score);});
-  setTimeout(function(){cur++;if(cur<Qs.length){renderQ();}else{show('loading');setTimeout(showResults,1800);}},300);
+  setTimeout(function(){cur++;if(cur<Qs.length){renderQ();}else{show('loading');setTimeout(showResults,600);}},300);
+}
+function goBack(){
+  if(cur<=0)return;
+  total-=answers[cur-1];
+  answers.splice(cur-1,1);
+  cur--;
+  renderQ();
 }
 function showResults(){
-  var pct=Math.round(total/30*100);
+  /* 健康度バー: 低スコアほど良好なので (30-total)/30 で「健康度」を表現 */
+  var healthPct=Math.round((30-total)/30*100);
   var level=levels[0];for(var i=0;i<levels.length;i++){if(total<=levels[i].max){level=levels[i];break;}}
   document.getElementById('res-emoji').textContent=level.emoji;
   document.getElementById('res-level').textContent=level.text;document.getElementById('res-level').style.color=level.color;
-  document.getElementById('res-score').textContent='スコア: '+total+'/30点 ('+pct+'%)';
-  document.getElementById('res-meter').style.width=pct+'%';document.getElementById('res-meter').style.background=level.color;
+  document.getElementById('res-score').textContent='スコア: '+total+'/30点（低いほど良好）';
+  document.getElementById('res-meter').style.width=healthPct+'%';document.getElementById('res-meter').style.background=level.color;
   document.getElementById('res-desc').textContent=level.desc;
   var tipsEl=document.getElementById('res-tips');tipsEl.innerHTML='';
   level.tips.forEach(function(t){var li=document.createElement('li');li.textContent='• '+t;tipsEl.appendChild(li);});
+
+  /* スコア内訳: 1点以上の項目を表示し、最高スコア項目を強調 */
+  var maxScore=Math.max.apply(null,answers);
+  var breakdownItems=answers.map(function(s,i){return{label:Q_LABELS[i],score:s,idx:i};}).filter(function(x){return x.score>0;});
+  var bdEl=document.getElementById('res-breakdown');
+  if(breakdownItems.length>0){
+    var starColor=['#16a34a','#f59e0b','#f97316','#dc2626'];
+    var html='<div style="background:#fafafa;border:1px solid #e5e7eb;border-radius:10px;padding:12px;">';
+    html+='<div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:8px;">📊 項目別スコア（改善ポイント）</div>';
+    breakdownItems.forEach(function(x){
+      var isMax=(x.score===maxScore);
+      var barW=Math.round(x.score/3*100);
+      html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">';
+      html+='<span style="font-size:11px;color:#6b7280;width:72px;flex-shrink:0;">'+x.label+'</span>';
+      html+='<div style="flex:1;background:#e5e7eb;border-radius:9999px;height:10px;"><div style="width:'+barW+'%;height:10px;border-radius:9999px;background:'+starColor[x.score]+';transition:width .4s;"></div></div>';
+      html+='<span style="font-size:11px;font-weight:700;color:'+starColor[x.score]+';width:20px;text-align:right;">'+x.score+'</span>';
+      if(isMax)html+='<span style="font-size:10px;background:#fee2e2;color:#dc2626;border-radius:4px;padding:1px 5px;white-space:nowrap;">⚠️最優先</span>';
+      html+='</div>';
+    });
+    html+='</div>';
+    bdEl.innerHTML=html;
+  } else {
+    bdEl.innerHTML='';
+  }
+
+  /* 結果画面のシェアボタン（スコア・判定を含む） */
+  var shareText='睡眠スコア: '+total+'点（'+level.text+'）\n今夜からできる改善策を確認！';
+  var shareUrl='https://appadaycreator.com/sleep-improvement-checker/';
+  var lineUrl='https://line.me/R/share?text='+encodeURIComponent(shareText+'\n'+shareUrl);
+  var xUrl='https://twitter.com/intent/tweet?text='+encodeURIComponent(shareText)+'&url='+encodeURIComponent(shareUrl)+'&via=appadaycreator';
+  document.getElementById('res-share').innerHTML=
+    '<div style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:6px;text-align:center;">📤 結果をシェアする</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'+
+    '<a href="'+lineUrl+'" target="_blank" rel="noopener" class="share-line">LINEでシェア</a>'+
+    '<a href="'+xUrl+'" target="_blank" rel="noopener" class="share-x">𝕏 でシェア</a>'+
+    '</div>';
+
   var affHtml='<a href="https://www.amazon.co.jp/s?k=快眠+枕+マットレス&tag=appadaycrea0f-22" target="_blank" rel="noopener" class="block bg-yellow-400 text-gray-900 font-bold py-3 px-4 rounded-xl text-center text-sm hover:bg-yellow-500 transition mb-2">Amazonで快眠グッズを探す →</a>';
   if(total>=17)affHtml+='<a href="https://px.a8.net/svt/ejp?a8mat=4AVCO8+3ORU2Y+5JTC+5YRHE" target="_blank" rel="noopener sponsored" class="block bg-indigo-600 text-white font-bold py-3 px-4 rounded-xl text-center text-sm hover:bg-indigo-700 transition">ヨンデミーで睡眠・健康の読書習慣を作る →</a><img border="0" width="1" height="1" src="https://www11.a8.net/0.gif?a8mat=4AVCO8+3ORU2Y+5JTC+5YRHE" alt="" loading="lazy">';
   affHtml+='<p class="text-xs text-gray-400 text-center mt-1">Amazonアソシエイトプログラム参加中</p>';
   document.getElementById('aff-area').innerHTML=affHtml;
   show('results');
 }
-function restart(){cur=0;total=0;show('intro');}
+function restart(){cur=0;total=0;answers=[];show('intro');}
 </script>
 
 <div style="max-width:512px;margin:0 auto;padding:0 16px;">
@@ -392,6 +466,10 @@ function restart(){cur=0;total=0;show('intro');}
 </div>
 <p style="text-align:center;font-size:12px;color:#9ca3af;margin:8px 0 0;">© 2026 AppADayCreator. All rights reserved.</p>
 
+</div>
+<div style="text-align:center;margin:24px auto;max-width:760px;padding:0 16px">
+<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
 </div>
 </body>
 </html>

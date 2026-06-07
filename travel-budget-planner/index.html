@@ -30,7 +30,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <meta name="twitter:description" content="交通費・宿泊費・食費・観光費を分類入力して旅行の詳細予算を管理。登録不要・完全無料でご利用いただけます。" />
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="旅行予算詳細プランナー【無料】自動作成ツール" />
-    
+
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✈️</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -56,6 +56,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .btn { background: #2563EB; color: white; border: none; padding: 14px 24px; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; transition: opacity .2s; min-height: 48px; touch-action: manipulation; }
         .btn:hover { opacity: 0.9; }
         .btn:active { transform: scale(0.98); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
         .btn:focus-visible { outline: 3px solid #2563EB; outline-offset: 3px; }
         input, select, textarea { width: 100%; padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 15px; margin-top: 4px; font-family: inherit; min-height: 44px; }
         input:focus, select:focus, textarea:focus { outline: none; border-color: #2563EB; box-shadow: 0 0 0 3px #2563EB22; }
@@ -65,6 +66,15 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .result-value { font-size: 36px; font-weight: 700; color: #2563EB; text-align: center; padding: 16px 0; }
         .badge { display: inline-block; background: #2563EB20; color: #2563EB; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+        @keyframes slideDown {
+          from { opacity: 0; transform: translateY(-12px); max-height: 0; }
+          to { opacity: 1; transform: translateY(0); max-height: 500px; }
+        }
+        .result { animation: slideDown 0.3s ease-out; }
+        .preset-group { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+        .preset-btn { flex: 1; min-width: 100px; padding: 12px; background: #f0f9ff; border: 2px solid #2563EB; color: #2563EB; font-weight: 600; border-radius: 8px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+        .preset-btn:hover { background: #2563EB; color: white; }
+        .preset-btn:active { transform: scale(0.95); }
         @media (max-width: 480px) {
             .site-header { padding: 24px 16px; }
             .site-header h1 { font-size: 20px; }
@@ -72,10 +82,10 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
             .card { padding: 16px; }
             .btn { font-size: 15px; padding: 13px 20px; }
             .result-value { font-size: 28px; }
+            .preset-group { gap: 6px; }
+            .preset-btn { font-size: 12px; padding: 10px; }
         }
-        /* ── サービス固有CSS ── */
 
-    
 @media print{
   header,footer,nav,button,.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
@@ -118,20 +128,33 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <script>try{try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}}catch(e){}</script>
 
         <!-- ✅MAIN_HTML自動生成済み：JS_CODEの★部分のみ実装してください -->
-        <div class="card">
-          <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;">✈️ 旅行予算詳細プランナー</h2>
-          <label>旅行予算詳細プランナーの入力値</label>
-          <input type="number" id="val1" placeholder="100" min="0">
-          <label style="margin-top:12px;">係数・補正値</label>
-          <input type="number" id="val2" placeholder="1.0" min="0">
-          <button class="btn" style="margin-top:20px;" onclick="calculate()">旅行予算詳細プランナーを計算する</button>
-          <div class="result" id="result" style="margin-top:16px;">
-            <div class="card" style="text-align:center;">
-              <div id="output" style="font-size:2.2rem;font-weight:700;color:#2563EB;padding:12px 0;"></div>
-              <p id="detail" style="color:#666;font-size:14px;margin-top:4px;"></p>
-            </div>
-          </div>
-        </div>
+<div class="card">
+  <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;">✈️ 旅行予算詳細プランナー</h2>
+  <p style="font-size:13px;color:#666;margin-bottom:12px;">💡 プリセットから選択するか、下に直接入力してください</p>
+  <div class="preset-group">
+    <button class="preset-btn" onclick="setPreset('domestic')">🏨 国内1泊2日</button>
+    <button class="preset-btn" onclick="setPreset('overseas')">✈️ 海外5日間</button>
+    <button class="preset-btn" onclick="setPreset('luxury')">⭐ 高級旅行</button>
+  </div>
+  <label>交通費（飛行機・新幹線・レンタカーなど）</label>
+  <input type="number" id="val1" placeholder="50000" min="0">
+  <label style="margin-top:12px;">宿泊費（ホテル・旅館など）</label>
+  <input type="number" id="val2" placeholder="100000" min="0">
+  <label style="margin-top:12px;">食費（朝食・昼食・夕食）</label>
+  <input type="number" id="val3" placeholder="30000" min="0">
+  <label style="margin-top:12px;">観光費（チケット・体験など）</label>
+  <input type="number" id="val4" placeholder="20000" min="0">
+  <div style="display:flex;gap:8px;margin-top:20px;">
+    <button class="btn" id="calcBtn" onclick="calculate()" style="flex:1;">旅行予算を計算する</button>
+    <button class="btn" style="flex:1;background:#9ca3af;" onclick="resetForm()">リセット</button>
+  </div>
+  <div class="result" id="result" style="margin-top:16px;display:none;">
+    <div class="card" style="text-align:center;">
+      <div id="output" style="font-size:2.2rem;font-weight:700;color:#2563EB;padding:12px 0;"></div>
+      <p id="detail" style="color:#666;font-size:14px;margin-top:8px;text-align:left;"></p>
+    </div>
+  </div>
+</div>
 
         <!-- AF: じゃらんnet -->
         <div class="card" style="margin-top:8px;background:#fff7ed;border-left:3px solid #e65c00;">
@@ -208,32 +231,81 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
     </main>
 
-    
+
 <script>
-    // ★ここだけ実装（約10行）★
-    const CFG = {
-      inputs: ['val1','val2'],  // ✅自動設定済み→変更不要
-      error: '値を入力してください', // 変更: バリデーションエラー文
-    };
-    function calcLogic(vals) {
-      const [v1] = vals;  // 変更: vals[0],vals[1]... で各入力値を取得
-      const result = v1;  // 変更: 実際の計算式
-      const detail = '';  // 変更: 補足説明（単位など）
-      return { result, detail };
-    }
-    // ★以下変更不要★
-    document.addEventListener('DOMContentLoaded',()=>{
-      CFG.inputs.forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') calculate(); }); });
-    });
-    function calculate(){
-      const vals=CFG.inputs.map(id=>parseFloat(document.getElementById(id)?.value)||0);
-      if(!vals[0]){ alert(CFG.error); return; }
-      const {result,detail}=calcLogic(vals);
-      document.getElementById('output').textContent=typeof result==='number'?result.toLocaleString():result;
-      const d=document.getElementById('detail'); if(d) d.textContent=detail||'';
-      document.getElementById('result').classList.add('show');
-    }
-    </script>
+// ★ここだけ実装（約10行）★
+const CFG = {
+  inputs: ['val1','val2','val3','val4'],  // ✅自動設定済み→変更不要
+  error: '1つ以上の金額を入力してください',
+  presets: {
+    domestic: { val1: 15000, val2: 50000, val3: 15000, val4: 10000, label: '国内1泊2日の例' },
+    overseas: { val1: 100000, val2: 120000, val3: 40000, val4: 60000, label: '海外5日間の例' },
+    luxury: { val1: 150000, val2: 200000, val3: 80000, val4: 100000, label: '高級旅行の例' }
+  }
+};
+function calcLogic(vals) {
+  const [traffic, hotel, food, activity] = vals;
+  const total = traffic + hotel + food + activity;
+  const categories = [
+    { name: '交通費', value: traffic },
+    { name: '宿泊費', value: hotel },
+    { name: '食費', value: food },
+    { name: '観光費', value: activity }
+  ];
+  let detail = '<table style="width:100%;border-collapse:collapse;"><thead style="background:#eef2ff;"><tr style="font-weight:700;border-bottom:2px solid #2563EB;"><th style="text-align:left;padding:8px 0;">項目</th><th style="text-align:right;padding:8px 0;">金額</th><th style="text-align:right;padding:8px 0;">割合</th></tr></thead><tbody>';
+  categories.forEach(cat => {
+    const pct = total > 0 ? Math.round(cat.value / total * 100) : 0;
+    detail += `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:8px 0;"><span>${cat.name}</span></td><td style="text-align:right;padding:8px 0;"><strong>¥${cat.value.toLocaleString()}</strong></td><td style="text-align:right;padding:8px 0;color:#666;font-size:12px;">${pct}%</td></tr>`;
+  });
+  detail += `<tr style="border-top:2px solid #2563EB;font-weight:700;"><td style="padding:12px 0;">合計</td><td style="text-align:right;padding:12px 0;">¥${total.toLocaleString()}</td><td style="text-align:right;padding:12px 0;"></td></tr></tbody></table>`;
+  return { result: total, detail };
+}
+function setPreset(preset) {
+  const data = CFG.presets[preset];
+  if(!data) return;
+  document.getElementById('val1').value = data.val1;
+  document.getElementById('val2').value = data.val2;
+  document.getElementById('val3').value = data.val3;
+  document.getElementById('val4').value = data.val4;
+  setTimeout(calculate, 100);
+}
+// ★以下変更不要★
+document.addEventListener('DOMContentLoaded',()=>{
+  loadFromStorage();
+  CFG.inputs.forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') calculate(); }); });
+});
+function calculate(){
+  const btn = document.getElementById('calcBtn');
+  const vals=CFG.inputs.map(id=>parseFloat(document.getElementById(id)?.value)||0);
+  if(!vals.some(v=>v>0)){ alert(CFG.error); return; }
+  btn.disabled = true;
+  btn.textContent = '計算中...';
+  const {result,detail}=calcLogic(vals);
+  document.getElementById('output').textContent=typeof result==='number'?'¥' + result.toLocaleString():result;
+  const d=document.getElementById('detail'); if(d) d.innerHTML=detail||'';
+  document.getElementById('result').style.display='block';
+  saveToStorage();
+  setTimeout(()=>{ btn.disabled=false; btn.textContent='旅行予算を計算する'; },300);
+}
+function resetForm(){
+  if(!confirm('入力内容をクリアしますか？')) return;
+  CFG.inputs.forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('result').style.display='none';
+  document.getElementById('output').textContent='';
+  document.getElementById('detail').innerHTML='';
+  localStorage.removeItem('travelBudgetData');
+}
+function saveToStorage(){
+  const data={};
+  CFG.inputs.forEach(id=>{ data[id]=document.getElementById(id)?.value||''; });
+  localStorage.setItem('travelBudgetData',JSON.stringify(data));
+}
+function loadFromStorage(){
+  const data=JSON.parse(localStorage.getItem('travelBudgetData')||'{}');
+  CFG.inputs.forEach(id=>{ if(data[id]) document.getElementById(id).value=data[id]; });
+  if(Object.values(data).some(v=>v)) setTimeout(calculate,100);
+}
+</script>
     <!-- rakuten-affiliate-block -->
     <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">
       <p style="font-size:0.85rem;color:#4b5563;margin-bottom:8px;">🛒 関連商品を楽天市場で探す</p>
@@ -271,10 +343,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <p style="margin-top:4px;font-size:11px;opacity:0.6;">最終更新: 2026年5月 | 本サービスはアフィリエイト広告を掲載しています（A8.net/Amazon）</p>
         <p style="margin-top:6px;">© 2026 AppADayCreator. All services are free.</p>
     <div style="background:linear-gradient(135deg,#1e3a5f,#2563eb);padding:16px 12px;text-align:center;margin-top:12px;">
-  <p style="color:#e0e7ff;font-size:12px;font-weight:600;margin:0 0 4px;">運営：AppADayCreator / Tech&amp;Brace</p>
+  <p style="color:#e0e7ff;font-size:12px;font-weight:600;margin:0 0 4px;">運営：AppADayCreator / Tech&Brace</p>
   <p style="color:#cbd5e1;font-size:11px;margin:0 0 10px;">累計399個のWebサービスをAI駆動で開発し、現在361件以上を公開・運用しています。
 AI導入・業務自動化・Webサービス開発のご相談はこちら。</p>
-  <a href="https://tech-and-brace.com/ai-automation?utm_source=appadaycreator&utm_medium=footer&utm_campaign=b2b_cta" target="_blank" rel="noopener" onclick="if(typeof gtag==='function'){gtag('event','b2b_cta_click',{source_page:window.location.pathname,cta_position:'footer',tool_category:document.querySelector('[aria-label=\"パンくずリスト\"] li:nth-child(3) a')?document.querySelector('[aria-label=\"パンくずリスト\"] li:nth-child(3) a').innerText:'general',destination:'https://tech-and-brace.com/ai-automation'})}" style="display:inline-block;background:#fff;color:#1e3a5f;font-size:11px;font-weight:700;padding:6px 16px;border-radius:20px;text-decoration:none;">法人・B2B相談はこちら →</a>
+  <a href="https://tech-and-brace.com/ai-automation?utm_source=appadaycreator&utm_medium=footer&utm_campaign=b2b_cta" target="_blank" rel="noopener" style="display:inline-block;background:#fff;color:#1e3a5f;font-size:11px;font-weight:700;padding:6px 16px;border-radius:20px;text-decoration:none;">法人・B2B相談はこちら →</a>
 </div>
 </footer>
 </body>

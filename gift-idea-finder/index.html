@@ -203,6 +203,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="text-center mb-5">
           <div id="result-icon" class="text-6xl mb-3"></div>
           <h2 class="text-2xl font-bold text-rose-700" id="result-title"></h2>
+          <p class="text-rose-600 text-xs font-semibold mt-1 mb-1" id="result-subtitle"></p>
           <p class="text-gray-600 mt-2 text-sm leading-relaxed" id="result-desc"></p>
         </div>
 
@@ -216,6 +217,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="bg-rose-50 rounded-xl p-4 mb-4">
           <h3 class="font-bold text-rose-800 mb-2">💡 選ぶ際のポイントアドバイス</h3>
           <p class="text-gray-700 text-sm leading-relaxed" id="result-advice"></p>
+          <p class="text-rose-700 text-xs font-medium mt-2 pt-2 border-t border-rose-100" id="result-budget-advice"></p>
         </div>
 
         <!-- NG point -->
@@ -346,7 +348,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. プライバシーは守られますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">入力された健康情報はサーバーに送信・保存されません。すべてお使いのブラウザ上で処理されます。</p>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">入力された情報はサーバーに送信・保存されません。すべてお使いのブラウザ上で処理されます。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. このサービスは無料で使えますか？ <span>▼</span></summary>
@@ -553,7 +555,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         { href: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ8+EXOQLM+35HU+60OXE', label: '🍷 ソムリエアットギフト｜厳選ワイン・お酒を見る', cls: 'bg-rose-600 hover:bg-rose-700', rel: 'nofollow sponsored noopener' }
       ],
       catalog_gift: [
-        { href: 'https://www.amazon.co.jp/s?k=カタログギフト&tag=appadaycrea0f-22', label: '🛍️ AmazonでカタログギフトをみるB', cls: 'bg-amber-500 hover:bg-amber-600' },
+        { href: 'https://www.amazon.co.jp/s?k=カタログギフト&tag=appadaycrea0f-22', label: '🛍️ Amazonでカタログギフトを見る', cls: 'bg-amber-500 hover:bg-amber-600' },
         { href: 'https://www.amazon.co.jp/s?k=Amazonギフトカード&tag=appadaycrea0f-22', label: '📖 Amazonギフトカードを見る', cls: 'bg-orange-400 hover:bg-orange-500' }
       ],
       kids_gift: [
@@ -562,30 +564,67 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       ]
     };
 
+    // 表示ラベルマップ（パーソナライズ用）
+    const personLabels = {
+      lover: '恋人・パートナー', spouse: '夫・妻', parent: '親・義親',
+      child: '子供・孫', friend: '友人・知人', colleague: '上司・同僚'
+    };
+    const sceneLabels = {
+      birthday: '誕生日', anniversary: '記念日・バレンタイン',
+      celebration: '出産・入学祝い', wedding: '結婚祝い',
+      thanks: 'お礼・お返し', visit: '手土産'
+    };
+    const budgetLabels = {
+      low: '3,000円以内', mid_low: '3,000〜5,000円',
+      mid: '5,000〜10,000円', high: '10,000〜30,000円', luxury: '30,000円以上'
+    };
+    const budgetAdvice = {
+      low: '💴 予算3,000円以内では、消えものギフト（お菓子・入浴剤）が金額感を気にさせず渡しやすく失敗しにくいです。',
+      mid_low: '💰 3,000〜5,000円は手土産・お礼の定番予算。ラッピング・のし対応のセット商品を選ぶと印象アップします。',
+      mid: '💳 5,000〜10,000円は誕生日や記念日の王道ゾーン。ブランドロゴ入りの箱に入った商品で特別感を演出しましょう。',
+      high: '💎 10,000〜30,000円の予算なら体験型ギフトやカタログギフトも選択肢に入ります。包装・配送にも気を遣うと喜ばれます。',
+      luxury: '👑 30,000円以上の高額ギフトは、見た目の質感・ブランド感が重要です。直接手渡しか専門店の配送サービスを活用しましょう。'
+    };
+
     // Determine result based on answers
     function getResultKey(a) {
-      // Child/grandchild gets kids_gift
+      // 子供・孫
       if (a.person === 'child') return 'kids_gift';
 
-      // Interest-based prioritization
+      // 10代は選択肢が限られるため絞り込み
+      if (a.age === 'teen') {
+        if (a.interest === 'beauty') return 'beauty_gift';
+        if (a.format === 'digital' || a.format === 'catalog') return 'catalog_gift';
+        return 'food_gift';
+      }
+
+      // 50代以上はグルメ・カタログが無難
+      if (a.age === 'senior') {
+        if (a.interest === 'alcohol') return 'alcohol_gift';
+        if (a.format === 'experience') return 'experience_gift';
+        if (a.scene === 'wedding' || a.scene === 'celebration') return 'catalog_gift';
+        return 'food_gift';
+      }
+
+      // 趣味優先
       if (a.interest === 'alcohol') return 'alcohol_gift';
       if (a.interest === 'beauty') return 'beauty_gift';
       if (a.interest === 'interior') return 'interior_gift';
 
-      // Format-based
+      // 形式優先
       if (a.format === 'experience') return 'experience_gift';
       if (a.format === 'catalog') return 'catalog_gift';
       if (a.format === 'consumable') return 'food_gift';
 
-      // Scene-based
+      // シーン優先
       if (a.scene === 'wedding' || a.scene === 'celebration') return 'catalog_gift';
       if (a.scene === 'visit' || a.scene === 'thanks') return 'food_gift';
       if (a.scene === 'anniversary' && (a.person === 'lover' || a.person === 'spouse')) return 'experience_gift';
 
-      // Budget-based fallback
+      // 予算フォールバック
       if (a.budget === 'luxury' || a.budget === 'high') return 'experience_gift';
 
-      // Interest fallback
+      // 趣味フォールバック
       if (a.interest === 'food') return 'food_gift';
       if (a.interest === 'culture' || a.interest === 'outdoor') return 'catalog_gift';
 
@@ -652,8 +691,17 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
       document.getElementById('result-icon').textContent = r.icon;
       document.getElementById('result-title').textContent = r.title;
+      // パーソナライズサブタイトル
+      const pLabel = personLabels[answers.person] || '';
+      const sLabel = sceneLabels[answers.scene] || '';
+      const bLabel = budgetLabels[answers.budget] || '';
+      document.getElementById('result-subtitle').textContent =
+        `${pLabel}への${sLabel}（予算：${bLabel}）`;
       document.getElementById('result-desc').textContent = r.desc;
       document.getElementById('result-advice').textContent = r.advice;
+      // 予算別アドバイス
+      document.getElementById('result-budget-advice').textContent =
+        budgetAdvice[answers.budget] || '';
       document.getElementById('result-ng').textContent = r.ng;
 
       const top3El = document.getElementById('gift-top3');

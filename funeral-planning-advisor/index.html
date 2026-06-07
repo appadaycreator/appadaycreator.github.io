@@ -101,7 +101,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 </style>
 
 <style>
-@media(max-width:480px){button,[class*=btn]{min-height:48px!important;font-size:15px!important;}input,select,textarea{font-size:16px!important;min-height:44px!important;}[class*=card],[class*=max-w]{padding:16px!important;}}
+@media(max-width:480px){button,[class*=btn]{min-height:48px!important;font-size:15px!important;}input,select,textarea{font-size:16px!important;min-height:44px!important;}[class*=card],[class*=max-w]{padding:16px!important;} .space-y-2 label{word-break: break-word;} .text-sm{font-size:13px!important;}}
 </style>
 </head>
 <body class=" font-sans text-gray-800" style="background:#f8fafc;"><a href="#main" class="sr-only">本文へスキップ</a>
@@ -221,19 +221,21 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       options: ['一般葬（親族・知人・会社関係者を招く）', '家族葬（家族・親しい人のみ）', '一日葬（通夜なし）', '直葬・火葬のみ', 'まだ決めていない']
     },
     {
-      id: 'attendance',
-      text: '予定される参列者数はどのくらいですか？',
-      options: ['10人未満', '10〜30人', '30〜80人', '80〜150人', '150人以上']
-    },
-    {
       id: 'region',
       text: 'お住まいの地域を教えてください',
       options: ['東京・大阪・名古屋などの大都市', '地方の政令市・中規模都市', '郊外・地方都市', '農村・山間部・離島']
     },
     {
+      id: 'attendance',
+      text: '予定される参列者数はどのくらいですか？',
+      options: ['10人未満', '10〜30人', '30〜80人', '80〜150人', '150人以上']
+    },
+    {
       id: 'religion',
       text: '宗教・宗派はどちらですか？',
-      options: ['仏教（寺院・お坊さんへのお布施あり）', 'キリスト教', '神道', '無宗教・自由葬', '分からない']
+      options: ['仏教（寺院・お坊さんへのお布施あり）', 'キリスト教', '神道', '無宗教・自由葬', '分からない'],
+      skipable: true,
+      skipLabel: '宗教の選択をスキップ'
     },
     {
       id: 'cemetery',
@@ -304,12 +306,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const hintHtml = hint ? `<span class="text-xs text-gray-500">💡 ${hint}</span>` : '';
       html += `<label class="flex flex-col gap-1 p-3 border border-gray-200 rounded-xl cursor-pointer hover:border-slate-400 transition has-[:checked]:border-slate-500 has-[:checked]:bg-slate-50">
         <div class="flex items-center gap-3">
-          <input type="radio" name="${q.id}" value="${opt}" ${checked} class="accent-slate-600" aria-label="入力フォーム"> <span class="text-sm font-medium">${opt}</span>
+          <input type="radio" name="${q.id}" value="${opt}" ${checked} class="accent-slate-600" aria-label="${opt}"> <span class="text-sm font-medium">${opt}</span>
         </div>
         ${hintHtml}
       </label>`;
     });
     html += '</div>';
+    if (q.skipable) {
+      html += `<button onclick="skipQuestion()" class="w-full mt-3 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-200 transition">${q.skipLabel}</button>`;
+    }
     document.getElementById('question-area').innerHTML = html;
   }
 
@@ -322,12 +327,34 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
   function nextStep() {
     if (!saveAnswer()) return;
-    if (currentStep < questions.length - 1) { currentStep++; renderQuestion(); }
-    else showResult();
+    if (currentStep < questions.length - 1) {
+      currentStep++;
+      renderQuestion();
+      document.getElementById('quiz-section').scrollIntoView({behavior: 'smooth', block: 'start'});
+    } else showResult();
   }
 
   function prevStep() {
-    if (currentStep > 0) { currentStep--; renderQuestion(); }
+    if (currentStep > 0) {
+      currentStep--;
+      renderQuestion();
+      document.getElementById('quiz-section').scrollIntoView({behavior: 'smooth', block: 'start'});
+    }
+  }
+
+  function skipQuestion() {
+    const q = questions[currentStep];
+    if (q.id === 'religion') {
+      answers[q.id] = '無宗教・自由葬';
+    }
+    // saveAnswer()を経由せず直接ステップを進める（ラジオ未選択でもスキップ可能にする）
+    if (currentStep < questions.length - 1) {
+      currentStep++;
+      renderQuestion();
+      document.getElementById('quiz-section').scrollIntoView({behavior: 'smooth', block: 'start'});
+    } else {
+      showResult();
+    }
   }
 
   function calcCost() {
@@ -406,9 +433,42 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     return allItems.filter(item => item.condition);
   }
 
+  function copyResult() {
+    const calc = calcCost();
+    const { funeralCost, cemeteryAdd, totalCost, errorMargin } = calc;
+    const checklist = getChecklist();
+
+    let text = `【葬儀費用シミュレーション結果】\n\n`;
+    text += `葬儀形式: ${answers.style}\n`;
+    text += `参列者数: ${answers.attendance}\n`;
+    text += `地域: ${answers.region}\n`;
+    text += `宗教: ${answers.religion}\n`;
+    text += `墓地・納骨: ${answers.cemetery}\n\n`;
+
+    text += `【費用内訳】\n`;
+    text += `葬儀費用: 約${funeralCost}〜${funeralCost + errorMargin}万円\n`;
+    if (cemeteryAdd > 0) text += `墓地・納骨費用: 約${cemeteryAdd}万円〜\n`;
+    text += `合計費用目安: 約${totalCost}〜${totalCost + errorMargin}万円\n\n`;
+
+    text += `【終活準備チェックリスト】\n`;
+    checklist.forEach(item => {
+      const priority = item.priority === 'required' ? '【必須】' : item.priority === 'recommended' ? '【推奨】' : '【参考】';
+      text += `${priority} ${item.icon} ${item.title}\n`;
+    });
+
+    text += `\n※詳細はhttps://appadaycreator.com/funeral-planning-advisor/ でご確認ください`;
+
+    navigator.clipboard.writeText(text).then(() => {
+      alert('結果をコピーしました！');
+    }).catch(() => {
+      alert('コピーに失敗しました');
+    });
+  }
+
   function showResult() {
     document.getElementById('quiz-section').classList.add('hidden');
     document.getElementById('result-section').classList.remove('hidden');
+    document.getElementById('result-section').scrollIntoView({behavior: 'smooth'});
 
     const calc = calcCost();
     const { funeralCost, cemeteryAdd, totalCost, errorMargin } = calc;
@@ -427,7 +487,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       { label: '葬儀の形式', value: calc.styleCost, description: calc.styleLabel },
       { label: '参列者数の加算', value: calc.attendanceAdd, description: calc.attendanceLabel },
       { label: '地域調整（' + (calc.regionMult > 1 ? '割高' : '割安') + '）', value: calc.regionAdjust, description: calc.regionLabel + '（係数' + calc.regionMult.toFixed(2) + 'x）' },
-      ...(calc.religionAdd > 0 ? [{ label: 'お布施（宗教費）', value: calc.religionAdd, description: calc.religionLabel }] : []),
+      ...(answers.religion && answers.religion !== '無宗教・自由葬' ? [{ label: 'お布施（宗教費）', value: calc.religionAdd, description: calc.religionLabel, editable: true, fieldName: 'religionAdd' }] : []),
     ];
 
     const breakdownHtml = `
@@ -459,37 +519,29 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       </div>`;
 
     const html = `
+      <div class="bg-red-50 border-2 border-red-300 rounded-xl p-5 mb-4 text-center">
+        <p class="text-sm text-red-800 font-semibold mb-1">合計費用目安</p>
+        <p class="text-4xl font-bold text-red-700 mb-1">約${totalCost}〜${totalCost + errorMargin}万円</p>
+        <p class="text-xs text-gray-500">（地域・葬儀社により ±${Math.round(errorMargin / 2)}万円程度の変動あり）</p>
+        ${cemeteryAdd > 0 ? `<p class="text-xs text-gray-600 mt-2">内 墓地・納骨費用（${calc.cemeteryLabel}）：約${cemeteryAdd}万円含む</p>` : ''}
+      </div>
       ${breakdownHtml}
-      <div class="grid grid-cols-1 gap-4 mb-5">
-        <div class="bg-slate-50 border-l-4 border-slate-500 rounded-xl p-4">
-          <p class="text-sm text-slate-800 font-semibold mb-1">葬儀費用（目安）</p>
-          <p class="text-3xl font-bold text-slate-700">約${funeralCost}〜${funeralCost + errorMargin}万円</p>
-          <p class="text-xs text-gray-500 mt-1">地域・葬儀社により ±${Math.round(errorMargin / 2)}万円程度の変動あり</p>
-        </div>
-        ${cemeteryAdd > 0 ? `
-        <div class="bg-gray-50 border-l-4 border-gray-400 rounded-xl p-4">
-          <p class="text-sm text-gray-700 font-semibold mb-1">墓地・納骨費用（${calc.cemeteryLabel}）</p>
-          <p class="text-2xl font-bold text-gray-600">約${cemeteryAdd}万円〜</p>
-        </div>` : ''}
-        <div class="bg-red-50 border-l-4 border-red-400 rounded-xl p-4">
-          <p class="text-sm text-red-800 font-semibold mb-1">合計費用目安</p>
-          <p class="text-3xl font-bold text-red-700">約${totalCost}〜${totalCost + errorMargin}万円</p>
-          <p class="text-xs text-gray-500 mt-1">誤差範囲：±${Math.round(errorMargin / 2)}万円（地域・葬儀社・業者選びで変動）</p>
-        </div>
+      <div class="flex gap-2 mb-4">
+        <button onclick="copyResult()" class="flex-1 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-semibold transition">📋 結果をコピー</button>
       </div>
       <h3 class="font-bold text-gray-700 mb-3">終活・葬儀準備のアドバイス</h3>
       <div class="space-y-3">
         ${advice.map(a => `<div class="flex gap-3 p-3 bg-gray-50 rounded-xl"><span class="text-xl">📝</span><p class="text-sm text-gray-700">${a}</p></div>`).join('')}
       </div>
 
-      <h3 class="font-bold text-gray-700 mb-3 mt-6">✅ 終活準備チェックリスト</h3>
+      <h3 class="font-bold text-gray-700 mb-3 mt-6">✅ 終活準備チェックリスト <span id="checklist-count" class="text-sm font-normal text-gray-500"></span></h3>
       <div class="bg-white rounded-xl border border-gray-200 p-4">
         ${checklist.map((item, idx) => `
-        <div class="flex gap-3 py-2 ${idx < checklist.length - 1 ? 'border-b border-gray-100' : ''}">
-          <input type="checkbox" id="check_${item.id}" class="mt-0.5" onchange="localStorage.setItem('checklist_${item.id}', this.checked)">
+        <div id="checklist-item-${item.id}" class="flex gap-3 py-2 px-2 rounded transition ${idx < checklist.length - 1 ? 'border-b border-gray-100' : ''}">
+          <input type="checkbox" id="check_${item.id}" class="mt-0.5" onchange="updateChecklistUI('${item.id}'); localStorage.setItem('funeral_checklist_${item.id}', this.checked)">
           <div class="flex-1">
-            <label for="check_${item.id}" class="text-sm font-semibold text-gray-800 cursor-pointer flex items-center gap-2">
-              <span class="text-lg">${item.icon}</span> ${item.title}
+            <label for="check_${item.id}" class="text-sm font-semibold text-gray-800 cursor-pointer flex items-center gap-2 checklist-label">
+              <span class="text-lg">${item.icon}</span> <span class="checklist-text">${item.title}</span>
               <span class="text-xs px-1.5 py-0.5 rounded ${
                 item.priority === 'required' ? 'bg-red-100 text-red-700' :
                 item.priority === 'recommended' ? 'bg-yellow-100 text-yellow-700' :
@@ -505,10 +557,49 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       </div>`;
 
     document.getElementById('result-content').innerHTML = html;
+
+    // チェックリスト初期化＆イベント設定
+    checklist.forEach(item => {
+      const checkbox = document.getElementById(`check_${item.id}`);
+      const saved = localStorage.getItem(`funeral_checklist_${item.id}`) === 'true';
+      if (checkbox && saved) {
+        checkbox.checked = true;
+        updateChecklistUI(item.id);
+      }
+    });
+    updateChecklistCount();
+  }
+
+  function updateChecklistUI(itemId) {
+    const checkbox = document.getElementById(`check_${itemId}`);
+    const item = document.getElementById(`checklist-item-${itemId}`);
+    const label = item.querySelector('.checklist-label');
+    const text = item.querySelector('.checklist-text');
+
+    if (checkbox.checked) {
+      item.classList.add('bg-gray-100');
+      text.style.textDecoration = 'line-through';
+      text.style.color = '#9ca3af';
+    } else {
+      item.classList.remove('bg-gray-100');
+      text.style.textDecoration = 'none';
+      text.style.color = '#1f2937';
+    }
+    updateChecklistCount();
+  }
+
+  function updateChecklistCount() {
+    const allCheckboxes = document.querySelectorAll('#result-section input[type="checkbox"]');
+    const checkedCount = Array.from(allCheckboxes).filter(cb => cb.checked).length;
+    const totalCount = allCheckboxes.length;
+    const countEl = document.getElementById('checklist-count');
+    if (countEl) countEl.textContent = `（${checkedCount}/${totalCount} 完了）`;
   }
 
   function resetQuiz() {
     currentStep = 0; answers = {};
+    // localStorageのチェックリストキーをクリア
+    Object.keys(localStorage).filter(k => k.startsWith('funeral_checklist_')).forEach(k => localStorage.removeItem(k));
     document.getElementById('quiz-section').classList.remove('hidden');
     document.getElementById('result-section').classList.add('hidden');
     renderQuestion();
@@ -536,15 +627,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
             <div class="space-y-3">
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「親の介護費用の見通しが立てられず不安でしたが、現在の状況を入力するだけで月額目安が分かりました。施設選びの参考にもなりました。」</p>
+          <p class="text-xs text-gray-700">「父の葬儀費用がいくらかかるか全く分からず不安でしたが、地域・形式を入力するだけで目安が出て安心しました。家族葬にするか一般葬にするかの判断材料になりました。」</p>
           <p style="font-size:12px;color:#16a34a;" class="mt-1">— 田中さん（50代・会社員）★★★★★</p>
         </div>
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「葬儀の費用相場が分からず困っていましたが、地域や希望に合った目安が出てきて事前準備のきっかけになりました。」</p>
+          <p class="text-xs text-gray-700">「葬儀の費用相場が分からず困っていましたが、地域や希望に合った目安が出てきて事前準備のきっかけになりました。終活チェックリストも参考になりました。」</p>
           <p style="font-size:12px;color:#16a34a;" class="mt-1">— 佐藤さん（60代・主婦）★★★★★</p>
         </div>
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「介護施設の種類と費用の違いがこのツールで整理できました。親族で話し合うための資料として活用しました。」</p>
+          <p class="text-xs text-gray-700">「エンディングノートの必要性は分かっていたのですが、何から始めればよいか迷っていました。このツールのチェックリストで優先順位が整理できました。」</p>
           <p style="font-size:12px;color:#16a34a;" class="mt-1">— 山本さん（40代・会社員）★★★★☆</p>
         </div>
       </div>

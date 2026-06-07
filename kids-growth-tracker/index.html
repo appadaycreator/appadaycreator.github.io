@@ -91,6 +91,12 @@
     .stat-diff{font-size:.6875rem;opacity:.8;margin-top:.25rem;font-weight:600}
     .stat-diff.up{color:rgba(255,255,255,.9)}
     .stat-diff.down{color:rgba(255,220,220,.9)}
+    /* モバイル用ドロップダウン */
+    .child-selector-mobile{display:none}
+    .child-selector-mobile select{padding:.375rem .75rem;border-radius:var(--radius-sm);border:1.5px solid var(--primary-border);background:#fff;color:var(--text);font-weight:600;font-family:var(--font);font-size:.8125rem;cursor:pointer;transition:var(--ease);flex:1;max-width:200px}
+    .child-selector-mobile select:hover{border-color:var(--primary);background:var(--primary-light)}
+    .child-selector-mobile select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(124,58,237,.1)}
+    @media(max-width:480px){.child-selector{display:none}.child-selector-mobile{display:flex;align-items:center;gap:.5rem;flex:1;padding:.5rem 0}}
 
     /* ── Main ────────────────────── */
     .main{max-width:1100px;margin:0 auto;padding:2rem 1.5rem}
@@ -479,6 +485,41 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
   </div>
 </div>
 
+<!-- Modal: Edit memory -->
+<div class="overlay" id="modal-edit-memory">
+  <div class="modal">
+    <div class="modal-title">✏️ 思い出を編集</div>
+    <input type="hidden" id="edit-mem-id">
+    <div class="form-group">
+      <label class="form-label">記録日</label>
+      <input type="date" id="edit-mem-date" class="form-input" style="max-width:200px">
+    </div>
+    <div class="form-group">
+      <label class="form-label">絵文字</label>
+      <div class="emoji-row" id="edit-emoji-row">
+        <span class="emoji-btn" onclick="pickEditEmoji(this,'🎉')">🎉 初めて</span>
+        <span class="emoji-btn" onclick="pickEditEmoji(this,'😊')">😊 笑顔</span>
+        <span class="emoji-btn" onclick="pickEditEmoji(this,'💪')">💪 できた！</span>
+        <span class="emoji-btn" onclick="pickEditEmoji(this,'🍼')">🍼 ごはん</span>
+        <span class="emoji-btn" onclick="pickEditEmoji(this,'😴')">😴 ねんね</span>
+        <span class="emoji-btn" onclick="pickEditEmoji(this,'🏥')">🏥 病院</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:.5rem;margin-top:.5rem">
+        <span id="edit-sel-emoji" style="font-size:1.5rem"></span>
+        <span style="font-size:.8125rem;color:var(--muted)">絵文字を選択してください</span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">内容</label>
+      <textarea id="edit-mem-text" class="mem-textarea" maxlength="500"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-edit-memory')" aria-label="編集をキャンセル">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveEditMemory()" aria-label="思い出を保存">保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: Settings / Export-Import -->
 <div class="overlay" id="modal-settings">
   <div class="modal" style="max-width:420px">
@@ -530,12 +571,15 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
     </a>
     <div class="hdivider"></div>
     <div class="child-selector" id="child-selector"></div>
+    <div class="child-selector-mobile" id="child-selector-mobile">
+      <select id="child-selector-select" onchange="selectChild(this.value)" aria-label="お子さまを選択"></select>
+    </div>
     <button class="add-child-btn" onclick="openModal('modal-add-child')" aria-label="お子さまを追加">＋</button>
     <button class="settings-btn" onclick="openModal('modal-settings')" aria-label="データ管理・設定">⚙️</button>
   </div>
 </header>
 
-<main bg-white id="main bg-white" role="main bg-white" class="main bg-white">
+<main id="main" role="main" class="main">
   <h1 class="sr-only">子どもの成長記録ダッシュボード｜身長・体重を無料で管理【KidsGrowth】</h1>
 
   <!-- No child -->
@@ -729,7 +773,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
     <div class="card" style="margin-top:1.75rem">
       <div class="card-title">🔗 関連ツール</div>
       <div class="related-grid">
-        <a href="https://appadaycreator.com/kids-activity-cost-simulator/" class="product-card">
+        <a href="https://appadaycreator.com/kids-activity-cost-simulator/lp/" class="product-card">
           <div class="product-name">🎯 子供の習い事費用シミュレーター</div>
           <div class="product-cta">使ってみる →</div>
         </a>
@@ -1133,7 +1177,14 @@ function renderChart() {
     return;
   }
 
-  const W = 660, H = 220, PL = 52, PR = 20, PT = 20, PB = 40;
+  // グラフ色を身長・体重で色分け
+  const isHeight = chartType === 'height';
+  const lineColor = isHeight ? '#3b82f6' : '#f59e0b';
+  const gradColor1 = isHeight ? '#3b82f6' : '#f59e0b';
+  const gradColor2 = isHeight ? '#93c5fd' : '#fcd34d';
+  const dotStroke = isHeight ? '#1e40af' : '#b45309';
+
+  const W = 660, H = 220, PL = 52, PR = 20, PT = 40, PB = 40;
   const cW = W - PL - PR, cH = H - PT - PB;
   const vals = pts.map(r => r[key]);
   const minV = Math.min(...vals), maxV = Math.max(...vals);
@@ -1167,7 +1218,7 @@ function renderChart() {
     const val = r[key];
     const info = `${r.date}  ${val}${unit}${r.memo ? '  ' + r.memo : ''}`;
     const safeInfo = info.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
-    return `<circle class="chart-dot" cx="${cx}" cy="${cy}" r="5" fill="#fff" stroke="#7c3aed" stroke-width="2.5"
+    return `<circle class="chart-dot" cx="${cx}" cy="${cy}" r="5" fill="#fff" stroke="${dotStroke}" stroke-width="2.5"
       onmouseover="showChartTip(event,${cx},${cy},'${safeInfo}')"
       onmouseleave="hideChartTip()"
       ontouchstart="showChartTip(event,${cx},${cy},'${safeInfo}')"
@@ -1176,19 +1227,28 @@ function renderChart() {
 
   const last = pts[pts.length - 1];
 
+  // 凡例を追加
+  let legend = '';
+  if (isHeight) {
+    legend = `<circle cx="15" cy="15" r="3" fill="#3b82f6" stroke="none"/><text x="24" y="19" font-size="11" fill="#6b7280">身長</text>`;
+  } else {
+    legend = `<circle cx="15" cy="15" r="3" fill="#f59e0b" stroke="none"/><text x="24" y="19" font-size="11" fill="#6b7280">体重</text>`;
+  }
+
   svg.innerHTML = `
     <defs>
       <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="#7c3aed" stop-opacity=".18"/>
-        <stop offset="100%" stop-color="#7c3aed" stop-opacity=".01"/>
+        <stop offset="0%" stop-color="${gradColor1}" stop-opacity=".15"/>
+        <stop offset="100%" stop-color="${gradColor2}" stop-opacity=".02"/>
       </linearGradient>
     </defs>
+    ${legend}
     ${grid}
     <path d="${areaPath}" fill="url(#grad)"/>
-    <path d="${linePath}" fill="none" stroke="#7c3aed" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="${linePath}" fill="none" stroke="${lineColor}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
     ${dots}
     ${xLabels}
-    <text x="${xS(pts.length-1)}" y="${yS(last[key]) - 12}" text-anchor="middle" fill="#7c3aed" font-size="12" font-weight="700" font-family="sans-serif">${last[key]}${unit}</text>
+    <text x="${xS(pts.length-1)}" y="${yS(last[key]) - 12}" text-anchor="middle" fill="${lineColor}" font-size="12" font-weight="700" font-family="sans-serif">${last[key]}${unit}</text>
   `;
 }
 
@@ -1386,6 +1446,55 @@ function addMemory() {
   }
 }
 
+let editSelEmoji = '';
+
+function pickEditEmoji(el, emoji) {
+  document.querySelectorAll('#edit-emoji-row .emoji-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  editSelEmoji = emoji;
+  document.getElementById('edit-sel-emoji').textContent = emoji;
+}
+
+function editMemory(id) {
+  const child = activeChild();
+  if (!child) return;
+  const mem = child.memories.find(m => m.id === id);
+  if (!mem) return;
+  document.getElementById('edit-mem-id').value = id;
+  document.getElementById('edit-mem-date').value = mem.recordDate || mem.date.slice(0, 10) || '';
+  document.getElementById('edit-mem-text').value = mem.text || '';
+  editSelEmoji = mem.emoji || '📔';
+  document.getElementById('edit-sel-emoji').textContent = editSelEmoji;
+  document.querySelectorAll('#edit-emoji-row .emoji-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('onclick').includes(`'${editSelEmoji}'`));
+  });
+  openModal('modal-edit-memory');
+}
+
+function saveEditMemory() {
+  const child = activeChild();
+  if (!child) return;
+  const id = document.getElementById('edit-mem-id').value;
+  const text = document.getElementById('edit-mem-text').value.trim();
+  const date = document.getElementById('edit-mem-date').value;
+  if (!text) { toast('err', '内容を入力してください'); return; }
+  try {
+    const mem = child.memories.find(m => m.id === id);
+    if (!mem) return;
+    mem.text = text;
+    mem.recordDate = date || mem.recordDate;
+    mem.emoji = editSelEmoji || mem.emoji;
+    child.memories.sort((a, b) => (b.recordDate || b.date).localeCompare(a.recordDate || a.date));
+    saveState();
+    closeModal('modal-edit-memory');
+    renderMemories();
+    toast('ok', '思い出を更新しました');
+  } catch(e) {
+    toast('err', '保存エラーが発生しました');
+    console.error('[KidsGrowth] saveEditMemory:', e);
+  }
+}
+
 function deleteMemory(id) {
   const child = activeChild();
   if (!child) return;
@@ -1409,6 +1518,17 @@ function calcAgeMonths(birth) {
   if (!birth) return 0;
   const b = new Date(birth), now = new Date();
   return Math.max(0, (now.getFullYear() - b.getFullYear()) * 12 + (now.getMonth() - b.getMonth()));
+}
+
+// 指定日時点での月齢を返す
+function calcAgeAtDate(birth, dateStr) {
+  if (!birth || !dateStr) return '';
+  const b = new Date(birth), d = new Date(dateStr);
+  const months = (d.getFullYear() - b.getFullYear()) * 12 + (d.getMonth() - b.getMonth());
+  if (months < 0) return '';
+  if (months < 24) return `${months}ヶ月`;
+  const y = Math.floor(months / 12), m = months % 12;
+  return m > 0 ? `${y}歳${m}ヶ月` : `${y}歳`;
 }
 
 function calcKaup(h, w) {
@@ -1492,9 +1612,11 @@ function renderGrowth() {
   if (!child || child.records.length === 0) {
     el.innerHTML = `<div class="empty"><div class="empty-icon">📏</div><div class="empty-title">まだ記録がありません</div><div class="empty-desc">上のフォームから身長・体重を記録しましょう</div></div>`;
   } else {
-    const rows = [...child.records].reverse().map(r => `
+    const rows = [...child.records].reverse().map(r => {
+      const ageLabel = calcAgeAtDate(child.birth, r.date);
+      return `
       <tr>
-        <td data-label="日付">${r.date}</td>
+        <td data-label="日付">${r.date}${ageLabel ? `<br><small style="color:var(--muted);font-size:.75rem">${ageLabel}</small>` : ''}</td>
         <td data-label="身長">${r.h !== null ? r.h + ' cm' : '—'}</td>
         <td data-label="体重">${r.w !== null ? r.w + ' kg' : '—'}</td>
         <td data-label="メモ" style="color:var(--muted);font-size:.8125rem">${r.memo || ''}</td>
@@ -1502,7 +1624,8 @@ function renderGrowth() {
           <button class="btn btn-secondary btn-sm" onclick="editRecord('${r.id}')" aria-label="この記録を編集">編集</button>
           <button class="btn btn-danger btn-sm" onclick="deleteRecord('${r.id}')" aria-label="この記録を削除">削除</button>
         </td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
     el.innerHTML = `<table class="data-table"><thead><tr><th>日付</th><th>身長</th><th>体重</th><th>メモ</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
   }
   renderChart();
@@ -1521,7 +1644,8 @@ function renderMemories() {
     <div class="mem-card">
       <div class="mem-date">${dispDate}</div>
       <div class="mem-text"><span class="mem-emoji">${m.emoji}</span>${m.text}</div>
-      <div style="display:flex;justify-content:flex-end;margin-top:.875rem">
+      <div style="display:flex;justify-content:flex-end;gap:.375rem;margin-top:.875rem">
+        <button class="btn btn-secondary btn-sm" onclick="editMemory('${m.id}')" aria-label="この思い出を編集">編集</button>
         <button class="btn btn-danger btn-sm" onclick="deleteMemory('${m.id}')" aria-label="この思い出を削除">削除</button>
       </div>
     </div>`;
@@ -1550,6 +1674,11 @@ function hideChartTip() {
   const tip = document.getElementById('chart-tooltip');
   if (tip) tip.style.opacity = '0';
 }
+
+// モバイルでチャートエリア外タップ時にツールチップを非表示
+document.addEventListener('touchstart', function(e) {
+  if (!e.target.closest('.chart-wrap')) hideChartTip();
+}, { passive: true });
 
 // ──────────────────────────────────
 // Edit record
@@ -1707,8 +1836,10 @@ function saveCheckup(id, date) {
 
 function renderChildSelector() {
   const el = document.getElementById('child-selector');
+  const mobileEl = document.getElementById('child-selector-select');
   if (state.children.length === 0) {
     el.innerHTML = '<span style="font-size:.8125rem;color:var(--muted)">お子さまを追加してください</span>';
+    if (mobileEl) mobileEl.innerHTML = '';
     return;
   }
   el.innerHTML = state.children.map(c => `
@@ -1718,6 +1849,9 @@ function renderChildSelector() {
       </button>
       <button class="child-pill-edit" onclick="openEditChild('${c.id}')" title="編集">✏️</button>
     </span>`).join('');
+  if (mobileEl) {
+    mobileEl.innerHTML = state.children.map(c => `<option value="${c.id}" ${c.id === state.activeId ? 'selected' : ''}>${c.gender === 'male' ? '👦' : c.gender === 'female' ? '👧' : '🧒'} ${c.name}</option>`).join('');
+  }
 }
 
 function renderFaq() {
@@ -1841,7 +1975,7 @@ init();
 <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
 <script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
 </div>
-<section style="max-width:800px;margin:0 auto 14px;padding:12px;background:#f5f3ff;border-radius:12px;"><h2 style="font-size:0.85rem;font-weight:bold;color:#7c3aed;margin-bottom:8px;text-align:center;">👶 子ども成長・育児サービス</h2><div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"><a href="https://appadaycreator.com/kids-activity-finder/" style="background:#fff;border:2px solid #ddd6fe;border-radius:10px;padding:9px 12px;text-decoration:none;text-align:center;min-width:95px;" onmouseover="this.style.borderColor='#7c3aed'" onmouseout="this.style.borderColor='#ddd6fe'"><div style="font-size:1.2rem;">🎮</div><div style="font-size:0.72rem;font-weight:bold;color:#374151;margin-top:2px;">習い事診断</div></a><a href="https://appadaycreator.com/kids-activity-cost-simulator/" style="background:#fff;border:2px solid #ddd6fe;border-radius:10px;padding:9px 12px;text-decoration:none;text-align:center;min-width:95px;" onmouseover="this.style.borderColor='#7c3aed'" onmouseout="this.style.borderColor='#ddd6fe'"><div style="font-size:1.2rem;">💰</div><div style="font-size:0.72rem;font-weight:bold;color:#374151;margin-top:2px;">習い事費用</div></a><a href="https://appadaycreator.com/education-cost-simulator/" style="background:#fff;border:2px solid #ddd6fe;border-radius:10px;padding:9px 12px;text-decoration:none;text-align:center;min-width:95px;" onmouseover="this.style.borderColor='#7c3aed'" onmouseout="this.style.borderColor='#ddd6fe'"><div style="font-size:1.2rem;">📚</div><div style="font-size:0.72rem;font-weight:bold;color:#374151;margin-top:2px;">教育費計算</div></a><a href="https://appadaycreator.com/family-childcare-budget-manager/" style="background:#fff;border:2px solid #ddd6fe;border-radius:10px;padding:9px 12px;text-decoration:none;text-align:center;min-width:95px;" onmouseover="this.style.borderColor='#7c3aed'" onmouseout="this.style.borderColor='#ddd6fe'"><div style="font-size:1.2rem;">👨‍👩‍👧</div><div style="font-size:0.72rem;font-weight:bold;color:#374151;margin-top:2px;">養育費管理</div></a></div></section>
+<section style="max-width:800px;margin:0 auto 14px;padding:12px;background:#f5f3ff;border-radius:12px;"><h2 style="font-size:0.85rem;font-weight:bold;color:#7c3aed;margin-bottom:8px;text-align:center;">👶 子ども成長・育児サービス</h2><div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"><a href="https://appadaycreator.com/kids-activity-finder/" style="background:#fff;border:2px solid #ddd6fe;border-radius:10px;padding:9px 12px;text-decoration:none;text-align:center;min-width:95px;" onmouseover="this.style.borderColor='#7c3aed'" onmouseout="this.style.borderColor='#ddd6fe'"><div style="font-size:1.2rem;">🎮</div><div style="font-size:0.72rem;font-weight:bold;color:#374151;margin-top:2px;">習い事診断</div></a><a href="https://appadaycreator.com/kids-activity-cost-simulator/lp/" style="background:#fff;border:2px solid #ddd6fe;border-radius:10px;padding:9px 12px;text-decoration:none;text-align:center;min-width:95px;" onmouseover="this.style.borderColor='#7c3aed'" onmouseout="this.style.borderColor='#ddd6fe'"><div style="font-size:1.2rem;">💰</div><div style="font-size:0.72rem;font-weight:bold;color:#374151;margin-top:2px;">習い事費用</div></a><a href="https://appadaycreator.com/education-cost-simulator/" style="background:#fff;border:2px solid #ddd6fe;border-radius:10px;padding:9px 12px;text-decoration:none;text-align:center;min-width:95px;" onmouseover="this.style.borderColor='#7c3aed'" onmouseout="this.style.borderColor='#ddd6fe'"><div style="font-size:1.2rem;">📚</div><div style="font-size:0.72rem;font-weight:bold;color:#374151;margin-top:2px;">教育費計算</div></a><a href="https://appadaycreator.com/family-childcare-budget-manager/" style="background:#fff;border:2px solid #ddd6fe;border-radius:10px;padding:9px 12px;text-decoration:none;text-align:center;min-width:95px;" onmouseover="this.style.borderColor='#7c3aed'" onmouseout="this.style.borderColor='#ddd6fe'"><div style="font-size:1.2rem;">👨‍👩‍👧</div><div style="font-size:0.72rem;font-weight:bold;color:#374151;margin-top:2px;">養育費管理</div></a></div></section>
 <div style="text-align:center;margin:14px auto;max-width:800px;padding:0 16px;">
 <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
 <script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
@@ -1932,7 +2066,7 @@ init();
 'use strict';
 function init(){
   // ローディング状態
-  document.querySelectorAll('button:not([type=reset]):not([data-ux]):not(.option-btn):not(#prevBtn):not(#nextBtn),input[type=submit]').forEach(function(b){
+  document.querySelectorAll('button:not([type=reset]):not([data-ux]):not(.option-btn):not(#prevBtn):not(#nextBtn):not(.tab-btn):not(.chart-tab):not(.child-pill):not(.emoji-btn):not(.faq-q):not(.add-child-btn):not(.settings-btn):not(.child-pill-edit),input[type=submit]').forEach(function(b){
     b.dataset.ux='1';
     var orig=b.tagName==='BUTTON'?b.textContent:(b.value||'実行');
     b.addEventListener('click',function(){

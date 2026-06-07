@@ -241,6 +241,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function resetForm(){
       CFG.inputs.forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
       document.getElementById('result').classList.remove('show');
+      patterns=[];
+      renderPatterns();
+      updatePatternsSummary();
     }
     let patterns = [];
     let patternIdCounter = 0;
@@ -265,9 +268,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function renderPatterns(){
       const container=document.getElementById('patterns-container');
       container.innerHTML='';
-      patterns.forEach(p=>{
+      const colors=['#3b82f6','#8b5cf6','#ec4899','#f59e0b','#10b981','#ef4444'];
+      patterns.forEach((p,idx)=>{
+        const monthly=p.price*p.times||0;
+        const yearly=monthly*12;
+        const maxYearly=Math.max(...patterns.map(x=>x.price*x.times*12||0),1);
+        const barWidth=maxYearly>0?(yearly/maxYearly)*100:0;
+        const barColor=colors[idx%colors.length];
         const div=document.createElement('div');
-        div.style.cssText='margin-bottom:12px;padding:12px;background:#f8fafc;border-radius:8px;';
+        div.style.cssText='margin-bottom:12px;padding:12px;background:#f8fafc;border-radius:8px;border-left:4px solid '+barColor;
         div.innerHTML=`
           <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px;">パターン名（例：ランチ）</label>
           <input type="text" placeholder="パターン名" value="${p.name}" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;margin-bottom:8px;" onchange="updatePattern(${p.id},'name',this.value)">
@@ -276,17 +285,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px;">月の回数</label>
           <input type="number" placeholder="例:20" value="${p.times||''}" min="0" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;margin-bottom:8px;" oninput="updatePattern(${p.id},'times',this.value)">
           <button onclick="removePattern(${p.id})" style="background:#ef4444;color:white;border:none;padding:6px 10px;border-radius:6px;font-size:12px;cursor:pointer;">削除</button>
-          ${p.price>0&&p.times>0?`<div style="margin-top:8px;padding:8px;background:white;border-radius:6px;text-align:center;"><p style="font-size:12px;color:#666;">月間: <strong style="color:#15803D;">${(p.price*p.times).toLocaleString()}円</strong></p></div>`:''}
+          ${p.price>0&&p.times>0?`<div style="margin-top:8px;padding:8px;background:white;border-radius:6px;"><p style="font-size:12px;color:#666;margin-bottom:4px;">💰 月間: <strong style="color:${barColor};">${monthly.toLocaleString()}円</strong></p><p style="font-size:11px;color:#999;">📅 年間: <strong style="color:${barColor};">${yearly.toLocaleString()}円</strong></p></div><div style="margin-top:8px;height:20px;background:#e5e7eb;border-radius:4px;overflow:hidden;"><div style="height:100%;width:${barWidth}%;background:${barColor};transition:width 0.3s;"></div></div>`:''}
         `;
         container.appendChild(div);
       });
     }
     function updatePatternsSummary(){
-      const total=patterns.reduce((sum,p)=>sum+(p.price*p.times||0),0);
+      const monthly=patterns.reduce((sum,p)=>sum+(p.price*p.times||0),0);
+      const yearly=monthly*12;
       const summary=document.getElementById('patterns-summary');
-      if(total>0){
+      if(monthly>0){
         summary.style.display='block';
-        document.getElementById('patterns-total').textContent=total.toLocaleString()+'円／月';
+        document.getElementById('patterns-total').innerHTML=`<p style="font-size:14px;color:#666;margin-bottom:4px;">月間合計: <strong style="color:#15803D;font-size:20px;">${monthly.toLocaleString()}円</strong></p><p style="font-size:13px;color:#999;">年間合計: <strong style="color:#7c3aed;font-size:18px;">${yearly.toLocaleString()}円</strong></p>`;
       }else{
         summary.style.display='none';
       }

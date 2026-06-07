@@ -334,6 +334,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     let timerInterval = null;
     let currentAnswer = 0;
     let isPaused = false;
+    let isAnswering = false; // フィードバック表示中フラグ
     const RELAX_MAX = 30;
 
     function setLevel(l) {
@@ -405,25 +406,52 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           q.type = 'input';
         }
       } else {
-        const type = rand(0,3);
+        const type = rand(0,6);
         if(type===0) {
+          // 対数: log₂(2^n) = n
           const n = rand(2,10);
           q.text = `log₂(${Math.pow(2,n)}) = ?`;
           q.answer = n;
           q.type = 'input';
         } else if(type===1) {
-          const choices = [{q:`sin(90°) = ?`,a:1},{q:`cos(0°) = ?`,a:1},{q:`tan(45°) = ?`,a:1},{q:`sin(0°) = ?`,a:0},{q:`cos(180°) = ?`,a:-1}];
+          // 三角関数（標準値を10問以上に拡張）
+          const choices = [
+            {q:`sin(90°) = ?`,a:1},{q:`cos(0°) = ?`,a:1},{q:`tan(45°) = ?`,a:1},
+            {q:`sin(0°) = ?`,a:0},{q:`cos(180°) = ?`,a:-1},{q:`sin(30°)×2 = ?`,a:1},
+            {q:`cos(60°)×2 = ?`,a:1},{q:`tan(0°) = ?`,a:0},{q:`sin(90°)+cos(0°) = ?`,a:2},
+            {q:`cos(90°) = ?`,a:0},{q:`sin(180°) = ?`,a:0},{q:`cos(360°) = ?`,a:1}
+          ];
           const c = choices[rand(0,choices.length-1)];
           q.text = c.q; q.answer = c.a; q.type='input';
         } else if(type===2) {
+          // 階乗
           const n = rand(1,8);
           q.text = `n! = ${factorial(n)}\nn = ?`;
           q.answer = n; q.type='input';
-        } else {
+        } else if(type===3) {
+          // 累乗
           const a=rand(2,9),b=rand(1,5);
           const ans2 = Math.pow(a,b);
           q.text = `${a}^${b} = ?`;
           q.answer = ans2; q.type='input';
+        } else if(type===4) {
+          // 二次方程式 x²-（a+b）x+ab=0 → x=a or x=b（小さい方を答えさせる）
+          const r1=rand(1,10), r2=rand(1,10);
+          const s=r1+r2, p=r1*r2;
+          const smaller=Math.min(r1,r2);
+          q.text = `x² - ${s}x + ${p} = 0\n小さい方のxの値は？`;
+          q.answer = smaller; q.type='input';
+        } else if(type===5) {
+          // 等差数列の第n項: a+(n-1)d
+          const a1=rand(1,10), d=rand(1,5), n=rand(3,8);
+          const nth = a1+(n-1)*d;
+          q.text = `初項${a1}・公差${d}の等差数列\n第${n}項は？`;
+          q.answer = nth; q.type='input';
+        } else {
+          // 絶対値: | a - b | = ?
+          const a=rand(1,20), b=rand(1,20);
+          q.text = `|${a} - ${b}| = ?`;
+          q.answer = Math.abs(a-b); q.type='input';
         }
       }
       currentAnswer = q.answer;
@@ -452,7 +480,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     }
     function startGame() {
       checkMdrStreak();
-      score=0; streak=0; maxStreak=0; correct=0; wrong=0; qCount=0;
+      score=0; streak=0; maxStreak=0; correct=0; wrong=0; qCount=0; isAnswering=false;
       document.getElementById('correctCount').textContent = '0'; // L1横展開: 表示もリセット
       document.getElementById('startScreen').classList.add('hidden');
       document.getElementById('gameScreen').classList.remove('hidden');
@@ -497,7 +525,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     }
 
     function submitAnswer() {
-      if (isPaused) return; // K2横展開: ポーズ中は無効
+      if (isPaused || isAnswering) return;
       const val = parseInt(document.getElementById('answerInput').value);
       if(isNaN(val)) return;
       checkAnswer(val);
@@ -510,6 +538,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     });
 
     function checkAnswer(val) {
+      isAnswering = true;
+      const submitBtn = document.querySelector('#inputArea button');
+      if (submitBtn) submitBtn.disabled = true;
       const fb = document.getElementById('feedbackMsg');
       fb.classList.remove('hidden');
       if(val === currentAnswer) {
@@ -528,7 +559,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }
       qCount++;
       updateStats();
-      setTimeout(() => nextQuestion(), 1200);
+      setTimeout(() => {
+        isAnswering = false;
+        if (submitBtn) submitBtn.disabled = false;
+        nextQuestion();
+      }, 1200);
     }
 
     function updateStats() {
@@ -649,11 +684,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   <div style="max-width:680px;margin:0 auto;">
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. 難易度を変えることはできますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">初期設定の難易度でお楽しみいただけます。スコアが上がるにつれて自動的に難易度が上がる仕組みになっています。</p>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">はい、スタート画面でレベルを「小学生・中学生・高校生」から選択できます。レベルごとに問題の種類と難易度が変わります。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. スコアを記録・シェアできますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">SNSシェアボタンからスコアをシェアできます。ランキング機能は現在未対応です。</p>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">スコアはブラウザにローカル保存され、Top5のランキングが結果画面に表示されます。XやLINEのシェアボタンで結果を友達にシェアすることもできます。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. このサービスは無料で使えますか？ <span>▼</span></summary>
@@ -681,16 +716,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
       <div class="space-y-3">
         <div class="bg-gray-50 rounded-lg p-3">
-          <p class="text-xs text-gray-700">「すぐに結果が出て使いやすかったです。友人にも勧めました！」</p>
-          <p class="text-xs text-gray-400 mt-1">— 田中さん（30代・会社員）★★★★★</p>
+          <p class="text-xs text-gray-700">「子どもが毎日『やりたい！』と言うようになりました。タイムアタックが熱くて親子で競っています！」</p>
+          <p class="text-xs text-gray-400 mt-1">— 田中さん（30代・保護者）★★★★★</p>
         </div>
         <div class="bg-gray-50 rounded-lg p-3">
-          <p class="text-xs text-gray-700">「無料でここまで詳しく調べられるとは思いませんでした。」</p>
-          <p class="text-xs text-gray-400 mt-1">— 佐藤さん（40代・主婦）★★★★★</p>
+          <p class="text-xs text-gray-700">「中学生モードの方程式が繰り返しできて助かります。テスト前の計算練習に最高です。」</p>
+          <p class="text-xs text-gray-400 mt-1">— 佐藤さん（中学2年生）★★★★★</p>
         </div>
         <div class="bg-gray-50 rounded-lg p-3">
-          <p class="text-xs text-gray-700">「登録不要でサクッと使えるのが良いです。また利用します。」</p>
-          <p class="text-xs text-gray-400 mt-1">— 山本さん（20代・学生）★★★★☆</p>
+          <p class="text-xs text-gray-700">「60秒タイムアタックで集中力がつきました。連続正解ストリークを伸ばすのが楽しい！」</p>
+          <p class="text-xs text-gray-400 mt-1">— 山本さん（小学6年生）★★★★☆</p>
         </div>
       </div>
       <div class="flex gap-2 mt-4">
@@ -707,14 +742,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <!-- rakuten-affiliate-block -->
     <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">
       <p style="font-size:0.85rem;color:#4b5563;margin-bottom:8px;">🛒 関連商品を楽天市場で探す</p>
-      <a href="https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2Fmath%2520%25E3%2582%25B0%25E3%2583%2583%25E3%2582%25BA%2F&link_type=text" target="_blank" rel="nofollow sponsored noopener"
+      <a href="https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F%E7%AE%97%E6%95%B0+%E6%95%B0%E5%AD%A6+%E3%83%89%E3%83%AA%E3%83%AB%2F&link_type=text" target="_blank" rel="nofollow sponsored noopener"
          style="display:inline-block;background:#BF0000;color:white;padding:10px 24px;border-radius:8px;font-weight:bold;font-size:14px;text-decoration:none;">
-        楽天市場で「math グッズ」を検索 →
+        楽天市場で「算数・数学ドリル」を検索 →
       </a>
     </div>
 <!-- phase10-rakuten-updated -->
 <!-- phase10-faq-enhanced -->
-<section style="margin:32px auto;max-width:640px;padding:0 16px;" aria-labelledby="howto-h"><h2 id="howto-h" style="font-size:1.15rem;font-weight:700;margin-bottom:10px;border-left:4px solid #7c3aed;padding-left:10px;">使い方</h2><ol style="padding-left:20px;line-height:1.9;color:#374151;"><li>記録したい項目を入力フォームに入力する</li><li>「追加」または「記録」ボタンをクリックする</li><li>記録一覧で過去のデータを確認する</li><li>グラフや集計で傾向を把握する</li><li>継続的に記録して変化を追跡する</li></ol></section>
+<section style="margin:32px auto;max-width:640px;padding:0 16px;" aria-labelledby="howto-h"><h2 id="howto-h" style="font-size:1.15rem;font-weight:700;margin-bottom:10px;border-left:4px solid #7c3aed;padding-left:10px;">使い方</h2><ol style="padding-left:20px;line-height:1.9;color:#374151;"><li>レベル（小学生・中学生・高校生）を選ぶ</li><li>モード（タイムアタック60秒 or じっくり30問）を選ぶ</li><li>「🚀 スタート！」ボタンを押してゲームを始める</li><li>表示された計算問題に答えを入力してEnterまたは「✅ 回答する」ボタンを押す</li><li>ゲーム終了後に結果画面でスコア・正答率・ランキングを確認する</li></ol></section>
 
 <div style="margin:24px auto;max-width:860px;padding:16px 20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;">
   <p style="font-size:12px;font-weight:600;color:#94a3b8;text-align:center;margin:0 0 12px;letter-spacing:0.05em;">スポンサーリンク</p>

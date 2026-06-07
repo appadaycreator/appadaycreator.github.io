@@ -177,10 +177,15 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
 
   <!-- Game Screen -->
   <div id="gameScreen" class="hidden">
-    <div class="parchment rounded-xl shadow p-4 mb-4 flex justify-between items-center">
-      <span class="text-sm font-medium text-amber-800">問題 <span id="qNum">1</span>/10</span>
-      <span class="text-sm font-medium text-amber-700">スコア: <span id="scoreDisplay" class="font-bold">0</span></span>
-      <span class="text-sm text-amber-600">正答率: <span id="accDisplay">0%</span></span>
+    <div class="parchment rounded-xl shadow p-4 mb-4">
+      <div class="flex justify-between items-center mb-2">
+        <span class="text-sm font-medium text-amber-800">問題 <span id="qNum">1</span>/10</span>
+        <span class="text-sm font-medium text-amber-700">スコア: <span id="scoreDisplay" class="font-bold">0</span></span>
+        <span class="text-sm text-amber-600">正答率: <span id="accDisplay">0%</span></span>
+      </div>
+      <div class="w-full bg-amber-200 rounded-full h-2">
+        <div id="progressBar" class="bg-amber-700 h-2 rounded-full transition-all duration-300" style="width:0%"></div>
+      </div>
     </div>
 
     <div class="parchment rounded-2xl shadow-2xl p-6 mb-4">
@@ -212,7 +217,7 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
     </div>
 
     <button id="nextBtn" class="hidden w-full bg-amber-700 hover:bg-amber-800 text-white font-bold py-3 rounded-xl text-lg transition-colors" onclick="nextQuestion()">
-      次の問題 →
+      次の問題 → <span id="nextCountdown" class="text-sm opacity-70"></span>
     </button>
   </div>
 
@@ -315,6 +320,19 @@ let histType = 'japan', difficulty = 'easy';
 let questions = [], qIdx = 0, score = 0, correctCount = 0;
 let selectedCard = null, slots = [], placed = {};
 let draggedCard = null, dragOffset = {x: 0, y: 0};
+let autoAdvanceTimer = null;
+
+// BC年を「紀元前XX年頃」、AD年を「XX年頃」と表示
+function formatYear(y) {
+  return y < 0 ? `紀元前${-y}年頃` : `${y}年頃`;
+}
+
+// ハイスコア表示を現在の histType/difficulty で更新
+function updateHighScore() {
+  const hsKey = `histHS_${histType}_${difficulty}`;
+  const hs = parseInt(localStorage.getItem(hsKey) || '0');
+  document.getElementById('highScore').textContent = hs ? hs + '点' : '---';
+}
 
 // 効果音パーサー
 function createSfx(freq, duration, type = 'sine') {
@@ -364,10 +382,19 @@ function startGame() {
 }
 
 function showQuestion() {
+  // 自動進行タイマーをキャンセル
+  if (autoAdvanceTimer) { clearInterval(autoAdvanceTimer); autoAdvanceTimer = null; }
+  const nextCountdown = document.getElementById('nextCountdown');
+  if (nextCountdown) nextCountdown.textContent = '';
+
   selectedCard = null; placed = {};
   document.getElementById('qNum').textContent = qIdx + 1;
   document.getElementById('answerBox').classList.add('hidden');
   document.getElementById('nextBtn').classList.add('hidden');
+
+  // 進捗バー更新
+  const pb = document.getElementById('progressBar');
+  if (pb) pb.style.width = Math.round((qIdx / questions.length) * 100) + '%';
 
   const q = questions[qIdx];
   const countMap = {veryeasy: 3, easy: 4, medium: 5, hard: 6, expert: 7};
@@ -392,14 +419,17 @@ function showQuestion() {
     cardsArea.appendChild(card);
   });
 
-  // Slots
+  // Slots（モバイルは最大3列、PC は要素数通り・最大6列）
   const slotsArea = document.getElementById('slotsArea');
   slotsArea.innerHTML = '';
-  slotsArea.style.gridTemplateColumns = `repeat(${subset.length}, 1fr)`;
+  const isNarrow = window.innerWidth < 480;
+  const cols = isNarrow ? Math.min(subset.length, 3) : Math.min(subset.length, 6);
+  slotsArea.style.gridTemplateColumns = `repeat(${cols}, minmax(60px, 1fr))`;
   for (let i = 0; i < subset.length; i++) {
     const slot = document.createElement('div');
     slot.className = 'slot rounded-lg p-2 text-xs text-center text-amber-600 flex items-center justify-center min-h-16';
-    slot.textContent = (i+1) + '番目（古）';
+    // 6個以上は数字のみ（スペース節約）
+    slot.textContent = subset.length <= 5 ? `${i+1}番目（古）` : `${i+1}`;
     slot.dataset.pos = i;
     slot.ondragover = (e) => e.preventDefault();
     slot.ondrop = (e) => dropCardToSlot(e, slot);
@@ -472,13 +502,18 @@ function placeCard(slot) {
 }
 
 function clearSlots() {
+  if (autoAdvanceTimer) { clearInterval(autoAdvanceTimer); autoAdvanceTimer = null; }
+  const nextCountdown = document.getElementById('nextCountdown');
+  if (nextCountdown) nextCountdown.textContent = '';
   document.querySelectorAll('.event-card').forEach(c => {
     c.style.display = '';
     delete c.dataset.placed;
     c.classList.remove('selected');
   });
-  document.querySelectorAll('.slot').forEach((slot, i) => {
-    slot.textContent = (i+1) + '番目（古）';
+  const slotEls = document.querySelectorAll('.slot');
+  const slotCount = slotEls.length;
+  slotEls.forEach((slot, i) => {
+    slot.textContent = slotCount <= 5 ? `${i+1}番目（古）` : `${i+1}`;
     slot.className = 'slot rounded-lg p-2 text-xs text-center text-amber-600 flex items-center justify-center min-h-16';
   });
   placed = {};
@@ -529,15 +564,36 @@ function checkAnswer() {
 
   const detail = document.getElementById('answerDetail');
   detail.innerHTML = '<p class="font-semibold mb-1">正しい順番：</p>' +
-    correctOrder.map((ev, i) => `<p>${i+1}. ${ev.year}年頃 — ${ev.text}</p>`).join('');
+    correctOrder.map((ev, i) => `<p>${i+1}. ${formatYear(ev.year)} — ${ev.text}</p>`).join('');
 
   document.getElementById('scoreDisplay').textContent = score;
   const total = qIdx + 1;
   document.getElementById('accDisplay').textContent = Math.round((correctCount / total) * 100) + '%';
-  document.getElementById('nextBtn').classList.remove('hidden');
+
+  const nextBtn = document.getElementById('nextBtn');
+  nextBtn.classList.remove('hidden');
+
+  // 3秒後に自動で次の問題へ進む
+  let countdown = 3;
+  const nextCountdown = document.getElementById('nextCountdown');
+  if (nextCountdown) nextCountdown.textContent = `(${countdown}秒後自動)`;
+  autoAdvanceTimer = setInterval(() => {
+    countdown--;
+    if (countdown <= 0) {
+      clearInterval(autoAdvanceTimer);
+      autoAdvanceTimer = null;
+      if (nextCountdown) nextCountdown.textContent = '';
+      nextQuestion();
+    } else {
+      if (nextCountdown) nextCountdown.textContent = `(${countdown}秒後自動)`;
+    }
+  }, 1000);
 }
 
 function nextQuestion() {
+  if (autoAdvanceTimer) { clearInterval(autoAdvanceTimer); autoAdvanceTimer = null; }
+  const nextCountdown = document.getElementById('nextCountdown');
+  if (nextCountdown) nextCountdown.textContent = '';
   qIdx++;
   if (qIdx >= questions.length) showResult();
   else showQuestion();
@@ -572,6 +628,22 @@ function showResult() {
   } else {
     document.getElementById('hsMsg').textContent = 'ハイスコア: ' + hs + '点';
   }
+
+  // 進捗バーを100%に
+  const pb = document.getElementById('progressBar');
+  if (pb) pb.style.width = '100%';
+
+  // 動的シェアリンク（実際のスコア・正答率・モードを含む）
+  const histLabel = histType === 'japan' ? '日本史' : '世界史';
+  const diffLabelMap = {veryeasy: '超初級', easy: '初級', medium: '中級', hard: '上級', expert: 'エキスパート'};
+  const shareText = `【歴史クイズ】タイムラインマスター（${histLabel}・${diffLabelMap[difficulty]}）で${score}点・正答率${acc}%達成！あなたは超えられる？ #歴史クイズ`;
+  const shareUrl = 'https://appadaycreator.com/history-timeline-game/';
+  const xLink = document.getElementById('shareX');
+  const lineLink = document.getElementById('shareLine');
+  const challengeLink = document.getElementById('shareChallenge');
+  if (xLink) xLink.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}&via=appadaycreator`;
+  if (lineLink) lineLink.href = `https://line.me/R/share?text=${encodeURIComponent(shareText + ' ' + shareUrl)}`;
+  if (challengeLink) challengeLink.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
 }
 
 function showStart() {
@@ -581,8 +653,7 @@ function showStart() {
 
 window.addEventListener('load', () => {
   selectDiff('easy');
-  const hs = localStorage.getItem(`histHS_japan_easy`);
-  document.getElementById('highScore').textContent = hs ? hs + '点' : '---';
+  updateHighScore();
 });
 </script>
 <div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px auto;max-width:680px;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🎮 ゲームのスコア計算</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">難易度に応じて得点が異なります。全ての出来事を正しい年代順に配置すると得点獲得。難易度が高いほど、より多くの点数が得られます。ハイスコアを目指して何度もチャレンジしましょう！</p></div>
@@ -635,15 +706,15 @@ window.addEventListener('load', () => {
       </div>
       <p class="text-xs text-gray-400 mt-2">※ご利用イメージです</p>
       <div class="flex gap-2 mt-4">
-        <a href="https://line.me/R/share?text=タイムラインマスター | 歴史年代パズルゲーム - 日本史・世界史%20https://appadaycreator.com/history-timeline-game/" target="_blank" rel="noopener"
+        <a id="shareLine" href="https://line.me/R/share?text=タイムラインマスター | 歴史年代パズルゲーム - 日本史・世界史%20https://appadaycreator.com/history-timeline-game/" target="_blank" rel="noopener"
            style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
           LINEでシェア
         </a>
-        <a href="https://twitter.com/intent/tweet?text=タイムラインマスター | 歴史年代パズルゲーム - 日本史・世界史&url=https://appadaycreator.com/history-timeline-game/&via=appadaycreator" target="_blank" rel="noopener"
+        <a id="shareX" href="https://twitter.com/intent/tweet?text=タイムラインマスター | 歴史年代パズルゲーム - 日本史・世界史&url=https://appadaycreator.com/history-timeline-game/&via=appadaycreator" target="_blank" rel="noopener"
            style="flex:1;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
           Xでシェア
         </a>
-          <a href="https://twitter.com/intent/tweet?text=%E3%80%90%E6%AD%B4%E5%8F%B2%E3%82%AF%E3%82%A4%E3%82%BA%E3%80%91%E3%82%BF%E3%82%A4%E3%83%A0%E3%83%A9%E3%82%A4%E3%83%B3%E4%B8%A6%E3%81%B9%E3%81%A7%E9%AB%98%E5%BE%97%E7%82%B9%EF%BC%81%E8%B6%85%E3%81%88%E3%82%89%E3%82%8C%E3%82%8B%EF%BC%9F%20%23%E6%AD%B4%E5%8F%B2%E3%82%AF%E3%82%A4%E3%82%BA%20%23%E6%97%A5%E6%9C%AC%E5%8F%B2&url=https%3A//appadaycreator.com/history-timeline-game/" target="_blank" rel="noopener" style="display:block;background:#f97316;color:#fff;padding:8px 16px;border-radius:8px;font-size:12px;text-decoration:none;font-weight:bold;margin-top:6px;text-align:center;" title="この記録を超えろ！">🏆 チャレンジシェア（超えろ！）</a>
+          <a id="shareChallenge" href="https://twitter.com/intent/tweet?text=%E3%80%90%E6%AD%B4%E5%8F%B2%E3%82%AF%E3%82%A4%E3%82%BA%E3%80%91%E3%82%BF%E3%82%A4%E3%83%A0%E3%83%A9%E3%82%A4%E3%83%B3%E4%B8%A6%E3%81%B9%E3%81%A7%E9%AB%98%E5%BE%97%E7%82%B9%EF%BC%81%E8%B6%85%E3%81%88%E3%82%89%E3%82%8C%E3%82%8B%EF%BC%9F%20%23%E6%AD%B4%E5%8F%B2%E3%82%AF%E3%82%A4%E3%82%BA%20%23%E6%97%A5%E6%9C%AC%E5%8F%B2&url=https%3A//appadaycreator.com/history-timeline-game/" target="_blank" rel="noopener" style="display:block;background:#f97316;color:#fff;padding:8px 16px;border-radius:8px;font-size:12px;text-decoration:none;font-weight:bold;margin-top:6px;text-align:center;" title="この記録を超えろ！">🏆 チャレンジシェア（超えろ！）</a>
       </div>
     </div>
     <section style="margin:32px auto;max-width:640px;padding:0 16px;" aria-labelledby="howto-h">

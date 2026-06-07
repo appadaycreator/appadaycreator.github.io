@@ -470,6 +470,20 @@
       line-height: 1.7;
     }
 
+    /* ---- 内訳バーグラフ ---- */
+    .breakdown-bar-wrap { margin: 16px 0; }
+    .breakdown-bar-label { font-size: 12px; color: var(--text-muted); margin: 0 0 6px; font-weight: 600; }
+    .breakdown-bar { display: flex; height: 28px; border-radius: 6px; overflow: hidden; }
+    .breakdown-bar-seg { min-width: 2px; transition: flex 0.3s; }
+    .breakdown-bar-seg.bb-expense { background: #94a3b8; }
+    .breakdown-bar-seg.bb-itax { background: #ef4444; }
+    .breakdown-bar-seg.bb-rtax { background: #f97316; }
+    .breakdown-bar-seg.bb-ins { background: #f59e0b; }
+    .breakdown-bar-seg.bb-take { background: #22c55e; }
+    .breakdown-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .breakdown-legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-sub); }
+    .breakdown-legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
     /* ---- 印刷 ---- */
     @media print {
       #site-header, footer, nav, button,
@@ -735,7 +749,7 @@
     {
       id: 'expense_rate',
       text: '年間の経費の割合はどのくらいですか？（売上に対して）',
-      options: ['10%未満（ほぼ経費なし）', '10〜20%', '20〜40%', '40〜60%', '60%以上']
+      options: ['10%未満（消耗品・通信費が少ない）', '10〜20%（材料費・交通費は限定的）', '20〜40%（材料費・外注・通信費など定期的）', '40〜60%（大きな材料仕入れ・外注が多い）', '60%以上（製造業など原価率が高い）']
     },
     {
       id: 'blue_tax',
@@ -755,7 +769,7 @@
     {
       id: 'family',
       text: '配偶者・扶養家族の状況を教えてください',
-      options: ['配偶者あり・扶養なし', '配偶者・扶養家族あり（2人以上）', '配偶者なし・扶養あり', '配偶者・扶養なし']
+      options: ['配偶者なし・扶養なし', '配偶者あり（控除額48万円）', '配偶者あり＋扶養家族1人（控除額86万円）', '配偶者あり＋扶養家族2人以上（控除額124万円以上）', '配偶者なし・扶養家族1人（控除額38万円）', '配偶者なし・扶養家族2人以上（控除額76万円以上）']
     },
     {
       id: 'tax_stress',
@@ -806,7 +820,14 @@
 
   function calcTax() {
     const incomeMap = {'200万円未満': 150, '200〜400万円': 300, '400〜600万円': 500, '600〜1,000万円': 800, '1,000万円以上': 1200};
-    const expenseRateMap = {'10%未満（ほぼ経費なし）': 0.05, '10〜20%': 0.15, '20〜40%': 0.30, '40〜60%': 0.50, '60%以上': 0.65};
+    // キーを質問選択肢の文字列と一致させる（バグ修正）
+    const expenseRateMap = {
+      '10%未満（消耗品・通信費が少ない）': 0.05,
+      '10〜20%（材料費・交通費は限定的）': 0.15,
+      '20〜40%（材料費・外注・通信費など定期的）': 0.30,
+      '40〜60%（大きな材料仕入れ・外注が多い）': 0.50,
+      '60%以上（製造業など原価率が高い）': 0.65
+    };
 
     const grossIncome = incomeMap[answers.income] || 400;
     const expenseRate = expenseRateMap[answers.expense_rate] || 0.20;
@@ -817,19 +838,23 @@
     else if (answers.blue_tax === '青色申告・10万円控除を申請済み') blueDeduction = 10;
 
     let familyDeduction = 0;
-    if (answers.family === '配偶者あり・扶養なし') familyDeduction = 48;
-    else if (answers.family === '配偶者・扶養家族あり（2人以上）') familyDeduction = 48 + 38;
-    else if (answers.family === '配偶者なし・扶養あり') familyDeduction = 38;
+    if (answers.family === '配偶者あり（控除額48万円）') familyDeduction = 48;
+    else if (answers.family === '配偶者あり＋扶養家族1人（控除額86万円）') familyDeduction = 86;
+    else if (answers.family === '配偶者あり＋扶養家族2人以上（控除額124万円以上）') familyDeduction = 124;
+    else if (answers.family === '配偶者なし・扶養家族1人（控除額38万円）') familyDeduction = 38;
+    else if (answers.family === '配偶者なし・扶養家族2人以上（控除額76万円以上）') familyDeduction = 76;
 
     const basicDeduction = 48;
     const basicDeductionResident = 43;
-    const socialInsurance = Math.round(grossIncome * 0.14);
-    const nationalPension = 16;
+    // 2026年度 国民年金保険料: 月17,510円 × 12か月 ≈ 約21万円（概算20万円）
+    const nationalPension = 20;
     const healthInsuranceRate = grossIncome <= 200 ? 0.08 : (grossIncome <= 400 ? 0.09 : 0.10);
     const healthInsurance = Math.round(grossIncome * healthInsuranceRate);
+    // 社会保険料は全額所得控除（税制上の正確な計算）
+    const socialInsuranceDeduction = healthInsurance + nationalPension;
 
-    let netIncome = grossIncome - expenses - blueDeduction - basicDeduction - familyDeduction;
-    let netIncomeResident = grossIncome - expenses - blueDeduction - basicDeductionResident - familyDeduction;
+    let netIncome = Math.max(0, grossIncome - expenses - blueDeduction - basicDeduction - familyDeduction - socialInsuranceDeduction);
+    let netIncomeResident = Math.max(0, grossIncome - expenses - blueDeduction - basicDeductionResident - familyDeduction - socialInsuranceDeduction);
 
     let incomeTaxRate = 0;
     if (netIncome <= 195) incomeTaxRate = 0.05;
@@ -844,33 +869,82 @@
     const takeHome = grossIncome - totalTax - expenses;
     const taxRate = Math.round(totalTax / grossIncome * 100);
 
-    return { grossIncome, expenses, incomeTax, municipalTax, healthInsurance, nationalPension, totalTax, takeHome, taxRate, familyDeduction, blueDeduction };
+    return { grossIncome, expenses, incomeTax, municipalTax, healthInsurance, nationalPension, socialInsuranceDeduction, totalTax, takeHome, taxRate, familyDeduction, blueDeduction };
   }
 
   function showResult() {
     document.getElementById('quiz-section').classList.add('hidden');
     document.getElementById('result-section').classList.remove('hidden');
-    setTimeout(() => document.getElementById('result-section').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+    setTimeout(() => {
+      const resultEl = document.getElementById('result-section');
+      if (resultEl) {
+        resultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 300);
 
     const year = new Date().getFullYear();
     const data = calcTax();
-    const { grossIncome, expenses, incomeTax, municipalTax, healthInsurance, nationalPension, totalTax, takeHome, taxRate, familyDeduction, blueDeduction } = data;
+    const { grossIncome, expenses, incomeTax, municipalTax, healthInsurance, nationalPension, socialInsuranceDeduction, totalTax, takeHome, taxRate, familyDeduction, blueDeduction } = data;
+
+    // 内訳バーグラフ用パーセント計算
+    const expP = Math.round(expenses / grossIncome * 100);
+    const itP = Math.round(incomeTax / grossIncome * 100);
+    const mtP = Math.round(municipalTax / grossIncome * 100);
+    const insP = Math.round((healthInsurance + nationalPension) / grossIncome * 100);
+    const thP = Math.max(0, 100 - expP - itP - mtP - insP);
+
+    // 白色申告ユーザー向け: 青色申告 Before/After 比較
+    const isWhiteTax = ['白色申告', 'まだ開業届を出していない', 'よく分からない'].includes(answers.blue_tax);
+    let compareHtml = '';
+    if (isWhiteTax) {
+      const basicDed = 48;
+      const blueNetNow = Math.max(0, grossIncome - expenses - basicDed - familyDeduction - socialInsuranceDeduction);
+      const blueNetBlue = Math.max(0, grossIncome - expenses - 65 - basicDed - familyDeduction - socialInsuranceDeduction);
+      const calcRate = n => n <= 195 ? 0.05 : n <= 330 ? 0.10 : n <= 695 ? 0.20 : n <= 900 ? 0.23 : 0.33;
+      const nowTax = Math.max(0, Math.round(blueNetNow * calcRate(blueNetNow)));
+      const blueTax = Math.max(0, Math.round(blueNetBlue * calcRate(blueNetBlue)));
+      const savings = nowTax - blueTax;
+      if (savings > 0) {
+        compareHtml = `
+        <div style="background:#f0fdf4;border:2px solid #22c55e;border-radius:12px;padding:16px;margin:16px 0;">
+          <p style="font-size:14px;font-weight:700;color:#15803d;margin:0 0 12px;">📊 青色申告（65万円控除）に切り替えると？</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div style="background:#fff;border-radius:8px;padding:12px;text-align:center;">
+              <p style="font-size:11px;color:#6b7280;margin:0 0 4px;">現在（${answers.blue_tax}）</p>
+              <p style="font-size:18px;font-weight:800;color:#ef4444;margin:0;">所得税 ${nowTax}万円</p>
+            </div>
+            <div style="background:#fff;border-radius:8px;padding:12px;text-align:center;">
+              <p style="font-size:11px;color:#6b7280;margin:0 0 4px;">青色申告（65万円控除）</p>
+              <p style="font-size:18px;font-weight:800;color:#15803d;margin:0;">所得税 ${blueTax}万円</p>
+            </div>
+          </div>
+          <p style="text-align:center;margin:12px 0 0;font-size:16px;font-weight:800;color:#15803d;">年間 約${savings}万円の節税効果！</p>
+          <p style="text-align:center;margin:6px 0 0;font-size:12px;color:#6b7280;">税務署への届出は無料。e-Taxで電子申請も可能です。</p>
+        </div>`;
+      }
+    }
 
     const advice = [];
-    if (answers.blue_tax === '白色申告' || answers.blue_tax === 'まだ開業届を出していない' || answers.blue_tax === 'よく分からない') {
-      const blueSimTax = Math.max(0, Math.round((grossIncome - expenses - 65) * (grossIncome <= 195 ? 0.05 : (grossIncome <= 330 ? 0.10 : 0.20))));
-      const blueSavings = Math.round(incomeTax - blueSimTax);
-      advice.push(`✅ 簡単 | 青色申告（65万円控除）に切り替えると、所得税が約${blueSavings}万円削減できます。税務署の届出は無料。`);
+    if (isWhiteTax) {
+      const basicDed = 48;
+      const blueNetBlue = Math.max(0, grossIncome - expenses - 65 - basicDed - familyDeduction - socialInsuranceDeduction);
+      const calcRate = n => n <= 195 ? 0.05 : n <= 330 ? 0.10 : n <= 695 ? 0.20 : n <= 900 ? 0.23 : 0.33;
+      const blueTax = Math.max(0, Math.round(blueNetBlue * calcRate(blueNetBlue)));
+      const savings = incomeTax - blueTax;
+      if (savings > 0) {
+        advice.push(`✅ 簡単 | 青色申告（65万円控除）に切り替えると、所得税が約${savings}万円削減できます。税務署の届出は無料。`);
+      }
     }
     if (answers.ideco === 'まだ活用していない') advice.push('⭐ 普通 | iDeCo（個人型確定拠出年金）の掛金は全額所得控除。フリーランスは月最大6.8万円（年81.6万円）まで積立可能。');
     if (answers.tax_stress !== '特に困っていない') advice.push('✅ 簡単 | クラウド会計ソフト（マネーフォワード・freee）で日常の帳簿付けを自動化すれば確定申告が大幅に楽になります。');
-    if (answers.expense_rate === '10%未満（ほぼ経費なし）') advice.push('⚠️ 確認 | 経費が極端に少ないようです。交通費・通信費・事務用品など、計上できる経費を見落としていないか確認してください。');
+    if (answers.expense_rate === '10%未満（消耗品・通信費が少ない）') advice.push('⚠️ 確認 | 経費が極端に少ないようです。交通費・通信費・事務用品など、計上できる経費を見落としていないか確認してください。');
     advice.push('✅ 簡単 | 自宅兼事務所の家賃・光熱費、通信費、交通費などは按分して経費計上できます。領収書の整理を習慣化しましょう。');
     if (answers.insurance === '国民健康保険・国民年金に加入') {
       advice.push('💡 普通 | 国民健康保険組合への変更で保険料が削減できる場合があります。同業者団体のHPで確認してください。');
     }
     if (grossIncome >= 1000) advice.push(`🔔 重要 | 消費税の課税事業者です。四半期ごとの予定納税を忘れずに。年間${Math.round(totalTax * 0.3)}万円程度を毎期積み立てておきましょう。`);
-    advice.push('💰 確認 | ふるさと納税で年間60万円までの控除が可能。返礼品を活用しながら節税できます。');
+    // ふるさと納税の誤情報を修正（60万円は誤り。所得・家族構成により大きく異なる）
+    advice.push('💰 確認 | ふるさと納税は所得税・住民税から控除。上限額は収入・家族構成によって異なります。「ふるさとチョイス」等の試算ツールで確認してください。');
 
     const html = `
       <div class="result-summary">
@@ -879,19 +953,47 @@
         <div class="result-row"><span class="result-row-label">経費（概算）</span><span class="result-row-value neg">−${expenses}万円</span></div>
         <div class="result-row"><span class="result-row-label">青色申告控除</span><span class="result-row-value neg">−${blueDeduction}万円</span></div>
         ${familyDeduction > 0 ? `<div class="result-row"><span class="result-row-label">配偶者・扶養控除</span><span class="result-row-value neg">−${familyDeduction}万円</span></div>` : ''}
+        <div class="result-row"><span class="result-row-label">社会保険料控除</span><span class="result-row-value neg">−${socialInsuranceDeduction}万円</span></div>
         <hr class="result-divider">
         <div class="result-row"><span class="result-row-label">所得税（概算）</span><span class="result-row-value neg">−${incomeTax}万円</span></div>
         <div class="result-row"><span class="result-row-label">住民税（概算）</span><span class="result-row-value neg">−${municipalTax}万円</span></div>
         <div class="result-row"><span class="result-row-label">国民健康保険料</span><span class="result-row-value neg">−${healthInsurance}万円</span></div>
+        <div class="result-row" style="font-size:12px;color:#64748b;"><span colspan="2">※保険料は自治体・加入者数により変動します</span></div>
         <div class="result-row"><span class="result-row-label">国民年金保険料</span><span class="result-row-value neg">−${nationalPension}万円</span></div>
         <hr class="result-divider">
         <div class="result-row result-total"><span>手取り概算</span><span class="result-total-value">${takeHome}万円/年</span></div>
         <div class="result-row" style="font-size:13px;color:#64748b;"><span>税負担率</span><span style="font-weight:700;color:#374151;">約${taxRate}%</span></div>
+        <div class="breakdown-bar-wrap">
+          <p class="breakdown-bar-label">年収に占める内訳</p>
+          <div class="breakdown-bar" role="img" aria-label="収入内訳グラフ">
+            <div class="breakdown-bar-seg bb-expense" style="flex:${expP}"></div>
+            <div class="breakdown-bar-seg bb-itax" style="flex:${itP}"></div>
+            <div class="breakdown-bar-seg bb-rtax" style="flex:${mtP}"></div>
+            <div class="breakdown-bar-seg bb-ins" style="flex:${insP}"></div>
+            <div class="breakdown-bar-seg bb-take" style="flex:${thP}"></div>
+          </div>
+          <div class="breakdown-legend">
+            <div class="breakdown-legend-item"><div class="breakdown-legend-dot" style="background:#94a3b8"></div>経費 ${expP}%</div>
+            <div class="breakdown-legend-item"><div class="breakdown-legend-dot" style="background:#ef4444"></div>所得税 ${itP}%</div>
+            <div class="breakdown-legend-item"><div class="breakdown-legend-dot" style="background:#f97316"></div>住民税 ${mtP}%</div>
+            <div class="breakdown-legend-item"><div class="breakdown-legend-dot" style="background:#f59e0b"></div>社保 ${insP}%</div>
+            <div class="breakdown-legend-item"><div class="breakdown-legend-dot" style="background:#22c55e"></div>手取り ${thP}%</div>
+          </div>
+        </div>
       </div>
-      <h3 class="advice-title">節税アドバイス</h3>
+      ${compareHtml}
+      <h3 class="advice-title">🎯 優先度の高い節税アドバイス</h3>
       <div class="advice-list">
-        ${advice.map(a => `<div class="advice-item"><span class="advice-icon">💡</span><p class="advice-text">${a}</p></div>`).join('')}
-      </div>`;
+        ${advice.slice(0, 3).map(a => `<div class="advice-item" style="background:#fff5e6;border-left:3px solid #ea580c;"><span class="advice-icon">⭐</span><p class="advice-text"><strong>${a}</strong></p></div>`).join('')}
+      </div>
+      ${advice.length > 3 ? `
+      <details style="margin-top:12px;padding:12px;background:#f9fafb;border-radius:8px;">
+        <summary style="cursor:pointer;font-weight:600;color:#334155;">📌 その他の検討項目（${advice.length - 3}件）</summary>
+        <div class="advice-list" style="margin-top:10px;">
+          ${advice.slice(3).map(a => `<div class="advice-item"><span class="advice-icon">💡</span><p class="advice-text">${a}</p></div>`).join('')}
+        </div>
+      </details>
+      ` : ''}`;
 
     document.getElementById('result-content').innerHTML = html;
   }

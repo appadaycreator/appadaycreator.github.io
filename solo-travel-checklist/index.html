@@ -157,12 +157,27 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <option value="relax">温泉・リゾート</option>
           </select>
 
+          <label style="margin-top:12px;">旅行時期</label>
+          <select id="season">
+            <option value="spring">春（3月〜5月）</option>
+            <option value="summer" selected>夏（6月〜8月）</option>
+            <option value="autumn">秋（9月〜11月）</option>
+            <option value="winter">冬（12月〜2月）</option>
+          </select>
+
           <button class="btn" style="margin-top:20px;" onclick="generate()">チェックリストを作成する</button>
         </div>
 
         <div class="result" id="result" style="margin-top:16px;">
           <div class="card">
             <h3 style="font-size:15px;font-weight:700;margin-bottom:4px;color:#2563EB;">✅ あなたの一人旅チェックリスト</h3>
+
+            <div style="background:#f0f9ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px;margin-bottom:12px;">
+              <label style="margin-top:0;">出発日</label>
+              <input type="date" id="departDate" onchange="updateCountdown()">
+              <p id="countdown" style="font-size:13px;color:#0284c7;font-weight:600;margin-top:6px;"></p>
+            </div>
+
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
               <span style="font-size:13px;color:#64748b;">準備完了：</span>
               <span id="progress-text" style="font-size:13px;font-weight:700;color:#2563EB;">0 / 0 項目</span>
@@ -171,6 +186,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <p style="font-size:11px;color:#94a3b8;margin-bottom:12px;">チェックを入れて準備状況を確認しましょう</p>
             <div id="output"></div>
             <p style="font-size:12px;color:#94a3b8;margin-top:12px;">※旅程・季節に合わせて追加・省略してください。</p>
+
+            <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+              <button onclick="downloadTxt()" style="background:#059669;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex:1;min-width:140px;">📥 TXTダウンロード</button>
+              <button onclick="showHistory()" style="background:#7c3aed;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex:1;min-width:140px;">📋 過去の履歴</button>
+            </div>
           </div>
         </div>
 
@@ -230,8 +250,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="card" style="margin-top:8px;text-align:center;background:#f0f9ff;" role="complementary" aria-label="SNSシェア">
             <p style="font-size:13px;font-weight:600;color:#374151;margin-bottom:10px;">📣 友人・家族にシェアする</p>
             <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-                <a href="https://twitter.com/intent/tweet?text=%E4%B8%80%E4%BA%BA%E6%97%85%E6%BA%96%E5%82%99%E3%83%81%E3%82%A7%E3%83%83%E3%82%AF%E3%83%AA%E3%82%B9%E3%83%88%20%23無料ツール&url=https%3A%2F%2Fappadaycreator.com%2Fsolo-travel-checklist%2F" target="_blank" rel="noopener" aria-label="一人旅準備チェックリストをXでシェア" style="background:#1DA1F2;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">𝕏 シェア</a>
+                <a id="shareTwitter" href="javascript:void(0);" onclick="shareTwitter()" target="_blank" rel="noopener" aria-label="一人旅準備チェックリストをXでシェア" style="background:#1DA1F2;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">𝕏 シェア</a>
                 <a href="https://line.me/R/msg/text/?%E4%B8%80%E4%BA%BA%E6%97%85%E6%BA%96%E5%82%99%E3%83%81%E3%82%A7%E3%83%83%E3%82%AF%E3%83%AA%E3%82%B9%E3%83%88%0Ahttps%3A%2F%2Fappadaycreator.com%2Fsolo-travel-checklist%2F" target="_blank" rel="noopener" aria-label="一人旅準備チェックリストをLINEでシェア" style="background:#00B900;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">LINE</a>
+                <a id="shareFB" href="javascript:void(0);" onclick="shareFacebook()" target="_blank" rel="noopener" aria-label="Facebook でシェア" style="background:#1877F2;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">f Facebook</a>
             </div>
         </div>
 
@@ -244,14 +265,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     
 <script>
     let totalItems = 0, checkedItems = 0;
+    let currentChecklist = null;
 
     function generate() {
       const dest      = document.getElementById('dest').value;
       const duration  = document.getElementById('duration').value;
       const transport = document.getElementById('transport').value;
       const style     = document.getElementById('style').value;
+      const season    = document.getElementById('season').value;
 
-      // === カテゴリ別チェックリスト ===
       const docs = ['身分証明書（運転免許・マイナンバー等）','クレジットカード・デビットカード','現金（旅行予算分）','宿泊施設の予約確認書（紙 or スクリーンショット）'];
       const emergency = ['緊急連絡先メモ（スマホ紛失対策）','旅行保険の証書・連絡先','常備薬・胃薬・痛み止め','絆創膏・体温計などの応急セット'];
       const clothing = ['着替え（日数分＋1枚）','インナー・靴下','パジャマ・部屋着','洗濯用ポリ袋'];
@@ -318,6 +340,22 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         docs.push('観光スポットのチケット・クーポン');
       }
 
+      // 季節別対応
+      if (season === 'summer') {
+        hygiene.push('日焼け止め（SPF 30以上）');
+        clothing.push('UV カット素材の長袖・帽子');
+        gadgets.push('扇子・小型携帯扇風機');
+      }
+      if (season === 'winter') {
+        clothing.push('厚手のコート・ダウンジャケット');
+        clothing.push('手袋・ニット帽・マフラー');
+        hygiene.push('リップクリーム・ハンドクリーム');
+      }
+      if (season === 'spring' || season === 'autumn') {
+        clothing.push('羽織もの（薄手ジャケット）');
+        hygiene.push('花粉症対策（マスク・目薬）');
+      }
+
       const sections = [
         { label:'書類・お金', color:'#2563EB',  tasks: docs },
         { label:'衣類・荷物', color:'#7c3aed',  tasks: clothing },
@@ -329,6 +367,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
       totalItems = sections.reduce((s, c) => s + c.tasks.length, 0);
       checkedItems = 0;
+
+      const checklistId = Date.now().toString();
+      currentChecklist = {id: checklistId, dest, duration, transport, style, season, timestamp: new Date().toLocaleString('ja-JP'), sections, checks: {}};
       updateProgress();
 
       let idCounter = 0;
@@ -337,23 +378,31 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <span class="cat-badge" style="background:${s.color};">${s.label}</span>
           ${s.tasks.map(t => {
             const id = 'chk_' + (idCounter++);
-            return `<div class="task-item" id="wrap_${id}">
-              <input type="checkbox" id="${id}" onchange="toggle('${id}')">
-              <label for="${id}">${t}</label>
+            return `<div class="task-item" id="wrap_${id}" style="transition:all 0.2s ease;">
+              <input type="checkbox" id="${id}" onchange="toggle('${id}')" style="transition:opacity 0.3s;">
+              <label for="${id}" style="transition:all 0.3s;">${t}</label>
             </div>`;
           }).join('')}
         </div>`).join('');
 
       document.getElementById('result').classList.add('show');
+      document.getElementById('departDate').value = '';
+      document.getElementById('countdown').textContent = '';
       document.getElementById('result').scrollIntoView({behavior:'smooth', block:'start'});
     }
 
     function toggle(id) {
       const chk = document.getElementById(id);
       const wrap = document.getElementById('wrap_' + id);
-      if (chk.checked) { checkedItems++; wrap.classList.add('done'); }
-      else { checkedItems--; wrap.classList.remove('done'); }
+      if (chk.checked) {
+        checkedItems++;
+        wrap.classList.add('done');
+      } else {
+        checkedItems--;
+        wrap.classList.remove('done');
+      }
       updateProgress();
+      saveCheckState(id, chk.checked);
     }
 
     function updateProgress() {
@@ -361,7 +410,90 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('progress-text').textContent = checkedItems + ' / ' + totalItems + ' 項目';
       document.getElementById('progress-fill').style.width = pct + '%';
     }
-    </script>
+
+    function updateCountdown() {
+      const dateStr = document.getElementById('departDate').value;
+      if (!dateStr) {
+        document.getElementById('countdown').textContent = '';
+        return;
+      }
+      const dept = new Date(dateStr);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const diff = Math.ceil((dept - today) / (1000 * 60 * 60 * 24));
+      if (diff < 0) {
+        document.getElementById('countdown').textContent = '✈️ 旅行中ですね！';
+      } else if (diff === 0) {
+        document.getElementById('countdown').textContent = '🎉 今日が出発日です！';
+      } else {
+        document.getElementById('countdown').textContent = `📅 出発まで ${diff} 日`;
+      }
+    }
+
+    function downloadTxt() {
+      if (!currentChecklist) return;
+      const {dest, duration, transport, style, season, timestamp} = currentChecklist;
+      let txt = `一人旅準備チェックリスト\n作成日時: ${timestamp}\n\n`;
+      txt += `旅行先: ${dest === 'domestic' ? '国内' : dest === 'asia' ? 'アジア' : '欧米'}\n`;
+      txt += `期間: ${duration === 'short' ? '日帰り〜1泊' : duration === 'mid' ? '2〜4泊' : '5泊以上'}\n`;
+      txt += `移動: ${transport === 'train' ? '電車' : transport === 'flight' ? '飛行機' : 'レンタカー'}\n`;
+      txt += `スタイル: ${style === 'city' ? '街歩き' : style === 'outdoor' ? 'アウトドア' : '温泉'}\n`;
+      txt += `季節: ${season === 'spring' ? '春' : season === 'summer' ? '夏' : season === 'autumn' ? '秋' : '冬'}\n`;
+      txt += `進捗: ${checkedItems} / ${totalItems} 項目 (${Math.round(checkedItems/totalItems*100)}%)\n\n`;
+
+      currentChecklist.sections.forEach(s => {
+        txt += `【${s.label}】\n`;
+        s.tasks.forEach(t => txt += `☐ ${t}\n`);
+        txt += '\n';
+      });
+
+      const blob = new Blob([txt], {type: 'text/plain;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'checklist_' + new Date().toISOString().split('T')[0] + '.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function saveCheckState(id, checked) {
+      if (currentChecklist) {
+        currentChecklist.checks[id] = checked;
+        localStorage.setItem('checklist_' + currentChecklist.id, JSON.stringify(currentChecklist));
+        const checklists = JSON.parse(localStorage.getItem('checklists') || '[]');
+        if (!checklists.find(c => c.id === currentChecklist.id)) {
+          checklists.push({id: currentChecklist.id, dest: currentChecklist.dest, duration: currentChecklist.duration, timestamp: currentChecklist.timestamp});
+          localStorage.setItem('checklists', JSON.stringify(checklists));
+        }
+      }
+    }
+
+    function showHistory() {
+      const checklists = JSON.parse(localStorage.getItem('checklists') || '[]');
+      if (checklists.length === 0) {
+        alert('保存されたチェックリストがありません');
+        return;
+      }
+      let list = '過去のチェックリスト:\n\n';
+      checklists.forEach((c, i) => {
+        list += `${i + 1}. ${c.timestamp}\n   (${c.dest === 'domestic' ? '国内' : 'アジア'})\n\n`;
+      });
+      alert(list);
+    }
+
+    function shareTwitter() {
+      const pct = totalItems > 0 ? Math.round(checkedItems / totalItems * 100) : 0;
+      const text = `一人旅準備チェックリストで出発準備中！進捗 ${pct}% 完了。無料ツールで旅行の準備を効率化しましょう！ #一人旅 #チェックリスト #旅行準備`;
+      const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=https%3A%2F%2Fappadaycreator.com%2Fsolo-travel-checklist%2F`;
+      window.open(url, '_blank', 'width=600,height=400');
+    }
+
+    function shareFacebook() {
+      const url = 'https://appadaycreator.com/solo-travel-checklist/';
+      const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+      window.open(fbUrl, '_blank', 'width=600,height=400');
+    }
+</script>
 
     <!-- Amazon アフィリエイト -->
     <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;margin:16px auto;max-width:500px;text-align:center;">

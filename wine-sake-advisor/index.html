@@ -52,9 +52,6 @@
   </script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"このサービスは無料ですか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要でご利用いただけます。"}},{"@type":"Question","name":"入力データはどこに保存されますか？","acceptedAnswer":{"@type":"Answer","text":"お使いのデバイス内にのみ保存されます。外部送信は行いません。"}},{"@type":"Question","name":"結果はどのくらい正確ですか？","acceptedAnswer":{"@type":"Answer","text":"あくまで参考情報です。重要な判断の際は専門家にご相談ください。"}},{"@type":"Question","name":"どのような人が使っていますか？","acceptedAnswer":{"@type":"Answer","text":"初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}},{"@type":"Question","name":"結果をシェアできますか？","acceptedAnswer":{"@type":"Answer","text":"はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}},{"@type":"Question","name":"有料プランはありますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、すべての機能を完全無料でご利用いただけます。"}}]}</script>
 <script type="application/ld+json">
-
-</script>
-<script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "Organization",
@@ -96,6 +93,25 @@
 <meta name="twitter:site" content="@appadaycreator">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"ワイン・日本酒診断【無料】好みに合うお酒をAIが提案の使い方","step":[{"@type":"HowToStep","position":1,"name":"必要事項を入力する","text":"フォームに必要な情報（数値・選択肢・条件）を入力または選択する"},{"@type":"HowToStep","position":2,"name":"診断・計算を実行する","text":"「診断する」「計算する」または「確認する」ボタンを押して結果を取得する"},{"@type":"HowToStep","position":3,"name":"結果・分析を確認する","text":"表示された診断結果・計算結果・グラフをじっくり確認する"},{"@type":"HowToStep","position":4,"name":"アドバイスを活用する","text":"結果に基づくアドバイスや提案を日常生活に取り入れる"},{"@type":"HowToStep","position":5,"name":"定期的に再チェックする","text":"生活変化に応じて定期的に再診断して進捗を追跡する"}]}</script>
 <style>
+/* 質問切り替えアニメーション */
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.slide-in-right { animation: slideInRight 0.25s ease-out both; }
+.slide-in-left  { animation: slideInLeft  0.25s ease-out both; }
+
+/* 味わいバー */
+.taste-bar-track { background:#f1f5f9; border-radius:9999px; height:8px; overflow:hidden; }
+.taste-bar-fill  { height:8px; border-radius:9999px; transition:width 0.4s ease; }
+
+/* 味わいタグバッジ */
+.taste-tag { display:inline-block; padding:2px 10px; border-radius:9999px; font-size:11px; font-weight:700; margin:2px; }
+</style>
 /* Phase 8: Mobile Optimization */
 input, select, textarea { font-size: 16px !important; }
 button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min-width: 48px; touch-action: manipulation; }
@@ -174,6 +190,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div id="question-area"></div>
       </div>
 
+      <div id="validation-msg" class="hidden text-sm font-semibold text-red-600 text-center py-1 animate-pulse" role="alert">選択肢を1つ選んでください</div>
       <div class="flex gap-3">
         <button id="prev-btn" onclick="prevStep()" class="hidden flex-1 py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition" aria-label="戻る">戻る</button>
         <button id="next-btn" onclick="nextStep()" class="flex-1 py-3 text-white rounded-xl font-semibold transition" style="background-color:#9f1239;" onmouseover="this.style.backgroundColor='#881337'" onmouseout="this.style.backgroundColor='#9f1239'" aria-label="次へ">次へ</button>
@@ -229,6 +246,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <img border="0" width="1" height="1" src="https://www14.a8.net/0.gif?a8mat=4B3WJ7+5R95UY+4EDY+BZ8OX" alt="" loading="lazy">
         </div>
       </div>
+      <div class="flex gap-2 mb-3">
+        <button onclick="shareToLine()" style="flex:1;background:#06C755;color:white;padding:10px;border-radius:10px;font-size:13px;font-weight:bold;border:none;cursor:pointer;">LINEでシェア</button>
+        <button onclick="shareToTwitter()" style="flex:1;background:#000;color:white;padding:10px;border-radius:10px;font-size:13px;font-weight:bold;border:none;cursor:pointer;">Xでシェア</button>
+      </div>
       <button onclick="resetQuiz()" class="w-full py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition mb-6">もう一度診断する</button>
     </div>
 
@@ -276,7 +297,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. プライバシーは守られますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">入力された健康情報はサーバーに送信・保存されません。すべてお使いのブラウザ上で処理されます。</p>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">入力した好みの情報はサーバーに送信・保存されません。すべてお使いのブラウザ上で処理されます。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. このサービスは無料で使えますか？ <span>▼</span></summary>
@@ -334,9 +355,21 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     const recommendations = {
       wine_sweet_fruit: {
+        emoji: '🌸',
         category: 'ロゼワイン / 甘口白ワイン',
         examples: 'ポルトガルのヴィーニョ・ヴェルデ、アルゼンチンのモスカート',
-        pairing: 'フルーツタルト、軽いチーズ、生ハム',
+        pairing: [
+          { icon: '🍰', text: 'フルーツタルト' },
+          { icon: '🧀', text: '軽いチーズ' },
+          { icon: '🥩', text: '生ハム・テリーヌ' },
+          { icon: '🫐', text: 'フルーツサラダ' }
+        ],
+        tags: [
+          { label: '甘口', color: '#ec4899', bg: '#fdf2f8' },
+          { label: 'フルーティ', color: '#f97316', bg: '#fff7ed' },
+          { label: '飲みやすい', color: '#8b5cf6', bg: '#f5f3ff' }
+        ],
+        profile: { sweet: 4, body: 1, fruity: 4 },
         desc: '甘みとフルーティさを兼ね備えたお酒が好きな方には、ロゼや甘口白ワインが最適。色も美しくプレゼントにも喜ばれます。',
         brands: {
           'budget_1000': ['モスカート d\'Asti', 'プロセッコ', 'マテウス ロゼ'],
@@ -345,11 +378,47 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           'budget_over': ['プレスティージュ シャンパーニュ', 'アイスワイン']
         }
       },
+      wine_white_dry: {
+        emoji: '🥂',
+        category: '辛口白ワイン（シャルドネ・ソーヴィニヨン）',
+        examples: 'シャルドネ、ソーヴィニヨン・ブラン、ピノ・グリ',
+        pairing: [
+          { icon: '🐟', text: '刺身・シーフード' },
+          { icon: '🥗', text: 'グリーンサラダ' },
+          { icon: '🧀', text: 'クリームチーズ' },
+          { icon: '🍝', text: 'ペスカトーレパスタ' }
+        ],
+        tags: [
+          { label: '辛口', color: '#0369a1', bg: '#f0f9ff' },
+          { label: 'すっきり', color: '#0891b2', bg: '#ecfeff' },
+          { label: '食中酒向き', color: '#059669', bg: '#ecfdf5' }
+        ],
+        profile: { sweet: 1, body: 2, fruity: 3 },
+        desc: '爽やかな酸味とミネラル感が料理の味を引き立てる辛口白ワイン。魚介・野菜との相性が抜群で食事をより豊かにします。',
+        brands: {
+          'budget_1000': ['カサ・スベルカソー シャルドネ', 'ウィレム・デ・ブールグ', 'コノスル ソーヴィニヨン・ブラン'],
+          'budget_3000': ['プイィ・フュメ', 'サンセール', 'マコン・ヴィラージュ シャルドネ'],
+          'budget_10000': ['シャブリ プルミエ・クリュ', 'ムルソー', 'プーリニー・モンラッシェ'],
+          'budget_over': ['ル・モンラッシェ', 'コルトン・シャルルマーニュ', 'バタール・モンラッシェ']
+        }
+      },
       wine_dry: {
+        emoji: '🍷',
         category: '辛口赤ワイン（フルボディ）',
         examples: 'カベルネ・ソーヴィニヨン、シラー、バルベーラ',
-        pairing: '肉料理（ステーキ・ラム）、熟成チーズ、パスタ',
-        desc: 'コクと渋みのある本格的な赤ワインは食事との相性が抜群。大人の晩酌にぴったりです。',
+        pairing: [
+          { icon: '🥩', text: 'ステーキ・ラム肉' },
+          { icon: '🧀', text: '熟成チーズ' },
+          { icon: '🍝', text: 'ボロネーゼパスタ' },
+          { icon: '🦆', text: 'ローストビーフ' }
+        ],
+        tags: [
+          { label: '辛口', color: '#0369a1', bg: '#f0f9ff' },
+          { label: '濃厚', color: '#92400e', bg: '#fffbeb' },
+          { label: '本格派', color: '#9f1239', bg: '#fff1f2' }
+        ],
+        profile: { sweet: 1, body: 5, fruity: 2 },
+        desc: 'コクと渋みのある本格的な赤ワインは肉料理との相性が抜群。大人の晩酌やディナーにぴったりです。',
         brands: {
           'budget_1000': ['カベルネ・フラン', 'シラー スタンダード', 'バルベーラ'],
           'budget_3000': ['ナパ・バレー カベルネ', 'ボルドー メルロー', 'リオハ グラン・レゼルヴァ'],
@@ -357,10 +426,46 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           'budget_over': ['ロマネコンティ級', 'シャトー・マルゴー', 'アマローネ高級ヴィンテージ']
         }
       },
+      wine_light_red: {
+        emoji: '🍒',
+        category: '軽やかな赤ワイン（ピノ・ノワール系）',
+        examples: 'ピノ・ノワール、ガメイ、サンジョヴェーゼ',
+        pairing: [
+          { icon: '🍣', text: 'サーモン・鴨肉' },
+          { icon: '🍄', text: 'キノコのソテー' },
+          { icon: '🧆', text: 'テリーヌ・鶏料理' },
+          { icon: '🧀', text: 'ソフトチーズ' }
+        ],
+        tags: [
+          { label: 'ライトボディ', color: '#db2777', bg: '#fdf2f8' },
+          { label: '飲みやすい', color: '#8b5cf6', bg: '#f5f3ff' },
+          { label: 'エレガント', color: '#0369a1', bg: '#f0f9ff' }
+        ],
+        profile: { sweet: 2, body: 2, fruity: 4 },
+        desc: '軽やかな口当たりと上品な果実香が魅力のピノ・ノワール系。毎日の晩酌から特別な席まで幅広く活躍します。',
+        brands: {
+          'budget_1000': ['コノスル ピノ・ノワール', 'ガメイ ボージョレ', 'チリ産 ピノ'],
+          'budget_3000': ['ブルゴーニュ ピノ・ノワール', 'ニュージーランド ピノ', 'オレゴン ピノ'],
+          'budget_10000': ['ジュヴレ・シャンベルタン', 'ヴォーヌ・ロマネ 村名', 'チャロン・エ・ヴィラージュ'],
+          'budget_over': ['ロマネ・コンティ', 'ラ・ターシュ', 'ミュジニー']
+        }
+      },
       sake_light: {
+        emoji: '🌸',
         category: '純米吟醸酒 / 大吟醸酒',
         examples: '獺祭、久保田、八海山、磯自慢',
-        pairing: '刺身・寿司、白身魚、豆腐料理、塩焼き',
+        pairing: [
+          { icon: '🐟', text: '刺身・寿司' },
+          { icon: '🐡', text: '白身魚の塩焼き' },
+          { icon: '🥢', text: '豆腐・湯葉料理' },
+          { icon: '🦞', text: 'えびのお造り' }
+        ],
+        tags: [
+          { label: 'フルーティ', color: '#f97316', bg: '#fff7ed' },
+          { label: 'スッキリ', color: '#0891b2', bg: '#ecfeff' },
+          { label: '香り豊か', color: '#8b5cf6', bg: '#f5f3ff' }
+        ],
+        profile: { sweet: 2, body: 1, fruity: 5 },
         desc: 'フルーティな香りとスッキリした後味が特徴。日本酒入門としても人気の高い種類です。',
         brands: {
           'budget_1000': ['黒龍 吟', '白瀧 上善如水', '鶴齢'],
@@ -369,22 +474,94 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           'budget_over': ['獺祭 最高峰', '田中 大吟醸', 'プレミアム純米大吟醸']
         }
       },
+      sake_dry: {
+        emoji: '⚔️',
+        category: '辛口純米酒 / 燗酒向き',
+        examples: '剣菱、真澄 辛口、久保田 千寿、菊姫',
+        pairing: [
+          { icon: '🐟', text: '焼き魚・干物' },
+          { icon: '🍢', text: 'おでん・湯豆腐' },
+          { icon: '🍣', text: 'ブリ・さんまの塩焼き' },
+          { icon: '🥡', text: '野菜の煮物' }
+        ],
+        tags: [
+          { label: '辛口', color: '#0369a1', bg: '#f0f9ff' },
+          { label: 'キレ味', color: '#1d4ed8', bg: '#eff6ff' },
+          { label: '燗向き', color: '#dc2626', bg: '#fef2f2' }
+        ],
+        profile: { sweet: 1, body: 3, fruity: 1 },
+        desc: 'すっきりとした辛口でお米の旨みが凝縮。キリッとしたキレ味が料理の後味をすっきりさせます。燗にしても美味しい。',
+        brands: {
+          'budget_1000': ['剣菱', '真澄 辛口', '大関 辛口'],
+          'budget_3000': ['久保田 千寿', '菊姫 山廃純米', '男山 純米'],
+          'budget_10000': ['而今 純米吟醸', '十四代 本丸', '新政 純米酒'],
+          'budget_over': ['而今 大吟醸', '新政 亜麻猫', '幻の日本酒シリーズ']
+        }
+      },
       sake_full: {
-        category: '純米酒 / 本醸造酒',
-        examples: '菊正宗、月桂冠 特撰、白鶴 まる',
-        pairing: '煮物、焼き魚、おでん、から揚げ',
+        emoji: '🌾',
+        category: '純米酒 / 旨口タイプ',
+        examples: '菊正宗、月桂冠 特撰、一ノ蔵、豊盃',
+        pairing: [
+          { icon: '🍲', text: '煮物・角煮' },
+          { icon: '🍗', text: 'から揚げ・焼き鳥' },
+          { icon: '🦐', text: 'えびフライ・天ぷら' },
+          { icon: '🥟', text: '餃子・肉まん' }
+        ],
+        tags: [
+          { label: '旨口', color: '#d97706', bg: '#fffbeb' },
+          { label: 'コスパ抜群', color: '#059669', bg: '#ecfdf5' },
+          { label: '毎日飲める', color: '#7c3aed', bg: '#f5f3ff' }
+        ],
+        profile: { sweet: 3, body: 3, fruity: 2 },
         desc: 'お米の旨みをしっかり感じられるコクのある日本酒。毎日の晩酌におすすめのバリューコスパ銘柄。',
         brands: {
-          'budget_1000': ['菊正宗', '月桂冠 上選', '白鶴'],
-          'budget_3000': ['月桂冠 特撰', '菊正宗 黒 金兆', '白鶴 まる'],
-          'budget_10000': ['月桂冠 古酒', '菊正宗 大吟醸', '北雪 特撰'],
+          'budget_1000': ['菊正宗', '月桂冠 上選', '大関 上撰'],
+          'budget_3000': ['豊盃 純米', '一ノ蔵 特別純米', '出羽桜 純米'],
+          'budget_10000': ['飛露喜 純米', '花巴 山廃純米', '鍋島 純米'],
           'budget_over': ['プレミアム純米酒', '黒龍 九十九 大吟醸']
         }
       },
+      sake_genshu: {
+        emoji: '🔥',
+        category: '原酒 / 熟成古酒（濃醇タイプ）',
+        examples: '黒龍 原酒、醸し人九平次 原酒、鶴齢 原酒',
+        pairing: [
+          { icon: '🥩', text: '濃い目の肉料理' },
+          { icon: '🍫', text: 'チョコレート・和菓子' },
+          { icon: '🧀', text: 'ブルーチーズ' },
+          { icon: '🍣', text: 'いくら・うに' }
+        ],
+        tags: [
+          { label: '濃醇', color: '#92400e', bg: '#fffbeb' },
+          { label: '原酒', color: '#dc2626', bg: '#fef2f2' },
+          { label: 'ビター', color: '#374151', bg: '#f9fafb' }
+        ],
+        profile: { sweet: 2, body: 5, fruity: 1 },
+        desc: '加水なし・濃醇なコクが特徴の原酒・古酒タイプ。独特の深みと複雑な香りが好みの通向けのお酒です。',
+        brands: {
+          'budget_1000': ['白鶴 原酒', '沢の鶴 原酒', '月桂冠 原酒'],
+          'budget_3000': ['黒龍 原酒', '醸し人九平次 原酒', '鶴齢 原酒'],
+          'budget_10000': ['十四代 原酒', '新政 原酒シリーズ', '而今 原酒'],
+          'budget_over': ['長期熟成古酒 プレミアム', '秘蔵 純米原酒']
+        }
+      },
       beginner: {
+        emoji: '✨',
         category: 'スパークリングワイン / にごり酒',
         examples: 'プロセッコ、カヴァ、どぶろく、にごり酒',
-        pairing: 'ピザ、揚げ物、フルーツ盛り合わせ',
+        pairing: [
+          { icon: '🍕', text: 'ピザ・カルパッチョ' },
+          { icon: '🍤', text: '揚げ物・天ぷら' },
+          { icon: '🍓', text: 'フルーツ盛り合わせ' },
+          { icon: '🥗', text: 'シーザーサラダ' }
+        ],
+        tags: [
+          { label: '初心者向け', color: '#059669', bg: '#ecfdf5' },
+          { label: '飲みやすい', color: '#8b5cf6', bg: '#f5f3ff' },
+          { label: '爽快感', color: '#0891b2', bg: '#ecfeff' }
+        ],
+        profile: { sweet: 3, body: 1, fruity: 3 },
         desc: '炭酸のはじける爽快感が飲みやすく、お酒の入門として最適。パーティーシーンでも大活躍。',
         brands: {
           'budget_1000': ['プロセッコ', 'スペイン スパークリング', 'にごり酒'],
@@ -396,26 +573,52 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     };
 
     function getRecommendation() {
-      const type = answers.type || 'どちらも好き';
-      const taste = answers.taste || 'フルーティ・果実感が好き';
+      const type    = answers.type     || 'どちらも好き';
+      const taste   = answers.taste    || 'フルーティ・果実感が好き';
+      const scene   = answers.scene    || '食事に合わせて楽しむ';
       const knowledge = answers.knowledge || '初心者（よくわからない）';
 
+      // 初心者は飲みやすいスパークリング
       if (knowledge === '初心者（よくわからない）') return recommendations.beginner;
-      if (type === 'ワインが好き' || type === 'どちらも好き') {
-        if (taste === '辛口・キリッとした感じが好き' || taste === 'コクが深い・濃厚なもの') return recommendations.wine_dry;
+
+      // 「これから試してみたい」は好みで分岐
+      if (type === 'これから試してみたい') {
+        if (taste === 'コクが深い・濃厚なもの') return recommendations.wine_dry;
+        if (taste === 'スッキリ・さっぱりしたもの') return recommendations.wine_white_dry;
         return recommendations.wine_sweet_fruit;
       }
-      if (type === '日本酒が好き') {
-        if (taste === 'コクが深い・濃厚なもの' || taste === '甘口・甘い感じが好き') return recommendations.sake_full;
-        return recommendations.sake_light;
+
+      if (type === 'ワインが好き' || type === 'どちらも好き') {
+        if (taste === '辛口・キリッとした感じが好き') {
+          // 食事との相性重視 → 辛口白
+          return (scene === '食事に合わせて楽しむ') ? recommendations.wine_white_dry : recommendations.wine_dry;
+        }
+        if (taste === 'コクが深い・濃厚なもの') return recommendations.wine_dry;
+        if (taste === 'フルーティ・果実感が好き') {
+          // 毎日飲む → ライトな赤、特別シーン → ロゼ甘口
+          return (scene === '毎日の晩酌') ? recommendations.wine_light_red : recommendations.wine_sweet_fruit;
+        }
+        if (taste === 'スッキリ・さっぱりしたもの') return recommendations.wine_white_dry;
+        return recommendations.wine_sweet_fruit; // 甘口デフォルト
       }
+
+      if (type === '日本酒が好き') {
+        if (taste === 'コクが深い・濃厚なもの') return recommendations.sake_genshu;
+        if (taste === '甘口・甘い感じが好き') return recommendations.sake_full;
+        if (taste === '辛口・キリッとした感じが好き') return recommendations.sake_dry;
+        if (taste === 'スッキリ・さっぱりしたもの') return recommendations.sake_light;
+        return recommendations.sake_light; // フルーティデフォルト
+      }
+
       return recommendations.beginner;
     }
 
     let currentStep = 0;
     let answers = {};
 
-    function renderQuestion() {
+    let _slideDirection = 'right';
+
+    function renderQuestion(dir) {
       const q = questions[currentStep];
       document.getElementById('step-label').textContent = `質問 ${currentStep + 1} / ${questions.length}`;
       document.getElementById('progress-bar').style.width = `${((currentStep + 1) / questions.length) * 100}%`;
@@ -430,7 +633,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </label>`;
       });
       html += '</div>';
-      document.getElementById('question-area').innerHTML = html;
+
+      const area = document.getElementById('question-area');
+      area.className = '';
+      // アニメーションクラスを次のフレームで付与
+      requestAnimationFrame(() => {
+        area.innerHTML = html;
+        area.className = dir === 'left' ? 'slide-in-left' : 'slide-in-right';
+      });
     }
 
     function saveAnswer() {
@@ -440,14 +650,21 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       return true;
     }
 
+    function showValidationError() {
+      const msg = document.getElementById('validation-msg');
+      msg.classList.remove('hidden');
+      setTimeout(() => msg.classList.add('hidden'), 2500);
+    }
+
     function nextStep() {
-      if (!saveAnswer()) { alert('選択してください'); return; }
-      if (currentStep < questions.length - 1) { currentStep++; renderQuestion(); }
+      if (!saveAnswer()) { showValidationError(); return; }
+      document.getElementById('validation-msg').classList.add('hidden');
+      if (currentStep < questions.length - 1) { currentStep++; renderQuestion('right'); }
       else showResult();
     }
 
     function prevStep() {
-      if (currentStep > 0) { currentStep--; renderQuestion(); }
+      if (currentStep > 0) { currentStep--; renderQuestion('left'); }
     }
 
     function showResult() {
@@ -467,18 +684,51 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
                          answers.budget === '3,000〜10,000円' ? '専門店やオンラインショップで個性豊かな一本を探しましょう。' :
                          '百貨店や酒専門店でソムリエ・蔵人に相談するのがおすすめです。';
 
+      // 味わいプロフィールバー生成
+      const profileLabels = [
+        { key: 'sweet',  label: '甘さ',     color: '#ec4899' },
+        { key: 'body',   label: 'コク',     color: '#9f1239' },
+        { key: 'fruity', label: 'フルーティ', color: '#f97316' }
+      ];
+      const profileBars = profileLabels.map(p => {
+        const pct = ((rec.profile?.[p.key] || 1) / 5) * 100;
+        return `<div class="flex items-center gap-2 mb-1">
+          <span class="text-xs text-gray-500 w-16">${p.label}</span>
+          <div class="taste-bar-track flex-1">
+            <div class="taste-bar-fill" style="width:${pct}%;background:${p.color};"></div>
+          </div>
+        </div>`;
+      }).join('');
+
+      // タグバッジ生成
+      const tagBadges = (rec.tags || []).map(t =>
+        `<span class="taste-tag" style="color:${t.color};background:${t.bg};">${t.label}</span>`
+      ).join('');
+
+      // フードペアリング chips
+      const pairingChips = (Array.isArray(rec.pairing) ? rec.pairing : []).map(p =>
+        `<div class="flex items-center gap-1 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-full text-sm">
+          <span>${p.icon}</span><span class="text-amber-800 text-xs font-medium">${p.text}</span>
+        </div>`
+      ).join('');
+
       document.getElementById('result-content').innerHTML = `
         <div class="border-l-4 rounded-xl p-4 mb-4" style="background-color:#fff1f2;border-color:#9f1239;">
           <p class="text-sm font-semibold mb-1" style="color:#9f1239;">あなたへのおすすめ</p>
-          <p class="text-2xl font-bold" style="color:#9f1239;">${rec.category}</p>
+          <p class="text-2xl font-bold mb-2" style="color:#9f1239;">${rec.emoji || '🍷'} ${rec.category}</p>
+          <div>${tagBadges}</div>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4 mb-3">
+          <p class="text-sm font-semibold text-gray-700 mb-2">味わいプロフィール</p>
+          ${profileBars}
         </div>
         <div class="bg-gray-50 rounded-xl p-4 mb-3">
           <p class="text-sm font-semibold text-gray-700 mb-1">代表的な銘柄・種類</p>
           <p class="text-sm text-gray-600">${rec.examples}</p>
         </div>
-        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-3">
-          <p class="text-sm font-semibold text-amber-800 mb-1">フードペアリング</p>
-          <p class="text-sm text-amber-700">🍽️ ${rec.pairing}</p>
+        <div class="rounded-xl p-4 mb-3" style="background-color:#fffbeb;">
+          <p class="text-sm font-semibold text-amber-800 mb-2">🍽️ フードペアリング</p>
+          <div class="flex flex-wrap gap-2">${pairingChips}</div>
         </div>
         <div class="bg-gray-50 rounded-xl p-4 mb-3">
           <p class="text-sm font-semibold text-gray-700 mb-1">選んだ理由</p>
@@ -549,7 +799,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       currentStep = 0; answers = {};
       document.getElementById('quiz-section').classList.remove('hidden');
       document.getElementById('result-section').classList.add('hidden');
-      renderQuestion();
+      renderQuestion('right');
       showInitialGuide();
     }
 
@@ -616,7 +866,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     displayHistory();
     showInitialGuide();
     loadFromUrl();
-    renderQuestion();
+    renderQuestion('right');
   </script>
 <div class="max-w-2xl mx-auto px-4 mb-4">
 <!-- Related Services -->
@@ -638,7 +888,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
             <div class="space-y-3">
         <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「食事制限の種類が多くて何が自分に合うか分からなかったのですが、アレルギーや好みに合わせて絞り込んでもらえました。」</p>
+          <p class="text-xs text-gray-700">「日本酒は好きだけど銘柄がいつも同じになってしまっていました。診断で純米吟醸を勧められ、試してみたら大正解でした！」</p>
           <p style="font-size:12px;color:#ea580c;" class="mt-1">— 田中さん（30代・会社員）★★★★★</p>
         </div>
         <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px;">
@@ -646,8 +896,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <p style="font-size:12px;color:#ea580c;" class="mt-1">— 佐藤さん（40代・主婦）★★★★★</p>
         </div>
         <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「外食費の予算管理に使っています。月ごとの傾向が分かって家計の見直しに役立ちました。」</p>
-          <p style="font-size:12px;color:#ea580c;" class="mt-1">— 山本さん（20代・学生）★★★★☆</p>
+          <p class="text-xs text-gray-700">「記念日のディナーに何を持っていけばいいか迷っていたところ、ロゼワインを提案されました。パートナーにも好評でした。」</p>
+          <p style="font-size:12px;color:#ea580c;" class="mt-1">— 山本さん（20代・会社員）★★★★★</p>
         </div>
       </div>
       <div class="flex gap-2 mt-4">

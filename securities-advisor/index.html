@@ -167,7 +167,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <div class="bg-white rounded-2xl shadow-lg p-4 mb-4">
         <div class="flex justify-between items-center mb-2">
           <span class="text-sm font-bold text-blue-600">質問 <span id="qNum">1</span>/8</span>
-          <span class="text-sm text-gray-400"><span id="qPct">0</span>% 完了</span>
+          <span class="text-sm text-gray-400" id="qRemain">残り8問</span>
         </div>
         <div class="bg-blue-100 rounded-full h-2 mb-4">
           <div id="progressBar" class="bg-blue-500 h-2 rounded-full transition-all duration-500" style="width:0%"></div>
@@ -216,9 +216,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
 
         <div class="flex gap-2 mb-2 flex-wrap">
-          <button onclick="copyResultToClipboard()" class="flex-1 min-w-[120px] bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl transition">📋 結果をコピー</button>
-          <button onclick="copyShareURL()" class="flex-1 min-w-[120px] bg-green-100 hover:bg-green-200 text-green-700 font-bold py-3 rounded-xl transition">🔗 URL共有</button>
-          <button onclick="restart()" class="flex-1 min-w-[120px] bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3 rounded-xl transition hover:from-blue-500 hover:to-indigo-500">🔄 もう一度</button>
+          <button onclick="copyResultToClipboard()" class="flex-1 min-w-[100px] bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl transition text-sm">📋 コピー</button>
+          <button onclick="copyShareURL()" class="flex-1 min-w-[100px] bg-green-100 hover:bg-green-200 text-green-700 font-bold py-3 rounded-xl transition text-sm">🔗 URL共有</button>
+          <a id="lineShareBtn" href="#" target="_blank" rel="noopener" class="flex-1 min-w-[100px] text-center font-bold py-3 rounded-xl transition text-sm text-white" style="background:#06C755;">LINE</a>
+          <a id="xShareBtn" href="#" target="_blank" rel="noopener" class="flex-1 min-w-[100px] text-center font-bold py-3 rounded-xl transition text-sm text-white" style="background:#000;">𝕏 シェア</a>
+          <button onclick="restart()" class="flex-1 min-w-[100px] bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3 rounded-xl transition hover:from-blue-500 hover:to-indigo-500 text-sm">🔄 もう一度</button>
         </div>
       </div>
 
@@ -258,7 +260,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <div class="grid gap-2">
         <a href="https://appadaycreator.com/nisa-ideco-simulator/" class="bg-blue-50 hover:bg-blue-100 rounded-lg p-3 text-sm transition text-blue-700 font-medium">💰 NISA・iDeCo シミュレーター</a>
         <a href="https://appadaycreator.com/stock-portfolio-tracker/" class="bg-blue-50 hover:bg-blue-100 rounded-lg p-3 text-sm transition text-blue-700 font-medium">📊 株式ポートフォリオ管理</a>
-        <a href="https://appadaycreator.com/fire-calculator/" class="bg-blue-50 hover:bg-blue-100 rounded-lg p-3 text-sm transition text-blue-700 font-medium">🔥 FIRE計算機</a>
+        <a href="https://appadaycreator.com/fire-calculator/lp/" class="bg-blue-50 hover:bg-blue-100 rounded-lg p-3 text-sm transition text-blue-700 font-medium">🔥 FIRE計算機</a>
       </div>
     </div>
   </div>
@@ -335,8 +337,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function showQ() {
       const q = questions[current];
       document.getElementById('qNum').textContent = current+1;
-      document.getElementById('qPct').textContent = Math.round(current/TOTAL*100);
-      document.getElementById('progressBar').style.width = ((current/TOTAL)*100)+'%';
+      const remaining = TOTAL - current - 1;
+      document.getElementById('qRemain').textContent = remaining === 0 ? '最後の質問！' : `残り${remaining}問`;
+      document.getElementById('progressBar').style.width = (((current+1)/TOTAL)*100)+'%';
       document.getElementById('qCategory').textContent = q.cat;
       document.getElementById('qText').textContent = q.q;
       const container = document.getElementById('choicesContainer');
@@ -507,30 +510,35 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         'auカブコム証券': 'https://www.kabu.com/'
       };
       const top3El = document.getElementById('top3');
+      const rankBorders = ['border-yellow-400','border-gray-300','border-amber-600'];
+      const rankBg = ['bg-yellow-50','bg-white','bg-white'];
       top3El.innerHTML = top3.map(([name,sc],i) => {
         const broker = brokers.find(b=>b.name===name);
         if(!broker) return '';
         const reasons = getRecommendationReasons(name);
         const detail = getDetailedExplanation(name, answers);
         const link = brokerLinks[name] || '#';
+        const exp = explanations[name] || {};
+        let detailExtra = '';
+        if(answers[0]===0 && exp.beginner) detailExtra = `<p class="text-xs text-blue-700 mt-1">📌 初心者向け: ${exp.beginner}</p>`;
+        else if(answers[0]===3 && exp.experienced) detailExtra = `<p class="text-xs text-purple-700 mt-1">📌 上級者向け: ${exp.experienced}</p>`;
+        else if(exp.base) detailExtra = `<p class="text-xs text-gray-600 mt-1">📌 ${exp.base}</p>`;
+        const topBadge = i===0 ? '<span class="ml-2 text-xs bg-yellow-400 text-white font-bold px-2 py-0.5 rounded-full">★ おすすめNo.1</span>' : '';
         return `
-          <div class="broker-card bg-white border-2 border-gray-200 rounded-xl p-4">
+          <div class="broker-card ${rankBg[i]} border-2 ${rankBorders[i]} rounded-xl p-4 ${i===0 ? 'shadow-md' : ''}">
+            ${i===0 ? '<div class="text-xs text-yellow-600 font-bold text-center mb-2 bg-yellow-100 rounded-lg py-1">🏆 あなたに最もおすすめ！</div>' : ''}
             <div class="flex items-center gap-3 mb-2">
               <div class="rank-badge bg-gradient-to-r ${rankColors[i]} text-white" style="font-size:16px;width:40px;height:40px;">${rankLabels[i]}</div>
-              <div>
+              <div class="flex items-center flex-wrap gap-1">
                 <a href="${link}" target="_blank" rel="noopener" class="text-lg font-bold hover:underline" style="color:${broker.color};cursor:pointer;">${broker.emoji} ${broker.name}</a>
+                ${topBadge}
               </div>
             </div>
             <div class="text-xs text-gray-500 mb-2">✓ ${reasons}</div>
             <div class="text-sm text-gray-700 mb-3 leading-relaxed">${detail}</div>
-            <details class="mb-3 text-xs bg-gray-50 rounded-lg p-2 cursor-pointer">
-              <summary class="font-bold text-gray-700 py-1">詳細情報を見る</summary>
-              <div class="mt-2 pt-2 border-t border-gray-300 text-gray-600 space-y-1">
-                <p>${answers[0]===0 ? '初心者向け: ' + (explanations[name]?.beginner || '') : answers[0]===3 ? '上級者向け: ' + (explanations[name]?.experienced || '') : ''}</p>
-              </div>
-            </details>
+            ${detailExtra ? `<details class="mb-3 text-xs bg-gray-50 rounded-lg p-2 cursor-pointer"><summary class="font-bold text-gray-700 py-1">詳細情報を見る</summary><div class="mt-2 pt-2 border-t border-gray-300 space-y-1">${detailExtra}</div></details>` : ''}
             <div class="grid gap-1 mb-3">${broker.features.map(f=>`<div class="text-xs bg-gray-50 rounded px-2 py-1">✅ ${f}</div>`).join('')}</div>
-            <a href="${link}" target="_blank" rel="noopener" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold py-2 px-3 rounded text-center block transition">→ 口座開設はこちら</a>
+            <a href="${link}" target="_blank" rel="noopener" class="block text-center font-bold py-2 px-3 rounded transition ${i===0 ? 'bg-blue-600 hover:bg-blue-500 text-white text-sm' : 'bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs'}">→ 口座開設はこちら</a>
           </div>
         `;
       }).join('');
@@ -548,6 +556,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const tips = document.getElementById('tips');
       const tipTexts = Object.values(tipsByAnswer).slice(0,4);
       tips.innerHTML = tipTexts.map(t=>`<li class="flex items-start gap-1"><span>💡</span><span>${t.replace('・','')}</span></li>`).join('');
+
+      // LINE/Xシェアボタンにリンクを設定
+      const shareURL = encodeURIComponent(getResultURL());
+      const shareText = encodeURIComponent('証券会社・投資口座選び診断をやってみました！ | SBI・楽天・松井など比較');
+      document.getElementById('lineShareBtn').href = `https://line.me/R/share?text=${shareText}%20${shareURL}`;
+      document.getElementById('xShareBtn').href = `https://twitter.com/intent/tweet?text=${shareText}&url=${shareURL}&via=appadaycreator`;
     }
 
     function restart() {
@@ -572,7 +586,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. プライバシーは守られますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">入力された健康情報はサーバーに送信・保存されません。すべてお使いのブラウザ上で処理されます。</p>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">入力された回答情報はサーバーに送信・保存されません。すべてお使いのブラウザ上で処理されます。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. このサービスは無料で使えますか？ <span>▼</span></summary>
@@ -612,16 +626,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <p class="text-xs text-gray-700">「毎月積み立てるべき金額の目安が出て、家計の見直しができました。無料でこのクオリティは素晴らしいです。」</p>
           <p style="font-size:12px;color:#16a34a;" class="mt-1">— 山本さん（40代・主婦）★★★★☆</p>
         </div>
-      </div>
-      <div class="flex gap-2 mt-4">
-        <a href="https://line.me/R/share?text=証券会社・投資口座選び診断 | SBI・楽天・松井など比較%20https://appadaycreator.com/securities-advisor/" target="_blank" rel="noopener"
-           style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
-          LINEでシェア
-        </a>
-        <a href="https://twitter.com/intent/tweet?text=証券会社・投資口座選び診断 | SBI・楽天・松井など比較&url=https://appadaycreator.com/securities-advisor/&via=appadaycreator" target="_blank" rel="noopener"
-           style="flex:1;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
-          Xでシェア
-        </a>
       </div>
     </div>
 </div>

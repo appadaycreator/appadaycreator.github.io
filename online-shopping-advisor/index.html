@@ -224,7 +224,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </div>
         </div>
 
-        <button onclick="restart()" class="w-full bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold py-3 rounded-xl transition hover:from-sky-400 hover:to-blue-500 mb-2">🔄 もう一度診断する</button>
+        <button onclick="restart()" class="w-full bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold py-3 rounded-xl transition hover:from-sky-400 hover:to-blue-500 mb-3">🔄 もう一度診断する</button>
+        <div id="shareButtons" class="grid grid-cols-2 gap-2"></div>
       </div>
 
       <div class="mb-4">
@@ -375,6 +376,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       // Q5: ふるさと納税
       if(answers[5]===0) { scores[1].score+=2; }
       if(answers[5]===1) { scores[2].score+=2; }
+      // Q6: 定期購入
+      if(answers[6]===0) { scores[0].score+=2; } // Amazonサブスク
+      if(answers[6]===1) { scores[1].score+=2; } // 楽天定期
+      if(answers[6]===2) { scores[1].score+=1; scores[2].score+=1; } // ミールキット
       // Q7: セール
       if(answers[7]===0) { scores[1].score+=2; }
       if(answers[7]===1) { scores[0].score+=2; }
@@ -405,14 +410,27 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         `;
       }).join('');
 
-      const usageRuleColors = ['border-orange-400','border-red-500','border-purple-500','border-pink-400','border-green-500'];
-      const rules = [
-        {category:'家電・ガジェット', site:'Amazon', icon:'📱', color:usageRuleColors[0], reason:'品揃えNo.1 + 翌日配送で失敗なし'},
-        {category:'食品・日用品', site:'楽天またはYahoo!', icon:'🥗', color:usageRuleColors[1], reason:'ポイント還元率が高くお得'},
-        {category:'ファッション・コスメ', site:'Qoo10', icon:'👗', color:usageRuleColors[2], reason:'メガ割で50〜70%OFFの激安商品多数'},
-        {category:'ブランド・中古品', site:'メルカリ', icon:'🏷️', color:usageRuleColors[3], reason:'定価の半額以下で手に入ることも'},
-        {category:'ふるさと納税', site:'楽天またはYahoo!', icon:'🏠', color:usageRuleColors[4], reason:'ポイントを稼ぎながらお得に納税'},
-      ];
+      // 回答内容に応じて個人化された使い分けルールを生成
+      const rules = [];
+      // ルール1: メインEC（診断1位）
+      const mainEC = ecSites[ranked[0].idx];
+      rules.push({category:`メイン: ${mainEC.bestFor}`, site:mainEC.name, icon:mainEC.emoji, color:'border-blue-500', reason:`あなたの回答から${mainEC.name}がベストマッチです`});
+      // ルール2: 購入品カテゴリ別
+      if(answers[0]===0) rules.push({category:'食品・日用品', site:'楽天またはYahoo!', icon:'🥗', color:'border-red-500', reason:'ポイント還元率が高くまとめ買いでお得'});
+      else if(answers[0]===1) rules.push({category:'家電・ガジェット', site:'Amazon', icon:'📱', color:'border-orange-400', reason:'品揃えNo.1 + 翌日配送で失敗なし'});
+      else if(answers[0]===2) rules.push({category:'ファッション・コスメ', site:'Qoo10', icon:'👗', color:'border-purple-500', reason:'メガ割で50〜70%OFFの激安商品多数'});
+      else rules.push({category:'本・スポーツ用品', site:'Amazon', icon:'📚', color:'border-orange-400', reason:'Kindle・品揃え豊富で最安値が多い'});
+      // ルール3: カード・ポイント別
+      if(answers[3]===0) rules.push({category:'ポイント積み上げ', site:'楽天', icon:'🎁', color:'border-red-400', reason:'楽天カード×楽天市場でSPUポイント倍率アップ'});
+      else if(answers[3]===1) rules.push({category:'キャッシュレス活用', site:'Yahoo!', icon:'💳', color:'border-purple-400', reason:'PayPay連携で5のつく日に最大7%還元'});
+      else if(answers[3]===2) rules.push({category:'Prime特典活用', site:'Amazon', icon:'📦', color:'border-orange-400', reason:'翌日配送+Prime Video+Musicで元が取れる'});
+      else rules.push({category:'まずはカード検討', site:'楽天またはYahoo!', icon:'💳', color:'border-gray-400', reason:'ポイントカード取得で還元率が大幅アップ'});
+      // ルール4: ふるさと納税 or 中古品
+      if(answers[5]===0) rules.push({category:'ふるさと納税', site:'楽天', icon:'🏠', color:'border-green-500', reason:'楽天ふるさと納税でポイントを稼ぎながらお得に納税'});
+      else if(answers[5]===1) rules.push({category:'ふるさと納税', site:'Yahoo!', icon:'🏠', color:'border-green-500', reason:'Yahooふるさと納税はPayPayポイントが貯まりお得'});
+      else rules.push({category:'ブランド・中古品', site:'メルカリ', icon:'🏷️', color:'border-green-500', reason:'定価の半額以下で手に入ることも'});
+      // ルール5: 価格比較は必須
+      rules.push({category:'購入前チェック', site:'価格比較サイト', icon:'🔍', color:'border-yellow-400', reason:'Kakaku.com等で最安値を確認してから購入が鉄則'});
       document.getElementById('usageRules').innerHTML = rules.map(r=>`
         <div class="usage-rule bg-white rounded-xl p-3 ${r.color}">
           <div class="flex justify-between items-center mb-1">
@@ -432,6 +450,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         '🔍 価格比較サイト（Kakaku.com）で最安値を確認してから購入',
       ];
       document.getElementById('pointStrategy').innerHTML = strategies.map(s=>`<div class="flex gap-2 items-start"><span>${s}</span></div>`).join('');
+
+      // シェアボタンを結果反映した内容で生成
+      const shareText = encodeURIComponent(`ECサイト使い分け診断の結果: 1位${topEC.name}！あなたも試してみて→`);
+      const shareUrl = encodeURIComponent('https://appadaycreator.com/online-shopping-advisor/');
+      document.getElementById('shareButtons').innerHTML = `
+        <a href="https://line.me/R/share?text=${shareText}${shareUrl}" target="_blank" rel="noopener"
+           style="display:flex;align-items:center;justify-content:center;gap:6px;background:#06C755;color:white;padding:10px;border-radius:10px;font-size:13px;font-weight:bold;text-decoration:none;">
+          📲 LINEでシェア
+        </a>
+        <a href="https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}&via=appadaycreator" target="_blank" rel="noopener"
+           style="display:flex;align-items:center;justify-content:center;gap:6px;background:#000;color:white;padding:10px;border-radius:10px;font-size:13px;font-weight:bold;text-decoration:none;">
+          𝕏 Xでシェア
+        </a>
+      `;
     }
 
     function restart() {
@@ -458,7 +490,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. プライバシーは守られますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">入力された健康情報はサーバーに送信・保存されません。すべてお使いのブラウザ上で処理されます。</p>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">入力されたショッピング診断情報はサーバーに送信・保存されません。すべてお使いのブラウザ上で処理されます。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. このサービスは無料で使えますか？ <span>▼</span></summary>
@@ -487,15 +519,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
             <div class="space-y-3">
         <div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「プレゼント選びにいつも悩んでいましたが、相手の趣味や予算を入力するだけで的確なアイデアが出てきて助かりました。」</p>
+          <p class="text-xs text-gray-700">「今まで何となく楽天を使っていましたが、家電はAmazonの方がお得だと知って使い分けを始めました。毎月かなり節約できています。」</p>
           <p style="font-size:12px;color:#9333ea;" class="mt-1">— 田中さん（30代・会社員）★★★★★</p>
         </div>
         <div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「ファッションのスタイル診断でコーデの方向性が決まりました。買い物に迷わなくなって節約にもなっています。」</p>
+          <p class="text-xs text-gray-700">「楽天カードを持っているのに普通のネットショッピングで使っていました。診断でSPU活用を教えてもらってポイントが一気に増えました！」</p>
           <p style="font-size:12px;color:#9333ea;" class="mt-1">— 佐藤さん（30代・主婦）★★★★★</p>
         </div>
         <div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「キャンプ用品の必要なものリストが整理できてよかったです。費用の目安も分かって無駄な出費が減りました。」</p>
+          <p class="text-xs text-gray-700">「Qoo10を知らなくてコスメを全部Amazonで買っていましたが、メガ割のタイミングで買うと半額以下になって驚きました。」</p>
           <p style="font-size:12px;color:#9333ea;" class="mt-1">— 山本さん（20代・学生）★★★★☆</p>
         </div>
       </div>

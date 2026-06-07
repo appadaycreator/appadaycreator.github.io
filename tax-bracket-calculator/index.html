@@ -191,6 +191,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
                 ※フリーランス計算: 給与所得控除なし・青色申告特別控除65万円適用・国民健康保険＋国民年金で概算します
             </div>
 
+            <label for="freelanceExpense" id="expenseLabel" style="display:none;margin-top:14px;">経費額（万円）</label>
+            <input type="number" id="freelanceExpense" placeholder="0" min="0" style="display:none;margin-top:4px;">
+            <p id="expenseNote" style="font-size:11px;color:#888;margin-top:4px;display:none;">事業所得 = 売上 - 経費 として計算します</p>
+
             <div class="form-grid" style="margin-top:14px;">
                 <div>
                     <label for="age">年齢（介護保険に使用）</label>
@@ -227,13 +231,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="result card" id="result">
             <h3 style="font-size:16px;font-weight:700;margin-bottom:14px;color:#374151;">📊 計算結果</h3>
 
+            <!-- 手取り表示タブ -->
+            <div style="display:flex;gap:8px;margin-bottom:14px;border-bottom:2px solid #e2e8f0;">
+                <button id="tabAnnual" style="padding:8px 12px;border:none;background:none;color:#7c3aed;font-weight:600;border-bottom:2px solid #7c3aed;cursor:pointer;font-size:13px;">年間</button>
+                <button id="tabMonthly" style="padding:8px 12px;border:none;background:none;color:#888;font-weight:600;cursor:pointer;font-size:13px;">月給</button>
+                <button id="tabDaily" style="padding:8px 12px;border:none;background:none;color:#888;font-weight:600;cursor:pointer;font-size:13px;">日給</button>
+            </div>
+
             <div class="result-summary">
                 <div class="summary-item primary">
                     <div class="s-label">実効税率（税＋社保）</div>
                     <div class="s-value" id="res-effective-rate">--</div>
                 </div>
                 <div class="summary-item success">
-                    <div class="s-label">年間手取り目安</div>
+                    <div class="s-label" id="takeHomeLabel">年間手取り目安</div>
                     <div class="s-value" id="res-take-home">--</div>
                 </div>
             </div>
@@ -427,9 +438,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         const hasSpouse  = document.getElementById('spouseDeduction')?.checked || false;
         const dependents = parseInt(document.getElementById('dependents')?.value) || 0;
         const otherDed   = parseFloat(document.getElementById('deduction')?.value) || 0;
+        const freelanceExpense = parseFloat(document.getElementById('freelanceExpense')?.value) || 0;
 
-        const incomeYen   = income * 10000;
+        let incomeYen = income * 10000;
         const otherDedYen = otherDed * 10000;
+
+        // フリーランスの場合、経費を所得から控除
+        if (!isEmployee) {
+            incomeYen = Math.max(0, incomeYen - freelanceExpense * 10000);
+        }
 
         // 給与所得控除 or 青色申告特別控除（フリーランス）
         const salaryDed = isEmployee ? calcSalaryDeduction(income) : 0;
@@ -437,8 +454,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         const deductLabel = isEmployee ? '　給与所得控除' : '　青色申告特別控除';
         const deductAmt   = isEmployee ? salaryDed : aokiDed;
 
-        // 社会保険料
-        const socialIns = calcSocialInsurance(income, age, isEmployee);
+        // 社会保険料（フリーランスの場合は経費を差し引いた所得ベース）
+        const socialIns = isEmployee ? calcSocialInsurance(income, age, isEmployee) : calcSocialInsurance(incomeYen / 10000, age, isEmployee);
 
         // 控除
         const basicDedIncome   = 480000; // 所得税基礎控除
@@ -470,9 +487,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         const residentPct    = incomeYen > 0 ? residentTax    / incomeYen * 100 : 0;
         const socialPct      = incomeYen > 0 ? socialIns      / incomeYen * 100 : 0;
 
+        // 月給・日給換算
+        const monthlyTakeHome = Math.round(takeHome / 12);
+        const dailyTakeHome   = Math.round(takeHome / 250);
+
         // DOM更新
         document.getElementById('res-effective-rate').textContent = effectiveRate + '%';
         document.getElementById('res-take-home').textContent      = fmtWan(takeHome);
+        document.getElementById('res-take-home').dataset.annual   = fmtWan(takeHome);
+        document.getElementById('res-take-home').dataset.monthly  = fmt(monthlyTakeHome);
+        document.getElementById('res-take-home').dataset.daily    = fmt(dailyTakeHome);
         document.getElementById('resTakeHome2').textContent       = fmt(takeHome);
         document.getElementById('resIncome').textContent          = fmt(incomeYen);
         document.getElementById('salaryDeductLabel').textContent  = deductLabel;
@@ -504,28 +528,88 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
+    // デバウンス用タイマー
+    let autoCalculateTimer;
+
+    // 自動計算実行
+    function autoCalculate() {
+        clearTimeout(autoCalculateTimer);
+        autoCalculateTimer = setTimeout(() => {
+            const incomeEl = document.getElementById('income');
+            if (incomeEl && incomeEl.value !== '') {
+                calculate();
+            }
+        }, 300);
+    }
+
     // イベント設定
     document.addEventListener('DOMContentLoaded', () => {
         const slider = document.getElementById('incomeSlider');
         const input  = document.getElementById('income');
 
-        slider.addEventListener('input', () => { input.value = slider.value; });
+        slider.addEventListener('input', () => {
+            input.value = slider.value;
+            autoCalculate();
+        });
         input.addEventListener('input', () => {
             slider.value = Math.max(0, Math.min(3000, parseInt(input.value) || 0));
+            autoCalculate();
         });
 
         document.querySelectorAll('input[name="empType"]').forEach(radio => {
             radio.addEventListener('change', () => {
-                document.getElementById('freelanceNote').classList.toggle(
-                    'show', radio.value === 'freelance' && radio.checked
-                );
+                const isFreelance = radio.value === 'freelance' && radio.checked;
+                document.getElementById('freelanceNote').classList.toggle('show', isFreelance);
+                document.getElementById('expenseLabel').style.display = isFreelance ? 'block' : 'none';
+                document.getElementById('freelanceExpense').style.display = isFreelance ? 'block' : 'none';
+                document.getElementById('expenseNote').style.display = isFreelance ? 'block' : 'none';
+                autoCalculate();
             });
         });
+
+        document.getElementById('age')?.addEventListener('input', autoCalculate);
+        document.getElementById('dependents')?.addEventListener('change', autoCalculate);
+        document.getElementById('spouseDeduction')?.addEventListener('change', autoCalculate);
+        document.getElementById('deduction')?.addEventListener('input', autoCalculate);
+        document.getElementById('freelanceExpense')?.addEventListener('input', autoCalculate);
 
         ['income', 'age', 'deduction'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });
         });
+
+        // タブ切り替え機能
+        const tabAnnual = document.getElementById('tabAnnual');
+        const tabMonthly = document.getElementById('tabMonthly');
+        const tabDaily = document.getElementById('tabDaily');
+        const takeHomeDisplay = document.getElementById('res-take-home');
+        const takeHomeLabel = document.getElementById('takeHomeLabel');
+
+        const switchTab = (mode) => {
+            [tabAnnual, tabMonthly, tabDaily].forEach(btn => btn.style.color = '#888');
+            [tabAnnual, tabMonthly, tabDaily].forEach(btn => btn.style.borderBottomColor = 'transparent');
+
+            if (mode === 'annual') {
+                tabAnnual.style.color = '#7c3aed';
+                tabAnnual.style.borderBottomColor = '#7c3aed';
+                takeHomeDisplay.textContent = takeHomeDisplay.dataset.annual || '--';
+                takeHomeLabel.textContent = '年間手取り目安';
+            } else if (mode === 'monthly') {
+                tabMonthly.style.color = '#7c3aed';
+                tabMonthly.style.borderBottomColor = '#7c3aed';
+                takeHomeDisplay.textContent = takeHomeDisplay.dataset.monthly || '--';
+                takeHomeLabel.textContent = '月給手取り目安';
+            } else if (mode === 'daily') {
+                tabDaily.style.color = '#7c3aed';
+                tabDaily.style.borderBottomColor = '#7c3aed';
+                takeHomeDisplay.textContent = takeHomeDisplay.dataset.daily || '--';
+                takeHomeLabel.textContent = '日給手取り目安（営業日22日）';
+            }
+        };
+
+        tabAnnual?.addEventListener('click', () => switchTab('annual'));
+        tabMonthly?.addEventListener('click', () => switchTab('monthly'));
+        tabDaily?.addEventListener('click', () => switchTab('daily'));
     });
     </script>
     <!-- rakuten-affiliate-block -->

@@ -149,7 +149,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="w-full bg-gray-200 rounded-full h-2 mb-2">
           <div id="progress-bar" class="bg-blue-500 h-2 rounded-full transition-all duration-500" style="width:0%"></div>
         </div>
-        <p id="progress-text" class="text-xs text-gray-500 mb-6">質問 1 / 8</p>
+        <p id="progress-text" class="text-xs text-gray-500 mb-2">質問 1 / 8</p>
+        <button id="back-btn" class="hidden mb-4 text-sm text-blue-500 hover:text-blue-700 flex items-center gap-1" style="background:none;border:none;cursor:pointer;padding:4px 0;min-height:36px;" onclick="goBack()">← 前の質問へ</button>
 
         <div id="q1" class="question-block">
           <h3 class="text-lg font-semibold mb-4">お子さんの現在の年齢は？</h3>
@@ -308,7 +309,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. プライバシーは守られますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">入力された健康情報はサーバーに送信・保存されません。すべてお使いのブラウザ上で処理されます。</p>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">選択した回答はサーバーに送信・保存されません。すべてお使いのブラウザ上で処理されます。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. このサービスは無料で使えますか？ <span>▼</span></summary>
@@ -334,6 +335,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <script>
     const answers = {};
     const totalQ = 8;
+    let currentQ = 1;
+
+    // 戻るボタン処理
+    function goBack() {
+      if (currentQ <= 1) return;
+      document.getElementById(`q${currentQ}`).classList.add('hidden');
+      currentQ--;
+      document.getElementById(`q${currentQ}`).classList.remove('hidden');
+      document.getElementById('progress-bar').style.width = ((currentQ - 1) / totalQ * 100) + '%';
+      document.getElementById('progress-text').textContent = `質問 ${currentQ} / ${totalQ}`;
+      document.getElementById('back-btn').classList.toggle('hidden', currentQ === 1);
+    }
 
     document.querySelectorAll('.quiz-btn').forEach(btn => {
       btn.addEventListener('click', function() {
@@ -345,27 +358,34 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         setTimeout(() => {
           if (q < totalQ) {
             document.getElementById(`q${q}`).classList.add('hidden');
-            document.getElementById(`q${q+1}`).classList.remove('hidden');
-            document.getElementById('progress-bar').style.width = (q/totalQ*100)+'%';
-            document.getElementById('progress-text').textContent = `質問 ${q+1} / ${totalQ}`;
+            currentQ = q + 1;
+            document.getElementById(`q${currentQ}`).classList.remove('hidden');
+            document.getElementById('progress-bar').style.width = (q / totalQ * 100) + '%';
+            document.getElementById('progress-text').textContent = `質問 ${currentQ} / ${totalQ}`;
+            document.getElementById('back-btn').classList.remove('hidden');
           } else { showResult(); }
         }, 300);
       });
     });
 
     function showResult() {
+      // プログレスバーを100%に
+      document.getElementById('progress-bar').style.width = '100%';
       document.getElementById('quiz-section').classList.add('hidden');
       document.getElementById('result-section').classList.remove('hidden');
 
       const age = answers[1];
       const purpose = answers[2];
+      const level = answers[3];
       const budget = answers[4];
       const format = answers[5];
+      const time = answers[6];
+      const parentLevel = answers[7];
       const priority = answers[8];
 
       const methods = [];
 
-      // Age-based advice
+      // 年齢別アドバイス
       let ageAdvice = '';
       if (age === 'baby') ageAdvice = '0〜2歳は英語の音に慣れさせる「耳育て」が最重要。英語動画・歌・絵本の読み聞かせから始めましょう。';
       else if (age === 'preschool') ageAdvice = '3〜5歳は「楽しい！」と感じる遊び中心の英語体験が効果的。プリスクールや英語リトミックも◎';
@@ -373,35 +393,74 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       else if (age === 'elem-high') ageAdvice = '10〜12歳は語彙・文法を意識した学習も効果的。英検・TOEFL Primaryなど試験活用も視野に。';
       else ageAdvice = '中学生以上は学校英語との連携が重要。英検・TOEIC対策を明確な目標にすると継続しやすい。';
 
-      // Method recommendations based on purpose + budget + format
-      if (purpose === 'fun' || age === 'baby' || age === 'preschool') {
-        methods.push({ rank: 1, title: '🎵 英語動画・歌・絵本（自宅学習）', detail: 'YouTube・Netflixの英語コンテンツ、英語絵本の読み聞かせ。月1千円以下でスタート可能。' });
+      // Q3（英語レベル）反映: まったくゼロ・アルファベット程度なら基礎教材を優先
+      if (level === 'zero' || level === 'abc') {
+        methods.push({ title: '🎵 英語動画・歌・絵本（自宅学習）', detail: 'まずは音に慣れることが大切。YouTube・Netflixの英語コンテンツ、英語絵本の読み聞かせ。月1千円以下でスタート可能。' });
       }
 
-      if (format === 'online' || budget === 'mid' || budget === 'low') {
-        methods.push({ rank: methods.length+1, title: '💻 オンライン英会話（子ども向け）', detail: 'QQEnglish・ハッチリンクなど。週2〜3回から気軽にスタート。フィリピン人講師で月5千円〜可能。' });
+      // Q6（学習時間）反映: 週30分以内→アプリ・教材推薦
+      if (time === 'short') {
+        methods.push({ title: '📱 英語アプリ（Duolingo・スタディサプリ等）', detail: '短時間でも毎日継続できるアプリ学習がベスト。ゲーム感覚で続けやすく、無料〜月千円で使える。' });
+      }
+
+      if (purpose === 'fun' || age === 'baby' || age === 'preschool') {
+        if (!methods.find(m => m.title.includes('動画'))) {
+          methods.push({ title: '🎵 英語動画・歌・絵本（自宅学習）', detail: 'YouTube・Netflixの英語コンテンツ、英語絵本の読み聞かせ。月1千円以下でスタート可能。' });
+        }
+      }
+
+      if (purpose === 'speak' || format === 'online' || budget === 'mid' || budget === 'low') {
+        methods.push({ title: '💻 オンライン英会話（子ども向け）', detail: 'QQEnglish・ハッチリンクなど。週2〜3回から気軽にスタート。フィリピン人講師で月5千円〜可能。' });
       }
 
       if (format === 'school' || purpose === 'global' || budget === 'high' || budget === 'premium') {
-        methods.push({ rank: methods.length+1, title: '🏫 通学型英会話教室（ネイティブ講師）', detail: 'ECC・GABA・ベルリッツ系など。生の英会話体験で発音・リスニングが急成長。月1.5〜3万円。' });
+        methods.push({ title: '🏫 通学型英会話教室（ネイティブ講師）', detail: 'ECC・GABA・ベルリッツ系など。生の英会話体験で発音・リスニングが急成長。月1.5〜3万円。' });
       }
 
       if (purpose === 'exam' || age === 'elem-high' || age === 'junior') {
-        methods.push({ rank: methods.length+1, title: '📚 英語教材・通信教育（進研ゼミ英語等）', detail: '学校教科書連動・英検対策に特化。自宅で計画的に学習可能。月3千〜8千円。' });
+        methods.push({ title: '📚 英語教材・通信教育（進研ゼミ英語等）', detail: '学校教科書連動・英検対策に特化。自宅で計画的に学習可能。月3千〜8千円。' });
       }
 
-      if (purpose === 'global' || budget === 'premium') {
-        methods.push({ rank: methods.length+1, title: '🌏 インターナショナル系幼稚園・サマースクール', detail: '英語イマージョン環境で自然習得。費用は高いが効果は最高水準。' });
+      // Q6（学習時間）反映: 週2時間以上→より集中的な学習
+      if (time === 'long' || time === 'intensive') {
+        methods.push({ title: '🌏 インターナショナル系幼稚園・サマースクール', detail: '英語イマージョン環境で自然習得。時間を確保できる方に効果大。費用は高いが効果は最高水準。' });
+      } else if (purpose === 'global' || budget === 'premium') {
+        methods.push({ title: '🌏 インターナショナル系幼稚園・サマースクール', detail: '英語イマージョン環境で自然習得。費用は高いが効果は最高水準。' });
       }
 
+      // 3つ未満なら汎用アプリ補完
       if (methods.length < 3) {
-        methods.push({ rank: methods.length+1, title: '📱 英語アプリ（Duolingo・スタディサプリ等）', detail: '毎日の隙間時間に活用。ゲーム感覚で継続しやすく、無料〜月千円程度で使える。' });
+        methods.push({ title: '📱 英語アプリ（Duolingo・スタディサプリ等）', detail: '毎日の隙間時間に活用。ゲーム感覚で継続しやすく、無料〜月千円程度で使える。' });
       }
+
+      // Q7（保護者英語レベル）補足コメント
+      let parentNote = '';
+      if (parentLevel === 'none') {
+        parentNote = '<p class="text-xs text-orange-700 mt-2">💡 保護者が英語に不安な場合は、講師がすべて指導してくれる自立型サービス（オンライン英会話・教室）が特におすすめです。</p>';
+      } else if (parentLevel === 'business' || parentLevel === 'native') {
+        parentNote = '<p class="text-xs text-green-700 mt-2">💡 保護者の英語力が高い場合、自宅での親子英会話も非常に効果的です。日常的に英語で話しかける習慣もぜひ取り入れてみてください。</p>';
+      }
+
+      // 回答サマリーラベル
+      const ageLabel = {baby:'0〜2歳',preschool:'3〜5歳','elem-low':'6〜9歳','elem-high':'10〜12歳',junior:'中学生以上'};
+      const purposeLabel = {fun:'楽しく遊ぶ',exam:'学校・受験対策',global:'グローバル人材',speak:'英会話重視'};
+      const budgetLabel = {low:'〜5千円',mid:'5千〜1.5万円',high:'1.5〜3万円',premium:'3万円以上'};
+      const formatLabel = {school:'通学型教室',online:'オンライン',material:'教材・アプリ',mix:'組み合わせ'};
 
       let html = `
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-3 mb-4">
+          <p class="text-xs font-bold text-gray-500 mb-2">📝 あなたの選択</p>
+          <div class="flex flex-wrap gap-2">
+            <span style="background:#dbeafe;color:#1e40af;font-size:11px;padding:3px 8px;border-radius:12px;">👶 ${ageLabel[age]||age}</span>
+            <span style="background:#dcfce7;color:#166534;font-size:11px;padding:3px 8px;border-radius:12px;">🎯 ${purposeLabel[purpose]||purpose}</span>
+            <span style="background:#fef9c3;color:#854d0e;font-size:11px;padding:3px 8px;border-radius:12px;">💴 ${budgetLabel[budget]||budget}</span>
+            <span style="background:#f3e8ff;color:#6b21a8;font-size:11px;padding:3px 8px;border-radius:12px;">📍 ${formatLabel[format]||format}</span>
+          </div>
+        </div>
         <div class="bg-blue-50 border-2 border-blue-400 rounded-xl p-4 mb-4">
           <p class="font-semibold text-blue-700 mb-1">📌 年齢別アドバイス</p>
           <p class="text-sm text-gray-700">${ageAdvice}</p>
+          ${parentNote}
         </div>
         <h3 class="font-bold text-gray-700 mb-3">おすすめ英語教育 TOP${Math.min(3, methods.length)}</h3>`;
 
@@ -458,8 +517,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <p style="font-size:12px;color:#4338ca;" class="mt-1">— 佐藤さん（40代・主婦）★★★★★</p>
         </div>
         <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「プログラミングスクール選びに悩んでいたので、目標に合ったコースを絞り込めて時間が節約できました。」</p>
-          <p style="font-size:12px;color:#4338ca;" class="mt-1">— 山本さん（20代・大学生）★★★★☆</p>
+          <p class="text-xs text-gray-700">「子どもが英語に興味を持ち始めたのですが、通学とオンラインで迷っていました。予算と週の学習時間を入力するだけでピッタリの方法が分かり、すぐ始められました！」</p>
+          <p style="font-size:12px;color:#4338ca;" class="mt-1">— 山本さん（30代・共働き保護者）★★★★☆</p>
         </div>
       </div>
       <div class="flex gap-2 mt-4">
@@ -485,53 +544,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     </div>
 <!-- phase10-rakuten-updated -->
 
-<!-- eスポーツ英会話eスピ affiliate -->
-<div style="text-align:center;margin:24px auto;max-width:640px;padding:0 16px;">
-  <p style="font-size:12px;color:#6b7280;margin-bottom:6px;">🎮 PR：ゲームで楽しく英語が上達！</p>
-  
-  <br><br>
-  
-</div>
-<!-- /eスポーツ英会話eスピ affiliate -->
-
-<!-- A8アフィリエイト: Lepton Bridge オンライン子ども英語 -->
-<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px;margin:10px 0;">
-  <p style="font-size:13px;font-weight:700;color:#1d4ed8;margin:0 0 8px;">教室と同じ学習をご自宅で！</p>
-  <p style="font-size:12px;color:#1e40af;margin:0 0 8px;">子ども向けオンライン英語教室。プロ講師が英会話・英検まで丁寧に指導。</p>
-  
-</div>
-<!-- /A8アフィリエイト: Lepton Bridge -->
-
-<!-- A8アフィリエイト: Lepton 英検2級対応 -->
-<div style="background:#fefce8;border:1px solid #fde68a;border-radius:10px;padding:14px;margin:10px 0;">
-  <p style="font-size:13px;font-weight:700;color:#92400e;margin:0 0 8px;">英検2級を目指せる子ども英語教室【Lepton】</p>
-  <p style="font-size:12px;color:#78350f;margin:0 0 8px;">実用的な英語が身につく。英検対策から日常英会話まで対応。</p>
-  
-</div>
-<!-- /A8アフィリエイト: Lepton -->
-
-<!-- A8アフィリエイト: Goomies DVD -->
-<div style="background:#f0f7ff;border:1px solid #b3d4f5;border-radius:10px;padding:14px;margin:10px 0;">
-  <p style="font-size:13px;font-weight:700;color:#1a56db;margin:0 0 8px;">🎬 楽しく英語を学ぶ幼児向けDVD</p>
-  <p style="font-size:12px;color:#374151;margin:0 0 8px;">アマゾン・楽天市場で売れ筋ランキング1位獲得。幼児向け英語DVDで楽しく英語習得。</p>
-  
-</div>
-<!-- /A8アフィリエイト: Goomies DVD -->
-
-<!-- A8アフィリエイト: うっかりペネロペ -->
-<div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:10px;padding:14px;margin:10px 0;">
-  <p style="font-size:13px;font-weight:700;color:#7e22ce;margin:0 0 8px;">📺 NHK Eテレ「うっかりペネロペ」で英語</p>
-  <p style="font-size:12px;color:#374151;margin:0 0 8px;">子どもに人気のキャラクターで楽しく英語学習。日本初のペネロペ英語版。</p>
-  
-</div>
-<!-- /A8アフィリエイト: うっかりペネロペ -->
-<!-- A8アフィリエイト: ペッピーキッズクラブ -->
-<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px;margin:10px 0;">
-  <p style="font-size:13px;font-weight:700;color:#1e40af;margin:0 0 8px;">🏫 全国1400教室の子ども英会話</p>
-  <p style="font-size:12px;color:#374151;margin:0 0 8px;">ペッピーキッズクラブ。子ども・幼児・キッズ向け英会話スクール。全国1400教室で体験レッスン受付中。</p>
-  
-</div>
-<!-- /A8アフィリエイト: ペッピーキッズクラブ -->
 
 <div style="border-top:1px solid #e5e7eb;padding:14px 16px 18px;background:#fff;">
   <p style="text-align:center;font-size:11px;font-weight:600;color:#94a3b8;margin:0 0 10px;">スポンサーリンク</p>

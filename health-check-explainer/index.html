@@ -159,7 +159,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
         <h2 class="text-xl font-bold mb-4 text-green-800">健康診断の数値を入力してください</h2>
         <p class="text-sm text-gray-500 mb-4">不明な項目は空欄のままでも結果を確認できます</p>
-        <button type="button" onclick="showHistory()" class="mb-4 text-sm text-green-700 hover:text-green-900 underline">📊 計測履歴を見る</button>
+        <button type="button" onclick="showHistory()" class="mb-2 text-sm text-green-700 hover:text-green-900 underline">📊 計測履歴を見る</button>
+        <div id="history-section" class="hidden mb-4 bg-green-50 border border-green-200 rounded-xl p-3"></div>
 
         <form id="health-form" class="space-y-5">
           <div class="grid grid-cols-2 gap-4">
@@ -203,6 +204,17 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div>
               <label class="block text-sm font-semibold text-gray-700 mb-1">BMI <span class="text-gray-400 font-normal">正常: 18.5-24.9</span></label>
               <input type="number" step="0.1" id="bmi" inputmode="decimal" placeholder="例: 22.5" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="BMI">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">中性脂肪（TG） <span class="text-gray-400 font-normal">正常: 50-149 mg/dL</span></label>
+              <input type="number" id="tg" inputmode="numeric" placeholder="例: 120" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="中性脂肪(TG)、単位mg/dL">
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">γ-GTP <span class="text-gray-400 font-normal">正常: 10-50 U/L</span></label>
+              <input type="number" id="ggt" inputmode="numeric" placeholder="例: 30" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="γ-GTP、単位U/L">
             </div>
           </div>
 
@@ -292,40 +304,78 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin:10px 0;"><h2 style="font-size:14px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">健康診断の各数値について、基準値・意味・生活改善のヒントをわかりやすく解説します。</p><p style="font-size:11px;color:#9ca3af;margin-top:4px;">※ 本ツールの結果はあくまで参考情報です。重要な判断の際は専門家にご相談ください。</p></div>
 
         <script>
-    function evaluate(val, low, highNormal, highCaution, unit, name) {
+    // ゲージ用の表示範囲を計算してステータス・色・ゲージ位置を返す
+    function evaluate(val, low, highNormal, highCaution, unit, name, dispMin, dispMax) {
       if (val === null || isNaN(val)) return null;
       let status, color, icon, advice;
       if (val < low) { status='低値'; color='text-blue-600'; icon='⬇️'; advice=`${name}が基準より低い値です。医師に相談を。`; }
       else if (val <= highNormal) { status='正常'; color='text-green-600'; icon='✅'; advice=`${name}は正常範囲内です。この状態を維持しましょう。`; }
       else if (val <= highCaution) { status='要注意'; color='text-yellow-600'; icon='⚠️'; advice=`${name}がやや高めです。生活習慣の見直しを検討しましょう。`; }
       else { status='要改善'; color='text-red-600'; icon='🚨'; advice=`${name}が基準値を超えています。医師への相談を強くお勧めします。`; }
-      return { val, unit, name, status, color, icon, advice };
+      const gMin = dispMin !== undefined ? dispMin : Math.max(0, low * 0.5);
+      const gMax = dispMax !== undefined ? dispMax : highCaution * 1.8;
+      const clamp = (v) => Math.min(100, Math.max(0, ((v - gMin) / (gMax - gMin)) * 100));
+      const gauge = { pct: clamp(val), pLow: clamp(low), pNormal: clamp(highNormal), pCaution: clamp(highCaution) };
+      return { val, unit, name, status, color, icon, advice, gauge };
     }
 
     function saveToHistory(data) {
-      const history = JSON.parse(localStorage.getItem('healthChecks') || '[]');
+      let history = JSON.parse(localStorage.getItem('healthChecks') || '[]');
       data.date = new Date().toLocaleDateString('ja-JP');
       history.unshift(data);
       if (history.length > 20) history = history.slice(0, 20);
       localStorage.setItem('healthChecks', JSON.stringify(history));
     }
 
+    // 履歴をインラインUIで表示（alertを廃止）
     function showHistory() {
-      const history = JSON.parse(localStorage.getItem('healthChecks') || '[]');
-      if (history.length === 0) {
-        alert('計測履歴がありません');
+      const section = document.getElementById('history-section');
+      if (!section.classList.contains('hidden')) {
+        section.classList.add('hidden');
         return;
       }
-      let msg = '📊 計測履歴 (最新20件)\n\n';
+      const history = JSON.parse(localStorage.getItem('healthChecks') || '[]');
+      if (history.length === 0) {
+        section.innerHTML = '<p class="text-sm text-gray-500 text-center py-3">計測履歴がまだありません</p>';
+        section.classList.remove('hidden');
+        return;
+      }
+      let html = '<p class="text-xs font-bold text-green-800 mb-2">📊 計測履歴（最新20件）</p><div class="space-y-2 max-h-56 overflow-y-auto pr-1">';
       history.forEach((h, i) => {
-        msg += `${i + 1}. ${h.date} - `;
-        const values = [];
-        if (h.sbp) values.push(`血圧上${h.sbp}`);
-        if (h.glucose) values.push(`血糖${h.glucose}`);
-        if (h.bmi) values.push(`BMI${h.bmi}`);
-        msg += values.join(', ') + '\n';
+        const vals = [];
+        if (h.sbp) vals.push(`血圧上: ${h.sbp}`);
+        if (h.dbp) vals.push(`血圧下: ${h.dbp}`);
+        if (h.glucose) vals.push(`血糖: ${h.glucose}`);
+        if (h.hba1c) vals.push(`HbA1c: ${h.hba1c}%`);
+        if (h.ldl) vals.push(`LDL: ${h.ldl}`);
+        if (h.hdl) vals.push(`HDL: ${h.hdl}`);
+        if (h.tg) vals.push(`中性脂肪: ${h.tg}`);
+        if (h.ggt) vals.push(`γ-GTP: ${h.ggt}`);
+        if (h.alt) vals.push(`ALT: ${h.alt}`);
+        if (h.bmi) vals.push(`BMI: ${h.bmi}`);
+        html += `<div class="bg-white border border-green-200 rounded-lg p-3">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-bold text-green-700">${h.date}</span>
+            <button onclick="loadHistory(${i})" class="text-xs text-blue-600 underline hover:text-blue-800">この値を再入力</button>
+          </div>
+          <p class="text-xs text-gray-600">${vals.join(' / ') || '（値なし）'}</p>
+        </div>`;
       });
-      alert(msg);
+      html += '</div>';
+      section.innerHTML = html;
+      section.classList.remove('hidden');
+    }
+
+    // 過去の履歴値をフォームに復元する
+    function loadHistory(idx) {
+      const history = JSON.parse(localStorage.getItem('healthChecks') || '[]');
+      const h = history[idx];
+      if (!h) return;
+      ['sbp','dbp','glucose','hba1c','ldl','hdl','tg','ggt','alt','bmi'].forEach(key => {
+        const el = document.getElementById(key);
+        if (el) el.value = h[key] || '';
+      });
+      document.getElementById('history-section').classList.add('hidden');
     }
 
     function showResult() {
@@ -335,20 +385,43 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const hba1c = parseFloat(document.getElementById('hba1c').value) || null;
       const ldl = parseFloat(document.getElementById('ldl').value) || null;
       const hdl = parseFloat(document.getElementById('hdl').value) || null;
+      const tg = parseFloat(document.getElementById('tg').value) || null;
+      const ggt = parseFloat(document.getElementById('ggt').value) || null;
       const alt = parseFloat(document.getElementById('alt').value) || null;
       const bmi = parseFloat(document.getElementById('bmi').value) || null;
 
-      saveToHistory({ sbp, dbp, glucose, hba1c, ldl, hdl, alt, bmi });
+      saveToHistory({ sbp, dbp, glucose, hba1c, ldl, hdl, tg, ggt, alt, bmi });
+
+      // HDL・BMI は特殊評価（ゲージ情報付き）
+      const hdlGauge = (v) => { const c=(x)=>Math.min(100,Math.max(0,(x/120)*100)); return {pct:c(v),pLow:c(40),pNormal:c(80),pCaution:100}; };
+      const hdlResult = hdl ? (hdl < 40
+        ? { val:hdl, unit:'mg/dL', name:'HDLコレステロール', status:'低値', color:'text-red-600', icon:'🚨', advice:'HDL（善玉）コレステロールが低い。運動・禁煙が有効。', gauge:hdlGauge(hdl) }
+        : hdl <= 80
+        ? { val:hdl, unit:'mg/dL', name:'HDLコレステロール', status:'正常', color:'text-green-600', icon:'✅', advice:'HDLコレステロールは良好です。', gauge:hdlGauge(hdl) }
+        : { val:hdl, unit:'mg/dL', name:'HDLコレステロール', status:'良好', color:'text-green-600', icon:'✅', advice:'HDL（善玉）コレステロールが高く、動脈硬化リスクが低い状態です。', gauge:hdlGauge(hdl) }
+      ) : null;
+
+      const bmiGauge = (v) => { const c=(x)=>Math.min(100,Math.max(0,((x-14)/22)*100)); return {pct:c(v),pLow:c(18.5),pNormal:c(24.9),pCaution:c(29.9)}; };
+      const bmiResult = bmi ? (bmi < 18.5
+        ? { val:bmi, unit:'', name:'BMI', status:'低体重', color:'text-blue-600', icon:'⬇️', advice:'BMIが低体重域です。栄養バランスの見直しを。', gauge:bmiGauge(bmi) }
+        : bmi <= 24.9
+        ? { val:bmi, unit:'', name:'BMI', status:'標準', color:'text-green-600', icon:'✅', advice:'BMIは標準範囲。理想的な体重を維持しています。', gauge:bmiGauge(bmi) }
+        : bmi <= 29.9
+        ? { val:bmi, unit:'', name:'BMI', status:'過体重', color:'text-yellow-600', icon:'⚠️', advice:'BMIが過体重域。適度な運動と食事管理を。', gauge:bmiGauge(bmi) }
+        : { val:bmi, unit:'', name:'BMI', status:'肥満', color:'text-red-600', icon:'🚨', advice:'BMIが肥満域。生活習慣病リスクが高まっています。医師に相談を。', gauge:bmiGauge(bmi) }
+      ) : null;
 
       const results = [
-        evaluate(sbp, 70, 129, 139, 'mmHg', '収縮期血圧（上）'),
-        evaluate(dbp, 40, 84, 89, 'mmHg', '拡張期血圧（下）'),
-        evaluate(glucose, 50, 99, 109, 'mg/dL', '空腹時血糖'),
-        evaluate(hba1c, 3.5, 5.5, 5.9, '%', 'HbA1c'),
-        evaluate(ldl, 60, 139, 159, 'mg/dL', 'LDLコレステロール'),
-        hdl ? (hdl < 40 ? { val:hdl, unit:'mg/dL', name:'HDLコレステロール', status:'低値', color:'text-red-600', icon:'🚨', advice:'HDL（善玉）コレステロールが低い。運動・禁煙が有効。' } : hdl <= 80 ? { val:hdl, unit:'mg/dL', name:'HDLコレステロール', status:'正常', color:'text-green-600', icon:'✅', advice:'HDLコレステロールは良好です。' } : { val:hdl, unit:'mg/dL', name:'HDLコレステロール', status:'良好', color:'text-green-600', icon:'✅', advice:'HDL（善玉）コレステロールが高く、動脈硬化リスクが低い状態です。' }) : null,
-        evaluate(alt, 5, 30, 50, 'U/L', 'ALT(GPT)'),
-        bmi ? (bmi < 18.5 ? { val:bmi, unit:'', name:'BMI', status:'低体重', color:'text-blue-600', icon:'⬇️', advice:'BMIが低体重域です。栄養バランスの見直しを。' } : bmi <= 24.9 ? { val:bmi, unit:'', name:'BMI', status:'標準', color:'text-green-600', icon:'✅', advice:'BMIは標準範囲。理想的な体重を維持しています。' } : bmi <= 29.9 ? { val:bmi, unit:'', name:'BMI', status:'過体重', color:'text-yellow-600', icon:'⚠️', advice:'BMIが過体重域。適度な運動と食事管理を。' } : { val:bmi, unit:'', name:'BMI', status:'肥満', color:'text-red-600', icon:'🚨', advice:'BMIが肥満域。生活習慣病リスクが高まっています。医師に相談を。' }) : null
+        evaluate(sbp, 70, 129, 139, 'mmHg', '収縮期血圧（上）', 50, 200),
+        evaluate(dbp, 40, 84, 89, 'mmHg', '拡張期血圧（下）', 30, 130),
+        evaluate(glucose, 50, 99, 109, 'mg/dL', '空腹時血糖', 40, 200),
+        evaluate(hba1c, 3.5, 5.5, 5.9, '%', 'HbA1c', 3, 10),
+        evaluate(ldl, 60, 139, 159, 'mg/dL', 'LDLコレステロール', 30, 250),
+        hdlResult,
+        evaluate(tg, 30, 149, 299, 'mg/dL', '中性脂肪（TG）', 0, 500),
+        evaluate(ggt, 5, 50, 100, 'U/L', 'γ-GTP', 0, 200),
+        evaluate(alt, 5, 30, 50, 'U/L', 'ALT(GPT)', 0, 100),
+        bmiResult
       ].filter(r => r !== null);
 
       if (results.length === 0) {
@@ -358,6 +431,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
       document.getElementById('form-section').classList.add('hidden');
       document.getElementById('result-section').classList.remove('hidden');
+      window.scrollTo(0, 0);
 
       const abnormal = results.filter(r => r.status === '要改善' || r.status === '低値');
       const caution = results.filter(r => r.status === '要注意');
@@ -376,6 +450,17 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="space-y-3 mb-4">`;
 
       results.forEach(r => {
+        // 数値がどの範囲にいるかを色帯で視覚的に表示するゲージバー
+        const g = r.gauge;
+        const gaugeHtml = `
+          <div class="mt-2 mb-0.5">
+            <div class="relative h-3 rounded-full overflow-hidden" style="background:linear-gradient(to right,#93c5fd 0%,#93c5fd ${g.pLow.toFixed(1)}%,#86efac ${g.pLow.toFixed(1)}%,#86efac ${g.pNormal.toFixed(1)}%,#fde047 ${g.pNormal.toFixed(1)}%,#fde047 ${g.pCaution.toFixed(1)}%,#fca5a5 ${g.pCaution.toFixed(1)}%,#fca5a5 100%)">
+              <div class="absolute top-0 h-full" style="left:${g.pct.toFixed(1)}%;transform:translateX(-50%);width:3px;background:rgba(17,24,39,0.85);border-radius:2px;"></div>
+            </div>
+            <div class="flex justify-between text-xs text-gray-400 mt-0.5 px-0.5">
+              <span>低</span><span>正常</span><span>要注意</span><span>要改善</span>
+            </div>
+          </div>`;
         html += `
           <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
             <div class="flex items-center justify-between mb-1">
@@ -383,6 +468,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <span class="font-bold ${r.color} text-sm">${r.icon} ${r.status}</span>
             </div>
             <p class="text-lg font-bold text-gray-800">${r.val} ${r.unit}</p>
+            ${gaugeHtml}
             <p class="text-xs text-gray-500 mt-1">${r.advice}</p>
           </div>`;
       });
@@ -403,7 +489,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </div>`;
       }
 
-      const lastResults = results;
       window.lastResults = { results, abnormal, caution, normal };
 
       let html2 = `<div class="bg-green-50 border border-green-200 rounded-2xl p-6 mb-6">
@@ -413,8 +498,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const products = [];
       if (abnormal.some(r => r.name.includes('血圧'))) products.push({ text: 'Amazon｜自動血圧計を探す', desc: '家庭での定期測定に。精度の高い自動血圧計がおすすめです', url: 'https://www.amazon.co.jp/s?k=%E8%A1%80%E5%9C%A7%E8%A8%98&tag=appadaycrea0f-22' });
       if (abnormal.some(r => r.name.includes('血糖')) || abnormal.some(r => r.name.includes('HbA1c'))) products.push({ text: 'Amazon｜血糖測定器を探す', desc: '糖尿病対策に。毎日の血糖管理にテスト紙式の測定器がおすすめです', url: 'https://www.amazon.co.jp/s?k=%E8%A1%80%E7%B3%96%E6%B8%AC%E5%AE%9A%E5%99%A8&tag=appadaycrea0f-22' });
-      if (abnormal.some(r => r.name.includes('コレステロール'))) products.push({ text: 'Amazon｜血中脂質対策サプリを探す', desc: 'DHA・EPA配合のオメガ3サプリが効果的です', url: 'https://www.amazon.co.jp/s?k=DHA+EPA+%E3%82%B5%E3%83%97%E3%83%AA&tag=appadaycrea0f-22' });
+      if (abnormal.some(r => r.name.includes('コレステロール') || r.name.includes('中性脂肪'))) products.push({ text: 'Amazon｜血中脂質対策サプリを探す', desc: 'DHA・EPA配合のオメガ3サプリが効果的です', url: 'https://www.amazon.co.jp/s?k=DHA+EPA+%E3%82%B5%E3%83%97%E3%83%AA&tag=appadaycrea0f-22' });
       if (abnormal.some(r => r.name.includes('BMI'))) products.push({ text: 'Amazon｜体重管理グッズを探す', desc: '体脂肪計やスマート体重計で毎日の変化を記録することが大切です', url: 'https://www.amazon.co.jp/s?k=%E4%BD%93%E8%84%82%E8%82%AA%E8%A8%88&tag=appadaycrea0f-22' });
+      if (abnormal.some(r => r.name.includes('γ-GTP') || r.name.includes('ALT'))) products.push({ text: 'Amazon｜肝臓ケアサプリを探す', desc: 'ウコン・L-システイン等の肝臓サポートサプリがおすすめです', url: 'https://www.amazon.co.jp/s?k=%E8%82%9D%E8%87%93+%E3%82%B5%E3%83%97%E3%83%AA&tag=appadaycrea0f-22' });
 
       if (products.length === 0) products.push({ text: 'Amazon｜健康管理グッズを探す', desc: '今後の健康管理のための機器を揃えることをおすすめします', url: 'https://www.amazon.co.jp/s?k=%E8%A1%80%E5%9C%A7%E8%A8%98&tag=appadaycrea0f-22' });
 

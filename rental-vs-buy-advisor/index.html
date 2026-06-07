@@ -151,10 +151,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 <div class="max-w-xl mx-auto px-4 py-10">
-  <div class="text-center mb-8">
+  <div class="text-center mb-8" style="background:linear-gradient(135deg,#1d4ed8 0%,#7c3aed 100%);border-radius:1.25rem;padding:2rem 1.5rem;margin-bottom:1.5rem;">
     <div class="text-4xl md:text-6xl mb-4">🏠</div>
     <h1 class="text-xl md:text-2xl font-bold text-white mb-2">賃貸 vs 購入コスト比較</h1>
-    <p class="text-blue-200 text-sm">生涯コストを計算してあなたに最適な選択を診断</p>
+    <p class="text-blue-100 text-sm">生涯コストを計算してあなたに最適な選択を診断</p>
   </div>
 
   <div class="card p-6 mb-6">
@@ -204,6 +204,24 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <input type="number" id="rate-input" min="0.4" max="3.5" step="0.1" value="1.5" class="w-20 border border-gray-300 rounded px-2 py-1 text-sm" oninput="syncSlider('rate')">
           <span class="text-blue-700 font-bold text-sm">%</span>
         </div>
+      </div>
+
+      <div>
+        <label class="text-sm font-bold text-gray-700">頭金割合（物件価格の何%）</label>
+        <div class="flex items-center gap-2 mt-1 input-flex">
+          <input type="range" id="downpayRate" min="0" max="30" step="5" value="10" oninput="syncInput('downpayRate')">
+          <input type="number" id="downpayRate-input" min="0" max="30" step="5" value="10" class="w-16 border border-gray-300 rounded px-2 py-1 text-sm" oninput="syncSlider('downpayRate')">
+          <span class="text-blue-700 font-bold text-sm">%</span>
+        </div>
+        <p class="text-xs text-gray-400 mt-1">頭金目安: <span id="downpay-preview">400万円</span></p>
+      </div>
+
+      <div>
+        <label class="flex items-center gap-2 text-sm font-bold text-gray-700 cursor-pointer">
+          <input type="checkbox" id="taxDeduction" class="w-4 h-4 accent-blue-600" checked>
+          住宅ローン控除を適用する（年末残高×0.7%・13年間）
+        </label>
+        <p class="text-xs text-gray-400 mt-1">最大455万円の控除が購入コストを削減します</p>
       </div>
 
       <div>
@@ -306,7 +324,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <div class="font-bold text-gray-600 mb-1">関連診断ツール</div>
       <div><a href="/housing-loan-simulator/" class="text-blue-600 underline">住宅ローン返済シミュレーター →</a></div>
       <div><a href="/renovation-loan-advisor/" class="text-blue-600 underline">リフォームローン比較診断 →</a></div>
-      <div><a href="/fire-calculator/" class="text-blue-600 underline">FIRE計算機（資産形成との比較）→</a></div>
+      <div><a href="/fire-calculator/lp/" class="text-blue-600 underline">FIRE計算機（資産形成との比較）→</a></div>
       <div><a href="/household-budget-analyzer/" class="text-blue-600 underline">家計診断ツール →</a></div>
       <div><a href="/freelance-tax-advisor/" class="text-blue-600 underline">住宅ローン控除の節税効果を確認 →</a></div>
     </div>
@@ -323,18 +341,22 @@ function loadFromURL(){
   if(params.has('rent')){document.getElementById('rent').value=params.get('rent');document.getElementById('rent-input').value=params.get('rent');}
   if(params.has('price')){document.getElementById('price').value=params.get('price');document.getElementById('price-input').value=params.get('price');}
   if(params.has('rate')){document.getElementById('rate').value=params.get('rate');document.getElementById('rate-input').value=params.get('rate');}
+  if(params.has('downpayRate')){document.getElementById('downpayRate').value=params.get('downpayRate');document.getElementById('downpayRate-input').value=params.get('downpayRate');}
   if(params.has('period'))document.getElementById('period').value=params.get('period');
   if(params.has('family'))document.getElementById('family').value=params.get('family');
-  syncInput('age');syncInput('income');syncInput('rent');syncInput('price');syncInput('rate');
+  if(params.has('taxDed'))document.getElementById('taxDeduction').checked=params.get('taxDed')==='1';
+  syncInput('age');syncInput('income');syncInput('rent');syncInput('price');syncInput('rate');syncInput('downpayRate');
+  updateDownpayPreview();
   if(params.has('auto')){setTimeout(calculate,100);}
 }
 function shareURL(){
-  var url=window.location.origin+window.location.pathname+'?age='+document.getElementById('age').value+'&income='+document.getElementById('income').value+'&rent='+document.getElementById('rent').value+'&price='+document.getElementById('price').value+'&rate='+document.getElementById('rate').value+'&period='+document.getElementById('period').value+'&family='+document.getElementById('family').value+'&auto=1';
+  var url=getShareURL();
   navigator.clipboard.writeText(url).then(function(){showToast('共有リンクをコピーしました！');}).catch(function(){alert('共有リンク:\n'+url);});
 }
 
 function getShareURL(){
-  return window.location.origin+window.location.pathname+'?age='+document.getElementById('age').value+'&income='+document.getElementById('income').value+'&rent='+document.getElementById('rent').value+'&price='+document.getElementById('price').value+'&rate='+document.getElementById('rate').value+'&period='+document.getElementById('period').value+'&family='+document.getElementById('family').value+'&auto=1';
+  var td=document.getElementById('taxDeduction').checked?'1':'0';
+  return window.location.origin+window.location.pathname+'?age='+document.getElementById('age').value+'&income='+document.getElementById('income').value+'&rent='+document.getElementById('rent').value+'&price='+document.getElementById('price').value+'&rate='+document.getElementById('rate').value+'&downpayRate='+document.getElementById('downpayRate').value+'&period='+document.getElementById('period').value+'&family='+document.getElementById('family').value+'&taxDed='+td+'&auto=1';
 }
 
 function shareViaLINE(){
@@ -360,41 +382,80 @@ function showToast(msg){
   document.body.appendChild(t);
   setTimeout(function(){t.remove();},2000);
 }
-function syncInput(id){var v=document.getElementById(id).value;document.getElementById(id+'-input').value=v;}
-function syncSlider(id){var v=document.getElementById(id+'-input').value;document.getElementById(id).value=v;}
+function syncInput(id){
+  var v=document.getElementById(id).value;
+  document.getElementById(id+'-input').value=v;
+  if(id==='downpayRate'||id==='price'){updateDownpayPreview();}
+}
+function syncSlider(id){
+  var v=document.getElementById(id+'-input').value;
+  document.getElementById(id).value=v;
+  if(id==='downpayRate'||id==='price'){updateDownpayPreview();}
+}
+function updateDownpayPreview(){
+  var price=parseInt(document.getElementById('price').value)||4000;
+  var rate=parseInt(document.getElementById('downpayRate').value)||10;
+  var dp=Math.round(price*rate/100);
+  document.getElementById('downpay-preview').textContent=dp.toLocaleString('ja-JP')+'万円';
+}
 function formatMoney(val){var m=Math.round(val/10000);return m.toLocaleString('ja-JP')+'万円';}
 
-function drawChart(rentTotal,netBuyCost){
+function drawChart(rentTotal,netBuyCost,diff){
   var canvas=document.getElementById('comparison-chart');
   if(!canvas.getContext)return;
   var ctx=canvas.getContext('2d');
 
-  // レスポンシブ対応：ウィンドウ幅に応じてキャンバスサイズを調整
-  var maxWidth=Math.min(300,window.innerWidth-80);
-  canvas.width=maxWidth;canvas.height=200;
+  // レスポンシブ対応：最大550pxまで拡大
+  var maxWidth=Math.min(550,window.innerWidth-40);
+  canvas.width=maxWidth;canvas.height=260;
 
-  var maxVal=Math.max(rentTotal,netBuyCost);
-  var scale=160/maxVal;
-  var padding=30;
-  var barWidth=Math.max(30,(maxWidth-80)/4);
+  var maxVal=Math.max(rentTotal,netBuyCost)*1.15;
+  var chartH=180;
+  var paddingLeft=70;
+  var paddingTop=20;
+  var chartW=maxWidth-paddingLeft-20;
+  var barWidth=Math.max(40,chartW/4);
 
-  ctx.fillStyle='#f3f4f6';ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.strokeStyle='#d1d5db';ctx.lineWidth=1;
-  for(var i=0;i<=4;i++){var y=padding+(160-i*40);ctx.beginPath();ctx.moveTo(padding,y);ctx.lineTo(canvas.width-10,y);ctx.stroke();}
+  ctx.fillStyle='#f8fafc';ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  var bar1X=padding+10;
-  var bar2X=padding+10+barWidth+20;
+  // グリッド線と軸ラベル
+  ctx.strokeStyle='#e2e8f0';ctx.lineWidth=1;
+  ctx.font='11px sans-serif';ctx.textAlign='right';ctx.fillStyle='#94a3b8';
+  for(var i=0;i<=4;i++){
+    var y=paddingTop+chartH-(i*chartH/4);
+    ctx.beginPath();ctx.moveTo(paddingLeft,y);ctx.lineTo(maxWidth-10,y);ctx.stroke();
+    var val=Math.round((i*maxVal/4)/10000);
+    ctx.fillText(val+'万',paddingLeft-5,y+4);
+  }
 
-  ctx.fillStyle='#3b82f6';ctx.fillRect(bar1X,padding+160-(rentTotal*scale),barWidth,rentTotal*scale);
-  ctx.fillStyle='#2d3748';ctx.font='bold 11px Arial';ctx.textAlign='center';
-  ctx.fillText('賃貸',bar1X+barWidth/2,padding+175);
+  // 賃貸バー
+  var bar1X=paddingLeft+chartW*0.12;
+  var rent_h=Math.round(rentTotal/maxVal*chartH);
+  ctx.fillStyle='#3b82f6';
+  ctx.fillRect(bar1X,paddingTop+chartH-rent_h,barWidth,rent_h);
+  // ラベル
+  ctx.fillStyle='#1d4ed8';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
+  ctx.fillText(formatMoney(rentTotal),bar1X+barWidth/2,paddingTop+chartH-rent_h-6);
+  ctx.fillStyle='#374151';ctx.font='bold 12px sans-serif';
+  ctx.fillText('賃貸',bar1X+barWidth/2,paddingTop+chartH+18);
 
-  ctx.fillStyle='#10b981';ctx.fillRect(bar2X,padding+160-(netBuyCost*scale),barWidth,netBuyCost*scale);
-  ctx.fillStyle='#2d3748';
-  ctx.fillText('購入',bar2X+barWidth/2,padding+175);
+  // 購入バー
+  var bar2X=paddingLeft+chartW*0.55;
+  var buy_h=Math.round(netBuyCost/maxVal*chartH);
+  ctx.fillStyle='#10b981';
+  ctx.fillRect(bar2X,paddingTop+chartH-buy_h,barWidth,buy_h);
+  // ラベル
+  ctx.fillStyle='#047857';ctx.font='bold 12px sans-serif';ctx.textAlign='center';
+  ctx.fillText(formatMoney(netBuyCost),bar2X+barWidth/2,paddingTop+chartH-buy_h-6);
+  ctx.fillStyle='#374151';ctx.font='bold 12px sans-serif';
+  ctx.fillText('購入',bar2X+barWidth/2,paddingTop+chartH+18);
 
-  ctx.font='11px Arial';ctx.textAlign='right';ctx.fillStyle='#6b7280';
-  for(var i=0;i<=4;i++){var y=padding+160-i*40;var val=Math.round((i*maxVal/4)/10000000)/10;ctx.fillText(val+'千万',padding-5,y+4);}
+  // 差額表示
+  if(diff!==0){
+    var diffText=(diff>0?'購入が':'賃貸が')+formatMoney(Math.abs(diff))+'お得';
+    ctx.fillStyle='#7c3aed';ctx.font='bold 13px sans-serif';ctx.textAlign='center';
+    ctx.fillText('差額: '+diffText,maxWidth/2,paddingTop+chartH+40);
+  }
 }
 
 function calculate(){
@@ -402,29 +463,68 @@ function calculate(){
   var income=parseInt(document.getElementById('income').value);
   var rent=parseFloat(document.getElementById('rent').value);
   var price=parseInt(document.getElementById('price').value);
-  var rate=parseFloat(document.getElementById('rate').value)/100/12;
+  var annualRate=parseFloat(document.getElementById('rate').value)/100;
+  var monthlyRate=annualRate/12;
   var period=parseInt(document.getElementById('period').value);
   var family=document.getElementById('family').value;
+  var downpayPct=parseInt(document.getElementById('downpayRate').value)/100;
+  var applyTaxDeduction=document.getElementById('taxDeduction').checked;
 
+  // 賃貸コスト（家賃1%/年上昇）
   var rentTotal=0,r=rent*10000;
   for(var i=0;i<period;i++){rentTotal+=r*12;r*=1.01;}
 
-  // ローン期間を居住期間に応じて設定（最大35年、最小10年）
+  // ローン設定
   var loanYears=Math.min(35,Math.max(period,10));
-  var loanAmt=price*10000*0.9,n=loanYears*12;
-  var monthlyPay=rate===0?loanAmt/n:loanAmt*rate*Math.pow(1+rate,n)/(Math.pow(1+rate,n)-1);
-  var totalLoanCost=monthlyPay*n,maintenanceCost=period*30*10000;
-  var downpay=price*10000*0.1,misc=price*10000*0.04;
-  var sellVal=price*10000*Math.pow(0.99,period);
-  var interestTotal=totalLoanCost-loanAmt;
-  var buyCost=downpay+misc+interestTotal+maintenanceCost;
-  var netBuyCost=buyCost-(sellVal-loanAmt*0.5>0?sellVal-loanAmt*0.5:0);
+  var priceYen=price*10000;
+  var downpay=priceYen*downpayPct;
+  var loanAmt=priceYen*(1-downpayPct);
+  var misc=priceYen*0.04;
+  var n=loanYears*12;
+  var monthlyPay=monthlyRate===0?loanAmt/n:loanAmt*monthlyRate*Math.pow(1+monthlyRate,n)/(Math.pow(1+monthlyRate,n)-1);
+
+  // 居住期間内のローン支払い実績（元本・利息）を正確に計算
+  var principal=loanAmt;
+  var interestPaid=0;
+  var principalPaid=0;
+  var loanControlYears=[];
+  for(var mo=0;mo<period*12;mo++){
+    var intThis=principal*monthlyRate;
+    var priThis=monthlyPay-intThis;
+    if(priThis>principal)priThis=principal;
+    interestPaid+=intThis;
+    principalPaid+=priThis;
+    principal-=priThis;
+    if(principal<0)principal=0;
+    if((mo+1)%12===0)loanControlYears.push({remain:principal,yr:(mo+1)/12});
+  }
+  // 売却時残債
+  var remainDebt=principal;
+
+  // 資産価値（1%/年下落）
+  var sellVal=priceYen*Math.pow(0.99,period);
+  // 売却純益（売却価格 - 残債）
+  var sellNet=Math.max(0,sellVal-remainDebt);
+
+  // 住宅ローン控除（年末残高×0.7% × min(13,period) 年）
+  var taxDeductionTotal=0;
+  if(applyTaxDeduction && loanControlYears.length>0){
+    var deductYears=Math.min(13,period);
+    for(var yi=0;yi<deductYears;yi++){
+      var yearRemain=yi<loanControlYears.length?loanControlYears[yi].remain:0;
+      taxDeductionTotal+=yearRemain*0.007;
+    }
+    taxDeductionTotal=Math.min(taxDeductionTotal,4550000); // 最大455万円
+  }
+
+  var maintenanceCost=period*30*10000;
+  var netBuyCost=downpay+misc+interestPaid+maintenanceCost-sellNet-taxDeductionTotal;
 
   document.getElementById('r-period').textContent=period+'年';
   document.getElementById('r-rent-total').textContent=formatMoney(rentTotal);
   document.getElementById('r-buy-total').textContent=formatMoney(netBuyCost);
   document.getElementById('r-monthly-pay').textContent=Math.round(monthlyPay/10000*10)/10+'万円/月';
-  document.getElementById('r-downpay').textContent=formatMoney(downpay);
+  document.getElementById('r-downpay').textContent=formatMoney(downpay)+'（'+Math.round(downpayPct*100)+'%）';
   document.getElementById('r-misc').textContent=formatMoney(misc);
 
   var diff=rentTotal-netBuyCost;
@@ -438,9 +538,19 @@ function calculate(){
     vd.textContent='居住期間'+period+'年では、賃貸の方がトータルコストが低い計算になります。ライフスタイルや転勤可能性も考慮して判断しましょう。';
   }
 
+  var breakdownBuyItems=[
+    {label:'頭金（'+Math.round(downpayPct*100)+'%）',val:downpay},
+    {label:'購入時諸費用（4%）',val:misc},
+    {label:'居住期間内ローン利息',val:interestPaid},
+    {label:'管理費・修繕費（'+period+'年分）',val:maintenanceCost}
+  ];
+  if(sellNet>0)breakdownBuyItems.push({label:'売却純益（マイナス）',val:-sellNet});
+  if(applyTaxDeduction&&taxDeductionTotal>0)breakdownBuyItems.push({label:'ローン控除効果（マイナス）',val:-taxDeductionTotal});
+  breakdownBuyItems.push({label:'実質購入コスト',val:netBuyCost});
+
   var breakdown=[
-    {cat:'【賃貸コスト内訳】',items:[{label:'家賃合計',val:rentTotal}]},
-    {cat:'【購入コスト内訳】',items:[{label:'頭金',val:downpay},{label:'購入時諸費用',val:misc},{label:'ローン利息',val:interestTotal},{label:'管理費・修繕費（'+period+'年分）',val:maintenanceCost},{label:'売却益（残債差引後）',val:-(sellVal-loanAmt*0.5>0?sellVal-loanAmt*0.5:0)},{label:'実質購入コスト',val:netBuyCost}]}
+    {cat:'【賃貸コスト内訳】',items:[{label:'家賃合計（1%/年上昇）',val:rentTotal}]},
+    {cat:'【購入コスト内訳】',items:breakdownBuyItems}
   ];
 
   var tbody=document.getElementById('breakdown-body');tbody.innerHTML='';
@@ -450,19 +560,22 @@ function calculate(){
       var tr=document.createElement('tr');tr.style.borderBottom='1px solid #e5e7eb';
       var label=tr.insertCell();label.textContent=item.label;label.style.padding='8px';label.style.color='#374151';
       var val=tr.insertCell();val.textContent=formatMoney(item.val);val.style.textAlign='right';val.style.padding='8px';
-      if(item.val<0)val.style.color='#dc2626';else if(item.label.includes('実質'))val.style.fontWeight='700';
+      if(item.val<0)val.style.color='#16a34a';else if(item.label.includes('実質'))val.style.fontWeight='700';
       tbody.appendChild(tr);
     });
   });
 
-  drawChart(rentTotal,netBuyCost);
+  drawChart(rentTotal,netBuyCost,diff);
 
   var advices=[];
-  if(income<500)advices.push({icon:'⚠️',text:'年収からみると月々ローン返済（'+Math.round(monthlyPay/10000*10)/10+'万円）は年収の'+Math.round(monthlyPay*12/income/10000*100)+'%です。25%以下が安心ライン。'});
+  var loanRatio=monthlyPay*12/(income*10000)*100;
+  if(loanRatio>25)advices.push({icon:'⚠️',text:'月々のローン返済（'+Math.round(monthlyPay/10000*10)/10+'万円）は年収の'+Math.round(loanRatio)+'%です。25%以下が安心ラインのため資金計画を見直しましょう。'});
   if(family==='single')advices.push({icon:'🎯',text:'転勤・転職の可能性がある場合、賃貸の柔軟性が大きなメリット。購入後は売却に2〜3年かかる場合も。'});
   if(family==='family')advices.push({icon:'👶',text:'子育て期に自分の持ち家があると安定感が増します。学区・環境も含めた長期目線で検討を。'});
   if(period<15)advices.push({icon:'📅',text:'15年未満の居住では売却損が出やすい。短期なら賃貸が有利なケースが多いです。'});
-  advices.push({icon:'💰',text:'住宅ローン控除（13年間・最大455万円）や住宅取得等資金の非課税制度を活用すると実質コストがさらに下がります。'});
+  if(applyTaxDeduction&&taxDeductionTotal>0)advices.push({icon:'💰',text:'住宅ローン控除の効果（概算'+formatMoney(taxDeductionTotal)+'）を購入コストに反映しています。実際の控除額は所得税額等により異なります。'});
+  else advices.push({icon:'💰',text:'住宅ローン控除（13年間・最大455万円）を適用すると購入コストがさらに下がる可能性があります。'});
+  if(downpayPct<0.1)advices.push({icon:'🏦',text:'頭金が10%未満の場合、フラット35等で借入審査が厳しくなる場合があります。可能であれば10〜20%を目安に準備を。'});
 
   var al=document.getElementById('r-advice-list');al.innerHTML='';
   advices.forEach(function(a){
@@ -596,5 +709,9 @@ function reset(){
   <strong>免責事項</strong>：本ツールの計算・診断結果はあくまで参考情報です。本サービスの利用により生じた損害について、当サイトは一切の責任を負いません。
 </div>
 <div style="text-align:center;padding:8px;font-size:11px;"><a href="privacy-policy.html" style="color:inherit;font-size:11px;opacity:0.7;text-decoration:underline;">プライバシーポリシー</a></div>
+<div style="text-align:center;margin:24px auto;max-width:760px;padding:0 16px">
+<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
+</div>
 </body>
 </html>

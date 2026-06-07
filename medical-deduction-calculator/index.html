@@ -95,15 +95,18 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 
         /* シナリオタブ */
         .scenario-tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
-        .scenario-tab { padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px; background: white; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .2s; color: #666; }
+        .scenario-tab { padding: 8px 10px 8px 12px; border: 1px solid #e2e8f0; border-radius: 6px; background: white; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .2s; color: #666; position: relative; }
         .scenario-tab.active { border-color: #7c3aed; background: #7c3aed; color: white; }
+        .scenario-delete-btn { background: none; border: none; color: #a78bfa; font-size: 14px; cursor: pointer; padding: 0 4px; margin-left: 4px; transition: color .2s; }
+        .scenario-tab.active .scenario-delete-btn { color: #ddd6fe; }
+        .scenario-delete-btn:hover { color: #dc2626; }
 
         /* 視覚化要素（グラフバー） */
         .result-visual { margin: 16px 0; padding: 12px; background: #f8fafc; border-radius: 8px; }
-        .bar-item { margin-bottom: 10px; }
-        .bar-label { font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 4px; }
-        .bar-container { height: 20px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
-        .bar-fill { height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: 700; transition: width 0.4s ease; }
+        .bar-item { margin-bottom: 12px; }
+        .bar-label { font-size: 13px; font-weight: 600; color: #1f2937; margin-bottom: 6px; }
+        .bar-container { height: 24px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+        .bar-fill { height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: 700; transition: width 0.4s ease; }
         .bar-fill.low { background: #9ca3af; }
         .bar-fill.mid { background: #3b82f6; }
         .bar-fill.high { background: #10b981; }
@@ -111,9 +114,10 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 
         /* 税率早見表 */
         .tax-table { font-size: 12px; width: 100%; border-collapse: collapse; margin-top: 8px; background: #f8fafc; border-radius: 8px; overflow: hidden; }
-        .tax-table th, .tax-table td { padding: 6px 8px; text-align: center; border-bottom: 1px solid #e2e8f0; }
+        .tax-table th, .tax-table td { padding: 8px; text-align: center; border-bottom: 1px solid #e2e8f0; }
         .tax-table th { background: #f5f3ff; font-weight: 700; color: #7c3aed; }
         .tax-table tr.current { background: #fef3c7 !important; }
+        .tax-table tr.current td:nth-child(2), .tax-table tr.current td:nth-child(3) { background: #f0e6ff; }
         .tax-table .income-col { text-align: left; }
 
         @media (max-width: 480px) {
@@ -137,6 +141,17 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
+/* 不適格プログレスバー */
+.threshold-progress{margin-top:12px;}
+.threshold-progress-bar{height:10px;background:#fecaca;border-radius:5px;overflow:hidden;margin:4px 0;}
+.threshold-progress-fill{height:100%;background:#f97316;border-radius:5px;transition:width 0.5s ease;}
+/* コピーボタン */
+.copy-btn{background:none;border:1px solid #a78bfa;color:#7c3aed;padding:4px 12px;border-radius:6px;font-size:11px;cursor:pointer;margin-top:6px;font-family:inherit;}
+.copy-btn:hover{background:#f5f3ff;}
+/* シナリオインジケーター */
+.scenario-indicator{display:block;font-size:9px;font-weight:400;margin-top:1px;min-height:11px;line-height:1.2;color:#a78bfa;}
+.scenario-tab.active .scenario-indicator{color:#e0d7ff;}
+.scenario-tab.has-result:not(.active){border-color:#7c3aed;color:#7c3aed;}
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://appadaycreator.com/"},{"@type":"ListItem","position":2,"name":"計算機/お金","item":"https://appadaycreator.com/category/finance/"},{"@type":"ListItem","position":3,"name":"医療費控除計算ツール【無料】簡単・無料計算","item":"https://appadaycreator.com/medical-deduction-calculator/"}]}</script>
 </head>
@@ -173,9 +188,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div style="margin-bottom:14px;">
             <label style="font-size:12px;font-weight:600;color:#666;margin-bottom:6px;display:block;">📊 シナリオ比較（複数パターンを試行）</label>
             <div class="scenario-tabs" id="scenario-tabs">
-              <button class="scenario-tab active" data-scenario="1" onclick="switchScenario(1)">シナリオ1</button>
-              <button class="scenario-tab" data-scenario="2" onclick="switchScenario(2)">シナリオ2</button>
-              <button class="scenario-tab" data-scenario="3" onclick="switchScenario(3)">シナリオ3</button>
+              <button class="scenario-tab active" data-scenario="1" onclick="switchScenario(1)">シナリオ1<span class="scenario-indicator" id="indicator-1"></span><button class="scenario-delete-btn" onclick="deleteScenario(1, event)" title="このシナリオを削除">✕</button></button>
+              <button class="scenario-tab" data-scenario="2" onclick="switchScenario(2)">シナリオ2<span class="scenario-indicator" id="indicator-2"></span><button class="scenario-delete-btn" onclick="deleteScenario(2, event)" title="このシナリオを削除">✕</button></button>
+              <button class="scenario-tab" data-scenario="3" onclick="switchScenario(3)">シナリオ3<span class="scenario-indicator" id="indicator-3"></span><button class="scenario-delete-btn" onclick="deleteScenario(3, event)" title="このシナリオを削除">✕</button></button>
             </div>
             <small style="font-size:11px;color:#9ca3af;">複数パターンを入力して比較できます。結果は自動保存されます。</small>
           </div>
@@ -214,44 +229,77 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <!-- 結果エリア -->
           <div id="result" style="display:none;margin-top:20px;">
 
-            <!-- 控除対象外の場合 -->
-            <div id="result-not-eligible" style="display:none" class="not-eligible">
-              <div style="font-size:2rem;margin-bottom:8px;">😔</div>
-              <p style="font-weight:700;color:#dc2626;font-size:16px;margin-bottom:8px;">現時点では控除対象外です</p>
-              <p id="shortage-msg" style="font-size:13px;color:#666;line-height:1.7;"></p>
+            <!-- 一括比較ボタン -->
+            <div id="compare-button-area" style="display:none;margin-bottom:12px;text-align:center;">
+              <button class="btn" style="width:100%;background:#10b981;margin:0;" onclick="showComparison()">全シナリオを比較表示</button>
             </div>
 
-            <!-- 控除対象の場合 -->
-            <div id="result-eligible" style="display:none">
-              <!-- 合計還付額 -->
-              <div style="text-align:center;background:#f5f3ff;border-radius:12px;padding:20px 16px 16px;">
-                <div style="font-size:12px;color:#7c3aed;font-weight:600;margin-bottom:4px;letter-spacing:0.05em;">合計還付見込み額</div>
-                <div id="total-display" style="font-size:2.8rem;font-weight:700;color:#7c3aed;line-height:1.2;"></div>
-                <div style="font-size:11px;color:#a78bfa;margin-top:6px;">所得税還付 ＋ 住民税還付　｜　確定申告が必要です</div>
-              </div>
+            <!-- 単一シナリオの結果（デフォルト） -->
+            <div id="result-single" style="display:none;">
 
-              <!-- 還付額の視覚化（グラフバー） -->
-              <div class="result-visual" id="result-visual" style="display:none;">
-                <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:8px;">📊 還付額レベル</div>
-                <div class="bar-item">
-                  <div class="bar-label">所得税還付</div>
-                  <div class="bar-container"><div class="bar-fill" id="bar-income-tax" style="width:0%"></div></div>
-                </div>
-                <div class="bar-item">
-                  <div class="bar-label">住民税還付</div>
-                  <div class="bar-container"><div class="bar-fill" id="bar-resident-tax" style="width:0%"></div></div>
+              <!-- 控除対象外の場合 -->
+              <div id="result-not-eligible" style="display:none" class="not-eligible">
+                <div style="font-size:2rem;margin-bottom:8px;">😔</div>
+                <p style="font-weight:700;color:#dc2626;font-size:16px;margin-bottom:8px;">現時点では控除対象外です</p>
+                <p id="shortage-msg" style="font-size:13px;color:#666;line-height:1.7;"></p>
+                <div class="threshold-progress" id="threshold-progress" style="display:none;">
+                  <div style="font-size:11px;color:#92400e;font-weight:600;margin-bottom:4px;">申告基準まで達成中</div>
+                  <div class="threshold-progress-bar"><div class="threshold-progress-fill" id="threshold-progress-fill" style="width:0%"></div></div>
+                  <div id="threshold-progress-label" style="font-size:11px;color:#92400e;margin-top:3px;text-align:right;"></div>
                 </div>
               </div>
 
-              <!-- 計算内訳テーブル -->
-              <table class="breakdown-table" style="margin-top:16px;">
-                <tbody id="breakdown-body"></tbody>
+              <!-- 控除対象の場合 -->
+              <div id="result-eligible" style="display:none">
+                <!-- 合計還付額 -->
+                <div style="text-align:center;background:#f5f3ff;border-radius:12px;padding:20px 16px 16px;">
+                  <div style="font-size:12px;color:#7c3aed;font-weight:600;margin-bottom:4px;letter-spacing:0.05em;">合計還付見込み額</div>
+                  <div id="total-display" style="font-size:2.8rem;font-weight:700;color:#7c3aed;line-height:1.2;"></div>
+                  <div style="font-size:11px;color:#a78bfa;margin-top:6px;">所得税還付 ＋ 住民税還付　｜　確定申告が必要です</div>
+                  <button class="copy-btn" onclick="copyResults()">📋 結果をコピー</button>
+                </div>
+
+                <!-- 還付額の視覚化（グラフバー） -->
+                <div class="result-visual" id="result-visual" style="display:none;">
+                  <div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:8px;">📊 還付額レベル</div>
+                  <div class="bar-item">
+                    <div class="bar-label">所得税還付</div>
+                    <div class="bar-container"><div class="bar-fill" id="bar-income-tax" style="width:0%"></div></div>
+                  </div>
+                  <div class="bar-item">
+                    <div class="bar-label">住民税還付</div>
+                    <div class="bar-container"><div class="bar-fill" id="bar-resident-tax" style="width:0%"></div></div>
+                  </div>
+                </div>
+
+                <!-- 計算内訳テーブル -->
+                <table class="breakdown-table" style="margin-top:16px;">
+                  <tbody id="breakdown-body"></tbody>
+                </table>
+
+                <!-- 確定申告のヒント -->
+                <div style="margin-top:12px;background:#fef3c7;border:2px solid #fcd34d;border-radius:8px;padding:12px 16px;font-size:13px;color:#92400e;line-height:1.7;">
+                  <strong>⚠️ 確定申告が必要です</strong>：医療費控除の明細書（領収書・医療機関ごとの合計）と源泉徴収票をご準備ください。還付申告は<strong>5年間</strong>さかのぼって申告可能です。
+                </div>
+              </div>
+            </div>
+
+            <!-- 複数シナリオの並列比較 -->
+            <div id="result-comparison" style="display:none;">
+              <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:12px;">📊 全3シナリオ 還付額比較</div>
+              <table style="width:100%;border-collapse:collapse;font-size:12px;background:#f8fafc;border-radius:8px;overflow:hidden;margin-bottom:12px;">
+                <thead>
+                  <tr style="background:#e0e7ff;">
+                    <th style="padding:10px;text-align:left;font-weight:700;color:#7c3aed;">項目</th>
+                    <th style="padding:10px;text-align:center;font-weight:700;color:#7c3aed;">シナリオ1</th>
+                    <th style="padding:10px;text-align:center;font-weight:700;color:#7c3aed;">シナリオ2</th>
+                    <th style="padding:10px;text-align:center;font-weight:700;color:#7c3aed;">シナリオ3</th>
+                  </tr>
+                </thead>
+                <tbody id="comparison-body">
+                </tbody>
               </table>
-
-              <!-- 確定申告のヒント -->
-              <div style="margin-top:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;font-size:12px;color:#166534;line-height:1.7;">
-                📋 <strong>確定申告の準備</strong>：医療費控除の明細書（領収書・医療機関ごとの合計）と源泉徴収票をご準備ください。還付申告は<strong>5年間</strong>さかのぼって申告可能です。
-              </div>
+              <button class="btn-reset" style="width:100%;margin-bottom:12px;" onclick="hiddenComparison()">単一シナリオに戻す</button>
             </div>
 
           </div>
@@ -286,7 +334,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="card" style="margin-top:8px;">
             <h2 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#374151;">💰 年収別・所得税率早見表</h2>
             <p style="font-size:12px;color:#6b7280;margin-bottom:10px;">あなたの年収帯に対応する限界税率を確認できます。医療費控除による還付額の参考にしてください。</p>
-            <table class="tax-table">
+            <table class="tax-table" id="tax-rate-table">
               <thead>
                 <tr>
                   <th class="income-col">年収（万円）</th>
@@ -295,32 +343,32 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
                 </tr>
               </thead>
               <tbody>
-                <tr>
+                <tr data-min="0" data-max="195">
                   <td class="income-col">〜195万</td>
                   <td>5%</td>
                   <td>500円</td>
                 </tr>
-                <tr>
+                <tr data-min="195" data-max="330">
                   <td class="income-col">195〜330万</td>
                   <td>10%</td>
                   <td>1,000円</td>
                 </tr>
-                <tr>
+                <tr data-min="330" data-max="695">
                   <td class="income-col">330〜695万</td>
                   <td>20%</td>
                   <td>2,000円</td>
                 </tr>
-                <tr>
+                <tr data-min="695" data-max="900">
                   <td class="income-col">695〜900万</td>
                   <td>23%</td>
                   <td>2,300円</td>
                 </tr>
-                <tr>
+                <tr data-min="900" data-max="1800">
                   <td class="income-col">900〜1800万</td>
                   <td>33%</td>
                   <td>3,300円</td>
                 </tr>
-                <tr>
+                <tr data-min="1800" data-max="999999">
                   <td class="income-col">1800万〜</td>
                   <td>40%+</td>
                   <td>4,000円+</td>
@@ -390,6 +438,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     var currentTab = 'normal';
     var currentScenario = 1;
     var scenarios = { 1: {}, 2: {}, 3: {} };
+    var scenarioResults = { 1: null, 2: null, 3: null };
 
     // タブ切替
     function switchTab(tab, btn) {
@@ -415,6 +464,24 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       });
       document.querySelector('[data-scenario="' + num + '"]').classList.add('active');
       document.getElementById('result').style.display = 'none';
+      document.getElementById('result-comparison').style.display = 'none';
+      document.getElementById('compare-button-area').style.display = 'none';
+    }
+
+    // シナリオ削除
+    function deleteScenario(num, event) {
+      event.stopPropagation();
+      scenarios[num] = {};
+      scenarioResults[num] = null;
+      try {
+        localStorage.setItem('medicalDeductionScenarios', JSON.stringify(scenarios));
+      } catch (e) {}
+      updateScenarioTabIndicators();
+      if (currentScenario === num) {
+        var nextScenario = currentScenario === 1 ? 2 : 1;
+        switchScenario(nextScenario);
+      }
+      showToast('シナリオ' + num + 'をリセットしました');
     }
 
     // シナリオデータ保存
@@ -450,7 +517,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       var val = parseFloat(elem.value) || 0;
       if (val > 1000) {
         elem.value = Math.floor(val / 10000);
-        showToast('年収を万円単位に自動変換しました');
+        setTimeout(function() {
+          showToast('年収を万円単位に自動変換しました');
+        }, 200);
       }
     }
 
@@ -538,6 +607,122 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       return Math.floor(n).toLocaleString() + '円';
     }
 
+    // 税率表をハイライト
+    function highlightTaxRate(incomeWan) {
+      var rows = document.querySelectorAll('#tax-rate-table tbody tr');
+      rows.forEach(function(row) {
+        row.classList.remove('current');
+        row.style.background = '';
+      });
+      rows.forEach(function(row) {
+        var min = parseInt(row.getAttribute('data-min')) || 0;
+        var max = parseInt(row.getAttribute('data-max')) || 999999;
+        if (incomeWan >= min && incomeWan < max) {
+          row.classList.add('current');
+        }
+      });
+    }
+
+    // 複数シナリオ比較表を表示
+    function showComparison() {
+      var hasAnyResult = scenarioResults[1] || scenarioResults[2] || scenarioResults[3];
+      if (!hasAnyResult) {
+        showToast('最低1つのシナリオで計算してください');
+        return;
+      }
+      document.getElementById('result-single').style.display = 'none';
+      document.getElementById('result-comparison').style.display = '';
+
+      // 最高還付シナリオを特定
+      var maxTotal = -1, bestScenario = 0;
+      [1,2,3].forEach(function(i) {
+        if (scenarioResults[i] && scenarioResults[i].total > maxTotal) {
+          maxTotal = scenarioResults[i].total;
+          bestScenario = i;
+        }
+      });
+
+      var tbody = document.getElementById('comparison-body');
+      tbody.innerHTML = '';
+
+      tbody.appendChild(makeComparisonRow('制度種別', [
+        scenarioResults[1] ? (scenarioResults[1].type === 'otc' ? 'OTC特例' : '通常') : '−',
+        scenarioResults[2] ? (scenarioResults[2].type === 'otc' ? 'OTC特例' : '通常') : '−',
+        scenarioResults[3] ? (scenarioResults[3].type === 'otc' ? 'OTC特例' : '通常') : '−'
+      ], null));
+
+      tbody.appendChild(makeComparisonRow('医療費/OTC額', [
+        scenarioResults[1] ? scenarioResults[1].inputAmount : '−',
+        scenarioResults[2] ? scenarioResults[2].inputAmount : '−',
+        scenarioResults[3] ? scenarioResults[3].inputAmount : '−'
+      ], null));
+
+      tbody.appendChild(makeComparisonRow('年収', [
+        scenarioResults[1] ? scenarioResults[1].inputIncome + '万円' : '−',
+        scenarioResults[2] ? scenarioResults[2].inputIncome + '万円' : '−',
+        scenarioResults[3] ? scenarioResults[3].inputIncome + '万円' : '−'
+      ], null));
+
+      tbody.appendChild(makeComparisonRow('所得税率（限界）', [
+        scenarioResults[1] ? (scenarioResults[1].taxRate * 100) + '%' : '−',
+        scenarioResults[2] ? (scenarioResults[2].taxRate * 100) + '%' : '−',
+        scenarioResults[3] ? (scenarioResults[3].taxRate * 100) + '%' : '−'
+      ], null));
+
+      tbody.appendChild(makeComparisonRow('所得税還付', [
+        scenarioResults[1]?.incomeTax || '−',
+        scenarioResults[2]?.incomeTax || '−',
+        scenarioResults[3]?.incomeTax || '−'
+      ], null));
+
+      tbody.appendChild(makeComparisonRow('住民税還付', [
+        scenarioResults[1]?.residentTax || '−',
+        scenarioResults[2]?.residentTax || '−',
+        scenarioResults[3]?.residentTax || '−'
+      ], null));
+
+      tbody.appendChild(makeComparisonRow('合計還付見込み', [
+        scenarioResults[1]?.total || '−',
+        scenarioResults[2]?.total || '−',
+        scenarioResults[3]?.total || '−'
+      ], bestScenario));
+    }
+
+    // 単一シナリオに戻す
+    function hiddenComparison() {
+      document.getElementById('result-comparison').style.display = 'none';
+      document.getElementById('result-single').style.display = '';
+    }
+
+    // 比較表行生成（bestCol: 1-indexed でハイライトする列番号、null=なし）
+    function makeComparisonRow(label, values, bestCol) {
+      var tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid #e2e8f0';
+      var td = document.createElement('td');
+      td.style.padding = '10px';
+      td.style.fontWeight = '600';
+      td.style.color = '#374151';
+      td.textContent = label;
+      tr.appendChild(td);
+      values.forEach(function(val, idx) {
+        var td = document.createElement('td');
+        td.style.padding = '10px';
+        td.style.textAlign = 'center';
+        td.style.fontWeight = '600';
+        td.style.color = '#7c3aed';
+        var isBest = bestCol && bestCol === idx + 1 && typeof val === 'number';
+        if (isBest) {
+          td.style.background = '#fef9c3';
+          td.style.color = '#d97706';
+          td.textContent = '🏆 ' + yen(val);
+        } else {
+          td.textContent = (typeof val === 'number') ? yen(val) : val;
+        }
+        tr.appendChild(td);
+      });
+      return tr;
+    }
+
     // ブレークダウン行を生成
     function makeRow(label, value, cls) {
       var tr = document.createElement('tr');
@@ -570,11 +755,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
       if (deductible <= 0) {
         var shortage = Math.ceil(threshold - netMedical);
+        document.getElementById('result-single').style.display = '';
         document.getElementById('result-not-eligible').style.display = '';
         document.getElementById('result-eligible').style.display = 'none';
         document.getElementById('shortage-msg').innerHTML =
           '控除閾値（' + yen(threshold) + '）に対して、医療費の純額（' + yen(netMedical) + '）が不足しています。<br>' +
           'あと <strong>' + yen(shortage) + '</strong> の医療費で控除対象になります。';
+        renderNotEligibleProgress(netMedical, threshold);
+        scenarioResults[currentScenario] = null;
+        document.getElementById('compare-button-area').style.display = 'none';
         return;
       }
 
@@ -586,9 +775,28 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       var residentTaxRefund = Math.floor(cappedDeductible * 0.10);
       var total = incomeTaxRefund + residentTaxRefund;
 
+      // シナリオ結果を保存
+      scenarioResults[currentScenario] = {
+        total: total,
+        incomeTax: incomeTaxRefund,
+        residentTax: residentTaxRefund,
+        type: 'normal',
+        inputAmount: medical,
+        inputIncome: incomeWan,
+        taxRate: marginalRate
+      };
+
       document.getElementById('result-not-eligible').style.display = 'none';
       document.getElementById('result-eligible').style.display = '';
+      document.getElementById('result-single').style.display = '';
       document.getElementById('total-display').textContent = yen(total);
+
+      // 税率ハイライト
+      highlightTaxRate(incomeWan);
+
+      // 複数シナリオ結果があれば比較ボタン表示
+      var hasMultipleResults = [scenarioResults[1], scenarioResults[2], scenarioResults[3]].filter(Boolean).length >= 2;
+      document.getElementById('compare-button-area').style.display = hasMultipleResults ? '' : 'none';
 
       // ビジュアル化を表示
       renderVisualBars(incomeTaxRefund, residentTaxRefund);
@@ -626,12 +834,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('result').style.display = '';
 
       if (deductible <= 0) {
+        document.getElementById('result-single').style.display = '';
         document.getElementById('result-not-eligible').style.display = '';
         document.getElementById('result-eligible').style.display = 'none';
         var shortage = Math.ceil(12000 - otcAmount);
         document.getElementById('shortage-msg').innerHTML =
           'セルフメディケーション税制の控除閾値（12,000円）に達していません。<br>' +
           'あと <strong>' + yen(shortage) + '</strong> のOTC医薬品購入で控除対象になります。';
+        renderNotEligibleProgress(otcAmount, 12000);
+        scenarioResults[currentScenario] = null;
+        document.getElementById('compare-button-area').style.display = 'none';
         return;
       }
 
@@ -641,9 +853,28 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       var residentTaxRefund = Math.floor(deductible * 0.10);
       var total = incomeTaxRefund + residentTaxRefund;
 
+      // シナリオ結果を保存
+      scenarioResults[currentScenario] = {
+        total: total,
+        incomeTax: incomeTaxRefund,
+        residentTax: residentTaxRefund,
+        type: 'otc',
+        inputAmount: otcAmount,
+        inputIncome: incomeWan,
+        taxRate: marginalRate
+      };
+
       document.getElementById('result-not-eligible').style.display = 'none';
       document.getElementById('result-eligible').style.display = '';
+      document.getElementById('result-single').style.display = '';
       document.getElementById('total-display').textContent = yen(total);
+
+      // 税率ハイライト
+      highlightTaxRate(incomeWan);
+
+      // 複数シナリオ結果があれば比較ボタン表示
+      var hasMultipleResults = [scenarioResults[1], scenarioResults[2], scenarioResults[3]].filter(Boolean).length >= 2;
+      document.getElementById('compare-button-area').style.display = hasMultipleResults ? '' : 'none';
 
       // ビジュアル化を表示
       renderVisualBars(incomeTaxRefund, residentTaxRefund);
@@ -669,11 +900,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         calcOTC();
       }
       saveScenarioData(currentScenario);
-      // 結果エリアにスクロール
+      updateScenarioTabIndicators();
+      // 結果エリアにスクロール・フォーカス
       setTimeout(function() {
         var el = document.getElementById('result');
         if (el && el.style.display !== 'none') {
           el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          el.focus({ preventScroll: true });
         }
       }, 50);
     }
@@ -685,7 +918,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         if (el) el.value = '';
       });
       document.getElementById('result').style.display = 'none';
+      document.getElementById('result-comparison').style.display = 'none';
+      document.getElementById('compare-button-area').style.display = 'none';
+      scenarioResults[currentScenario] = null;
       localStorage.removeItem('medicalDeductionData');
+      // 税率表ハイライトをクリア
+      document.querySelectorAll('#tax-rate-table tbody tr').forEach(function(row) {
+        row.classList.remove('current');
+        row.style.background = '';
+      });
     }
 
     // localStorage 保存
@@ -719,6 +960,67 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           switchTab('otc', document.getElementById('tab-otc-btn'));
         }
       } catch (e) {}
+    }
+
+    // 不適格時のプログレスバー描画
+    function renderNotEligibleProgress(current, threshold) {
+      var container = document.getElementById('threshold-progress');
+      var fill = document.getElementById('threshold-progress-fill');
+      var label = document.getElementById('threshold-progress-label');
+      if (!container || !fill || !label || threshold <= 0) {
+        if (container) container.style.display = 'none';
+        return;
+      }
+      var pct = Math.min(Math.round((current / threshold) * 100), 99);
+      fill.style.width = pct + '%';
+      label.textContent = pct + '% 達成 ／ あと ' + yen(threshold - current) + ' 不足';
+      container.style.display = '';
+    }
+
+    // 計算結果をクリップボードにコピー
+    function copyResults() {
+      var totalEl = document.getElementById('total-display');
+      if (!totalEl || !totalEl.textContent) {
+        showToast('計算結果がありません');
+        return;
+      }
+      var text = '医療費控除 還付見込み額: ' + totalEl.textContent +
+        '\n詳細は https://appadaycreator.com/medical-deduction-calculator/ で確認';
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function() {
+          showToast('📋 クリップボードにコピーしました');
+        }).catch(function() {
+          fallbackCopy(text);
+        });
+      } else {
+        fallbackCopy(text);
+      }
+    }
+
+    function fallbackCopy(text) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); showToast('📋 コピーしました'); } catch(e) {}
+      ta.remove();
+    }
+
+    // シナリオタブに計算済みインジケーターを更新
+    function updateScenarioTabIndicators() {
+      [1, 2, 3].forEach(function(i) {
+        var tab = document.querySelector('[data-scenario="' + i + '"]');
+        var indicator = document.getElementById('indicator-' + i);
+        if (!tab || !indicator) return;
+        if (scenarioResults[i]) {
+          indicator.textContent = yen(scenarioResults[i].total);
+          tab.classList.add('has-result');
+        } else {
+          indicator.textContent = '';
+          tab.classList.remove('has-result');
+        }
+      });
     }
 
     // 初期化とイベント設定

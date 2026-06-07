@@ -274,7 +274,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. プライバシーは守られますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">入力された健康情報はサーバーに送信・保存されません。すべてお使いのブラウザ上で処理されます。</p>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">入力されたスマホ利用状況・料金情報はサーバーに送信・保存されません。すべてお使いのブラウザ上で処理されます。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. このサービスは無料で使えますか？ <span>▼</span></summary>
@@ -334,40 +334,79 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     let currentStep = 0;
     let answers = {};
 
-    const recommendations = {
-      cheap_low: { name: 'IIJmio / mineo', price: '850〜1,518円', saving: 5000, reason: '少ないデータ量で徹底的にコストを下げるなら最安クラスの格安SIM。品質も安定。' },
-      cheap_mid: { name: 'IIJmio / 楽天モバイル', price: '1,518〜2,178円', saving: 4000, reason: '中容量かつ格安で使いたいならIIJmioの15GBプランか楽天モバイルが最適解。' },
-      quality_mid: { name: 'povo2.0 / UQモバイル', price: '2,728〜3,278円', saving: 3500, reason: 'au回線の品質を保ちながら大幅にコストダウン。品質と価格のバランスが最高。' },
-      quality_high: { name: 'ahamo / LINEMO / povo', price: '2,970〜3,278円', saving: 4000, reason: '大手キャリアのサブブランドで品質を維持しつつ月額を大幅削減できる。' },
-      unlimited: { name: '楽天モバイル / ahamo', price: '3,278〜2,970円', saving: 5000, reason: 'データ無制限なら楽天モバイル（3,278円/月）が最安。ahamoも大容量で人気。' }
-    };
-
+    // キャリア・データ量・優先事項・端末を全て考慮した推薦ロジック
     function getRecommendation() {
+      const carrier = answers.carrier;
       const data = answers.data;
       const priority = answers.priority;
-      if (data === '無制限が必要') return recommendations.unlimited;
-      if (priority === 'とにかく安さ重視' && data === '3GB以下') return recommendations.cheap_low;
-      if (priority === 'とにかく安さ重視') return recommendations.cheap_mid;
-      if (priority === '通話品質・つながりやすさ' || priority === 'サポートの手厚さ') return recommendations.quality_mid;
-      return recommendations.quality_high;
+
+      // 既に格安SIM/楽天ユーザーは特別処理
+      if (carrier === '格安SIM（MVNO）' || carrier === '楽天モバイル') return null;
+
+      // 無制限が必要
+      if (data === '無制限が必要') {
+        if (carrier === 'docomo') return { name: 'ahamo', price: '2,970円', targetFee: 2970, reason: 'ドコモ回線品質を保ちながら20GBが2,970円。5G対応で大容量ならコスパ最強。' };
+        if (carrier === 'au') return { name: 'povo2.0 / UQモバイル', price: '2,728〜3,278円', targetFee: 3000, reason: 'au回線品質を維持しながら大容量を格安で。povo2.0はトッピングで柔軟にカスタム可能。' };
+        if (carrier === 'softbank') return { name: 'LINEMO', price: '3,278円', targetFee: 3278, reason: 'ソフトバンク回線でLINEギガノーカウント。大容量プランも充実しており乗り換えが容易。' };
+        return { name: '楽天モバイル / ahamo', price: '2,970〜3,278円', targetFee: 3100, reason: 'データ無制限なら楽天モバイル（3,278円）が最安。ahamoは20GBで速度も安定。' };
+      }
+
+      // とにかく安さ重視
+      if (priority === 'とにかく安さ重視') {
+        if (data === '3GB以下') return { name: 'IIJmio / mineo', price: '850〜1,518円', targetFee: 1200, reason: '3GB以下の少量プランなら格安SIMが最強。IIJmioの2GBは850円から。品質も安定。' };
+        return { name: 'IIJmio / 楽天モバイル', price: '1,518〜2,178円', targetFee: 1800, reason: '中容量かつ格安ならIIJmio 15GBプランか楽天モバイルが最適。月2,000円以下も十分狙える。' };
+      }
+
+      // 通話品質・サポート重視
+      if (priority === '通話品質・つながりやすさ' || priority === 'サポートの手厚さ') {
+        if (carrier === 'docomo') return { name: 'ahamo / IIJmio（ドコモ回線）', price: '2,178〜2,970円', targetFee: 2500, reason: 'ドコモ回線をそのまま利用できるahamoやIIJmioで品質を維持しながらコスト削減。' };
+        if (carrier === 'au') return { name: 'UQモバイル', price: '2,178〜3,278円', targetFee: 2700, reason: 'au回線のUQモバイルは実店舗サポートあり。品質と安心感を両立できる最適解。' };
+        if (carrier === 'softbank') return { name: 'ワイモバイル / LINEMO', price: '2,178〜3,278円', targetFee: 2700, reason: 'ソフトバンク系のワイモバイルは店舗サポートが充実。LINEMOもSB回線で安心。' };
+        return { name: 'UQモバイル / ワイモバイル', price: '2,178〜3,278円', targetFee: 2700, reason: '大手キャリア系サブブランドで品質と安心のサポートを確保。実店舗での相談も可。' };
+      }
+
+      // セット割・家族割重視
+      if (priority === 'セット割・家族割') {
+        if (carrier === 'docomo') return { name: 'ahamo（家族で乗り換え）', price: '2,970円/人', targetFee: 3000, reason: '家族全員でahamo乗り換えが最もシンプルでお得。ドコモ回線品質を維持したままコストを大幅削減。' };
+        if (carrier === 'au') return { name: 'UQモバイル（家族割）', price: '1,628円〜（2回線目から）', targetFee: 2000, reason: 'UQモバイルの家族割は大幅割引。au光とのセット割も可能で固定費込みで最安水準。' };
+        if (carrier === 'softbank') return { name: 'ワイモバイル（家族割）', price: '1,078円〜（2回線目から）', targetFee: 1500, reason: 'ワイモバイルの家族割は業界最強クラス。SoftBank光とのセット割で固定費も削減。' };
+        return { name: 'UQモバイル / ワイモバイル', price: '1,628〜3,278円', targetFee: 2500, reason: 'セット割・家族割を最大化するならUQモバイルまたはワイモバイルが最もお得。' };
+      }
+
+      // 通信速度・快適さ重視（デフォルト）
+      if (carrier === 'docomo') return { name: 'ahamo', price: '2,970円', targetFee: 2970, reason: 'ドコモ回線そのままで高速5G対応。20GBが2,970円でコスパ最高。SIMのみ契約で即移行できる。' };
+      if (carrier === 'au') return { name: 'povo2.0 / UQモバイル', price: '2,728〜3,278円', targetFee: 3000, reason: 'au回線の高速通信をサブブランドで継続。povo2.0はトッピングで柔軟にデータ追加が可能。' };
+      if (carrier === 'softbank') return { name: 'LINEMO', price: '3,278円', targetFee: 3278, reason: 'ソフトバンク回線で快適な速度を維持しながら大幅コストダウン。LINEギガもノーカウント。' };
+      return { name: 'ahamo / LINEMO / povo', price: '2,970〜3,278円', targetFee: 3100, reason: '大手キャリアのサブブランドは回線品質を維持しながら月額を大幅削減できる最適解。' };
     }
 
     function renderQuestion() {
       const q = questions[currentStep];
+      const isLast = currentStep === questions.length - 1;
       document.getElementById('step-label').textContent = `質問 ${currentStep + 1} / ${questions.length}`;
       document.getElementById('progress-bar').style.width = `${((currentStep + 1) / questions.length) * 100}%`;
       document.getElementById('prev-btn').classList.toggle('hidden', currentStep === 0);
-      document.getElementById('next-btn').textContent = currentStep === questions.length - 1 ? '診断する' : '次へ';
+      document.getElementById('next-btn').textContent = isLast ? '診断する' : '次へ';
 
-      let html = `<p class="font-semibold text-gray-800 mb-4">${q.text}</p><div class="space-y-2">`;
+      let html = `<p class="font-semibold text-gray-800 mb-4">${q.text}</p>`;
+      if (!isLast) html += `<p class="text-xs text-blue-500 mb-3">選択すると自動で次へ進みます</p>`;
+      html += `<div class="space-y-2">`;
       q.options.forEach(opt => {
         const checked = answers[q.id] === opt ? 'checked' : '';
         html += `<label class="flex items-center gap-3 p-3 border border-gray-200 rounded-xl cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
-          <input type="radio" name="${q.id}" value="${opt}" ${checked} class="accent-blue-600" aria-label="入力フォーム"> <span class="text-sm">${opt}</span>
+          <input type="radio" name="${q.id}" value="${opt}" ${checked} class="accent-blue-600" aria-label="${opt}" onchange="onRadioChange(this)"> <span class="text-sm">${opt}</span>
         </label>`;
       });
       html += '</div>';
       document.getElementById('question-area').innerHTML = html;
+    }
+
+    // 選択時に自動進行（最終問以外）
+    function onRadioChange(el) {
+      answers[questions[currentStep].id] = el.value;
+      if (currentStep < questions.length - 1) {
+        setTimeout(() => { currentStep++; renderQuestion(); }, 280);
+      }
     }
 
     function saveAnswer() {
@@ -391,37 +430,89 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('quiz-section').classList.add('hidden');
       document.getElementById('result-section').classList.remove('hidden');
 
-      const rec = getRecommendation();
-      const feeMap = { '5,000円以下': 4000, '5,000〜8,000円': 6500, '8,000〜12,000円': 10000, '12,000円以上': 14000 };
-      const currentFee = feeMap[answers.fee] || 8000;
-      const newFee = currentFee - rec.saving;
+      const carrier = answers.carrier;
+      const isAlreadyCheap = carrier === '格安SIM（MVNO）' || carrier === '楽天モバイル';
 
-      document.getElementById('result-content').innerHTML = `
-        <div class="bg-blue-50 border-l-4 border-blue-500 rounded-xl p-4 mb-4">
-          <p class="text-sm text-blue-800 font-semibold mb-1">おすすめプラン</p>
-          <p class="text-2xl font-bold text-blue-700">${rec.name}</p>
-          <p class="text-sm text-gray-600 mt-1">月額目安：<strong>${rec.price}</strong></p>
-        </div>
-        <div class="grid grid-cols-3 gap-2 mb-4 text-center">
-          <div class="bg-red-50 rounded-xl p-3">
-            <p class="text-xs text-gray-500">現在の料金</p>
-            <p class="text-lg font-bold text-red-600">${currentFee.toLocaleString()}円</p>
+      if (isAlreadyCheap) {
+        // 格安SIM既存ユーザー向け特別メッセージ
+        const cheapTips = carrier === '楽天モバイル'
+          ? [
+              '📶 楽天エリア外が多い場合はpovo2.0やIIJmioへの乗り換えで安定度アップ',
+              '💡 データ使用量が3GB以下なら他社格安SIMのほうがさらに安くなる可能性あり',
+              '📱 楽天ポイントをスマホ代に充当して実質0円を目指す方法も',
+            ]
+          : [
+              '🔄 現在のMVNOより速い回線を求めるなら大手サブブランド（ahamo・LINEMO・povo）も比較を',
+              '💡 家族割・セット割なら格安SIMよりUQモバイル・ワイモバイルがお得な場合も',
+              '📊 データ使用量が増えたら大容量プランへの見直しタイミングかも',
+            ];
+        document.getElementById('result-content').innerHTML = `
+          <div class="bg-green-50 border-l-4 border-green-500 rounded-xl p-4 mb-4">
+            <p class="text-sm text-green-800 font-semibold mb-1">✅ あなたは既に節約上手！</p>
+            <p class="text-base font-bold text-green-700">${carrier}をご利用中</p>
+            <p class="text-sm text-gray-600 mt-1">現在の料金帯：<strong>${answers.fee}</strong></p>
           </div>
-          <div class="flex items-center justify-center">
-            <span class="text-2xl text-gray-400">→</span>
+          <div class="bg-blue-50 rounded-xl p-4 mb-4">
+            <p class="text-sm font-semibold text-blue-800 mb-3">さらに最適化するポイント</p>
+            <ul class="space-y-2">
+              ${cheapTips.map(t => `<li class="text-sm text-gray-700">${t}</li>`).join('')}
+            </ul>
           </div>
-          <div class="bg-green-50 rounded-xl p-3">
-            <p class="text-xs text-gray-500">乗り換え後</p>
-            <p class="text-lg font-bold text-green-600">約${Math.max(newFee, 1000).toLocaleString()}円</p>
+          <div class="bg-gray-50 rounded-xl p-4">
+            <p class="text-sm font-semibold text-gray-700 mb-1">端末について</p>
+            <p class="text-sm text-gray-600">${
+              answers.device === '新しいスマホも同時購入したい'
+                ? 'SIMフリー端末との組み合わせでさらにコストを抑えられます。中古SIMフリー端末も選択肢に加えてみましょう。'
+                : answers.device === '自分でスマホを用意する（中古等）'
+                ? '中古端末はSIMロック解除済みか必ず確認を。SIMフリー端末なら格安SIMとの相性も抜群です。'
+                : '現在の端末をそのまま使うのが最もコスト効率が高い選択です。SIMロック解除が必要な場合は手続きを。'
+            }</p>
+          </div>`;
+      } else {
+        const rec = getRecommendation();
+        const feeMap = { '5,000円以下': 4000, '5,000〜8,000円': 6500, '8,000〜12,000円': 10000, '12,000円以上': 14000 };
+        const currentFee = feeMap[answers.fee] || 8000;
+        const targetFee = rec.targetFee;
+        const saving = Math.max(currentFee - targetFee, 0);
+
+        const deviceNote = answers.device === '新しいスマホも同時購入したい'
+          ? '<p class="text-xs text-orange-700 mt-2">※ 端末代は別途。SIMフリー端末との同時契約でさらにお得なキャンペーンも多数。</p>'
+          : answers.device === '自分でスマホを用意する（中古等）'
+          ? '<p class="text-xs text-blue-700 mt-2">※ 中古端末はSIMロック解除済みか確認を。SIMフリー端末ならどのキャリアのSIMでも利用可能。</p>'
+          : '';
+
+        document.getElementById('result-content').innerHTML = `
+          <div class="bg-blue-50 border-l-4 border-blue-500 rounded-xl p-4 mb-4">
+            <p class="text-sm text-blue-800 font-semibold mb-1">おすすめプラン</p>
+            <p class="text-2xl font-bold text-blue-700">${rec.name}</p>
+            <p class="text-sm text-gray-600 mt-1">月額目安：<strong>${rec.price}</strong></p>
+            ${deviceNote}
           </div>
-        </div>
-        <div class="bg-green-100 rounded-xl p-3 mb-4 text-center">
-          <p class="text-sm text-green-800">月額節約額：<strong class="text-xl">約${rec.saving.toLocaleString()}円</strong> ／ 年間<strong class="text-xl">約${(rec.saving * 12).toLocaleString()}円</strong>の節約</p>
-        </div>
-        <div class="bg-gray-50 rounded-xl p-4">
-          <p class="text-sm font-semibold text-gray-700 mb-1">選んだ理由</p>
-          <p class="text-sm text-gray-600">${rec.reason}</p>
-        </div>`;
+          <div class="grid grid-cols-3 gap-2 mb-4 text-center">
+            <div class="bg-red-50 rounded-xl p-3">
+              <p class="text-xs text-gray-500">現在の料金</p>
+              <p class="text-lg font-bold text-red-600">${currentFee.toLocaleString()}円</p>
+            </div>
+            <div class="flex items-center justify-center">
+              <span class="text-2xl text-gray-400">→</span>
+            </div>
+            <div class="bg-green-50 rounded-xl p-3">
+              <p class="text-xs text-gray-500">乗り換え後</p>
+              <p class="text-lg font-bold text-green-600">約${targetFee.toLocaleString()}円</p>
+            </div>
+          </div>
+          ${saving > 0 ? `
+          <div class="bg-green-100 rounded-xl p-3 mb-4 text-center">
+            <p class="text-sm text-green-800">月額節約額：<strong class="text-xl">約${saving.toLocaleString()}円</strong> ／ 年間<strong class="text-xl">約${(saving * 12).toLocaleString()}円</strong>の節約</p>
+          </div>` : `
+          <div class="bg-blue-100 rounded-xl p-3 mb-4 text-center">
+            <p class="text-sm text-blue-800">すでに最適な料金帯です。プランの内容をさらに充実させましょう。</p>
+          </div>`}
+          <div class="bg-gray-50 rounded-xl p-4">
+            <p class="text-sm font-semibold text-gray-700 mb-1">選んだ理由</p>
+            <p class="text-sm text-gray-600">${rec.reason}</p>
+          </div>`;
+      }
     }
 
     function resetQuiz() {
@@ -487,21 +578,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       </a>
     </div>
 <!-- phase10-rakuten-updated -->
-
-<!-- AF_PLACEHOLDER: ワイモバイル (No.134) - リンク未取得 -->
-<!-- A8アフィリエイト: ウイルスバスター -->
-<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px;margin:10px 0;">
-  <p style="font-size:13px;font-weight:700;color:#991b1b;margin:0 0 8px;">🛡️ 販売本数No.1セキュリティソフト</p>
-  <p style="font-size:12px;color:#374151;margin:0 0 8px;">ウイルスバスター。PC・スマホ・タブレットを守る総合セキュリティ。トレンドマイクロ公式。</p>
-  
-</div>
-<!-- /A8アフィリエイト: ウイルスバスター -->
-
-<!-- a8-xserver-af -->
-<div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:12px;margin:12px auto;max-width:480px;text-align:center;"><p style="font-size:0.78em;color:#1e40af;font-weight:bold;margin-bottom:6px;">🌐 Webサイトを始めるなら</p></div>
-
-<!-- a8-hapitas-af -->
-<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:12px;margin:12px auto;max-width:480px;text-align:center;"><p style="font-size:0.78em;color:#92400e;font-weight:bold;margin-bottom:6px;">💰 ポイントで賢く節約</p></div>
 
 <div style="border-top:1px solid #e5e7eb;padding:14px 16px 18px;background:#fff;">
   <p style="text-align:center;font-size:11px;font-weight:600;color:#94a3b8;margin:0 0 10px;">スポンサーリンク</p>

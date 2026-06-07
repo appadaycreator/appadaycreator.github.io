@@ -28,6 +28,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
 <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode.js/1.5.3/qrcode.min.js"></script>
 <style>
   body { background: #f8fafc; min-height: 100vh; }
   .card { background: white; border-radius: 1rem; box-shadow: 0 4px 24px rgba(0,0,0,0.09); }
@@ -206,6 +207,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="card p-6">
       <h2 class="text-lg font-bold text-gray-800 mb-5" id="q-text"></h2>
       <div id="opts"></div>
+      <div class="mt-4">
+        <button id="btn-back" onclick="goBack()" style="display:none;background:none;border:1px solid #d1d5db;border-radius:8px;padding:8px 16px;font-size:13px;color:#6b7280;cursor:pointer;">← 前の質問へ</button>
+      </div>
     </div>
   </div>
 
@@ -215,16 +219,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="text-gray-500 text-sm">最適なフードを探しています</div>
   </div>
 
-  
-    <div class="card p-6 mb-4">
-      <h2 class="font-bold text-gray-800 mb-3">💡 使用例</h2>
-      <ul class="text-sm text-gray-700 space-y-2">
-        <li>• 複数の選択肢から最適なものを選びたい場合</li>
-        <li>• 意思決定に客観的な基準が欲しい場合</li>
-        <li>• プロフェッショナルなアドバイスが必要な場合</li>
-        <li>• 予算やニーズに合わせた提案を受けたい場合</li>
-      </ul>
-    </div>
 <div id="screen-results" class="screen">
     <div class="text-center mb-6">
       <div class="text-5xl mb-3">🏆</div>
@@ -236,11 +230,29 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="text-xl font-bold text-lime-700" id="res-type"></div>
       </div>
       <p class="text-sm text-gray-600 mb-3" id="res-desc"></p>
+      <div id="res-amount-row" style="display:none;align-items:center;gap:8px;background:#ecfccb;border-radius:8px;padding:10px 14px;margin-bottom:10px;">
+        <span class="text-xl">🍽️</span>
+        <div>
+          <div class="text-xs text-lime-700 font-bold" id="res-amount-label">1日の目安給与量:</div>
+          <div class="text-base font-bold text-lime-900" id="res-amount"></div>
+        </div>
+        <div class="text-xs text-gray-400 ml-auto">※フードのパッケージ記載量を優先</div>
+      </div>
       <div class="bg-lime-50 rounded-lg p-3 space-y-1">
         <div class="font-bold text-lime-800 text-sm mb-2">📋 食事管理のポイント</div>
         <div class="text-sm text-gray-700" id="res-tips"></div>
       </div>
     </div>
+    <div class="card p-6 mb-4">
+      <h3 class="font-bold text-gray-800 mb-3">📋 結果を保存・共有</h3>
+      <div class="grid grid-cols-3 gap-2 mb-4">
+        <button onclick="copyResult()" class="bg-blue-500 text-white py-2 px-3 rounded text-sm font-bold hover:bg-blue-600">📋 コピー</button>
+        <button onclick="downloadResult()" class="bg-green-500 text-white py-2 px-3 rounded text-sm font-bold hover:bg-green-600">💾 保存</button>
+        <button onclick="toggleQR()" class="bg-purple-500 text-white py-2 px-3 rounded text-sm font-bold hover:bg-purple-600">🔲 QRコード</button>
+      </div>
+      <div id="qr-container" style="display:none;text-align:center;background:#f8fafc;padding:12px;border-radius:8px;"></div>
+    </div>
+
     <div class="card p-6 mb-4">
       <h3 class="font-bold text-gray-800 mb-3">🛒 おすすめのフードを探す</h3>
       <div id="aff-area"></div>
@@ -271,15 +283,16 @@ var Qs = [
   { text:"フードにかけられる月額予算は？", opts:["〜2,000円","2,000〜5,000円","5,000〜10,000円","10,000円以上（プレミアム）"], key:"budget" }
 ];
 
+/* 診断キー別の推奨フード情報。amount は [犬小型, 犬大型, 猫] の1日給与量目安 */
 var foodMap = {
-  allergy: { emoji:"🌿", type:"グレインフリー（穀物不使用）フード", desc:"アレルギーの原因になりやすい小麦・大豆を除いたフード。消化が良く皮膚・被毛の改善も期待できます。", tips:"• 同じタンパク源を続けず数種類をローテーション\n• 切り替えは10日かけてゆっくり行う\n• 便の状態・皮膚の様子を記録する" },
-  diet: { emoji:"🥦", type:"ダイエット・低カロリーフード", desc:"カロリーを抑えつつ必要な栄養素をバランスよく含んだフード。満腹感を高める食物繊維が豊富。", tips:"• 1日の給与量を守り、おやつは総摂取量の10%以内\n• 食事を1日2〜3回に分けて与える\n• 週1回体重を量って変化を記録する" },
-  senior: { emoji:"🦴", type:"シニア対応フード（低リン・関節ケア）", desc:"高齢ペットの腎臓・関節に配慮した低タンパク・低リンのフード。グルコサミン配合で関節をサポート。", tips:"• 腎臓病予防のため水分摂取を増やす（ウェットフード混合も可）\n• 関節への負担を減らすため食事台を高くする\n• 定期的な健康診断（年2回以上）を実施する" },
-  puppy: { emoji:"🌟", type:"パピー・キトン（成長期）フード", desc:"成長期に必要なカルシウム・DHA・タンパク質が豊富なフード。骨・脳・免疫の発達をサポート。", tips:"• 1日3〜4回の少量頻回食が理想\n• 月齢に合わせたフードに切り替えを\n• 肥満にならないよう給与量を守る" },
-  standard: { emoji:"🍗", type:"バランス重視のプレミアムフード", desc:"総合栄養食として必要な栄養素がバランスよく含まれたフード。添加物・着色料不使用のプレミアムタイプ。", tips:"• 年齢・体重に合わせた給与量を守る\n• 常に新鮮な水を飲めるようにする\n• フードの変更は徐々に行う（7〜10日かけて）" }
+  allergy: { emoji:"🌿", type:"グレインフリー（穀物不使用）フード", desc:"アレルギーの原因になりやすい小麦・大豆を除いたフード。消化が良く皮膚・被毛の改善も期待できます。", tips:"• 同じタンパク源を続けず数種類をローテーション\n• 切り替えは10日かけてゆっくり行う\n• 便の状態・皮膚の様子を記録する", amount:["約50〜70g","約150〜250g","約40〜60g"] },
+  diet: { emoji:"🥦", type:"ダイエット・低カロリーフード", desc:"カロリーを抑えつつ必要な栄養素をバランスよく含んだフード。満腹感を高める食物繊維が豊富。", tips:"• 1日の給与量を守り、おやつは総摂取量の10%以内\n• 食事を1日2〜3回に分けて与える\n• 週1回体重を量って変化を記録する", amount:["約40〜60g","約120〜200g","約35〜50g"] },
+  senior: { emoji:"🦴", type:"シニア対応フード（低リン・関節ケア）", desc:"高齢ペットの腎臓・関節に配慮した低タンパク・低リンのフード。グルコサミン配合で関節をサポート。", tips:"• 腎臓病予防のため水分摂取を増やす（ウェットフード混合も可）\n• 関節への負担を減らすため食事台を高くする\n• 定期的な健康診断（年2回以上）を実施する", amount:["約50〜70g","約140〜220g","約40〜55g"] },
+  puppy: { emoji:"🌟", type:"パピー・キトン（成長期）フード", desc:"成長期に必要なカルシウム・DHA・タンパク質が豊富なフード。骨・脳・免疫の発達をサポート。", tips:"• 1日3〜4回の少量頻回食が理想\n• 月齢に合わせたフードに切り替えを\n• 肥満にならないよう給与量を守る", amount:["約60〜90g","約180〜300g","約50〜70g"] },
+  standard: { emoji:"🍗", type:"バランス重視のプレミアムフード", desc:"総合栄養食として必要な栄養素がバランスよく含まれたフード。添加物・着色料不使用のプレミアムタイプ。", tips:"• 年齢・体重に合わせた給与量を守る\n• 常に新鮮な水を飲めるようにする\n• フードの変更は徐々に行う（7〜10日かけて）", amount:["約55〜75g","約160〜260g","約45〜65g"] }
 };
 
-var cur=0, ans={};
+var cur=0, ans={}, lastResult=null;
 
 function startDiagnosis() { show('questions'); renderQ(); }
 
@@ -299,9 +312,14 @@ function renderQ() {
   q.opts.forEach(function(opt,i){
     var b=document.createElement('button');
     b.className='option-btn'; b.textContent=opt;
+    /* 前の回答がある場合は選択済みスタイルを復元 */
+    if(ans[q.key] && ans[q.key].i===i) b.classList.add('selected');
     b.onclick=function(){ pick(i,opt,q.key); };
     c.appendChild(b);
   });
+  /* 戻るボタン表示制御 */
+  var backBtn=document.getElementById('btn-back');
+  backBtn.style.display = cur>0 ? 'inline-block' : 'none';
 }
 
 function pick(i,val,key) {
@@ -313,10 +331,33 @@ function pick(i,val,key) {
   },300);
 }
 
+function goBack() {
+  if(cur<=0) return;
+  cur--;
+  renderQ();
+}
+
 function showResults() {
   var concernIdx = ans.concern ? ans.concern.i : 3;
   var ageIdx = ans.age ? ans.age.i : 1;
   var weightIdx = ans.weight ? ans.weight.i : 1;
+  var petType = ans.type ? ans.type.i : 0;
+
+  /* 「その他（小動物・鳥等）」は専用メッセージを表示 */
+  if(petType===3) {
+    document.getElementById('res-emoji').textContent='🐹';
+    document.getElementById('res-type').textContent='専門ショップでの選定をおすすめします';
+    document.getElementById('res-desc').textContent='小動物・鳥類は種類によって必要な栄養素が大きく異なります。ペット専門店や獣医師にご相談の上、種別・年齢に合った専用フードをお選びください。';
+    document.getElementById('res-tips').innerHTML='• ハムスター・うさぎ・モルモットは種別専用フードを使用する<br>• 鳥類はシード食とペレット食のバランスが重要<br>• 野菜・果物の与え方は種別ごとに確認する<br>• 定期的な健康診断で体重変化を把握する';
+    document.getElementById('res-amount').textContent='';
+    document.getElementById('res-amount-row').style.display='none';
+    var searchTerm=encodeURIComponent('小動物 フード おすすめ');
+    var amazonUrl='https://www.amazon.co.jp/s?k='+searchTerm+'&tag=appadaycrea0f-22';
+    document.getElementById('aff-area').innerHTML='<a href="'+amazonUrl+'" target="_blank" rel="noopener" class="block bg-yellow-400 text-gray-900 font-bold py-3 px-4 rounded-xl text-center text-sm hover:bg-yellow-500 transition">🐹 Amazonで小動物用フードを探す →</a><p class="text-xs text-gray-400 text-center mt-2">Amazonアソシエイトプログラム参加中</p>';
+    lastResult = { type:'その他ペット', desc:'小動物・鳥類専用フードをお選びください', tips:'専門ショップ・獣医師にご相談ください' };
+    show('results');
+    return;
+  }
 
   var key;
   if(concernIdx===2) { key='allergy'; }
@@ -331,18 +372,52 @@ function showResults() {
   document.getElementById('res-desc').textContent=food.desc;
   document.getElementById('res-tips').innerHTML=food.tips.replace(/\n/g,'<br>');
 
+  /* 1日の推奨給与量を表示（petType: 0=犬小型, 1=犬大型, 2=猫） */
+  var amountIdx = petType<=1 ? petType : 2;
+  var amountLabel = petType===0 ? '犬（小型）' : petType===1 ? '犬（大型）' : '猫';
+  document.getElementById('res-amount').textContent=food.amount[amountIdx];
+  document.getElementById('res-amount-label').textContent=amountLabel+'の1日の目安給与量:';
+  document.getElementById('res-amount-row').style.display='flex';
+
   var budgetIdx=ans.budget?ans.budget.i:1;
-  var petType=ans.type?ans.type.i:0;
   var petEmoji=petType<=1?'🐕':'🐈';
-  var searchTerm=encodeURIComponent((petType<=1?'犬':'猫')+(budgetIdx>=2?' プレミアム':'')+(key==='allergy'?' グレインフリー':key==='diet'?' ダイエット':key==='senior'?' シニア':key==='puppy'?' パピー':'')+' ドッグフード');
+  var petLabel=petType<=1?'犬':'猫';
+  var searchTerm=encodeURIComponent(petLabel+(budgetIdx>=2?' プレミアム':'')+(key==='allergy'?' グレインフリー':key==='diet'?' ダイエット':key==='senior'?' シニア':key==='puppy'?' パピー':'')+(petType<=1?' ドッグフード':' キャットフード'));
   var amazonUrl='https://www.amazon.co.jp/s?k='+searchTerm+'&tag=appadaycrea0f-22';
 
   document.getElementById('aff-area').innerHTML='<a href="'+amazonUrl+'" target="_blank" rel="noopener" class="block bg-yellow-400 text-gray-900 font-bold py-3 px-4 rounded-xl text-center text-sm hover:bg-yellow-500 transition">'+petEmoji+' Amazonで'+food.type+'を探す →</a><p class="text-xs text-gray-400 text-center mt-2">Amazonアソシエイトプログラム参加中</p>';
 
+  lastResult = { type:food.type, desc:food.desc, tips:food.tips };
   show('results');
 }
 
-function restart() { cur=0; ans={}; show('intro'); }
+function copyResult() {
+  if(!lastResult) return;
+  var text = '【ペットフード診断結果】\n' + lastResult.type + '\n\n' + lastResult.desc + '\n\n食事管理のポイント:\n' + lastResult.tips + '\n\nhttps://appadaycreator.com/pet-food-advisor/';
+  navigator.clipboard ? navigator.clipboard.writeText(text).then(function(){ alert('結果をコピーしました！'); }) : (function(){
+    var ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); alert('結果をコピーしました！');
+  })();
+}
+
+function downloadResult() {
+  if(!lastResult) return;
+  var text = '【ペットフード診断結果】\n' + lastResult.type + '\n\n' + lastResult.desc + '\n\n食事管理のポイント:\n' + lastResult.tips + '\n\nhttps://appadaycreator.com/pet-food-advisor/';
+  var blob=new Blob([text],{type:'text/plain;charset=utf-8'});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='ペットフード診断結果.txt'; a.click(); URL.revokeObjectURL(a.href);
+}
+
+function toggleQR() {
+  var container=document.getElementById('qr-container');
+  if(container.style.display==='none') {
+    container.style.display='block';
+    container.innerHTML='';
+    new QRCode(container, { text: 'https://appadaycreator.com/pet-food-advisor/', width:160, height:160 });
+  } else {
+    container.style.display='none';
+  }
+}
+
+function restart() { cur=0; ans={}; lastResult=null; show('intro'); }
 </script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"ペットフード診断【無料】犬・猫の年齢・体重別おすすめフード提案","description":"愛犬・愛猫の年齢・体重・アレルギーから最適なペットフードを無料診断。ドライ・ウェット比較。","url":"https://appadaycreator.com/pet-food-advisor/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"}}</script>
 
@@ -468,6 +543,10 @@ function restart() { cur=0; ans={}; show('intro'); }
 </div>
 <div style="text-align:center;padding:8px;font-size:11px;"><a href="privacy-policy.html" style="color:inherit;font-size:11px;opacity:0.7;text-decoration:underline;">プライバシーポリシー</a></div>
 
+</div>
+<div style="text-align:center;margin:24px auto;max-width:760px;padding:0 16px">
+<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
 </div>
 </body>
 </html>

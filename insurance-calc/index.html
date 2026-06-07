@@ -196,19 +196,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
                 <option value="male">男性</option>
                 <option value="female">女性</option>
             </select>
-            <select id="age" style="flex:1;">
-                <option value="20">20歳</option>
-                <option value="25">25歳</option>
-                <option value="30" selected>30歳</option>
-                <option value="35">35歳</option>
-                <option value="40">40歳</option>
-                <option value="45">45歳</option>
-                <option value="50">50歳</option>
-                <option value="55">55歳</option>
-                <option value="60">60歳</option>
-                <option value="65">65歳</option>
-                <option value="70">70歳</option>
-            </select>
+            <input type="number" id="age" min="18" max="80" step="1" value="35" style="flex:1;" aria-label="年齢（歳）">
         </div>
         <label>家族構成</label>
         <div class="family-grid">
@@ -282,10 +270,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="card"><p style="text-align:center;color:#94a3b8;padding:20px;">診断後に表示されます。</p></div>
     </div>
     <div class="card">
-        <div class="card-title">🔗 保険の無料相談（承認待ち・準備中）</div>
-        <div style="background:#f8f4ff;border:1px solid #ddd6fe;border-radius:10px;padding:14px;text-align:center;">
-            <p style="font-size:0.82em;color:#7c3aed;font-weight:700;margin-bottom:6px;">🛡️ プロに無料で相談する</p>
-            <p style="font-size:0.78em;color:#64748b;">保険見直し本舗・マネードクターの無料相談リンクは準備中です。</p>
+        <div class="card-title">🔗 保険の無料相談・おすすめ書籍</div>
+        <p style="font-size:0.78em;color:#64748b;margin-bottom:10px;">診断結果をもとに、FP相談または参考書で保険を見直しましょう。</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+            <a class="js-track-affiliate" href="https://www.amazon.co.jp/s?k=保険+見直し+本+2024&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="background:#ff9900;color:#fff;padding:9px 14px;border-radius:8px;font-size:0.82em;font-weight:700;text-decoration:none;flex:1;text-align:center;min-height:44px;display:flex;align-items:center;justify-content:center;" data-platform="Amazon" data-item-name="保険見直し本" data-link-type="affiliate_link">📚 保険見直し本を探す</a>
+            <a class="js-track-affiliate" href="https://www.amazon.co.jp/s?k=FP+生命保険+見直し&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="background:#ff9900;color:#fff;padding:9px 14px;border-radius:8px;font-size:0.82em;font-weight:700;text-decoration:none;flex:1;text-align:center;min-height:44px;display:flex;align-items:center;justify-content:center;" data-platform="Amazon" data-item-name="FP生命保険" data-link-type="affiliate_link">💰 FP監修の保険本</a>
+        </div>
+        <div style="background:#f8f4ff;border-radius:8px;padding:10px;font-size:0.78em;color:#475569;">
+            💡 保険見直し本舗・マネードクターなど独立系FP窓口は何度でも無料相談できます。複数社を比較して最適なプランを見つけましょう。
         </div>
     </div>
     <div class="card">
@@ -371,6 +363,13 @@ function fmtW(n) { return Math.round(n / 10000) * 10000 >= 1000000
     : fmt(Math.round(n / 1000) * 1000) + '円'; }
 function fmtM(n) { return fmt(Math.round(n)) + '万円'; }
 
+function calcDeduction(annualPremium) {
+    if (annualPremium <= 20000) return annualPremium;
+    if (annualPremium <= 40000) return Math.floor(annualPremium / 2) + 10000;
+    if (annualPremium <= 80000) return Math.floor(annualPremium / 4) + 20000;
+    return 40000;
+}
+
 function calcAndShow() {
     const income = parseInt(document.getElementById('income').value);
     const savings = parseInt(document.getElementById('savings').value) || 0;
@@ -378,7 +377,7 @@ function calcAndShow() {
     const employ = document.getElementById('employ').value;
     const housing = document.getElementById('housing').value;
     const loan = housing === 'own' ? (parseInt(document.getElementById('loan').value) || 0) : 0;
-    const age = parseInt(document.getElementById('age').value);
+    const age = Math.max(18, Math.min(80, parseInt(document.getElementById('age').value) || 35));
     const gender = document.getElementById('gender').value;
     const fam = FAMILY[familyType];
 
@@ -420,6 +419,16 @@ function calcAndShow() {
     // ===== 結果表示 =====
     const lifeJudge = curLife === 0 ? 'none' : curLife * 12 * 30 / 10000 >= lifeNeed * 0.8 && curLife * 12 * 30 / 10000 <= lifeNeed * 1.5 ? 'ok' : curLife * 12 * 30 / 10000 > lifeNeed * 1.5 ? 'over' : 'under';
 
+    // 医療保険・就業不能保険の保険料判定（推奨日額×0.5を月額保険料目安として比較）
+    const medRecommPremium = medicalNeedDaily * 0.5;
+    const medicalJudge = curMedical === 0 ? 'none' :
+        curMedical >= medRecommPremium * 0.5 && curMedical <= medRecommPremium * 2.5 ? 'ok' :
+        curMedical > medRecommPremium * 2.5 ? 'over' : 'under';
+    const disRecommPremium = disabilityNeedMonthly * 10000 * 0.07;
+    const disabilityJudge = curDisability === 0 ? 'none' :
+        curDisability >= disRecommPremium * 0.5 && curDisability <= disRecommPremium * 2.5 ? 'ok' :
+        curDisability > disRecommPremium * 2.5 ? 'over' : 'under';
+
     document.getElementById('result-area').innerHTML = `
         <div class="result-section life">
             <div class="label">生命保険（死亡保障）必要額</div>
@@ -445,6 +454,7 @@ function calcAndShow() {
             <div class="label">医療保険 推奨日額</div>
             <div class="amount">${fmt(medicalNeedDaily)}円/日</div>
             <div class="label">入院時の差額ベッド代・生活費補填を含む目安</div>
+            ${medicalJudge !== 'none' ? `<div style="margin-top:10px;text-align:center;">${medicalJudge === 'ok' ? '<span class="badge-ok">✅ 医療保険 適正範囲</span>' : medicalJudge === 'over' ? '<span class="badge-over">⚠️ 医療保険 過剰の可能性</span>' : '<span class="badge-under">⚠️ 医療保険 不足の可能性</span>'}</div>` : ''}
         </div>
         <div class="card" style="margin-bottom:14px;">
             <div class="breakdown">
@@ -459,6 +469,7 @@ function calcAndShow() {
             <div class="label">就業不能保険 推奨月額</div>
             <div class="amount">${fmtM(disabilityNeedMonthly)}/月</div>
             <div class="label">公的保障（${employ === 'employee' ? '傷病手当金67%' : employ === 'part' ? '約30%' : '約10%'}）を差し引いた不足分</div>
+            ${disabilityJudge !== 'none' ? `<div style="margin-top:10px;text-align:center;">${disabilityJudge === 'ok' ? '<span class="badge-ok">✅ 就業不能保険 適正範囲</span>' : disabilityJudge === 'over' ? '<span class="badge-over">⚠️ 就業不能保険 過剰の可能性</span>' : '<span class="badge-under">⚠️ 就業不能保険 不足の可能性</span>'}</div>` : ''}
         </div>
         <div class="result-grid" style="margin-top:14px;">
             <div class="r-box purple"><div class="val">${fmtM(lifeNeed)}</div><div class="lbl">生命保険必要額</div></div>
@@ -502,6 +513,23 @@ function calcAndShow() {
                     : `<span class="badge-ok">✅ おおむね適正範囲</span><p style="font-size:0.78em;color:#16a34a;margin-top:6px;">現在の保険料は年収に対して適正範囲内です。</p>`}
             </div>
         </div>`;
+
+    // 保険料控除の節税効果を見直しタブに追加表示
+    if (totalCurrentPremium > 0) {
+        const lifeDeductionAmt = calcDeduction(curLife * 12);
+        const medDeductionAmt = calcDeduction((curMedical + curDisability + curCancer) * 12);
+        const totalDeductionAmt = Math.min(lifeDeductionAmt, 40000) + Math.min(medDeductionAmt, 40000);
+        const taxSavingEst = Math.round(totalDeductionAmt * 0.3);
+        document.getElementById('review-area').innerHTML += `<div class="card" style="margin-top:14px;">
+            <div class="card-title">💡 保険料控除による節税効果</div>
+            <div class="breakdown">
+                <div class="breakdown-row"><span>生命保険料控除額（所得税）</span><span>${fmt(lifeDeductionAmt)}円/年</span></div>
+                <div class="breakdown-row"><span>介護医療保険料控除額（所得税）</span><span>${fmt(Math.min(medDeductionAmt, 40000))}円/年</span></div>
+                <div class="breakdown-row total"><span>節税効果目安（年間）</span><span>約${fmt(taxSavingEst)}円</span></div>
+            </div>
+            <div style="font-size:0.75em;color:#94a3b8;margin-top:6px;">※所得税（20%想定）＋住民税（10%）の概算。年末調整または確定申告での申請が必要です。</div>
+        </div>`;
+    }
 
     switchTab('result', document.querySelectorAll('.tabs .tab')[1]);
 }

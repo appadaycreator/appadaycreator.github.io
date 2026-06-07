@@ -152,6 +152,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <span id="entry-count" style="font-size:12px;color:#999;"></span>
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;" id="filter-tabs"></div>
+          <button class="btn" style="background:#dc2626;margin-bottom:12px;font-size:14px;" onclick="resetAll()">🗑️ 全削除</button>
           <div id="entries">
             <p style="text-align:center;color:#bbb;font-size:14px;padding:20px;">まだ記録がありません</p>
           </div>
@@ -246,15 +247,17 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     
 <script>
-    // ★ここだけ実装（約12行）★
     const KEY='manga-reading-tracker';
+    let chartsRef={month:null,genre:null,rating:null};
     function getEntryData(){
       const title=document.getElementById('title-input')?.value.trim()||'';
       if(!title){ alert('タイトルを入力してください'); return null; }
       const genre=document.getElementById('genre-input')?.value||'マンガ';
       const status=document.getElementById('status-input')?.value||'読了';
       const rating=document.getElementById('rating-input')?.value||'★★★☆☆';
-      return {title,genre,status,rating};
+      const dateInput=document.getElementById('date-input')?.value;
+      const date=dateInput?new Date(dateInput+'T00:00:00').toLocaleDateString('ja-JP'):new Date().toLocaleDateString('ja-JP');
+      return {title,genre,status,rating,date};
     }
     function renderEntry(e){
       const badgeColor=e.status==='読了'?'#7c3aed':e.status==='読書中'?'#f59e0b':'#94a3b8';
@@ -264,7 +267,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const done=entries.filter(e=>e.status==='読了').length;
       const genres=[...new Set(entries.map(e=>e.genre))];
       const rate=entries.length?Math.round(done*100/entries.length):0;
-      return `<div style="display:flex;gap:16px;flex-wrap:wrap;"><div><span style="font-size:24px;font-weight:700;color:#7c3aed;">${done}</span><span style="font-size:13px;color:#888;"> 冊読了</span></div><div><span style="font-size:24px;font-weight:700;color:#7c3aed;">${entries.length}</span><span style="font-size:13px;color:#888;"> 件合計</span></div><div><span style="font-size:24px;font-weight:700;color:#7c3aed;">${rate}%</span><span style="font-size:13px;color:#888;"> 完読率</span></div><div><span style="font-size:24px;font-weight:700;color:#7c3aed;">${genres.length}</span><span style="font-size:13px;color:#888;"> ジャンル</span></div></div>`;
+      return `<div style="display:flex;gap:16px;flex-wrap:wrap;"><div><span style="font-size:24px;font-weight:700;color:#7c3aed;">${done}</span><span style="font-size:13px;color:#888;"> 冊読了</span></div><div><span style="font-size:24px;font-weight:700;color:#7c3aed;">${entries.length}</span><span style="font-size:13px;color:#888;"> 記録件数</span></div><div><span style="font-size:24px;font-weight:700;color:#7c3aed;">${rate}%</span><span style="font-size:13px;color:#888;"> 完読率</span></div><div><span style="font-size:24px;font-weight:700;color:#7c3aed;">${genres.length}</span><span style="font-size:13px;color:#888;"> ジャンル</span></div></div>`;
     }
     function renderCharts(entries){
       if(entries.length===0) return;
@@ -278,15 +281,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const months=Object.keys(monthMap).sort().slice(-12);
       const mc=document.getElementById('monthlyChart');
       if(mc&&window.Chart){
-        new Chart(mc,{type:'bar',data:{labels:months,datasets:[{label:'読了数',data:months.map(m=>monthMap[m]||0),backgroundColor:'#7c3aed80'}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1}}}}});
+        if(chartsRef.month) chartsRef.month.destroy();
+        chartsRef.month=new Chart(mc,{type:'bar',data:{labels:months,datasets:[{label:'読了数',data:months.map(m=>monthMap[m]||0),backgroundColor:'#7c3aed80'}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1}}}}});
       }
       const gc=document.getElementById('genreChart');
       if(gc&&window.Chart){
-        new Chart(gc,{type:'doughnut',data:{labels:Object.keys(genreMap),datasets:[{data:Object.values(genreMap),backgroundColor:['#7c3aed','#f59e0b','#10b981','#ef4444','#8b5cf6']}]},options:{responsive:true}});
+        if(chartsRef.genre) chartsRef.genre.destroy();
+        chartsRef.genre=new Chart(gc,{type:'doughnut',data:{labels:Object.keys(genreMap),datasets:[{data:Object.values(genreMap),backgroundColor:['#7c3aed','#f59e0b','#10b981','#ef4444','#8b5cf6']}]},options:{responsive:true}});
       }
       const rc=document.getElementById('ratingChart');
       if(rc&&window.Chart){
-        new Chart(rc,{type:'bar',data:{labels:Object.keys(ratingMap),datasets:[{label:'件数',data:Object.values(ratingMap),backgroundColor:'#10b98080'}]},options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{stepSize:1}}}}});
+        if(chartsRef.rating) chartsRef.rating.destroy();
+        chartsRef.rating=new Chart(rc,{type:'bar',data:{labels:Object.keys(ratingMap),datasets:[{label:'件数',data:Object.values(ratingMap),backgroundColor:'#10b98080'}]},options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{stepSize:1}}}}});
       }
     }
     // ★以下変更不要★
@@ -295,12 +301,27 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     document.addEventListener('DOMContentLoaded',()=>{ renderAll(); });
     function addEntry(){
       const d=getEntryData(); if(!d) return;
-      entries.unshift({id:Date.now(),date:new Date().toLocaleDateString('ja-JP'),...d});
+      entries.unshift({id:Date.now(),...d});
       localStorage.setItem(KEY,JSON.stringify(entries));
-      renderAll(); document.querySelectorAll('input:not([type=submit])').forEach(i=>i.value='');
+      renderAll();
+      document.querySelectorAll('input:not([type=submit])').forEach(i=>i.value='');
+      document.getElementById('date-input').value='';
+      const tomorrow=new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+      document.getElementById('date-input').value=tomorrow.toISOString().split('T')[0];
       document.getElementById('result').classList.add('show');
     }
-    function del(id){ entries=entries.filter(e=>e.id!==id); localStorage.setItem(KEY,JSON.stringify(entries)); renderAll(); }
+    function del(id){
+      if(!confirm('この記録を削除しますか？')) return;
+      entries=entries.filter(e=>e.id!==id);
+      localStorage.setItem(KEY,JSON.stringify(entries));
+      renderAll();
+    }
+    function resetAll(){
+      if(!confirm('すべての記録を削除します。よろしいですか？')) return;
+      entries=[];
+      localStorage.setItem(KEY,JSON.stringify(entries));
+      renderAll();
+    }
     function setFilter(genre){ currentFilter=genre; renderAll(); }
     function renderTabs(){
       const genres=['all',...[...new Set(entries.map(e=>e.genre))]];

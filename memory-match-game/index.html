@@ -122,7 +122,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 </script>
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="メモリーマッチ | 神経衰弱ゲーム - 都道府県・動物・英単語テーマ">
-<meta name="twitter:description" content="簡単な質問に答えるだけで、最適なアドバイスを提供します。">
+<meta name="twitter:description" content="カードをめくってペアを見つける神経衰弱ゲーム。都道府県・動物・果物・英単語・国旗など5テーマ・3段階の難易度で脳トレ！">
 <meta name="twitter:image" content="https://appadaycreator.com/memory-match-game/ogp.png">
 <meta name="twitter:site" content="@appadaycreator">
 
@@ -295,6 +295,16 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
       <img src="https://www11.a8.net/0.gif?a8mat=4AVCO8+3ORU2Y+5JTC+5YRHE" width="1" height="1" style="display:none" alt="" loading="lazy">
     </div>
 
+    <div id="resultShareBtns" class="grid grid-cols-2 gap-2 mb-4">
+      <a id="shareLineResult" href="#" target="_blank" rel="noopener"
+         style="display:block;text-align:center;background:#06C755;color:white;padding:10px;border-radius:8px;font-size:13px;font-weight:bold;text-decoration:none;">
+        LINEでシェア
+      </a>
+      <a id="shareXResult" href="#" target="_blank" rel="noopener"
+         style="display:block;text-align:center;background:#000;color:white;padding:10px;border-radius:8px;font-size:13px;font-weight:bold;text-decoration:none;">
+        Xでシェア
+      </a>
+    </div>
     <div class="grid grid-cols-2 gap-3">
       <button onclick="startGame()" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-3 rounded-xl transition-colors">もう一回！</button>
       <button onclick="showStart()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl transition-colors">設定変更</button>
@@ -341,11 +351,11 @@ const THEMES = {
     ['🌰栗','🌰栗'],['🫒オリーブ','🫒オリーブ'],
   ],
   english: [
-    ['cat=猫','cat=猫'],['dog=犬','dog=犬'],['sun=太陽','sun=太陽'],['moon=月','moon=月'],
-    ['book=本','book=本'],['tree=木','tree=木'],['bird=鳥','bird=鳥'],['fish=魚','fish=魚'],
-    ['rain=雨','rain=雨'],['star=星','star=星'],['fire=火','fire=火'],['wind=風','wind=風'],
-    ['love=愛','love=愛'],['hope=希望','hope=希望'],['joy=喜び','joy=喜び'],['sky=空','sky=空'],
-    ['sea=海','sea=海'],['hill=丘','hill=丘'],
+    ['🔤 cat','🐱 猫'],['🔤 dog','🐶 犬'],['🔤 sun','☀️ 太陽'],['🔤 moon','🌙 月'],
+    ['🔤 book','📚 本'],['🔤 tree','🌳 木'],['🔤 bird','🐦 鳥'],['🔤 fish','🐟 魚'],
+    ['🔤 rain','🌧️ 雨'],['🔤 star','⭐ 星'],['🔤 fire','🔥 火'],['🔤 wind','💨 風'],
+    ['🔤 love','❤️ 愛'],['🔤 hope','🌟 希望'],['🔤 joy','😊 喜び'],['🔤 sky','🌤️ 空'],
+    ['🔤 sea','🌊 海'],['🔤 hill','⛰️ 丘'],
   ],
   flag: [
     ['🇯🇵日本','🇯🇵日本'],['🇺🇸アメリカ','🇺🇸アメリカ'],['🇬🇧イギリス','🇬🇧イギリス'],['🇫🇷フランス','🇫🇷フランス'],
@@ -372,6 +382,7 @@ function selectTheme(t) {
   theme = t;
   document.querySelectorAll('.theme-btn').forEach(b => b.className = 'theme-btn bg-gray-100 text-gray-700 py-2 px-2 rounded-lg text-xs font-medium');
   document.querySelector(`[data-t="${t}"]`).className = 'theme-btn active bg-purple-500 text-white py-2 px-2 rounded-lg text-xs font-medium';
+  updateAllHighScores();
 }
 
 function selectSize(s) {
@@ -441,7 +452,14 @@ function startGame() {
   const totalCards = rows * cols;
   const pairCount = totalCards / 2;
   const pool = [...THEMES[theme]].sort(() => Math.random() - 0.5).slice(0, pairCount);
-  cards = [...pool.map(p => p[0]), ...pool.map(p => p[1])].sort(() => Math.random() - 0.5);
+  // pairIdでペアを管理（英単語テーマの英語⇔日本語マッチングに対応）
+  const cardData = [];
+  pool.forEach((pair, idx) => {
+    cardData.push({val: pair[0], pairId: idx});
+    cardData.push({val: pair[1], pairId: idx});
+  });
+  cardData.sort(() => Math.random() - 0.5);
+  cards = cardData;
 
   flipped = []; matched = 0; moves = 0; canFlip = true; startTime = null; focusedCardIdx = -1; cardElements = [];
 
@@ -459,19 +477,20 @@ function startGame() {
   board.innerHTML = '';
 
   const cardH = gridSize === '4x4' ? '100px' : gridSize === '4x6' ? '80px' : '65px';
-  cards.forEach((val, i) => {
+  cards.forEach((cardObj, i) => {
     const container = document.createElement('div');
     container.className = 'card-container';
     container.style.height = cardH;
     container.style.aspectRatio = '1';
     container.dataset.idx = i;
-    container.dataset.val = val;
+    container.dataset.val = cardObj.val;
+    container.dataset.pairId = cardObj.pairId;
     container.tabIndex = 0;
     container.setAttribute('aria-label', `カード ${i + 1}`);
     container.innerHTML = `
       <div class="card-inner" style="height:${cardH}">
         <div class="card-front text-white text-2xl">🎴</div>
-        <div class="card-back text-sm font-bold text-center px-1">${val}</div>
+        <div class="card-back text-sm font-bold text-center px-1">${cardObj.val}</div>
       </div>`;
 
     let touchStartTime = 0;
@@ -520,7 +539,7 @@ function flipCard(card) {
     document.getElementById('movesDisplay').textContent = moves;
     updateScore();
 
-    if (flipped[0].dataset.val === flipped[1].dataset.val) {
+    if (flipped[0].dataset.pairId === flipped[1].dataset.pairId && flipped[0] !== flipped[1]) {
       playSound('match');
       flipped.forEach(c => {
         c.classList.add('matched', 'mm-match-success');
@@ -572,10 +591,18 @@ function showResult() {
   if (!hsScore || finalScore > parseInt(hsScore)) {
     localStorage.setItem(hsKey, String(finalScore));
     document.getElementById('hsMsg').textContent = `🎉 新記録！ スコア: ${finalScore}`;
-    document.getElementById('highScore').textContent = `${timeStr} / ${moves}手`;
   } else {
     document.getElementById('hsMsg').textContent = `スコア: ${finalScore} / ベスト: ${hsScore} (差分: ${parseInt(hsScore) - finalScore})`;
   }
+  updateAllHighScores();
+
+  // リザルトシェアボタンのURLを生成
+  const themeLabels = {pref:'都道府県',animal:'動物',fruit:'果物',english:'英単語',flag:'国旗',food:'食べ物'};
+  const sizeLabels = {'4x4':'初級','4x6':'中級','6x6':'上級'};
+  const shareText = `🧠 メモリーマッチ${sizeLabels[gridSize]}（${themeLabels[theme]}）をクリア！\nスコア: ${finalScore} / ${moves}手 / ${timeStr}\n`;
+  const shareUrl = 'https://appadaycreator.com/memory-match-game/';
+  document.getElementById('shareLineResult').href = `https://line.me/R/share?text=${encodeURIComponent(shareText + shareUrl)}`;
+  document.getElementById('shareXResult').href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}&via=appadaycreator`;
 }
 
 function showStart() {
@@ -588,7 +615,8 @@ function showStart() {
 function updateAllHighScores() {
   const sizes = ['4x4', '4x6', '6x6'];
   sizes.forEach(size => {
-    const hs = localStorage.getItem(`memHS_pref_${size}`);
+    // 選択中テーマのベストスコアを表示
+    const hs = localStorage.getItem(`memHS_${theme}_${size}`);
     const elem = document.getElementById(`hs${size}`);
     if (elem) elem.textContent = hs ? hs : '---';
   });

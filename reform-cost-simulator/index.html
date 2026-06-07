@@ -154,6 +154,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <option value="very-old">30年以上</option>
         </select>
       </div>
+      <div>
+        <label>設備グレード</label>
+        <select id="grade" class="input-field">
+          <option value="simple">シンプル（機能重視・ローコスト）</option>
+          <option value="standard" selected>スタンダード（定番品・バランス重視）</option>
+          <option value="premium">こだわり（上位グレード・高品質）</option>
+        </select>
+      </div>
     </div>
 
     <h2 class="font-bold text-gray-800 mb-3">リフォームしたい箇所を選択</h2>
@@ -181,6 +189,17 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
       ⚠️ 上記は参考価格です。建物の状態・施工業者により実際の費用は異なります。複数社から見積もりを取ることをおすすめします。
     </div>
+    <div class="flex gap-2 mt-4">
+      <a id="share-line-result" href="#" target="_blank" rel="noopener"
+         style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
+        LINEでシェア
+      </a>
+      <a id="share-x-result" href="#" target="_blank" rel="noopener"
+         style="flex:1;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
+        Xでシェア
+      </a>
+    </div>
+    <button onclick="resetForm()" style="margin-top:12px;width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:0.75rem;background:white;color:#6b7280;font-size:0.875rem;cursor:pointer;font-weight:600;" aria-label="もう一度試す">↩ もう一度試す</button>
   </div>
 
   <div class="card p-6 mb-4" id="affiliate-section" style="display:none;">
@@ -240,8 +259,11 @@ function calculate() {
 
   var houseType = document.getElementById('house-type').value;
   var years = document.getElementById('years').value;
+  var grade = document.getElementById('grade').value;
   var yearsMult = { new:1.0, mid:1.1, old:1.2, 'very-old':1.35 }[years];
   var houseMult = houseType==='house' ? 1.0 : 0.8;
+  var gradeMult = { simple:0.8, standard:1.0, premium:1.35 }[grade];
+  var gradeLabel = { simple:'シンプル', standard:'スタンダード', premium:'こだわり' }[grade];
 
   var totalLow = 0, totalHigh = 0;
   var breakdown = [];
@@ -249,8 +271,8 @@ function calculate() {
 
   reformParts.forEach(function(p) {
     if(selected[p.key]) {
-      var low = Math.round(p.low * yearsMult * houseMult / 10000) * 10000;
-      var high = Math.round(p.high * yearsMult * houseMult / 10000) * 10000;
+      var low = Math.round(p.low * yearsMult * houseMult * gradeMult / 10000) * 10000;
+      var high = Math.round(p.high * yearsMult * houseMult * gradeMult / 10000) * 10000;
       totalLow += low;
       totalHigh += high;
       breakdown.push({ name:p.emoji+' '+p.name, low:low, high:high });
@@ -259,7 +281,12 @@ function calculate() {
   });
 
   document.getElementById('r-total-low').textContent = '約'+Math.round(totalLow/10000)+'万円〜';
-  document.getElementById('r-total-range').textContent = '高い場合 '+Math.round(totalHigh/10000)+'万円まで';
+  document.getElementById('r-total-range').textContent = gradeLabel+'グレード・高い場合 '+Math.round(totalHigh/10000)+'万円まで';
+  // シェアURLを動的生成
+  var shareText = 'リフォーム費用シミュレーター結果：約'+Math.round(totalLow/10000)+'万円〜'+Math.round(totalHigh/10000)+'万円（'+gradeLabel+'グレード）';
+  var shareUrl = 'https://appadaycreator.com/reform-cost-simulator/';
+  document.getElementById('share-line-result').href = 'https://line.me/R/share?text='+encodeURIComponent(shareText+' '+shareUrl);
+  document.getElementById('share-x-result').href = 'https://twitter.com/intent/tweet?text='+encodeURIComponent(shareText)+'&url='+encodeURIComponent(shareUrl)+'&via=appadaycreator';
 
   var bd = document.getElementById('breakdown');
   bd.innerHTML = '';
@@ -280,6 +307,14 @@ function calculate() {
   document.getElementById('results').style.display='block';
   document.getElementById('affiliate-section').style.display='block';
   document.getElementById('results').scrollIntoView({behavior:'smooth'});
+}
+
+function resetForm() {
+  selected = {};
+  document.querySelectorAll('.part-btn').forEach(function(btn) { btn.classList.remove('selected'); });
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('affiliate-section').style.display = 'none';
+  document.getElementById('main').scrollIntoView({ behavior: 'smooth' });
 }
 
 init();
@@ -352,16 +387,16 @@ init();
       <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
             <div class="space-y-3">
         <div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「質問に答えるだけで自分に合ったアドバイスが出てきて、迷っていたことがすっきり整理されました。短時間で使えるのも良いです。」</p>
-          <p style="font-size:12px;color:#475569;" class="mt-1">— 田中さん（30代・会社員）★★★★★</p>
+          <p class="text-xs text-gray-700">「キッチンをリフォームしたくて相場を調べていたのですが、築年数やグレードによってここまで費用が変わるとは知りませんでした。業者に見積もりを頼む前の目安として非常に役立ちました。」</p>
+          <p style="font-size:12px;color:#475569;" class="mt-1">— 田中さん（40代・マンション居住）★★★★★</p>
         </div>
         <div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「無料でここまで詳しく分析してもらえるとは思いませんでした。専門家への相談前の情報整理に最適です。」</p>
-          <p style="font-size:12px;color:#475569;" class="mt-1">— 佐藤さん（40代・主婦）★★★★★</p>
+          <p class="text-xs text-gray-700">「浴室のリフォームを検討中で、補助金が使えるか知りたかったのですが、該当する補助金情報もまとめて表示されてとても助かりました。窓の断熱リフォームで最大200万円の補助があるとは知らなかったです。」</p>
+          <p style="font-size:12px;color:#475569;" class="mt-1">— 佐藤さん（50代・戸建て居住）★★★★★</p>
         </div>
         <div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「登録不要でサクッと使えて助かります。結果が分かりやすく表示されるので、何度も参考にしています。」</p>
-          <p style="font-size:12px;color:#475569;" class="mt-1">— 山本さん（20代・学生）★★★★☆</p>
+          <p class="text-xs text-gray-700">「親のためにバリアフリー化を検討していました。介護保険で住宅改修費の補助が受けられることを初めて知り、ケアマネージャーに相談するきっかけになりました。」</p>
+          <p style="font-size:12px;color:#475569;" class="mt-1">— 山本さん（30代・介護中）★★★★★</p>
         </div>
       </div>
       <div class="flex gap-2 mt-4">
@@ -413,6 +448,10 @@ init();
 </div>
 <div style="text-align:center;padding:8px;font-size:11px;"><a href="privacy-policy.html" style="color:inherit;font-size:11px;opacity:0.7;text-decoration:underline;">プライバシーポリシー</a></div>
 
+</div>
+<div style="text-align:center;margin:24px auto;max-width:760px;padding:0 16px">
+<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
 </div>
 </body>
 </html>

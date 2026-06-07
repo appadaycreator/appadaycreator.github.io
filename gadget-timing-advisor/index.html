@@ -203,15 +203,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
 <a href="#main" class="sr-only">本文へスキップ</a>
 
-<header class="site-header">
-  <div style="max-width:512px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;">
-    <div>
-      <h1 class="site-header" style="background:none;padding:0;">📱 スマホ・PC買い替えタイミング診断</h1>
-      <p class="site-header" style="background:none;padding:0;">6問で買い替え緊急度を無料判定</p>
-    </div>
-    <a href="/" style="color:rgba(255,255,255,0.8);font-size:11px;text-decoration:none;white-space:nowrap;">ホーム</a>
-  </div>
-</header>
 
 <div role="main" id="main" class="max-w-2xl mx-auto px-4 py-6">
 
@@ -348,10 +339,11 @@ var Qs = [
     scores: [0, 10, 25, 45, 65]
   },
   {
-    text: "Q2: 困っていることは？",
+    text: "Q2: 困っていることは？（複数選択可）",
     opts: ["バッテリーが持たない","動作が遅い（フリーズ多い）","ストレージ不足","画面割れ・物理破損","カメラ品質が不満","特に問題なし"],
     key: "problem",
-    scores: [25, 20, 15, 35, 10, 0]
+    scores: [25, 20, 15, 35, 10, 0],
+    multiSelect: true
   },
   {
     text: "Q3: 主な使用目的は？",
@@ -465,7 +457,7 @@ var resultData = {
 var cur = 0, ans = {}, totalScore = 0;
 
 function startDiagnosis() {
-  gtag('event', 'quiz_start', { event_category: 'engagement' });
+  try { gtag('event', 'quiz_start', { event_category: 'engagement' }); } catch(e) {}
   show('questions');
   renderQ();
 }
@@ -485,14 +477,61 @@ function renderQ() {
   document.getElementById('q-text').textContent = q.text;
   document.getElementById('back-btn').style.display = (cur > 0) ? 'block' : 'none';
   var c = document.getElementById('opts'); c.innerHTML = '';
-  q.opts.forEach(function(opt, i) {
-    var b = document.createElement('button');
-    b.className = 'option-btn';
-    if (ans[q.key] && ans[q.key].i === i) b.classList.add('selected');
-    b.textContent = opt;
-    b.onclick = function() { pick(i, opt, q.key, q.scores[i]); };
-    c.appendChild(b);
-  });
+
+  if (q.multiSelect) {
+    // 複数選択モード（チェックボックスUI）
+    var prevSelected = (ans[q.key] && ans[q.key].selected) ? ans[q.key].selected : [];
+    q.opts.forEach(function(opt, i) {
+      var label = document.createElement('label');
+      label.className = 'option-btn';
+      label.style.display = 'flex';
+      label.style.alignItems = 'center';
+      label.style.gap = '10px';
+      label.style.cursor = 'pointer';
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = i;
+      cb.style.width = '18px';
+      cb.style.height = '18px';
+      cb.style.flexShrink = '0';
+      cb.style.accentColor = '#2563eb';
+      if (prevSelected.indexOf(i) !== -1) {
+        cb.checked = true;
+        label.classList.add('selected');
+      }
+      cb.onchange = function() {
+        if (cb.checked) label.classList.add('selected');
+        else label.classList.remove('selected');
+      };
+      var span = document.createElement('span');
+      span.textContent = opt;
+      label.appendChild(cb);
+      label.appendChild(span);
+      c.appendChild(label);
+    });
+    var hint = document.createElement('p');
+    hint.style.fontSize = '12px';
+    hint.style.color = '#9ca3af';
+    hint.style.marginTop = '6px';
+    hint.style.textAlign = 'center';
+    hint.textContent = '※ 複数選択できます';
+    c.appendChild(hint);
+    var nextBtn = document.createElement('button');
+    nextBtn.className = 'btn-primary';
+    nextBtn.style.marginTop = '10px';
+    nextBtn.textContent = '次へ →';
+    nextBtn.onclick = function() { pickMulti(q.key, q.scores); };
+    c.appendChild(nextBtn);
+  } else {
+    q.opts.forEach(function(opt, i) {
+      var b = document.createElement('button');
+      b.className = 'option-btn';
+      if (ans[q.key] && ans[q.key].i === i) b.classList.add('selected');
+      b.textContent = opt;
+      b.onclick = function() { pick(i, opt, q.key, q.scores[i]); };
+      c.appendChild(b);
+    });
+  }
 }
 
 function pick(i, val, key, score) {
@@ -508,6 +547,33 @@ function pick(i, val, key, score) {
       setTimeout(showResults, 300);
     }
   }, 300);
+}
+
+function pickMulti(key, scores) {
+  var checkboxes = document.querySelectorAll('#opts input[type="checkbox"]');
+  var selected = [];
+  var totalScore = 0;
+  checkboxes.forEach(function(cb) {
+    if (cb.checked) {
+      var i = parseInt(cb.value);
+      selected.push(i);
+      totalScore += (scores[i] || 0);
+    }
+  });
+  // 未選択の場合は「特に問題なし」として扱う
+  if (selected.length === 0) {
+    selected = [scores.length - 1];
+    totalScore = 0;
+  }
+  ans[key] = { selected: selected, score: totalScore };
+  cur++;
+  if (cur < Qs.length) {
+    renderQ();
+  } else {
+    show('loading');
+    try { gtag('event', 'quiz_complete', { event_category: 'engagement' }); } catch(e) {}
+    setTimeout(showResults, 300);
+  }
 }
 
 function goBack() {
@@ -557,7 +623,15 @@ function showResults() {
   });
 
   show('results');
-  gtag('event', 'result_view', { event_category: 'conversion', level: level, score: totalScore });
+  try { gtag('event', 'result_view', { event_category: 'conversion', level: level, score: totalScore }); } catch(e) {}
+
+  // SNSシェアテキストにスコアと判定を動的に反映
+  var shareText = 'スマホ・PC買い替え診断 ' + totalScore + '点（' + data.judgment + '）';
+  var shareUrl = 'https://appadaycreator.com/gadget-timing-advisor/';
+  var lineEl = document.getElementById('share-line');
+  if (lineEl) lineEl.href = 'https://line.me/R/share?text=' + encodeURIComponent(shareText + ' ' + shareUrl);
+  var xEl = document.getElementById('share-x');
+  if (xEl) xEl.href = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText) + '&url=' + encodeURIComponent(shareUrl) + '&via=appadaycreator';
 }
 
 function restart() {
@@ -619,10 +693,10 @@ function restart() {
 <section class="bg-white rounded-2xl shadow-md p-5">
   <h3 style="font-size:14px;font-weight:700;color:#64748b;margin-bottom:12px;letter-spacing:0.03em;">関連サービス</h3>
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
-    <a href="https://appadaycreator.com/camping-gear-advisor/" class="related-link">キャンプ・アウトドア費用診断</a>
-    <a href="https://appadaycreator.com/baby-food-advisor/" class="related-link">離乳食・ベビーフードアドバイザー</a>
-    <a href="https://appadaycreator.com/online-learning-advisor/" class="related-link">オンライン学習費用診断</a>
-    <a href="https://appadaycreator.com/gift-idea-finder/" class="related-link">ギフト・プレゼント選択診断</a>
+    <a href="https://appadaycreator.com/smartphone-advisor/" class="related-link">📱 スマートフォン選び診断</a>
+    <a href="https://appadaycreator.com/internet-plan-advisor/" class="related-link">🌐 格安SIM乗り換え診断</a>
+    <a href="https://appadaycreator.com/subscription-calculator/" class="related-link">📋 サブスク費用整理</a>
+    <a href="https://appadaycreator.com/household-budget-analyzer/" class="related-link">💰 家計費用診断</a>
   </div>
 </section>
 </div>
@@ -647,11 +721,11 @@ function restart() {
         </div>
       </div>
       <div class="flex gap-2 mt-4">
-        <a href="https://line.me/R/share?text=スマホ・PC買い替えタイミング診断今が替え時？%20https://appadaycreator.com/gadget-timing-advisor/" target="_blank" rel="noopener"
+        <a id="share-line" href="https://line.me/R/share?text=スマホ・PC買い替えタイミング診断今が替え時？%20https://appadaycreator.com/gadget-timing-advisor/" target="_blank" rel="noopener"
            style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
           LINEでシェア
         </a>
-        <a href="https://twitter.com/intent/tweet?text=スマホ・PC買い替えタイミング診断今が替え時？&url=https://appadaycreator.com/gadget-timing-advisor/&via=appadaycreator" target="_blank" rel="noopener"
+        <a id="share-x" href="https://twitter.com/intent/tweet?text=スマホ・PC買い替えタイミング診断今が替え時？&url=https://appadaycreator.com/gadget-timing-advisor/&via=appadaycreator" target="_blank" rel="noopener"
            style="flex:1;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
           Xでシェア
         </a>

@@ -308,18 +308,19 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       },
     };
 
-    function getSplitKey(days, level) {
-      // days: 0=週2, 1=週3, 2=週4, 3=週5以上 / level: 0=初, 1=中, 2=上, 3=元アスリート
+    function getSplitKey(days, level, time) {
+      // days: 0=週2, 1=週3, 2=週4, 3=週5以上 / level: 0=初, 1=中, 2=上, 3=元アスリート / time: 0=30分以内, 1=30-60分, 2=60-90分, 3=90分以上
       if (level === 0 || days === 0) return 'fullbody';
       if (days === 1 || level === 1) return 'upperlower';
       if (level >= 2 && days >= 2) {
         if (days === 2) return 'ppl';
-        if (level === 3 || days === 3) return 'split5';
+        if (level === 3 || (days === 3 && time >= 2)) return 'split5';
+        if (days === 3) return 'ppl';
       }
       return 'split4';
     }
 
-    function buildDesc(splitKey, goal, focus) {
+    function buildDesc(splitKey, goal, focus, time) {
       const goalLabel = GOALS[goal] || '';
       const focusLabel = FOCUS[focus] || '';
       const base = {
@@ -340,7 +341,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         2: `下半身・脚を重視する場合、スクワット系とヒンジ系（デッドリフト）を毎週欠かさず実施し、脚の日のボリュームを増やしましょう。`,
         3: `体幹・コア強化のため、プランク・ロールアウト・ハンギングレッグレイズを各セッションの最後に取り入れましょう。`,
       }[focus] || '';
-      return `${base} ${goalMsg}${focusMsg ? ' ' + focusMsg : ''}`.trim();
+      const timeMsg = {
+        0: `30分以内という限られた時間のため、BIG3（スクワット・ベンチプレス・デッドリフト）など複合種目に的を絞り、効率的なトレーニングを心がけてください。`,
+        1: `30〜60分の時間帯は、複合種目と補助種目のバランスが重要です。集中力を保ち、セット間の休憩を短縮してボリュームを確保しましょう。`,
+        2: `60〜90分のトレーニング時間があれば、1つの分割法で十分なボリュームを確保できます。インターバルは1〜2分を目安にしましょう。`,
+        3: `90分以上のトレーニング時間があると、より高度な分割法に対応できます。部位ごとに8〜12セットの十分なボリュームで、着実に筋肥大・パフォーマンスを向上できます。`,
+      }[time] || '';
+      return `${base} ${goalMsg}${focusMsg ? ' ' + focusMsg : ''}${timeMsg ? ' ' + timeMsg : ''}`.trim();
     }
 
     function buildScheduleHTML(splitKey) {
@@ -383,6 +390,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function resetQuiz() {
       document.getElementById('result').classList.remove('show');
       document.getElementById('quiz-start').style.display = 'block';
+      document.getElementById('quiz-start').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     function renderQ() {
@@ -420,9 +428,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('quiz-area').style.display = 'none';
       const goal = ans[0].idx;
       const days = ans[1].idx;
+      const time = ans[2].idx;
       const level = ans[3].idx;
       const focus = ans[4].idx;
-      const splitKey = getSplitKey(days, level);
+      const splitKey = getSplitKey(days, level, time);
       const s = SCHEDULES[splitKey];
       const titleText = {
         fullbody: '全身法（週2〜3日）',
@@ -436,7 +445,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('r-tags').innerHTML =
         `<span class="result-tag goal-tag">${GOALS[goal]}</span><span class="result-tag">${FOCUS[focus]}</span><span class="result-tag">${['週2日','週3日','週4日','週5日以上'][days]}</span>`;
       document.getElementById('r-title').textContent = emoji + ' ' + titleText;
-      document.getElementById('r-desc').textContent = buildDesc(splitKey, goal, focus);
+      document.getElementById('r-desc').textContent = buildDesc(splitKey, goal, focus, time);
       document.getElementById('r-schedule').innerHTML = buildScheduleHTML(splitKey);
       document.getElementById('r-share').querySelector('div').innerHTML = buildShareHTML(titleText);
       document.getElementById('result').classList.add('show');

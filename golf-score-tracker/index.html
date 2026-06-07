@@ -74,12 +74,14 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .btn-primary{width:100%;background:linear-gradient(135deg,#166534,#16a34a);color:#fff;border:none;border-radius:10px;padding:13px;font-size:0.95rem;font-weight:700;cursor:pointer;margin-top:14px;}
         .btn-primary:hover{opacity:0.92;}
         .btn-danger{background:#fee2e2;color:#dc2626;border:none;border-radius:7px;padding:6px 12px;font-size:0.78em;cursor:pointer;font-weight:600;}
-        /* Holes grid */
-        .holes-grid{display:grid;grid-template-columns:repeat(9,1fr);gap:4px;}
-        .hole-box{text-align:center;}
-        .hole-num{font-size:0.62em;color:#94a3b8;font-weight:600;}
-        .hole-par{font-size:0.62em;color:#64748b;}
-        .hole-input{width:100%;padding:6px 2px;text-align:center;border:1px solid #d1fae5;border-radius:6px;font-size:0.85em;font-weight:700;}
+        /* ホール入力ステッパー */
+        .holes-grid{display:flex;gap:4px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch;scrollbar-width:thin;}
+        .hole-box{flex:0 0 38px;text-align:center;}
+        .hole-num{font-size:0.62em;color:#94a3b8;font-weight:700;line-height:1.4;}
+        .hole-par{font-size:0.6em;color:#64748b;margin-bottom:2px;}
+        .hole-step-btn{display:block;width:100%;height:26px;min-height:26px!important;min-width:unset!important;border:1px solid #d1fae5;border-radius:5px;background:#f0fdf4;color:#166534;font-size:14px;font-weight:800;cursor:pointer;padding:0;line-height:1;touch-action:manipulation;}
+        .hole-step-btn:active{background:#86efac;}
+        .hole-val-disp{display:block;width:100%;height:26px;line-height:26px;font-size:0.85em;font-weight:700;background:#fff;border:1px solid #e2e8f0;border-radius:5px;margin:2px 0;text-align:center;}
         /* Score colors */
         .eagle{background:#fef08a!important;color:#854d0e!important;}
         .birdie{background:#bbf7d0!important;color:#166534!important;}
@@ -199,6 +201,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <div id="panel-record" class="panel active">
     <!-- サマリー -->
     <div class="stats-grid" id="quick-stats"></div>
+    <div id="gst-target-row" style="text-align:center;margin:-4px 0 10px;font-size:0.82em;min-height:24px;"></div>
 
     <!-- 週次サマリーバナー（green-diary P6横展開） -->
     <div id="gst-weekly-banner" style="display:none;background:#f0f9ff;border:2px solid #86efac;border-radius:14px;padding:14px;margin-bottom:14px;">
@@ -230,13 +233,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
                 </label>
             </div>
             <div id="hole-inputs-wrap">
-                <div style="margin-bottom:8px;font-size:0.75em;font-weight:700;color:#475569;display:grid;grid-template-columns:repeat(9,1fr);text-align:center;gap:4px;">
-                    <span>OUT</span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-                </div>
+                <div style="margin-bottom:4px;font-size:0.75em;font-weight:700;color:#475569;">OUT（1-9ホール） <span style="font-weight:400;color:#94a3b8;">← スワイプで全ホール入力</span></div>
                 <div class="holes-grid" id="holes-out"></div>
-                <div style="margin-top:10px;margin-bottom:8px;font-size:0.75em;font-weight:700;color:#475569;display:grid;grid-template-columns:repeat(9,1fr);text-align:center;gap:4px;">
-                    <span>IN</span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
-                </div>
+                <div style="margin-top:10px;margin-bottom:4px;font-size:0.75em;font-weight:700;color:#475569;">IN（10-18ホール）</div>
                 <div class="holes-grid" id="holes-in"></div>
                 <div id="hole-totals" style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;font-size:0.82em;font-weight:700;color:#166534;"></div>
             </div>
@@ -258,7 +257,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <input type="number" id="inp-putts" min="18" max="72" placeholder="例：36" aria-label="パット数">
         <label>🏌️ 同伴者（任意）</label>
         <input type="text" id="inp-partner" placeholder="例：山田さん、佐藤さん" maxlength="60" aria-label="例：山田さん、佐藤さん">
-        <button class="btn-primary" onclick="saveRound()" aria-label="💾 このラウンドを記録する">💾 このラウンドを記録する</button>
+        <button id="save-btn" class="btn-primary" onclick="saveRound()" aria-label="💾 このラウンドを記録する">💾 このラウンドを記録する</button>
         <div id="save-success-banner" style="display:none;margin-top:10px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:10px 14px;align-items:center;justify-content:space-between;">
             <span style="font-size:0.85em;font-weight:700;color:#166534;">✅ 記録しました！</span>
             <button onclick="const t=document.querySelectorAll('.tab')[1];switchTab('history',t);" style="background:#166534;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:0.8em;font-weight:700;cursor:pointer;">履歴を見る →</button>
@@ -341,6 +340,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="card-title">🕳️ ホール別平均（18H記録から算出）</div>
         <div id="hole-analysis"></div>
     </div>
+    <!-- スコア内訳 -->
+    <div class="card" id="score-breakdown-card" style="display:none;">
+        <div class="card-title">🎯 スコア内訳（ホール別集計）</div>
+        <div id="score-breakdown"></div>
+    </div>
     <!-- アイアン診断へ -->
     <div class="card">
         <div class="card-title" style="justify-content:center;">🏌️ スコアアップのために</div>
@@ -410,9 +414,30 @@ function buildHoleInputs() {
         const el  = document.createElement('div');
         el.className = 'hole-box';
         el.innerHTML = `<div class="hole-num">${h}</div><div class="hole-par">P${par}</div>
-            <input class="hole-input" type="number" id="h${h}" min="1" max="15" placeholder="-"
-                   oninput="colorHole(this,${par});updateTotals()" aria-label="-">`;
+            <button class="hole-step-btn" type="button" onclick="stepHole(${h},${par},1)" aria-label="ホール${h}を増やす">+</button>
+            <div class="hole-val-disp" id="h${h}-disp">-</div>
+            <button class="hole-step-btn" type="button" onclick="stepHole(${h},${par},-1)" aria-label="ホール${h}を減らす">-</button>
+            <input type="hidden" id="h${h}" value="">`;
         (h <= 9 ? outEl : inEl).appendChild(el);
+    }
+    updateTotals();
+}
+
+function stepHole(h, par, delta) {
+    const inp  = document.getElementById('h' + h);
+    const disp = document.getElementById('h' + h + '-disp');
+    if (!inp || !disp) return;
+    let nv = Math.max(0, Math.min(15, (parseInt(inp.value) || 0) + delta));
+    inp.value = nv > 0 ? nv : '';
+    disp.textContent = nv > 0 ? nv : '-';
+    disp.className = 'hole-val-disp';
+    if (nv > 0) {
+        if (nv <= par - 2)      disp.classList.add('eagle');
+        else if (nv === par-1)  disp.classList.add('birdie');
+        else if (nv === par)    disp.classList.add('par-score');
+        else if (nv === par+1)  disp.classList.add('bogey');
+        else if (nv === par+2)  disp.classList.add('double');
+        else                    disp.classList.add('triple');
     }
     updateTotals();
 }
@@ -454,6 +479,8 @@ function toggleMode() {
 }
 
 // ===== 記録 =====
+let _editRoundId = null; // 編集中のラウンドID（null=新規）
+
 function saveRound() {
     const date    = document.getElementById('inp-date').value;
     const course  = document.getElementById('inp-course').value.trim();
@@ -485,9 +512,18 @@ function saveRound() {
     }
 
     const putts = parseInt(document.getElementById('inp-putts')?.value || 0) || 0;
-    const round = { id: Date.now(), date, course, type, score, holes, putts, weather, memo, partner };
+    const isEdit = !!_editRoundId;
+    const round = { id: _editRoundId || Date.now(), date, course, type, score, holes, putts, weather, memo, partner };
     const rounds = getRounds();
-    rounds.push(round);
+    if (_editRoundId) {
+        const idx = rounds.findIndex(r => r.id === _editRoundId);
+        if (idx !== -1) rounds[idx] = round; else rounds.push(round);
+        _editRoundId = null;
+        const btn = document.getElementById('save-btn');
+        if (btn) btn.textContent = '💾 このラウンドを記録する';
+    } else {
+        rounds.push(round);
+    }
     saveRounds(rounds);
     updateCourseDatalist();
 
@@ -499,12 +535,14 @@ function saveRound() {
     if (puttsEl) puttsEl.value = '';
     if (!simple) {
         for (let h = 1; h <= 18; h++) {
-            const el = document.getElementById('h'+h);
-            if (el) { el.value = ''; el.className = 'hole-input'; }
+            const inp  = document.getElementById('h'+h);
+            const disp = document.getElementById('h'+h+'-disp');
+            if (inp)  inp.value = '';
+            if (disp) { disp.textContent = '-'; disp.className = 'hole-val-disp'; }
         }
         updateTotals();
     }
-    if (typeof showSuccess === 'function') showSuccess(`✅ 記録しました！ ${course} スコア：${score}`);
+    if (typeof showSuccess === 'function') showSuccess(isEdit ? `✅ 更新しました！ ${course} スコア：${score}` : `✅ 記録しました！ ${course} スコア：${score}`);
     // 成功バナー表示（3秒後に非表示）
     const banner = document.getElementById('save-success-banner');
     if (banner) {
@@ -514,6 +552,7 @@ function saveRound() {
     }
     renderQuickStats();
     renderWeeklySummary();
+    renderTargetGoal();
 }
 
 // ===== クイック統計 =====
@@ -566,7 +605,10 @@ function renderHistory() {
                     <div class="round-score">${r.score} <span style="font-size:0.6em;color:#64748b;">(${diffStr})</span></div>
                     <div class="round-date">📅 ${r.date} | ${r.type} | ${r.weather}</div>
                 </div>
-                <button class="btn-danger" onclick="deleteRound(${r.id})">削除</button>
+                <div style="display:flex;gap:4px;">
+                    <button onclick="editRound(${r.id})" style="background:#dbeafe;color:#1d4ed8;border:none;border-radius:7px;padding:6px 10px;font-size:0.78em;cursor:pointer;font-weight:600;min-height:unset!important;">✏️</button>
+                    <button class="btn-danger" onclick="deleteRound(${r.id})">削除</button>
+                </div>
             </div>
             <div class="round-meta">📍 ${r.course} ${pill}</div>
             ${r.putts ? `<div class="round-meta">⛳ パット数：${r.putts}打</div>` : ''}
@@ -581,6 +623,54 @@ function deleteRound(id) {
     saveRounds(getRounds().filter(r => r.id !== id));
     renderHistory();
     renderQuickStats();
+    renderTargetGoal();
+}
+
+function editRound(id) {
+    const r = getRounds().find(r => r.id === id);
+    if (!r) return;
+    _editRoundId = r.id;
+    document.getElementById('inp-date').value    = r.date;
+    document.getElementById('inp-course').value  = r.course;
+    document.getElementById('inp-type').value    = r.type;
+    document.getElementById('inp-weather').value = r.weather;
+    document.getElementById('inp-memo').value    = r.memo || '';
+    document.getElementById('inp-partner').value = r.partner || '';
+    const puttsEl = document.getElementById('inp-putts');
+    if (puttsEl) puttsEl.value = r.putts || '';
+
+    const hasHoles = r.holes && r.holes.some(v => v > 0);
+    document.getElementById('simple-mode').checked = !hasHoles;
+    toggleMode();
+
+    if (hasHoles) {
+        for (let h = 1; h <= 18; h++) {
+            const v    = r.holes[h-1] || 0;
+            const inp  = document.getElementById('h'+h);
+            const disp = document.getElementById('h'+h+'-disp');
+            const par  = PAR_DEFAULT[h-1];
+            if (inp)  inp.value = v > 0 ? v : '';
+            if (disp) {
+                disp.textContent = v > 0 ? v : '-';
+                disp.className = 'hole-val-disp';
+                if (v > 0) {
+                    if (v <= par-2)     disp.classList.add('eagle');
+                    else if (v===par-1) disp.classList.add('birdie');
+                    else if (v===par)   disp.classList.add('par-score');
+                    else if (v===par+1) disp.classList.add('bogey');
+                    else if (v===par+2) disp.classList.add('double');
+                    else                disp.classList.add('triple');
+                }
+            }
+        }
+        updateTotals();
+    } else {
+        document.getElementById('inp-simple-score').value = r.score;
+    }
+    const btn = document.getElementById('save-btn');
+    if (btn) btn.textContent = '✏️ この内容に更新する';
+    switchTab('record', document.querySelectorAll('.tab')[0]);
+    window.scrollTo({top: 0, behavior: 'smooth'});
 }
 
 // ===== 分析 =====
@@ -662,6 +752,37 @@ function renderAnalysis() {
             return `<div style="padding:4px;background:${bg};border-radius:4px;">${i+1}<br>${h.avg.toFixed(1)}<br><span style="color:#64748b;">${diff>0?'+':''}${diff}</span></div>`;
         }).join('')}
     </div><p style="font-size:0.7em;color:#94a3b8;margin-top:6px;">緑=パー以下 オレンジ=ボギー前後 赤=苦手ホール</p>`;
+
+    // スコア内訳（ホール別データのある18Hラウンドから集計）
+    const bdCard = document.getElementById('score-breakdown-card');
+    const bdEl   = document.getElementById('score-breakdown');
+    if (bdCard && bdEl) {
+        const wh = rounds18.filter(r => r.holes && r.holes.some(v=>v>0));
+        if (wh.length > 0) {
+            const cnt = {eagle:0,birdie:0,par:0,bogey:0,double:0,triple:0};
+            let total = 0;
+            wh.forEach(r => r.holes.forEach((v,i) => {
+                if (!v) return;
+                const d = v - PAR_DEFAULT[i]; total++;
+                if (d<=-2) cnt.eagle++; else if(d===-1) cnt.birdie++;
+                else if(d===0) cnt.par++; else if(d===1) cnt.bogey++;
+                else if(d===2) cnt.double++; else cnt.triple++;
+            }));
+            const pct = n => total ? (n/total*100).toFixed(1)+'%' : '-';
+            bdEl.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;">
+                <div style="background:#fef08a;border-radius:8px;padding:8px;"><div style="font-size:1.4rem;font-weight:800;color:#854d0e;">${cnt.eagle}</div><div style="font-size:0.7em;color:#64748b;">イーグル以下</div><div style="font-size:0.65em;color:#94a3b8;">${pct(cnt.eagle)}</div></div>
+                <div style="background:#bbf7d0;border-radius:8px;padding:8px;"><div style="font-size:1.4rem;font-weight:800;color:#166534;">${cnt.birdie}</div><div style="font-size:0.7em;color:#64748b;">バーディー</div><div style="font-size:0.65em;color:#94a3b8;">${pct(cnt.birdie)}</div></div>
+                <div style="background:#e2e8f0;border-radius:8px;padding:8px;"><div style="font-size:1.4rem;font-weight:800;color:#1e293b;">${cnt.par}</div><div style="font-size:0.7em;color:#64748b;">パー</div><div style="font-size:0.65em;color:#94a3b8;">${pct(cnt.par)}</div></div>
+                <div style="background:#fed7aa;border-radius:8px;padding:8px;"><div style="font-size:1.4rem;font-weight:800;color:#9a3412;">${cnt.bogey}</div><div style="font-size:0.7em;color:#64748b;">ボギー</div><div style="font-size:0.65em;color:#94a3b8;">${pct(cnt.bogey)}</div></div>
+                <div style="background:#fecaca;border-radius:8px;padding:8px;"><div style="font-size:1.4rem;font-weight:800;color:#991b1b;">${cnt.double}</div><div style="font-size:0.7em;color:#64748b;">Wボギー</div><div style="font-size:0.65em;color:#94a3b8;">${pct(cnt.double)}</div></div>
+                <div style="background:#f87171;border-radius:8px;padding:8px;"><div style="font-size:1.4rem;font-weight:800;color:#fff;">${cnt.triple}</div><div style="font-size:0.7em;color:#fecaca;">トリプル+</div><div style="font-size:0.65em;color:#fef2f2;">${pct(cnt.triple)}</div></div>
+            </div>
+            <p style="font-size:0.7em;color:#94a3b8;text-align:center;margin-top:8px;">${wh.length}ラウンド・${total}ホールから集計</p>`;
+            bdCard.style.display = 'block';
+        } else {
+            bdCard.style.display = 'none';
+        }
+    }
 }
 
 // ===== スコア別アドバイス =====
@@ -677,6 +798,46 @@ function renderScoreAdvice() {
     else if (avg < 110) advice = `<p style="font-size:0.85em;color:#ea580c;font-weight:700;">🎯 27〜36ハンデ相当（初中級者）</p><p style="font-size:0.82em;color:#475569;">まずはOBゼロを目指しましょう。ティーショットはドライバーではなく確実なクラブを。アプローチの練習時間を増やすことが効果的です。</p>`;
     else advice = `<p style="font-size:0.85em;color:#dc2626;font-weight:700;">🌱 36ハンデ以上（初級者）</p><p style="font-size:0.82em;color:#475569;">まず100打を切ることを目標に。グリーン周り（10yd以内）のアプローチとパッティングを徹底的に練習しましょう。ドライバーより短いクラブを正確に打てるように。</p>`;
     el.innerHTML = `<div style="background:#f0fdf4;border-radius:8px;padding:12px;">${advice}</div>`;
+}
+
+// ===== 目標スコア =====
+function renderTargetGoal() {
+    const el = document.getElementById('gst-target-row');
+    if (!el) return;
+    const target = parseInt(localStorage.getItem('gst_target') || '0');
+    if (!target) {
+        el.innerHTML = `<span style="color:#94a3b8;">目標スコア:</span>
+            <input type="number" id="target-inp" min="60" max="150" placeholder="例:90"
+               style="width:58px;padding:3px 6px;border:1px solid #86efac;border-radius:6px;text-align:center;font-size:0.85em;margin:0 4px;vertical-align:middle;">
+            <button onclick="setTarget()" style="background:#166534;color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:0.8em;cursor:pointer;min-height:unset!important;vertical-align:middle;">設定</button>`;
+    } else {
+        const rounds = getRounds().filter(r => r.type === '18H');
+        const avg = rounds.length ? rounds.reduce((a,b)=>a+b.score,0)/rounds.length : null;
+        let msg = '';
+        if (avg === null) {
+            msg = `🎯 目標: ${target}打 <button onclick="clearTarget()" style="background:transparent;border:none;font-size:0.75em;color:#94a3b8;cursor:pointer;">変更</button>`;
+        } else {
+            const diff = Math.round(avg - target);
+            if (diff <= 0) msg = `<span style="color:#16a34a;font-weight:700;">🎉 目標${target}打を達成中！</span> <button onclick="clearTarget()" style="background:transparent;border:none;font-size:0.72em;color:#94a3b8;cursor:pointer;min-height:unset!important;">変更</button>`;
+            else           msg = `<span style="color:#ea580c;font-weight:700;">🎯 目標${target}打まであと${diff}打</span> <button onclick="clearTarget()" style="background:transparent;border:none;font-size:0.72em;color:#94a3b8;cursor:pointer;min-height:unset!important;">変更</button>`;
+        }
+        el.innerHTML = msg;
+    }
+}
+function setTarget() {
+    const inp = document.getElementById('target-inp');
+    if (!inp) return;
+    const n = parseInt(inp.value);
+    if (n >= 60 && n <= 150) {
+        localStorage.setItem('gst_target', String(n));
+        renderTargetGoal();
+    } else {
+        if (typeof showError === 'function') showError('60〜150の範囲で入力してください');
+    }
+}
+function clearTarget() {
+    localStorage.removeItem('gst_target');
+    renderTargetGoal();
 }
 
 // ===== タブ切替 =====
@@ -857,6 +1018,7 @@ document.addEventListener('DOMContentLoaded', function() {
     updateCourseDatalist();
     renderQuickStats();
     renderWeeklySummary();
+    renderTargetGoal();
     // ローディング解除
     var l = document.getElementById('page-loader');
     if (l) { l.style.opacity='0'; l.style.transition='opacity 0.3s'; setTimeout(function(){l.remove();},350); }
@@ -881,7 +1043,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <img border="0" width="1" height="1" src="https://www18.a8.net/0.gif?a8mat=4B3WJ7+9PJRFU+4ABU+6CP0X" alt="" loading="lazy">
   </div>
 </div>
-<section style="max-width:800px;margin:0 auto 14px;padding:12px;background:#f0fdf4;border-radius:12px;"><h2 style="font-size:0.85rem;font-weight:bold;color:#166534;margin-bottom:8px;text-align:center;">⛳ ゴルフ・スポーツサービス</h2><div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"><a href="https://appadaycreator.com/golf-iron-advisor/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:9px 12px;text-decoration:none;text-align:center;min-width:95px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.2rem;">🏌️</div><div style="font-size:0.72rem;font-weight:bold;color:#374151;margin-top:2px;">アイアン診断</div></a><a href="https://appadaycreator.com/bmi-body-tracker/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:9px 12px;text-decoration:none;text-align:center;min-width:95px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.2rem;">⚖️</div><div style="font-size:0.72rem;font-weight:bold;color:#374151;margin-top:2px;">BMI管理</div></a><a href="https://appadaycreator.com/muscle-rotation-manager/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:9px 12px;text-decoration:none;text-align:center;min-width:95px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.2rem;">💪</div><div style="font-size:0.72rem;font-weight:bold;color:#374151;margin-top:2px;">筋トレ管理</div></a><a href="https://appadaycreator.com/hobby-matcher/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:9px 12px;text-decoration:none;text-align:center;min-width:95px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.2rem;">🎨</div><div style="font-size:0.72rem;font-weight:bold;color:#374151;margin-top:2px;">趣味マッチング</div></a></div></section>
+<section style="max-width:800px;margin:0 auto 14px;padding:12px;background:#f0fdf4;border-radius:12px;"><h2 style="font-size:0.85rem;font-weight:bold;color:#166534;margin-bottom:8px;text-align:center;">⛳ ゴルフ・スポーツサービス</h2><div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"><a href="https://appadaycreator.com/golf-iron-advisor/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:9px 12px;text-decoration:none;text-align:center;min-width:95px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.2rem;">🏌️</div><div style="font-size:0.72rem;font-weight:bold;color:#374151;margin-top:2px;">アイアン診断</div></a><a href="https://appadaycreator.com/bmi-body-tracker/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:9px 12px;text-decoration:none;text-align:center;min-width:95px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.2rem;">⚖️</div><div style="font-size:0.72rem;font-weight:bold;color:#374151;margin-top:2px;">BMI管理</div></a><a href="https://appadaycreator.com/muscle-rotation-manager/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:9px 12px;text-decoration:none;text-align:center;min-width:95px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.2rem;">💪</div><div style="font-size:0.72rem;font-weight:bold;color:#374151;margin-top:2px;">筋トレ管理</div></a><a href="https://appadaycreator.com/hobby-matcher/lp/" style="background:#fff;border:2px solid #bbf7d0;border-radius:10px;padding:9px 12px;text-decoration:none;text-align:center;min-width:95px;" onmouseover="this.style.borderColor='#166534'" onmouseout="this.style.borderColor='#bbf7d0'"><div style="font-size:1.2rem;">🎨</div><div style="font-size:0.72rem;font-weight:bold;color:#374151;margin-top:2px;">趣味マッチング</div></a></div></section>
 <div style="text-align:center;margin:14px auto;max-width:800px;padding:0 16px;">
 <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
 <script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
@@ -968,7 +1130,7 @@ window.hideLoading=function(){var el=document.getElementById('loadingOverlay');i
   <h3 style="font-size:14px;font-weight:700;color:#64748b;margin-bottom:12px;letter-spacing:0.03em;">関連サービス</h3>
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
     <a href="https://appadaycreator.com/reskilling-advisor/" style="padding: 10px; text-align: center; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #333; display: block; hover:background: #f5f5f5;">リスキリング診断</a>
-    <a href="https://appadaycreator.com/kids-activity-cost-simulator/" style="padding: 10px; text-align: center; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #333; display: block; hover:background: #f5f5f5;">子供の習い事費用シミュレーター</a>
+    <a href="https://appadaycreator.com/kids-activity-cost-simulator/lp/" style="padding: 10px; text-align: center; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #333; display: block; hover:background: #f5f5f5;">子供の習い事費用シミュレーター</a>
     <a href="https://appadaycreator.com/nisa-ideco-simulator/" style="padding: 10px; text-align: center; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #333; display: block; hover:background: #f5f5f5;">新NISA・iDeCo最適化計算機</a>
     <a href="https://appadaycreator.com/housing-loan-simulator/" style="padding: 10px; text-align: center; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #333; display: block; hover:background: #f5f5f5;">住宅ローン返済シミュレーター</a>
   </div>

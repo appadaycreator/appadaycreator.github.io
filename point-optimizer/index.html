@@ -32,7 +32,7 @@
     window.addEventListener('unhandledrejection', function(e) { console.error('Unhandled rejection:', e.reason); });
   </script>
   <style>
-    .choice-btn { transition: all 0.2s; cursor: pointer; }
+    .choice-btn { transition: all 0.2s; cursor: pointer; min-height: 56px; display: flex; align-items: center; justify-content: center; }
     .choice-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
     .choice-btn.selected { border-color: #f59e0b; background: #fffbeb; color: #92400e; }
     .point-counter { animation: countUp 0.8s ease; }
@@ -167,9 +167,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
         <div id="qCategory" class="text-xs font-bold text-amber-500 uppercase tracking-wide mb-1"></div>
         <div id="qText" class="text-base font-bold text-gray-800 mb-4 leading-relaxed"></div>
-        <div id="choicesContainer" class="grid gap-2"></div>
+        <div id="choicesContainer" class="grid grid-cols-2 gap-2 md:gap-3"></div>
       </div>
-      <button onclick="prevQ()" id="prevBtn" class="hidden w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded-xl text-sm transition mb-4" aria-label="← 前の質問へ">← 前の質問へ</button>
+      <button onclick="prevQ()" id="prevBtn" class="hidden w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded-xl text-sm transition mb-2" aria-label="← 前の質問へ">← 前の質問へ</button>
+      <button onclick="showResult()" id="confirmBtn" class="hidden w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-white font-bold py-3 rounded-xl transition shadow-md mb-4" aria-label="✅ 診断結果を見る">✅ 全問回答完了！結果を見る</button>
     </div>
 
     <!-- Result Screen -->
@@ -182,6 +183,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="text-sm font-bold mb-1">推定年間獲得ポイント</div>
           <div id="annualPoints" class="text-4xl font-bold point-counter mb-1">0</div>
           <div class="text-sm opacity-90">ポイント（約<span id="annualYen">0</span>円相当）</div>
+          <div id="calcBasis" class="text-xs opacity-80 mt-2" style="font-size:11px;"></div>
         </div>
 
         <!-- Best Combo -->
@@ -207,7 +209,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </ul>
         </div>
 
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <button onclick="copyResult()" id="copyBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl transition">📋 結果をコピー</button>
+          <button onclick="shareResult()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl transition">🔗 URLシェア</button>
+        </div>
         <button onclick="restart()" class="w-full bg-gradient-to-r from-amber-500 to-yellow-500 text-white font-bold py-3 rounded-xl transition hover:from-amber-400 hover:to-yellow-400 mb-2">🔄 もう一度診断する</button>
+        <div id="toast" class="hidden fixed bottom-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg text-sm z-50"></div>
       </div>
 
       <div class="mb-4">
@@ -261,6 +268,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           {name:'楽天ゴールドカード',rate:'1〜2%',note:'楽天市場+2倍。年会費2,200円'},
         ],
         baseMultiplier:1.5,
+        maxAnnualFee:2200,
         tags:['楽天派','コンビニ','EC'],
         strategy:'楽天SPUを最大化！楽天モバイル・楽天保険などサービス利用でポイント倍率UP'
       },
@@ -272,6 +280,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           {name:'PayPayカード',rate:'1〜1.5%',note:'PayPay連携で還元率アップ'},
         ],
         baseMultiplier:2.0,
+        maxAnnualFee:0,
         tags:['コンビニ','外食','スマホ払い'],
         strategy:'コンビニでのタッチ決済で最大20%還元！PayPayとの二刀流が最強'
       },
@@ -283,6 +292,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           {name:'ANAアメックスゴールド',rate:'1マイル/100円',note:'レストラン・ホテル優待あり'},
         ],
         baseMultiplier:1.8,
+        maxAnnualFee:34100,
         tags:['旅行','出張','ANA派'],
         strategy:'ANAカードで日常の支払いをマイルに。ふるさと納税でもマイルが貯まる'
       },
@@ -294,6 +304,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           {name:'リクルートカード',rate:'1.2%',note:'どこでも1.2%の高還元率'},
         ],
         baseMultiplier:1.6,
+        maxAnnualFee:0,
         tags:['Amazon派','EC','幅広い用途'],
         strategy:'Amazonの買い物は必ずAmazonカードで。日常はリクルートカードで1.2%均一還元'
       },
@@ -305,12 +316,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           {name:'三井住友カードNL（SBI連携）',rate:'0.1〜0.5%',note:'SBI証券積立でVポイント付与'},
         ],
         baseMultiplier:1.3,
+        maxAnnualFee:0,
         tags:['投資家','NISA','資産形成'],
         strategy:'積立投資でもポイントが貯まる時代！毎月の積立額をカード払いに変えてポイント二重取り'
       }
     ];
 
     const monthlySpends = [100000, 150000, 250000, 350000];
+    // Q7(年会費)の選択肢に対応する上限(円): 無料/5000/15000/上限なし
+    const annualFeeLimits = [0, 5000, 15000, Infinity];
 
     let current = 0;
     let answers = {};
@@ -334,23 +348,37 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       container.innerHTML = '';
       q.choices.forEach((c,i) => {
         const btn = document.createElement('div');
-        btn.className = 'choice-btn border-2 border-gray-200 rounded-xl p-3 text-sm font-medium';
+        btn.className = 'choice-btn border-2 border-gray-200 rounded-xl p-4 text-sm font-medium';
         if(answers[current] === i) btn.classList.add('selected');
         btn.textContent = c;
         btn.onclick = () => selectAnswer(i, btn);
         container.appendChild(btn);
       });
+      // 1問目は戻るボタンを非表示
       document.getElementById('prevBtn').style.display = current > 0 ? 'block' : 'none';
+      // 新しい質問表示時は確認ボタンを隠す
+      document.getElementById('confirmBtn').classList.add('hidden');
+      // プログレスバーの色をリセット
+      const bar = document.getElementById('progressBar');
+      bar.classList.remove('bg-green-500');
+      bar.classList.add('bg-amber-500');
     }
 
     function selectAnswer(idx, btn) {
       answers[current] = idx;
       document.querySelectorAll('.choice-btn').forEach(b => b.classList.remove('selected'));
       btn.classList.add('selected');
-      setTimeout(() => {
-        if(current < TOTAL-1) { current++; showQ(); }
-        else { showResult(); }
-      }, 350);
+      if (current === TOTAL - 1) {
+        // 最終問: プログレス100%・緑に変更し確認ボタンを表示
+        document.getElementById('qPct').textContent = '100';
+        const bar = document.getElementById('progressBar');
+        bar.style.width = '100%';
+        bar.classList.remove('bg-amber-500');
+        bar.classList.add('bg-green-500');
+        document.getElementById('confirmBtn').classList.remove('hidden');
+      } else {
+        setTimeout(() => { current++; showQ(); }, 200);
+      }
     }
 
     function prevQ() {
@@ -359,25 +387,44 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     function calcBestCombos() {
       const scores = cardCombinations.map((_,i)=>({idx:i,score:0}));
+      // Q1: 利用店舗
+      if(answers[1]===0) { scores[1].score+=3; } // コンビニ→三井住友NL
+      if(answers[1]===2) { scores[1].score+=2; } // 外食→三井住友NL
+      if(answers[1]===3) { scores[2].score+=2; } // 旅行→ANA
       // Q2: EC利用
       if(answers[2]===0) { scores[3].score+=3; } // Amazon
       if(answers[2]===1) { scores[0].score+=3; } // 楽天
       if(answers[2]===2) { scores[0].score+=1; scores[3].score+=1; }
+      // Q3: 電子マネー（新規）
+      if(answers[3]===0) { scores[2].score+=1; } // Suica→旅行・交通系
+      if(answers[3]===1) { scores[1].score+=3; } // PayPay→三井住友NL
+      if(answers[3]===2) { scores[1].score+=1; } // iD/QUICPay→クレカ系
       // Q4: マイル
       if(answers[4]===0||answers[4]===1) { scores[2].score+=3; }
-      // Q1: 店舗
-      if(answers[1]===0) { scores[1].score+=3; } // コンビニ
-      if(answers[1]===2) { scores[1].score+=2; } // 外食
-      if(answers[1]===3) { scores[2].score+=2; } // 旅行
-      // Q6: 用途
+      // Q5: カード枚数（新規）
+      if(answers[5]===0) {
+        // 1枚希望→2枚構成コンボを減点
+        cardCombinations.forEach((c,i)=>{ if(c.cards.length>1) scores[i].score-=2; });
+      }
+      if(answers[5]===2||answers[5]===3) {
+        // 4〜5枚/制限なし→全コンボ均等+1
+        scores.forEach(s=>s.score+=1);
+      }
+      // Q6: ポイント用途
       if(answers[6]===1) { scores[2].score+=2; } // マイル
       if(answers[6]===2) { scores[1].score+=1; scores[0].score+=1; }
       if(answers[6]===3) { scores[4].score+=3; } // 投資
-      return scores.sort((a,b)=>b.score-a.score).slice(0,3);
+      // Q7: 年会費フィルタリング（新規）
+      const feeLimit = annualFeeLimits[answers[7]!==undefined ? answers[7] : 3];
+      const eligible = scores.filter(({idx})=>cardCombinations[idx].maxAnnualFee<=feeLimit);
+      // 候補が2件未満の場合は全コンボから選択（フォールバック）
+      const pool = eligible.length>=2 ? eligible : scores;
+      return pool.sort((a,b)=>b.score-a.score).slice(0,3);
     }
 
     function showResult() {
       document.getElementById('quizScreen').classList.add('hidden');
+      document.getElementById('confirmBtn').classList.add('hidden');
       document.getElementById('resultScreen').classList.remove('hidden');
       const top3 = calcBestCombos();
       const spend = monthlySpends[answers[0] || 1];
@@ -385,6 +432,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const annual = Math.floor(spend * 12 * best.baseMultiplier * 0.01);
       document.getElementById('annualPoints').textContent = annual.toLocaleString();
       document.getElementById('annualYen').textContent = annual.toLocaleString();
+      const rate = (best.baseMultiplier).toFixed(2);
+      document.getElementById('calcBasis').textContent = `計算: 月${(spend/10000).toFixed(0)}万円 × 12ヶ月 × 実効還元率${rate}% = ${annual.toLocaleString()}ポイント`;
 
       const comboEl = document.getElementById('cardCombos');
       comboEl.innerHTML = top3.map(({idx},i) => {
@@ -419,6 +468,76 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function restart() {
       document.getElementById('resultScreen').classList.add('hidden');
       document.getElementById('topScreen').classList.remove('hidden');
+    }
+
+    function getResultText() {
+      const top3 = calcBestCombos();
+      const spend = monthlySpends[answers[0] || 1];
+      const best = cardCombinations[top3[0].idx];
+      const annual = Math.floor(spend * 12 * best.baseMultiplier * 0.01);
+      let text = '💰 ポイント・マイル最適化診断\n\n';
+      text += `年間獲得ポイント: ${annual.toLocaleString()} ポイント（約${annual.toLocaleString()}円相当）\n\n`;
+      text += 'おすすめカード組み合わせ:\n';
+      top3.forEach(({idx}, i) => {
+        const c = cardCombinations[idx];
+        const rankEmoji = ['🥇','🥈','🥉'][i];
+        text += `${rankEmoji} ${c.name}\n`;
+        c.cards.forEach(card => {
+          text += `  • ${card.name} (還元率: ${card.rate})\n`;
+        });
+      });
+      text += '\n攻略ポイント:\n';
+      text += `• ${best.strategy}\n`;
+      return text;
+    }
+
+    function copyResult() {
+      navigator.clipboard.writeText(getResultText()).then(() => {
+        const toast = document.getElementById('toast');
+        toast.textContent = '✅ 結果をコピーしました';
+        toast.classList.remove('hidden');
+        setTimeout(() => toast.classList.add('hidden'), 2000);
+      }).catch(() => {
+        alert('コピーに失敗しました。ブラウザの設定を確認してください。');
+      });
+    }
+
+    function shareResult() {
+      const hash = Object.values(answers).join('-');
+      const url = `${window.location.origin}${window.location.pathname}#answers=${hash}`;
+      navigator.clipboard.writeText(url).then(() => {
+        const toast = document.getElementById('toast');
+        toast.textContent = '✅ シェアURLをコピーしました';
+        toast.classList.remove('hidden');
+        setTimeout(() => toast.classList.add('hidden'), 2000);
+      }).catch(() => {
+        alert('コピーに失敗しました。');
+      });
+    }
+
+    function loadFromHash() {
+      const hash = window.location.hash.substring(1);
+      const params = new URLSearchParams(hash);
+      const answerStr = params.get('answers');
+      if (answerStr) {
+        const answerArray = answerStr.split('-').map(Number);
+        answers = {};
+        answerArray.forEach((ans, idx) => {
+          answers[idx] = ans;
+        });
+        if (Object.keys(answers).length === TOTAL) {
+          document.getElementById('topScreen').classList.add('hidden');
+          document.getElementById('quizScreen').classList.add('hidden');
+          showResult();
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // Initialize on page load
+    if (!loadFromHash()) {
+      document.getElementById('resultScreen').classList.add('hidden');
     }
   </script>
 

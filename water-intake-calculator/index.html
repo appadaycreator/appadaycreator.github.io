@@ -212,7 +212,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     
 <script>
-    // ★ここだけ実装（約10行）★
     const CFG = {
       inputs: ['val1','val3'],
       error: '体重を入力してください',
@@ -221,22 +220,31 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const weight = vals[0];
       const exercise = parseInt(document.getElementById('val2').value) || 0;
       const temp = parseFloat(document.getElementById('val3').value) || 20;
-      if (weight <= 0) return {result: '---', detail: '体重を正しく入力してください'};
-      // 基本量: 体重(kg) × 35ml
+      if (weight <= 0) return {result: '---', detail: '体重を正しく入力してください', riskLevel: 'unknown'};
       let base = weight * 35;
-      // 運動補正: 0=0, 1=+300, 2=+600, 3=+1000 ml
       const exerciseBonus = [0, 300, 600, 1000][exercise];
-      // 気温補正: 28度超えたら+50ml/度
       const tempBonus = temp > 28 ? (temp - 28) * 50 : 0;
       const total = Math.round((base + exerciseBonus + tempBonus) / 100) * 100;
       const cups = Math.round(total / 200);
       let advice = '適切な水分補給を心がけましょう。';
-      if (total >= 3000) advice = '⚠️ 発汗量が多い日です。スポーツドリンクも活用しましょう。';
-      else if (temp >= 30) advice = '🌡️ 暑い日は特に小まめな水分補給が大切です。';
-      else if (exercise >= 2) advice = '🏃 運動後は素早く補給を。水+塩分補給も意識して。';
+      let riskLevel = 'normal';
+      if (total >= 3000) { advice = '⚠️ 発汗量が多い日です。スポーツドリンクも活用しましょう。'; riskLevel = 'high'; }
+      else if (total < 1000) { riskLevel = 'low'; }
+      else if (temp >= 30) { advice = '🌡️ 暑い日は特に小まめな水分補給が大切です。'; riskLevel = 'high'; }
+      else if (exercise >= 2) { advice = '🏃 運動後は素早く補給を。水+塩分補給も意識して。'; riskLevel = 'moderate'; }
       const detail = `コップ${cups}杯（200ml換算）が目安 ／ ${advice}`;
       const resultText = (total / 1000).toFixed(1) + ' L';
-      return {result: resultText, detail};
+      const schedule = generateSchedule(total);
+      return {result: resultText, detail, riskLevel, schedule, total, base, exerciseBonus, tempBonus};
+    }
+    function generateSchedule(total) {
+      const portions = {
+        morning: Math.round(total * 0.25),
+        midday: Math.round(total * 0.35),
+        afternoon: Math.round(total * 0.25),
+        evening: Math.round(total * 0.15)
+      };
+      return `朝（6:00-12:00）${portions.morning}ml ／ 昼（12:00-17:00）${portions.midday}ml ／ 夕方（17:00-21:00）${portions.afternoon}ml ／ 夜（21:00-翌朝）${portions.evening}ml`;
     }
     function saveInputs() {
       try { localStorage.setItem('waterCalc_v1', JSON.stringify({val1: document.getElementById('val1').value, val2: document.getElementById('val2').value, val3: document.getElementById('val3').value})); } catch(e) {}
@@ -246,7 +254,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     }
     document.addEventListener('DOMContentLoaded',()=>{
       restoreInputs();
-      CFG.inputs.forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') calculate(); }); });
+      CFG.inputs.forEach(id=>{ const el=document.getElementById(id); if(el) { el.addEventListener('keydown',e=>{ if(e.key==='Enter') calculate(); }); el.addEventListener('input',calculate); } });
+      document.getElementById('val2').addEventListener('change', calculate);
     });
     function calculate(){
       const vals=CFG.inputs.map(id=>parseFloat(document.getElementById(id)?.value)||0);
@@ -254,10 +263,49 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if(!vals[0]||vals[0]<20||vals[0]>200){ v1El.classList.add('err'); v1Err.classList.add('show'); v1El.focus(); return; }
       v1El.classList.remove('err'); v1Err.classList.remove('show');
       saveInputs();
-      const {result,detail}=calcLogic(vals);
-      document.getElementById('output').textContent=typeof result==='number'?result.toLocaleString():result;
+      const {result, detail, riskLevel, schedule, total, base, exerciseBonus, tempBonus} = calcLogic(vals);
+      document.getElementById('output').textContent = typeof result==='number'?result.toLocaleString():result;
       const d=document.getElementById('detail'); if(d) d.textContent=detail||'';
-      document.getElementById('result').classList.add('show');
+      const resultEl = document.getElementById('result');
+      resultEl.classList.add('show');
+      updateRiskBadge(riskLevel);
+      updateSchedule(schedule);
+      updateChart(base, exerciseBonus, tempBonus, total);
+    }
+    function updateRiskBadge(riskLevel) {
+      let badgeHTML = '';
+      const colors = {low: '#10b981', normal: '#3b82f6', moderate: '#f59e0b', high: '#ef4444', unknown: '#6b7280'};
+      const labels = {low: '低リスク', normal: '通常', moderate: '中程度', high: '高リスク', unknown: '?'};
+      const color = colors[riskLevel];
+      const label = labels[riskLevel];
+      badgeHTML = `<span style="display:inline-block;background:${color}20;color:${color};padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;margin-top:8px;">💧 リスク: ${label}</span>`;
+      const resultEl = document.getElementById('result');
+      let badgeEl = resultEl.querySelector('.risk-badge');
+      if (!badgeEl) { badgeEl = document.createElement('div'); badgeEl.className = 'risk-badge'; resultEl.querySelector('[id="output"]').parentElement.appendChild(badgeEl); }
+      badgeEl.innerHTML = badgeHTML;
+    }
+    function updateSchedule(schedule) {
+      const resultEl = document.getElementById('result');
+      let scheduleEl = resultEl.querySelector('.schedule-display');
+      if (!scheduleEl) { scheduleEl = document.createElement('div'); scheduleEl.className = 'schedule-display'; scheduleEl.style.cssText = 'background:#f0f9ff;border:1px solid #7dd3fc;border-radius:10px;padding:12px;margin-top:12px;font-size:12px;color:#0c4a6e;'; resultEl.appendChild(scheduleEl); }
+      scheduleEl.innerHTML = `<strong>⏰ 時間帯別スケジュール</strong><br>${schedule}`;
+    }
+    function updateChart(base, exerciseBonus, tempBonus, total) {
+      const resultEl = document.getElementById('result');
+      let chartEl = resultEl.querySelector('.chart-display');
+      if (!chartEl) { chartEl = document.createElement('div'); chartEl.className = 'chart-display'; chartEl.style.cssText = 'margin-top:12px;'; resultEl.appendChild(chartEl); }
+      const basePercent = (base / total * 100).toFixed(0);
+      const exPercent = (exerciseBonus / total * 100).toFixed(0);
+      const tempPercent = (tempBonus / total * 100).toFixed(0);
+      chartEl.innerHTML = `<strong style="font-size:12px;color:#374151;">📊 水分摂取量の内訳</strong><div style="display:flex;height:24px;border-radius:8px;overflow:hidden;margin-top:6px;background:#e5e7eb;">
+        <div style="width:${basePercent}%;background:#3b82f6;transition:width 0.3s;" title="基本量: ${base}ml"></div>
+        <div style="width:${exPercent}%;background:#10b981;transition:width 0.3s;" title="運動補正: ${exerciseBonus}ml"></div>
+        <div style="width:${tempPercent}%;background:#f59e0b;transition:width 0.3s;" title="気温補正: ${tempBonus}ml"></div>
+      </div><div style="font-size:11px;color:#6b7280;margin-top:6px;display:flex;gap:12px;">
+        <span><span style="display:inline-block;width:12px;height:12px;background:#3b82f6;border-radius:3px;"></span> 基本量 ${basePercent}%</span>
+        <span><span style="display:inline-block;width:12px;height:12px;background:#10b981;border-radius:3px;"></span> 運動 ${exPercent}%</span>
+        <span><span style="display:inline-block;width:12px;height:12px;background:#f59e0b;border-radius:3px;"></span> 気温 ${tempPercent}%</span>
+      </div>`;
     }
     </script>
 <div style="max-width:600px;margin:1rem auto;padding:0 1rem">

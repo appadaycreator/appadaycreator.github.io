@@ -168,6 +168,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <h2 class="text-lg font-bold text-gray-800 mb-5" id="q-text"></h2>
       <div id="opts"></div>
     </div>
+    <button id="q-back" onclick="goBack()" style="display:none;margin-top:12px;background:none;border:1px solid #d1d5db;border-radius:8px;padding:10px 16px;color:#6b7280;cursor:pointer;font-size:13px;width:100%;">← 前の質問に戻る</button>
   </div>
 
   <div id="screen-loading" class="screen text-center py-20">
@@ -176,16 +177,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="text-gray-500 text-sm">最適な移住プランを分析しています</div>
   </div>
 
-  
-    <div class="card p-6 mb-4">
-      <h2 class="font-bold text-gray-800 mb-3">💡 使用例</h2>
-      <ul class="text-sm text-gray-700 space-y-2">
-        <li>• 複数の選択肢から最適なものを選びたい場合</li>
-        <li>• 意思決定に客観的な基準が欲しい場合</li>
-        <li>• プロフェッショナルなアドバイスが必要な場合</li>
-        <li>• 予算やニーズに合わせた提案を受けたい場合</li>
-      </ul>
-    </div>
 <div id="screen-results" class="screen">
     <div class="text-center mb-6">
       <div class="text-5xl mb-3">🗾</div>
@@ -257,7 +248,7 @@ var areasMap={
 };
 
 var cur=0,ans={};
-function startDiagnosis(){show('questions');renderQ();}
+function startDiagnosis(){cur=0;ans={};show('questions');renderQ();}
 function show(name){document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});document.getElementById('screen-'+name).classList.add('active');}
 function renderQ(){
   var q=Qs[cur];var pct=Math.round((cur+1)/Qs.length*100);
@@ -266,8 +257,17 @@ function renderQ(){
   document.getElementById('prog').style.width=pct+'%';
   document.getElementById('q-text').textContent=q.text;
   var c=document.getElementById('opts');c.innerHTML='';
-  q.opts.forEach(function(opt,i){var b=document.createElement('button');b.className='option-btn';b.textContent=opt;b.onclick=function(){pick(i,opt,q.key);};c.appendChild(b);});
+  q.opts.forEach(function(opt,i){
+    var b=document.createElement('button');b.className='option-btn';b.textContent=opt;
+    // すでに選択済みの場合はハイライト
+    if(ans[q.key]&&ans[q.key].i===i)b.classList.add('selected');
+    b.onclick=function(){pick(i,opt,q.key);};
+    c.appendChild(b);
+  });
+  var back=document.getElementById('q-back');
+  if(back)back.style.display=cur>0?'block':'none';
 }
+function goBack(){if(cur>0){cur--;renderQ();}}
 function pick(i,val,key){
   ans[key]={i:i,val:val};
   document.querySelectorAll('.option-btn').forEach(function(b,j){b.classList.toggle('selected',j===i);});
@@ -280,19 +280,36 @@ function showResults(){
   var workIdx=ans.work?ans.work.i:0;
   var housingIdx=ans.housing?ans.housing.i:0;
 
-  var movingCost=currentIdx<=1?500000:300000;
+  // 家族構成に応じた費用係数（単身1.0〜大家族2.5）
+  var familyMult=[1,1.3,1.8,2.5][familyIdx]||1;
+  var movingCost=Math.round((currentIdx<=1?500000:300000)*familyMult);
   if(housingIdx>=1)movingCost+=1000000;
-  var monthlySave=currentIdx<=1?80000:40000;
+  var monthlySave=Math.round((currentIdx<=1?80000:40000)*(1+familyIdx*0.12));
   var annualSave=monthlySave*12;
+  var breakEvenYear=annualSave>0?Math.ceil(movingCost/annualSave):99;
   var tenYearSave=annualSave*10-movingCost;
 
   document.getElementById('r-moving').textContent='約'+Math.round(movingCost/10000)+'万円';
   document.getElementById('r-monthly-change').textContent='月▲'+Math.round(monthlySave/1000)+'千円の削減見込み';
-  document.getElementById('r-annual-save').textContent=tenYearSave>0?'10年で約'+Math.round(tenYearSave/10000)+'万円の節約':'移住費用は数年で回収可能な見込み';
+  document.getElementById('r-annual-save').textContent=tenYearSave>0?'10年で約'+Math.round(tenYearSave/10000)+'万円の節約':'移住費用は'+breakEvenYear+'年目頃に回収見込み';
 
-  // 10年資産推移イメージ
-  var tl='',cumulative=-movingCost;
-  for(var y=1;y<=10;y++){cumulative+=annualSave;var bal=cumulative>=0?'+'+Math.round(cumulative/10000)+'万':''+Math.round(cumulative/10000)+'万';tl+='<div>'+y+'年目：'+bal+'円 '+['','█','██','███','████','█████','██████','███████','████████','█████████'][Math.min(9,Math.max(0,Math.floor((cumulative+movingCost*2)/(movingCost*4))))]+'</div>';}
+  // 10年資産推移グラフ（修正版：正しいスケーリング）
+  var maxVal=annualSave*10;
+  var tl='';
+  var cumulative=-movingCost;
+  for(var y=1;y<=10;y++){
+    cumulative+=annualSave;
+    var isPositive=cumulative>=0;
+    var bal=isPositive?'+'+Math.round(cumulative/10000)+'万円':'▲'+Math.round(Math.abs(cumulative)/10000)+'万円';
+    var barLen=isPositive?Math.max(1,Math.round(cumulative/maxVal*8)):0;
+    var color=isPositive?'#15803d':'#dc2626';
+    tl+='<div style="display:flex;align-items:center;gap:4px;padding:2px 0;">'
+      +'<span style="min-width:28px;font-size:10px;color:#9ca3af;">'+y+'年</span>'
+      +'<span style="color:'+color+';font-family:monospace;flex:1;">'+(isPositive?'█'.repeat(barLen):'·')+'</span>'
+      +'<span style="font-size:11px;color:'+color+';min-width:70px;text-align:right;">'+bal+'</span>'
+      +(y===breakEvenYear?'<span style="font-size:10px;color:#7c3aed;white-space:nowrap;margin-left:4px;">← 回収</span>':'')
+      +'</div>';
+  }
   document.getElementById('r-timeline').innerHTML=tl;
 
   // 検討項目チェックリスト
@@ -310,20 +327,28 @@ function showResults(){
   ];
   document.getElementById('r-timeline-guide').innerHTML=timelineSteps.map(function(s){return '<div class="bg-gray-50 p-2 rounded"><strong>'+s.period+'：</strong>'+s.action+'</div>';}).join('');
 
-  var subsidy='移住支援金（国）：最大100万円（世帯）／最大60万円（単身）\n子育て移住：子ども1人につき最大100万円の加算あり\n空き家バンク活用：最大50〜100万円の改修補助（市町村により異なる）';
-  document.getElementById('r-subsidy').innerHTML=subsidy.split('\n').map(function(s){return '<div>• '+s+'</div>';}).join('');
+  // 補助金情報（回答に応じて動的に表示）
+  var subsidyLines=['• <strong>移住支援金（国）</strong>：最大100万円（世帯）／最大60万円（単身）'];
+  if(familyIdx>=2){subsidyLines.push('• <strong>子育て移住加算</strong>：子ども1人につき最大100万円（18歳未満）');}
+  if(workIdx===0){subsidyLines.push('• <strong>テレワーク移住支援</strong>：最大100万円（東京圏から移住してテレワーク継続の場合）');}
+  if(workIdx===2){subsidyLines.push('• <strong>起業・農業支援</strong>：青年等就農給付金（最大150万円/年）、創業補助金あり');}
+  if(workIdx===3){subsidyLines.push('• <strong>シニア移住支援</strong>：高齢者向け移住促進制度・医療費助成を実施する市町村あり');}
+  if(housingIdx>=1){subsidyLines.push('• <strong>空き家活用補助</strong>：最大50〜100万円の改修補助（市町村により異なる）');}
+  document.getElementById('r-subsidy').innerHTML=subsidyLines.join('<br>');
 
   var areaKey=purposeIdx===0?'cost':purposeIdx===1?'nature':workIdx===0?'telework':'balance';
   var areas=areasMap[areaKey];
   var areaEl=document.getElementById('areas-list');areaEl.innerHTML='';
   areas.forEach(function(a,idx){
-    var d=document.createElement('div');d.className=idx===0?'area-card':'area-card';
+    var d=document.createElement('div');d.className='area-card';
+    if(idx===0){d.style.borderColor='#15803d';d.style.background='#f0fdf4';}
     d.innerHTML='<div class="font-bold text-gray-800 text-sm">'+(idx===0?'🥇 ':idx===1?'🥈 ':'🥉 ')+a+'</div>';
     areaEl.appendChild(d);
   });
 
   document.getElementById('aff-area').innerHTML='<div class="space-y-2"><a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ7+DFIAJU+4ZCO+60OXE" rel="nofollow" target="_blank" rel="noopener sponsored" class="block text-center bg-green-600 text-white font-bold py-3 rounded-lg text-sm hover:bg-green-700 transition">移住相談・無料セミナーに参加する →</a><a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ8+9YH9II+40OC+C3BAP" rel="nofollow" target="_blank" rel="noopener sponsored" class="block text-center bg-emerald-500 text-white font-bold py-3 rounded-lg text-sm hover:bg-emerald-600 transition">地方の物件を探す →</a></div>';
   show('results');
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 function restart(){cur=0;ans={};show('intro');}
 </script>
@@ -443,5 +468,9 @@ function restart(){cur=0;ans={};show('intro');}
   <strong>免責事項</strong>：本ツールの計算・診断結果はあくまで参考情報です。本サービスの利用により生じた損害について、当サイトは一切の責任を負いません。
 </div>
 <div style="text-align:center;padding:8px;font-size:11px;"><a href="privacy-policy.html" style="color:inherit;font-size:11px;opacity:0.7;text-decoration:underline;">プライバシーポリシー</a></div>
+<div style="text-align:center;margin:24px auto;max-width:760px;padding:0 16px">
+<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
+</div>
 </body>
 </html>

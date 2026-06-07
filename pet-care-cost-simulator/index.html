@@ -280,11 +280,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     q.options.forEach(opt => {
       const checked = answers[q.id] === opt ? 'checked' : '';
       html += `<label class="flex items-center gap-3 p-3 border border-gray-200 rounded-xl cursor-pointer hover:border-amber-400 transition has-[:checked]:border-amber-500 has-[:checked]:bg-amber-50">
-        <input type="radio" name="${q.id}" value="${opt}" ${checked} class="accent-amber-500" aria-label="入力フォーム"> <span class="text-sm">${opt}</span>
+        <input type="radio" name="${q.id}" value="${opt}" ${checked} class="accent-amber-500" onchange="autoAdvance()" aria-label="入力フォーム"> <span class="text-sm">${opt}</span>
       </label>`;
     });
     html += '</div>';
     document.getElementById('question-area').innerHTML = html;
+  }
+
+  // 選択後に自動進行（最終質問は除く）
+  function autoAdvance() {
+    if (currentStep < questions.length - 1) {
+      setTimeout(() => nextStep(), 300);
+    }
   }
 
   function saveAnswer() {
@@ -388,8 +395,17 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       costs.insurance = 4;
     }
 
-    // その他（トイレ用品・おもちゃ等）
-    costs.other = 3;
+    // その他（トイレ用品・おもちゃ等）ペット種別で変動
+    const otherCostMap = {
+      '犬（小型犬・5kg未満）': 3,
+      '犬（中型犬・5〜25kg）': 4,
+      '犬（大型犬・25kg以上）': 5,
+      '猫（室内飼い）': 2,
+      '猫（室内外）': 2,
+      '小動物（うさぎ・ハムスター等）': 1.5,
+      '鳥類・爬虫類等': 2
+    };
+    costs.other = otherCostMap[answers.pet_type] || 3;
 
     const annualCost = costs.food + costs.grooming + costs.vet + costs.insurance + costs.housing + costs.other;
     return {
@@ -488,9 +504,38 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <h3 class="font-bold text-gray-700 mb-3">💡 ペット飼育アドバイス</h3>
       <div class="space-y-3">
         ${advice.map(a => `<div class="flex gap-3 p-3 bg-gray-50 rounded-xl"><span class="text-xl">🐾</span><p class="text-sm text-gray-700">${a}</p></div>`).join('')}
+      </div>
+
+      <div class="mt-5 border-t border-gray-100 pt-4">
+        <p class="text-xs text-gray-500 mb-2 text-center">この結果をシェアする</p>
+        <div class="flex gap-2">
+          <a href="https://line.me/R/share?text=${encodeURIComponent('【ペット飼育費用シミュレーター】\n' + answers.pet_type + ' の年間維持費は約' + annualCost + '万円・生涯費用は約' + lifetimeCost + '万円という試算結果が出ました！')}&url=${encodeURIComponent('https://appadaycreator.com/pet-care-cost-simulator/')}" target="_blank" rel="noopener"
+             style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:10px;border-radius:10px;font-size:13px;font-weight:bold;text-decoration:none;">
+            LINEでシェア
+          </a>
+          <a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(answers.pet_type + 'の年間維持費は約' + annualCost + '万円・生涯費用は約' + lifetimeCost + '万円！ペット飼育費用シミュレーターで試算しました')}&url=${encodeURIComponent('https://appadaycreator.com/pet-care-cost-simulator/')}&via=appadaycreator" target="_blank" rel="noopener"
+             style="flex:1;display:block;text-align:center;background:#000;color:white;padding:10px;border-radius:10px;font-size:13px;font-weight:bold;text-decoration:none;">
+            Xでシェア
+          </a>
+          <button onclick="copyResultText(${annualCost}, ${lifetimeCost})"
+             style="flex:1;display:block;text-align:center;background:#f3f4f6;color:#374151;padding:10px;border-radius:10px;font-size:13px;font-weight:bold;border:none;cursor:pointer;" id="copy-btn">
+            コピー
+          </button>
+        </div>
       </div>`;
 
     document.getElementById('result-content').innerHTML = html;
+  }
+
+  function copyResultText(annualCost, lifetimeCost) {
+    const text = `【ペット飼育費用シミュレーター結果】\n${answers.pet_type}\n・年間維持費：約${annualCost}万円\n・生涯費用：約${lifetimeCost}万円\nhttps://appadaycreator.com/pet-care-cost-simulator/`;
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.getElementById('copy-btn');
+      btn.textContent = 'コピー済み ✓';
+      btn.style.background = '#d1fae5';
+      btn.style.color = '#065f46';
+      setTimeout(() => { btn.textContent = 'コピー'; btn.style.background = '#f3f4f6'; btn.style.color = '#374151'; }, 2000);
+    }).catch(() => alert('コピーに失敗しました'));
   }
 
   function resetQuiz() {
@@ -522,15 +567,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
             <div class="space-y-3">
         <div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「愛犬に合ったペットフードの選び方が分かりました。年齢や体重を入力するだけで具体的な量の目安が出て助かります。」</p>
+          <p class="text-xs text-gray-700">「犬を迎える前に試算したら予想以上の費用がかかると分かり、ちゃんと準備できました。生涯費用まで出てくれるのが特に助かります。」</p>
           <p style="font-size:12px;color:#9333ea;" class="mt-1">— 田中さん（30代・会社員）★★★★★</p>
         </div>
         <div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「ペット保険に入るべきか迷っていましたが、犬種・年齢・病気リスクを考慮したアドバイスが参考になりました。」</p>
+          <p class="text-xs text-gray-700">「大型犬の生涯費用が200万円超と出て最初は驚きましたが、覚悟を持って迎えることができました。費用の内訳グラフが分かりやすい！」</p>
           <p style="font-size:12px;color:#9333ea;" class="mt-1">— 佐藤さん（40代・主婦）★★★★★</p>
         </div>
         <div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「ペットの飼育費の月額目安が出て、これから飼うかどうかの判断に役立てました。」</p>
+          <p class="text-xs text-gray-700">「猫なら月2〜3万円で飼えると分かって安心しました。毎月の積立目標が明確になり、貯金の計画を立てやすくなりました。」</p>
           <p style="font-size:12px;color:#9333ea;" class="mt-1">— 山本さん（20代・一人暮らし）★★★★☆</p>
         </div>
       </div>

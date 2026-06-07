@@ -139,14 +139,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <h2 class="font-bold text-gray-800 mb-4">🚬 現在の喫煙状況を入力</h2>
     <div class="space-y-4">
       <div>
-        <label>1日の喫煙本数</label>
-        <select id="cigs-per-day" class="input-field">
-          <option value="5">5本（軽度）</option>
-          <option value="10" selected>10本（半箱）</option>
-          <option value="20">20本（1箱）</option>
-          <option value="30">30本（1.5箱）</option>
-          <option value="40">40本（2箱）</option>
-        </select>
+        <label for="cigs-per-day">1日の喫煙本数</label>
+        <input type="number" id="cigs-per-day" class="input-field" placeholder="例: 20" min="1" max="80" value="10" aria-label="1日の喫煙本数（本）">
       </div>
       <div>
         <label>タバコの種類・価格（1箱）</label>
@@ -169,17 +163,36 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <option value="stock">積極的に投資（年利6%想定）</option>
         </select>
       </div>
+      <div>
+        <label for="quit-date">禁煙開始日（任意：達成日数カウント用）</label>
+        <input type="date" id="quit-date" class="input-field" aria-label="禁煙開始日">
+      </div>
     </div>
     <button class="btn-primary mt-5" onclick="calculate()">シミュレーションする →</button>
   </div>
 
   <div id="results" class="card p-6 mb-4" style="display:none;">
     <h2 class="font-bold text-gray-800 mb-4">📊 シミュレーション結果</h2>
+
+    <!-- 過去の喫煙費用総額 -->
+    <div id="r-past-block" class="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 text-center">
+      <div class="text-xs text-red-600 font-bold mb-1">🔥 今まで煙草に費やした金額（推計）</div>
+      <div class="text-2xl font-bold text-red-600" id="r-past-total"></div>
+      <div class="text-xs text-gray-500 mt-1">喫煙年数から計算した参考値です</div>
+    </div>
+
+    <!-- 禁煙達成カウンター（禁煙開始日入力時のみ表示） -->
+    <div id="r-counter-block" class="bg-green-600 text-white rounded-xl p-4 mb-4 text-center" style="display:none;">
+      <div class="text-sm font-bold mb-1">🏆 禁煙達成カウンター</div>
+      <div class="text-3xl font-bold" id="r-counter-days">0日</div>
+      <div class="text-sm mt-1">節約額: <span id="r-counter-saved" class="font-bold text-yellow-300"></span></div>
+    </div>
+
     <div class="grid grid-cols-2 gap-3 mb-5">
       <div class="metric-box"><div class="metric-label">月の節約額</div><div class="metric-value" id="r-monthly"></div></div>
       <div class="metric-box accent"><div class="metric-label">10年後の節約額</div><div class="metric-value" id="r-10yr"></div></div>
       <div class="metric-box"><div class="metric-label">年間節約額</div><div class="metric-value" id="r-annual"></div></div>
-      <div class="metric-box"><div class="metric-label">30年後（NISA運用）</div><div class="metric-value" id="r-investment"></div></div>
+      <div class="metric-box"><div class="metric-label" id="r-investment-label">30年後（運用）</div><div class="metric-value" id="r-investment"></div></div>
     </div>
 
     <div class="bg-green-50 rounded-lg p-4 mb-4">
@@ -206,7 +219,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="mt-3 text-xs text-center space-y-1">
       <div><a href="/mental-health-checker/" class="text-green-600 underline">ストレスチェック（禁煙のメンタルサポート）→</a></div>
       <div><a href="/subscription-calculator/" class="text-green-600 underline">固定費まとめて削減する →</a></div>
-      <div><a href="/fire-calculator/" class="text-green-600 underline">節約額をFIREに活用する →</a></div>
+      <div><a href="/fire-calculator/lp/" class="text-green-600 underline">節約額をFIREに活用する →</a></div>
     </div>
     <p class="text-xs text-gray-400 text-center mt-2">Amazonアソシエイトプログラム参加中</p>
   </div>
@@ -225,21 +238,66 @@ var timeline=[
   {time:"15年後",emoji:"🏆",desc:"心臓病リスクが非喫煙者とほぼ同レベルに"}
 ];
 
+// 投資方法の表示ラベル
+var investLabels={save:'30年後（普通預金）',nisa:'30年後（新NISA 4%）',stock:'30年後（積極投資 6%）'};
+
+// 禁煙カウンターのタイマーID
+var counterTimer=null;
+// 月間節約額（カウンター計算用）
+var currentMonthly=0;
+
+function startCounter(quitDate, monthly) {
+  // 既存タイマーをクリア
+  if(counterTimer) clearInterval(counterTimer);
+  currentMonthly = monthly;
+
+  function updateCounter(){
+    var now=new Date();
+    var start=new Date(quitDate);
+    // ミリ秒差
+    var diffMs=now-start;
+    if(diffMs<0){
+      document.getElementById('r-counter-days').textContent='0日';
+      document.getElementById('r-counter-saved').textContent='¥0';
+      return;
+    }
+    var days=Math.floor(diffMs/86400000);
+    var hours=Math.floor((diffMs%86400000)/3600000);
+    var mins=Math.floor((diffMs%3600000)/60000);
+    var secs=Math.floor((diffMs%60000)/1000);
+    var label=days+'日 '+hours+'時間 '+mins+'分 '+secs+'秒';
+    document.getElementById('r-counter-days').textContent=label;
+    // 節約額（日単位で按分）
+    var savedDays=diffMs/86400000;
+    var saved=Math.round(savedDays*(monthly/30));
+    document.getElementById('r-counter-saved').textContent='¥'+saved.toLocaleString();
+  }
+  updateCounter();
+  counterTimer=setInterval(updateCounter,1000);
+}
+
 function calculate(){
   var cigs=parseInt(document.getElementById('cigs-per-day').value)||10;
+  if(cigs<1)cigs=1;if(cigs>80)cigs=80;
   var priceBox=parseInt(document.getElementById('price-per-box').value)||580;
   var years=parseInt(document.getElementById('years-smoking').value)||15;
   var invest=document.getElementById('invest-type').value;
+  var quitDate=document.getElementById('quit-date').value;
   // 入力値をlocalStorageに保存
   localStorage.setItem('smoking_cigs', cigs);
   localStorage.setItem('smoking_price', priceBox);
   localStorage.setItem('smoking_years', years);
   localStorage.setItem('smoking_invest', invest);
+  if(quitDate) localStorage.setItem('smoking_quit_date', quitDate);
 
   var cigsPerBox=20;
   var dailyCost=cigs/cigsPerBox*priceBox;
   var monthly=Math.round(dailyCost*30);
   var annual=Math.round(dailyCost*365);
+
+  // 過去の喫煙費用総額
+  var pastTotal=Math.round(annual*years);
+  document.getElementById('r-past-total').textContent='¥'+pastTotal.toLocaleString()+'（'+years+'年分）';
 
   var rates={save:0.001,nisa:0.04,stock:0.06};
   var r=rates[invest]/12;
@@ -256,6 +314,8 @@ function calculate(){
   document.getElementById('r-annual').textContent='¥'+annual.toLocaleString();
   document.getElementById('r-10yr').textContent='¥'+Math.round(fv10/10000)+'万';
   document.getElementById('r-investment').textContent='¥'+Math.round(fv30/10000)+'万';
+  // 投資ラベルを選択に合わせて更新
+  document.getElementById('r-investment-label').textContent=investLabels[invest]||'30年後（運用）';
 
   var tlEl=document.getElementById('timeline');tlEl.innerHTML='';
   timeline.forEach(function(t){
@@ -268,6 +328,15 @@ function calculate(){
   var clinicPayback=Math.ceil(clinicCost/monthly);
   document.getElementById('r-clinic-compare').textContent='禁煙外来費用（保険適用）は約'+clinicCost.toLocaleString()+'円。禁煙成功すれば'+clinicPayback+'ヶ月で元が取れます。自力禁煙の成功率は3〜5%に対し、禁煙外来では30〜40%と大幅に向上します。';
 
+  // 禁煙カウンター
+  if(quitDate){
+    document.getElementById('r-counter-block').style.display='block';
+    startCounter(quitDate, monthly);
+  } else {
+    document.getElementById('r-counter-block').style.display='none';
+    if(counterTimer) clearInterval(counterTimer);
+  }
+
   document.getElementById('results').style.display='block';
   document.getElementById('affiliate-section').style.display='block';
   document.getElementById('results').scrollIntoView({behavior:'smooth'});
@@ -278,10 +347,12 @@ document.addEventListener('DOMContentLoaded', function() {
   var lp=localStorage.getItem('smoking_price');
   var ly=localStorage.getItem('smoking_years');
   var li=localStorage.getItem('smoking_invest');
+  var lq=localStorage.getItem('smoking_quit_date');
   if(lc){var el=document.getElementById('cigs-per-day');if(el)el.value=lc;}
   if(lp){var el2=document.getElementById('price-per-box');if(el2)el2.value=lp;}
   if(ly){var el3=document.getElementById('years-smoking');if(el3)el3.value=ly;}
   if(li){var el4=document.getElementById('invest-type');if(el4)el4.value=li;}
+  if(lq){var el5=document.getElementById('quit-date');if(el5)el5.value=lq;}
 });
 </script>
 <div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px auto;max-width:680px;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">入力された値を計算式やスコアリングロジックで処理し、あなたに合った結果を算出します。本ツールの結果はあくまで参考情報です。重要な判断の際は専門家にご相談ください。</p></div>
@@ -320,10 +391,10 @@ document.addEventListener('DOMContentLoaded', function() {
 <section class="bg-white rounded-2xl shadow-md p-5">
   <h3 style="font-size:14px;font-weight:700;color:#64748b;margin-bottom:12px;letter-spacing:0.03em;">関連サービス</h3>
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
-    <a href="https://appadaycreator.com/accounting-software-advisor/" class="related-link">会計ソフト診断</a>
-    <a href="https://appadaycreator.com/relocation-advisor/" class="related-link">移住・地方移住費用診断</a>
-    <a href="https://appadaycreator.com/internet-plan-advisor/" class="related-link">インターネット回線選び診断</a>
-    <a href="https://appadaycreator.com/programming-school-advisor/" class="related-link">プログラミングスクール診断</a>
+    <a href="https://appadaycreator.com/mental-health-checker/" class="related-link">ストレスチェック</a>
+    <a href="https://appadaycreator.com/bmi-body-tracker/" class="related-link">BMI・体重管理</a>
+    <a href="https://appadaycreator.com/household-budget-analyzer/" class="related-link">家計簿診断</a>
+    <a href="https://appadaycreator.com/fire-calculator/lp/" class="related-link">FIRE計算機</a>
   </div>
 </section>
 </div>
@@ -377,8 +448,6 @@ document.addEventListener('DOMContentLoaded', function() {
   <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">
     <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-flex;align-items:center;padding:8px 14px;background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;color:#334155;text-decoration:none;white-space:nowrap;">日々の生活にハッピーをプラス！《ハピタス》</a><img border="0" width="1" height="1" src="https://www14.a8.net/0.gif?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642" alt="">
     <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FIIWRU+1IRY+1TKOKI" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-flex;align-items:center;padding:8px 14px;background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;color:#334155;text-decoration:none;white-space:nowrap;">ファイナンシャルアカデミー「お金の教養講座」</a><img border="0" width="1" height="1" src="https://www15.a8.net/0.gif?a8mat=4B3WJ6+FIIWRU+1IRY+1TKOKI" alt="">
-    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-flex;align-items:center;padding:8px 14px;background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;color:#334155;text-decoration:none;white-space:nowrap;">日々の生活にハッピーをプラス！《ハピタス》</a><img border="0" width="1" height="1" src="https://www14.a8.net/0.gif?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642" alt="">
-    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FIIWRU+1IRY+1TKOKI" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-flex;align-items:center;padding:8px 14px;background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;color:#334155;text-decoration:none;white-space:nowrap;">ファイナンシャルアカデミー「お金の教養講座」</a><img border="0" width="1" height="1" src="https://www15.a8.net/0.gif?a8mat=4B3WJ6+FIIWRU+1IRY+1TKOKI" alt="">
     <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ7+18PTPM+1O96+699KI" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-flex;align-items:center;padding:8px 14px;background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;color:#334155;text-decoration:none;white-space:nowrap;">《ヨガ》をはじめてみませんか？ホットヨガスタジオLAVA</a><img border="0" width="1" height="1" src="https://www12.a8.net/0.gif?a8mat=4B3WJ7+18PTPM+1O96+699KI" alt="">
     <a href="https://px.a8.net/svt/ejp?a8mat=4B3YV7+BZ45BE+38S6+5ZMCI" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-flex;align-items:center;padding:8px 14px;background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;color:#334155;text-decoration:none;white-space:nowrap;">３０日間無利息キャンペーン中のレディースフタバ</a><img border="0" width="1" height="1" src="https://www16.a8.net/0.gif?a8mat=4B3YV7+BZ45BE+38S6+5ZMCI" alt="">
     <a href="https://px.a8.net/svt/ejp?a8mat=457C4C+C23BCA+0K+10FXXU" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-flex;align-items:center;padding:8px 14px;background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;color:#334155;text-decoration:none;white-space:nowrap;">アフィリエイトならA8.net</a><img border="0" width="1" height="1" src="https://www15.a8.net/0.gif?a8mat=457C4C+C23BCA+0K+10FXXU" alt="">
@@ -394,5 +463,9 @@ document.addEventListener('DOMContentLoaded', function() {
   <strong>免責事項</strong>：本ツールの計算・診断結果はあくまで参考情報です。本サービスの利用により生じた損害について、当サイトは一切の責任を負いません。
 </div>
 <div style="text-align:center;padding:8px;font-size:11px;"><a href="privacy-policy.html" style="color:inherit;font-size:11px;opacity:0.7;text-decoration:underline;">プライバシーポリシー</a></div>
+<div style="text-align:center;margin:24px auto;max-width:760px;padding:0 16px">
+<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
+</div>
 </body>
 </html>

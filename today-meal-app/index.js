@@ -151,6 +151,27 @@ function measurePerformance(name, fn) {
 //   }
 // }
 
+// 食事時間帯のヘルパー関数
+function getMealTimeEmoji(mealTime) {
+  const emojis = {
+    'breakfast': '🌅',
+    'lunch': '🌞',
+    'dinner': '🌙',
+    'snack': '🍪'
+  };
+  return emojis[mealTime] || '';
+}
+
+function getMealTimeName(mealTime) {
+  const names = {
+    'breakfast': '朝食',
+    'lunch': '昼食',
+    'dinner': '夕食',
+    'snack': '間食'
+  };
+  return names[mealTime] || '';
+}
+
 // キーボードナビゲーション
 function setupKeyboardNavigation() {
   try {
@@ -672,6 +693,7 @@ function createMealCard(meal) {
           <p class="card-text text-muted small mb-2">
             <i class="bi bi-calendar3"></i> ${meal.capturedate}
             ${meal.category ? `<span class="ms-2"><i class="bi bi-tag"></i> ${escapeHtml(meal.category)}</span>` : ''}
+            ${meal.meal_time ? `<span class="ms-2">${getMealTimeEmoji(meal.meal_time)} ${getMealTimeName(meal.meal_time)}</span>` : ''}
           </p>
           ${meal.ingredients && meal.ingredients.length > 0 ? `
             <div class="ingredients mb-2">
@@ -1124,7 +1146,8 @@ async function handleMealSubmit(event) {
     const mealData = {
       name: formData.get('meal-name').trim(),
       category: formData.get('meal-category') || null,
-      ingredients: formData.get('meal-ingredients') ? 
+      meal_time: formData.get('meal-time') || null,
+      ingredients: formData.get('meal-ingredients') ?
         formData.get('meal-ingredients').split(',').map(i => i.trim()).filter(i => i) : [],
       capturedate: formData.get('meal-date') || new Date().toISOString().split('T')[0],
       calories: formData.get('meal-calories') ? parseInt(formData.get('meal-calories')) : null,

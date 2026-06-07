@@ -218,6 +218,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <button class="quiz-btn bg-orange-50 border-2 border-orange-200 rounded-xl p-4 hover:border-orange-500 hover:bg-orange-100 transition min-h-16" data-q="6" data-v="high">1.5〜3万円/月</button>
             <button class="quiz-btn bg-orange-50 border-2 border-orange-200 rounded-xl p-4 hover:border-orange-500 hover:bg-orange-100 transition min-h-16" data-q="6" data-v="premium">3万円以上/月</button>
           </div>
+          <button onclick="goToPrevQuestion()" class="mt-4 w-full bg-gray-400 text-white font-semibold py-2 rounded-xl hover:bg-gray-500 transition">← 前の質問に戻る</button>
         </div>
 
         <div id="q7" class="question-block hidden">
@@ -228,6 +229,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <button class="quiz-btn bg-orange-50 border-2 border-orange-200 rounded-xl p-4 hover:border-orange-500 hover:bg-orange-100 transition min-h-16" data-q="7" data-v="regular">月1〜2回ペース</button>
             <button class="quiz-btn bg-orange-50 border-2 border-orange-200 rounded-xl p-4 hover:border-orange-500 hover:bg-orange-100 transition min-h-16" data-q="7" data-v="frequent">週1以上・出張が多い</button>
           </div>
+          <button onclick="goToPrevQuestion()" class="mt-4 w-full bg-gray-400 text-white font-semibold py-2 rounded-xl hover:bg-gray-500 transition">← 前の質問に戻る</button>
         </div>
 
         <div id="q8" class="question-block hidden">
@@ -343,6 +345,28 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <script>
     const answers = {};
     const totalQ = 8;
+    let currentQ = 1;
+
+    // 指定した質問番号を表示し、保存済み回答をハイライトする
+    function showQuestion(q) {
+      document.querySelectorAll('.question-block').forEach(el => el.classList.add('hidden'));
+      document.getElementById(`q${q}`).classList.remove('hidden');
+      currentQ = q;
+      const pct = ((q - 1) / totalQ * 100);
+      document.getElementById('progress-bar').style.width = pct + '%';
+      document.getElementById('progress-text').textContent = `質問 ${q} / ${totalQ}`;
+      // 既回答ボタンをハイライト復元
+      if (answers[q]) {
+        document.querySelectorAll(`[data-q="${q}"]`).forEach(b => {
+          b.classList.remove('border-orange-500','bg-orange-100');
+          if (b.dataset.v === answers[q]) b.classList.add('border-orange-500','bg-orange-100');
+        });
+      }
+    }
+
+    function goToPrevQuestion() {
+      if (currentQ > 1) showQuestion(currentQ - 1);
+    }
 
     document.querySelectorAll('.quiz-btn').forEach(btn => {
       btn.addEventListener('click', function() {
@@ -353,10 +377,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         this.classList.add('border-orange-500','bg-orange-100');
         setTimeout(() => {
           if (q < totalQ) {
-            document.getElementById(`q${q}`).classList.add('hidden');
-            document.getElementById(`q${q+1}`).classList.remove('hidden');
-            document.getElementById('progress-bar').style.width = (q/totalQ*100)+'%';
-            document.getElementById('progress-text').textContent = `質問 ${q+1} / ${totalQ}`;
+            showQuestion(q + 1);
           } else { showResult(); }
         }, 300);
       });
@@ -404,10 +425,30 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       else if (budget === 'premium') dogScore += 1;
 
       const allPets = [
-        { id: 'dog', emoji: '🐕', type: '犬（イヌ）', score: dogScore, breeds: ['トイプードル', 'チワワ', 'ポメラニアン', 'ミニチュアダックス'], desc: '愛情深くコミュニケーション豊か。散歩が必要で一緒に外を楽しめます。', cost: '3〜5万円/月', caution: '留守番が苦手な犬種が多い。しつけと毎日の散歩が必要' },
-        { id: 'cat', emoji: '🐈', type: '猫（ネコ）', score: catScore, breeds: ['スコティッシュフォールド', 'アメリカンショートヘア', 'マンチカン', 'ノルウェージャン'], desc: '独立心が高く、留守番が得意。マンション向きでグルーミングが楽しい。', cost: '1〜2万円/月', caution: '室内環境の充実が重要。脱走防止対策も必須' },
-        { id: 'small', emoji: '🐹', type: '小動物（ハムスター・うさぎ等）', score: smallAnimalScore, breeds: ['ハムスター', 'うさぎ', 'モルモット', 'フェレット'], desc: 'コンパクトで飼育スペースが少なくてもOK。比較的低コスト。', cost: '3千〜1万円/月', caution: '夜行性の動物も多い。温度管理が重要' },
-        { id: 'fish', emoji: '🐠', type: '魚・水生生物', score: fishScore, breeds: ['金魚', 'メダカ', 'ベタ', 'コリドラス'], desc: 'アレルギーフリー。旅行中もある程度放置OK。癒し効果が高い。', cost: '5千〜1.5万円/月（初期水槽代別）', caution: '水質管理・水換えが定期的に必要' }
+        { id: 'dog', emoji: '🐕', type: '犬（イヌ）', score: Math.max(0, dogScore), breeds: [
+            {name:'トイプードル', trait:'抜け毛少・賢い'},
+            {name:'チワワ', trait:'小型・番犬気質'},
+            {name:'ポメラニアン', trait:'ふわふわ・活発'},
+            {name:'ミニチュアダックス', trait:'長胴・穴掘り好き'}
+          ], desc: '愛情深くコミュニケーション豊か。散歩が必要で一緒に外を楽しめます。', cost: '3〜5万円/月', caution: '留守番が苦手な犬種が多い。しつけと毎日の散歩が必要' },
+        { id: 'cat', emoji: '🐈', type: '猫（ネコ）', score: Math.max(0, catScore), breeds: [
+            {name:'スコティッシュフォールド', trait:'折れ耳・穏やか'},
+            {name:'アメリカンショートヘア', trait:'丈夫・万能'},
+            {name:'マンチカン', trait:'短足・好奇心旺盛'},
+            {name:'ノルウェージャン', trait:'長毛・寒冷地向き'}
+          ], desc: '独立心が高く、留守番が得意。マンション向きでグルーミングが楽しい。', cost: '1〜2万円/月', caution: '室内環境の充実が重要。脱走防止対策も必須' },
+        { id: 'small', emoji: '🐹', type: '小動物（ハムスター・うさぎ等）', score: Math.max(0, smallAnimalScore), breeds: [
+            {name:'ハムスター', trait:'夜行性・省スペース'},
+            {name:'うさぎ', trait:'鳴き声なし・温厚'},
+            {name:'モルモット', trait:'昼行性・人懐こい'},
+            {name:'フェレット', trait:'活発・知能高め'}
+          ], desc: 'コンパクトで飼育スペースが少なくてもOK。比較的低コスト。', cost: '3千〜1万円/月', caution: '夜行性の動物も多い。温度管理が重要' },
+        { id: 'fish', emoji: '🐠', type: '魚・水生生物', score: Math.max(0, fishScore), breeds: [
+            {name:'金魚', trait:'丈夫・長寿'},
+            {name:'メダカ', trait:'省スペース・超低コスト'},
+            {name:'ベタ', trait:'単独飼育・美麗'},
+            {name:'コリドラス', trait:'底物・混泳向き'}
+          ], desc: 'アレルギーフリー。旅行中もある程度放置OK。癒し効果が高い。', cost: '5千〜1.5万円/月（初期水槽代別）', caution: '水質管理・水換えが定期的に必要' }
       ];
 
       const sorted = [...allPets].sort((a,b) => b.score - a.score);
@@ -425,7 +466,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="mb-6">
           <h4 class="font-bold text-gray-700 mb-3">📌 おすすめ品種例</h4>
           <div class="flex flex-wrap gap-2">
-            ${topPet.breeds.map(b => `<span class="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm">${b}</span>`).join('')}
+            ${topPet.breeds.map(b => `<span class="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm" title="${b.trait}">${b.name} <span class="text-orange-500 text-xs">（${b.trait}）</span></span>`).join('')}
           </div>
         </div>
 
@@ -494,6 +535,19 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           `).join('')}
         </div>`;
 
+      // シェアボタンを結果直下に追加
+      html += `
+        <div class="flex gap-3 mb-6">
+          <a href="https://line.me/R/share?text=${encodeURIComponent('ペット種類・品種選び診断 - 私には「' + topPet.type + '」がおすすめ！あなたも試してみて')}&url=https://appadaycreator.com/pet-breed-advisor/" target="_blank" rel="noopener"
+             style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:10px;border-radius:8px;font-size:14px;font-weight:bold;text-decoration:none;">
+            LINEでシェア
+          </a>
+          <a href="https://twitter.com/intent/tweet?text=${encodeURIComponent('ペット診断で「' + topPet.type + '」がおすすめと出ました！')}&url=https://appadaycreator.com/pet-breed-advisor/&via=appadaycreator" target="_blank" rel="noopener"
+             style="flex:1;display:block;text-align:center;background:#000;color:white;padding:10px;border-radius:8px;font-size:14px;font-weight:bold;text-decoration:none;">
+            Xでシェア
+          </a>
+        </div>`;
+
       document.getElementById('result-content').innerHTML = html;
     }
 
@@ -518,7 +572,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           maintainAspectRatio: true,
           indexAxis: 'y',
           plugins: { legend: { display: false } },
-          scales: { x: { beginAtZero: true, max: 15 } }
+          scales: { x: { beginAtZero: true, max: Math.max(15, Math.max(...pets.map(p => p.score)) + 2) } }
         }
       });
     }

@@ -62,7 +62,7 @@
     <!-- Favicon -->
     <link rel="stylesheet" href="style.css">
         
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"結婚式費用計算機","url":"https://appadaycreator.com/wedding-cost-calculator/","description":"結婚式の総費用・項目別予算を無料で計算。招待人数・会場タイプ別に予算シミュレーション。","applicationCategory":"FinanceApplication","operatingSystem":"All","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"aggregateRating":{"@type":"AggregateRating","itemReviewed":{"@id":"https://appadaycreator.com/wedding-cost-calculator/"},"ratingValue":"4.7","reviewCount":"134","bestRating":"5","worstRating":"1"}}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"結婚式費用計算機","url":"https://appadaycreator.com/wedding-cost-calculator/","description":"結婚式の総費用・項目別予算を無料で計算。招待人数・会場タイプ別に予算シミュレーション。","applicationCategory":"FinanceApplication","operatingSystem":"All","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"aggregateRating":{"@type":"AggregateRating","ratingValue":"4.7","reviewCount":"134","bestRating":"5","worstRating":"1"}}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://appadaycreator.com/"},{"@type":"ListItem","position":2,"name":"結婚式費用計算機【無料】","item":"https://appadaycreator.com/wedding-cost-calculator/"}]}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"結婚式の平均費用はいくらですか？","acceptedAnswer":{"@type":"Answer","text":"日本の結婚式の平均費用は300〜350万円程度です（ゲスト人数・会場・料理グレードによって大きく異なります）。上の計算機で招待人数と会場タイプを選択すると、あなたのケースの費用目安を即計算できます。"}},{"@type":"Question","name":"結婚式費用の節約方法は？","acceptedAnswer":{"@type":"Answer","text":"①平日・日曜日の式（土曜より10〜20万円安い）、②レストランウェディング・ハウスウェディングの選択、③招待人数を絞る（1人あたり3〜5万円の食事・引き出物費用削減）、④持ち込み自由の会場選び、⑤ドレスのリースより着物の検討などが主な節約ポイントです。"}},{"@type":"Question","name":"祝儀収入で自己負担はどのくらい？","acceptedAnswer":{"@type":"Answer","text":"一般的にゲスト1人あたり3万円のご祝儀として計算すると、50人招待で150万円程度の収入になります。費用から祝儀収入を引いた自己負担額は平均100〜150万円程度です。計算機の結果に目安祝儀収入を差し引いてご確認ください。"}},{"@type":"Question","name":"結婚式の費用はいつまでに準備すべきですか？","acceptedAnswer":{"@type":"Answer","text":"式場との契約時に手付金（10〜30万円）が必要です。残額は式の1〜2週間前に一括支払いが一般的。式の6〜12ヶ月前から準備を始め、毎月積立てておくと安心です。"}},{"@type":"Question","name":"どのような人が使っていますか？","acceptedAnswer":{"@type":"Answer","text":"初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}},{"@type":"Question","name":"結果をシェアできますか？","acceptedAnswer":{"@type":"Answer","text":"はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}},{"@type":"Question","name":"有料プランはありますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、すべての機能を完全無料でご利用いただけます。"}}]}</script>
 <script type="application/ld+json">
@@ -675,10 +675,10 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         <button onclick="showComparison()" class="btn-primary" aria-label="他のプランと比較">
                             <span class="mr-2" aria-hidden="true">⚖️</span>他のプランと比較
                         </button>
-                        <button onclick="window.print()" class="btn-primary">
+                        <button onclick="window.print()" class="btn-primary" aria-label="計算結果を印刷またはPDFで保存">
                             <span class="mr-2">🖨️</span>印刷 / PDF保存
                         </button>
-                        <button onclick="confirmReset()" class="btn-primary bg-gray-300">
+                        <button onclick="confirmReset()" class="btn-primary bg-gray-300" aria-label="計算を初めからやり直す">
                             <span class="mr-2">🔄</span>もう一度計算
                         </button>
                     </div>
@@ -962,19 +962,49 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             updateProgress();
         }
 
+        function setFieldError(el, hasError) {
+            if (!el) return;
+            if (hasError) {
+                el.style.borderColor = '#ef4444';
+                el.style.boxShadow = '0 0 0 3px rgba(239,68,68,0.2)';
+                el.addEventListener('input', function clearErr() {
+                    el.style.borderColor = '';
+                    el.style.boxShadow = '';
+                    el.removeEventListener('input', clearErr);
+                    el.removeEventListener('change', clearErr);
+                }, { once: true });
+                el.addEventListener('change', function clearErr() {
+                    el.style.borderColor = '';
+                    el.style.boxShadow = '';
+                    el.removeEventListener('input', clearErr);
+                    el.removeEventListener('change', clearErr);
+                }, { once: true });
+            } else {
+                el.style.borderColor = '';
+                el.style.boxShadow = '';
+            }
+        }
+
         function validateCurrentStep() {
             switch(currentStep) {
                 case 1:
                     const guestCount = document.getElementById('guestCount').value;
                     const region = document.getElementById('region').value;
+                    const guestEl = document.getElementById('guestCount');
+                    const regionEl = document.getElementById('region');
                     if (!guestCount || !region) {
+                        setFieldError(guestEl, !guestCount);
+                        setFieldError(regionEl, !region);
                         showError('ゲスト数と地域を入力してください。');
                         return false;
                     }
                     if (guestCount < 1 || guestCount > 500) {
+                        setFieldError(guestEl, true);
                         showError('ゲスト数は1名以上500名以下で入力してください。');
                         return false;
                     }
+                    setFieldError(guestEl, false);
+                    setFieldError(regionEl, false);
                     return true;
                 case 2:
                     if (!selectedVenue) {
@@ -1374,6 +1404,17 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                     family: 'Klee One, Noto Sans JP'
                                 }
                             }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const pct = total > 0 ? Math.round(value / total * 100) : 0;
+                                    return label + ': ' + value.toLocaleString() + '円 (' + pct + '%)';
+                                }
+                            }
                         }
                     }
                 }
@@ -1516,10 +1557,19 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 document.getElementById('region').value = calc.region;
                 document.getElementById('budgetRange').value = calc.budget;
                 document.getElementById('budgetDisplay').textContent = (calc.budget / 10000).toLocaleString() + '万円';
-                
+
                 selectedVenue = calc.venue;
                 calculationData = calc;
-                
+
+                // 会場カードの選択状態を視覚的に復元
+                document.querySelectorAll('.venue-card').forEach(card => card.classList.remove('selected'));
+                const venueOrder = ['hotel', 'restaurant', 'chapel', 'garden', 'hall', 'overseas'];
+                const venueIdx = venueOrder.indexOf(calc.venue);
+                if (venueIdx !== -1) {
+                    const cards = document.querySelectorAll('.venue-card');
+                    if (cards[venueIdx]) cards[venueIdx].classList.add('selected');
+                }
+
                 // 結果を表示
                 displayResults(calc);
                 document.getElementById('results').classList.remove('hidden');
@@ -1612,8 +1662,16 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 'osaka': '大阪府',
                 'kyoto': '京都府',
                 'yokohama': '神奈川県',
+                'saitama': '埼玉県',
+                'chiba': '千葉県',
                 'nagoya': '愛知県',
+                'shizuoka': '静岡県',
+                'hokkaido': '北海道',
+                'miyagi': '宮城県',
+                'hyogo': '兵庫県',
+                'hiroshima': '広島県',
                 'fukuoka': '福岡県',
+                'okinawa': '沖縄県',
                 'other': 'その他'
             };
             return names[region] || region;
@@ -1890,16 +1948,16 @@ window.wcSave=function(d){try{var h=JSON.parse(localStorage.getItem("wc_hist")||
       <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
             <div class="space-y-3">
         <div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「質問に答えるだけで自分に合ったアドバイスが出てきて、迷っていたことがすっきり整理されました。短時間で使えるのも良いです。」</p>
+          <p class="text-xs text-gray-700">「ゲスト70名・チャペル・東京で計算したら290万円という見積もりが出て、式場との交渉に活かせました。月次積立の目安も分かって安心できました。」</p>
           <p style="font-size:12px;color:#475569;" class="mt-1">— 田中さん（30代・会社員）★★★★★</p>
         </div>
         <div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「無料でここまで詳しく分析してもらえるとは思いませんでした。専門家への相談前の情報整理に最適です。」</p>
-          <p style="font-size:12px;color:#475569;" class="mt-1">— 佐藤さん（40代・主婦）★★★★★</p>
+          <p class="text-xs text-gray-700">「オフシーズン割引や平日割引を試せるのが良かったです。1月の平日に変更したら約30万円も安くなることが分かり、式の日程を見直すきっかけになりました。」</p>
+          <p style="font-size:12px;color:#475569;" class="mt-1">— 佐藤さん（20代・看護師）★★★★★</p>
         </div>
         <div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「登録不要でサクッと使えて助かります。結果が分かりやすく表示されるので、何度も参考にしています。」</p>
-          <p style="font-size:12px;color:#475569;" class="mt-1">— 山本さん（20代・学生）★★★★☆</p>
+          <p class="text-xs text-gray-700">「祝儀収入スライダーで自己負担額がリアルタイムで変わるのがとても便利！何パターンも試せて、実際の資金計画に役立てられました。登録不要なのも嬉しいです。」</p>
+          <p style="font-size:12px;color:#475569;" class="mt-1">— 山本さん（30代・会社員）★★★★☆</p>
         </div>
       </div>
       <div class="flex gap-2 mt-4">

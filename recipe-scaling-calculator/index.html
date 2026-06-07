@@ -198,6 +198,46 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
           font-weight: 700;
           margin-bottom: 10px;
         }
+        .preset-btn {
+          background: none;
+          border: 1.5px solid #e0e7ff;
+          color: #6366f1;
+          padding: 8px 14px;
+          border-radius: 8px;
+          font-size: 13px;
+          cursor: pointer;
+          font-weight: 600;
+          transition: background .2s, border-color .2s;
+          flex: 0 1 auto;
+        }
+        .preset-btn:hover {
+          background: #eef2ff;
+          border-color: #818cf8;
+        }
+        .preset-btn:active {
+          transform: scale(0.98);
+        }
+        .toast {
+          position: fixed;
+          bottom: 20px;
+          right: 20px;
+          background: #10b981;
+          color: white;
+          padding: 12px 20px;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 600;
+          z-index: 1000;
+          animation: slideIn .3s ease;
+        }
+        @keyframes slideIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @media (max-width: 480px) {
+          .toast { bottom: 16px; right: 16px; font-size: 13px; }
+          .preset-btn { font-size: 12px; padding: 7px 12px; }
+        }
     
 @media print{
   header,footer,nav,button,.no-print,
@@ -256,6 +296,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             </div>
           </div>
 
+          <div style="margin-bottom:14px;">
+            <label style="display:block;margin-bottom:8px;font-size:13px;font-weight:600;">よくある人数変換</label>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button class="preset-btn" onclick="applyPreset(2, 4)">2→4人前</button>
+              <button class="preset-btn" onclick="applyPreset(2, 6)">2→6人前</button>
+              <button class="preset-btn" onclick="applyPreset(3, 6)">3→6人前</button>
+              <button class="preset-btn" onclick="applyPreset(4, 2)">4→2人前</button>
+            </div>
+          </div>
+
           <div style="margin-bottom:10px;">
             <div class="ingredient-header">
               <span style="flex:2;">材料名</span>
@@ -264,7 +314,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <span style="flex:0 0 32px;"></span>
             </div>
             <div id="ingredient-list"></div>
-            <button class="add-ing-btn" onclick="addIngredient()">＋ 材料を追加</button>
+            <div style="display:flex;gap:6px;">
+              <button class="add-ing-btn" onclick="addIngredient()" style="flex:1;">＋ 材料を追加</button>
+              <button class="add-ing-btn" onclick="clearAllIngredients()" style="flex:1;border-color:#fca5a5;color:#dc2626;">🗑 すべてクリア</button>
+            </div>
           </div>
 
           <button class="btn" style="margin-top:12px;width:100%;" onclick="calculate()">量を換算する</button>
@@ -281,6 +334,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               </thead>
               <tbody id="result-body"></tbody>
             </table>
+            <button class="btn" style="margin-top:12px;background:#10b981;" onclick="copyResultToClipboard()">📋 結果をコピー</button>
             <div id="output" style="display:none;"></div>
             <p id="detail" style="display:none;"></p>
           </div>
@@ -392,6 +446,47 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function removeIngredient(id) {
       const row = document.getElementById('ing-row-' + id);
       if (row) row.remove();
+    }
+
+    function clearAllIngredients() {
+      if (confirm('すべての材料をクリアしますか？')) {
+        document.getElementById('ingredient-list').innerHTML = '';
+      }
+    }
+
+    function applyPreset(from, to) {
+      document.getElementById('from-serving').value = from;
+      document.getElementById('to-serving').value = to;
+      calculate();
+    }
+
+    function copyResultToClipboard() {
+      const rows = document.querySelectorAll('#result-body tr');
+      if (rows.length === 0) {
+        alert('結果が表示されていません');
+        return;
+      }
+      let text = '材料名\t換算後の量\t単位\n';
+      rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        const name = cells[0].textContent;
+        const amount = cells[1].textContent;
+        const unit = cells[2].textContent;
+        text += `${name}\t${amount}\t${unit}\n`;
+      });
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('結果をコピーしました！');
+      }).catch(() => {
+        alert('コピーに失敗しました');
+      });
+    }
+
+    function showToast(message) {
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 1500);
     }
 
     function parseAmount(str) {

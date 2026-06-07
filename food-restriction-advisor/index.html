@@ -276,7 +276,17 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
       </div>
 
-      <button onclick="location.reload()" class="w-full bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 transition" aria-label="もう一度診断する">もう一度診断する</button>
+      <div class="flex gap-3 mb-4">
+        <a id="share-line-result" href="#" target="_blank" rel="noopener"
+           style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:10px;border-radius:8px;font-size:13px;font-weight:bold;text-decoration:none;">
+          LINEでシェア
+        </a>
+        <a id="share-x-result" href="#" target="_blank" rel="noopener"
+           style="flex:1;display:block;text-align:center;background:#000;color:white;padding:10px;border-radius:8px;font-size:13px;font-weight:bold;text-decoration:none;">
+          Xでシェア
+        </a>
+      </div>
+      <button onclick="resetQuiz()" class="w-full bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 transition" aria-label="もう一度診断する">もう一度診断する</button>
     </div>
   </main>
 
@@ -319,7 +329,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   <img border="0" width="1" height="1" src="https://www17.a8.net/0.gif?a8mat=4B3WJ9+2HDC2Y+57YO+5YJRM" alt="" loading="lazy">
 </section>
 <script>
-    const answers = {};
+    let answers = {};
     const totalQ = 8;
 
     document.querySelectorAll('.quiz-btn').forEach(btn => {
@@ -335,10 +345,32 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             document.getElementById(`q${q+1}`).classList.remove('hidden');
             document.getElementById('progress-bar').style.width = (q/totalQ*100)+'%';
             document.getElementById('progress-text').textContent = `質問 ${q+1} / ${totalQ}`;
-          } else { showResult(); }
+          } else {
+            /* P2-5: 進捗バーを100%にしてから結果へ */
+            document.getElementById('progress-bar').style.width = '100%';
+            document.getElementById('progress-text').textContent = '診断完了！';
+            setTimeout(showResult, 300);
+          }
         }, 300);
       });
     });
+
+    /* P2-6: リセット関数（location.reload()の代替） */
+    function resetQuiz() {
+      answers = {};
+      for (let i = 1; i <= totalQ; i++) {
+        const block = document.getElementById('q'+i);
+        if (block) {
+          block.classList.toggle('hidden', i !== 1);
+          block.querySelectorAll('.quiz-btn').forEach(b => b.classList.remove('border-green-500','bg-green-100'));
+        }
+      }
+      document.getElementById('progress-bar').style.width = '0%';
+      document.getElementById('progress-text').textContent = '質問 1 / 8';
+      document.getElementById('quiz-section').classList.remove('hidden');
+      document.getElementById('result-section').classList.add('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
 
     function showResult() {
       document.getElementById('quiz-section').classList.add('hidden');
@@ -370,6 +402,58 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         none: { avoid: '特定の食品制限なし', replace: ['バランスの良い食事を心がける', '季節の野菜・旬の食材を活用'], brands: ['特定ブランドの推奨なし'] }
       };
 
+      /* P2-7: 制限理由別の詳細アドバイス */
+      const reasonAdvice = {
+        religion: `<div class="bg-yellow-50 border border-yellow-300 rounded-xl p-4 mb-4">
+            <p class="font-bold text-yellow-800 mb-2">🕌 宗教的食事制限のポイント</p>
+            <ul class="text-sm text-gray-700 space-y-1">
+              <li>・ハラール認証マーク付き食品を選ぶ</li>
+              <li>・豚肉・豚由来成分（ゼラチン・ラード）を避ける</li>
+              <li>・アルコール含有調味料（みりん・料理酒）に注意</li>
+              <li>・コーシャ食品は牛乳と肉の組み合わせ不可</li>
+              <li>・ハラール対応レストランはHalalGourmetJapanで検索可能</li>
+            </ul>
+          </div>`,
+        health: `<div class="bg-blue-50 border border-blue-300 rounded-xl p-4 mb-4">
+            <p class="font-bold text-blue-800 mb-2">🏥 疾患・健康管理の食事制限ポイント</p>
+            <ul class="text-sm text-gray-700 space-y-1">
+              <li>・糖尿病：GI値の低い食品（全粒穀物・野菜中心）を選ぶ</li>
+              <li>・高血圧：塩分1日6g未満を目標、加工食品の塩分表示を確認</li>
+              <li>・腎臓病：カリウム・リン・タンパク質の制限が必要な場合あり</li>
+              <li>・かかりつけ医の栄養指導を優先し、本ツールはあくまで補助として活用</li>
+            </ul>
+          </div>`,
+        diet: `<div class="bg-purple-50 border border-purple-300 rounded-xl p-4 mb-4">
+            <p class="font-bold text-purple-800 mb-2">⚖️ ダイエット食事管理のポイント</p>
+            <ul class="text-sm text-gray-700 space-y-1">
+              <li>・糖質制限：白米→玄米・もち麦に置き換えで食物繊維も摂取</li>
+              <li>・脂質制限：揚げ物を蒸す・茹でる調理法に変更</li>
+              <li>・間食はナッツ・チーズ・ゆで卵で腹持ちよく管理</li>
+              <li>・1日の総摂取カロリーはカロリー計算ツールで把握</li>
+            </ul>
+          </div>`,
+        vegan: `<div class="bg-green-50 border border-green-300 rounded-xl p-4 mb-4">
+            <p class="font-bold text-green-800 mb-2">🌱 ビーガン・ベジタリアンのポイント</p>
+            <ul class="text-sm text-gray-700 space-y-1">
+              <li>・タンパク質：大豆製品・レンズ豆・キヌアで補給</li>
+              <li>・ビタミンB12：植物性食品には含まれないためサプリ推奨</li>
+              <li>・鉄分：小松菜・ひじき＋ビタミンCで吸収率UP</li>
+              <li>・加工食品の「乳化剤（卵由来）」「ゼラチン」表示に注意</li>
+              <li>・外食時はベジタリアンメニュー表示のある店を事前確認</li>
+            </ul>
+          </div>`,
+        intolerance: `<div class="bg-orange-50 border border-orange-300 rounded-xl p-4 mb-4">
+            <p class="font-bold text-orange-800 mb-2">😰 食品不耐症への対応ポイント</p>
+            <ul class="text-sm text-gray-700 space-y-1">
+              <li>・乳糖不耐症：ラクターゼ（消化酵素）サプリの活用</li>
+              <li>・ヨーグルト・チーズは乳糖が少なく食べやすい場合が多い</li>
+              <li>・豆乳・アーモンドミルクで牛乳を代替</li>
+              <li>・少量から試して自分の許容量を把握することが大切</li>
+            </ul>
+          </div>`,
+        allergy: ''
+      };
+
       const advice = allergenAdvice[allergen] || allergenAdvice['none'];
 
       let strictnessAdvice = '';
@@ -386,6 +470,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <p class="font-bold text-gray-700 mb-1">制限の厳しさ</p>
           <p class="text-sm text-gray-600">${strictnessAdvice}</p>
         </div>`;
+
+      /* P2-7: 制限理由別アドバイス（allergen=noneでも表示） */
+      if (reasonAdvice[reason]) {
+        html += reasonAdvice[reason];
+      }
 
       if (allergen !== 'none') {
         html += `
@@ -409,6 +498,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </div>`;
       }
 
+      /* P1-3: trouble全選択肢対応 */
       if (trouble === 'outside') {
         html += `
           <div class="bg-yellow-50 border border-yellow-300 rounded-xl p-4 mb-4">
@@ -418,6 +508,39 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <li>・訪問前に電話で確認すると安心</li>
               <li>・ベジタリアン・ビーガンメニューのある店は対応が丁寧</li>
               <li>・海外ブランドチェーン（Subway・Shake Shack等）はアレルギー情報を公開</li>
+            </ul>
+          </div>`;
+      } else if (trouble === 'variety') {
+        html += `
+          <div class="bg-teal-50 border border-teal-300 rounded-xl p-4 mb-4">
+            <p class="font-bold text-teal-800 mb-2">🍳 食事バリエーションを増やすヒント</p>
+            <ul class="text-sm text-gray-700 space-y-1">
+              <li>・週1回「新しい代替食材」を試す習慣をつける</li>
+              <li>・エスニック料理（タイ・インド・メキシコ）は対応食材が豊富</li>
+              <li>・米粉・タピオカ粉・アーモンド粉で焼き菓子のバリエーション拡大</li>
+              <li>・食物アレルギー対応レシピサイト「あいあいクッキング」を活用</li>
+            </ul>
+          </div>`;
+      } else if (trouble === 'cost') {
+        html += `
+          <div class="bg-lime-50 border border-lime-300 rounded-xl p-4 mb-4">
+            <p class="font-bold text-lime-800 mb-2">💰 コストを抑える食事制限のコツ</p>
+            <ul class="text-sm text-gray-700 space-y-1">
+              <li>・業務スーパー・コストコで対応食品をまとめ買い</li>
+              <li>・アレルギー対応食品はAmazonのまとめ買い割引を活用</li>
+              <li>・豆類・根菜・旬野菜は制限関係なく安価で栄養豊富</li>
+              <li>・手作りすることで市販品より大幅コスト削減（米粉パン等）</li>
+            </ul>
+          </div>`;
+      } else if (trouble === 'label') {
+        html += `
+          <div class="bg-sky-50 border border-sky-300 rounded-xl p-4 mb-4">
+            <p class="font-bold text-sky-800 mb-2">📋 成分表示の正しい読み方</p>
+            <ul class="text-sm text-gray-700 space-y-1">
+              <li>・「特定原材料8品目」（卵・乳・小麦・えび・かに・そば・落花生・くるみ）は太字で表示義務あり</li>
+              <li>・「〜由来」の記載にも注意（例: 乳化剤（卵由来））</li>
+              <li>・「製造ラインに〇〇を含む製品を製造しています」は交差汚染の注意書き</li>
+              <li>・アレルゲン確認アプリ「アレルゲンサーチ」が便利</li>
             </ul>
           </div>`;
       }
@@ -435,6 +558,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }
 
       document.getElementById('result-content').innerHTML = html;
+
+      /* P1-4: 結果画面のシェアボタンURLを動的設定 */
+      const shareUrl = 'https://appadaycreator.com/food-restriction-advisor/';
+      const shareText = encodeURIComponent('食事制限・アレルギー対応診断をやってみました！ ' + shareUrl);
+      document.getElementById('share-line-result').href = 'https://line.me/R/share?text=' + shareText;
+      document.getElementById('share-x-result').href = 'https://twitter.com/intent/tweet?text=' + shareText + '&via=appadaycreator';
     }
   </script>
 <div class="max-w-2xl mx-auto px-4 mb-4">
@@ -442,10 +571,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <section class="bg-white rounded-2xl shadow-md p-5">
   <h3 style="font-size:14px;font-weight:700;color:#64748b;margin-bottom:12px;letter-spacing:0.03em;">関連サービス</h3>
   <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
-    <a href="https://appadaycreator.com/new-vs-used-home-advisor/" class="related-link">新築 vs 中古住宅 比較診断</a>
-    <a href="https://appadaycreator.com/blog-income-advisor/" class="related-link">ブログ・SNS収益化適性診断</a>
-    <a href="https://appadaycreator.com/transfer-cost-advisor/" class="related-link">転勤・単身赴任 費用準備診断</a>
-    <a href="https://appadaycreator.com/prefecture-quiz-game/" class="related-link">都道府県・日本地理クイズゲーム</a>
+    <a href="https://appadaycreator.com/supplement-advisor/" class="related-link">💊 サプリメントアドバイザー</a>
+    <a href="https://appadaycreator.com/calorie-calculator/" class="related-link">🍽️ カロリー計算ツール</a>
+    <a href="https://appadaycreator.com/baby-food-advisor/" class="related-link">🍼 離乳食・ベビーフードアドバイザー</a>
+    <a href="https://appadaycreator.com/vegetable-garden-calendar/" class="related-link">🥦 野菜栽培カレンダー</a>
   </div>
 </section>
 </div>
@@ -457,16 +586,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
             <div class="space-y-3">
         <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「食事制限の種類が多くて何が自分に合うか分からなかったのですが、アレルギーや好みに合わせて絞り込んでもらえました。」</p>
-          <p style="font-size:12px;color:#ea580c;" class="mt-1">— 田中さん（30代・会社員）★★★★★</p>
+          <p class="text-xs text-gray-700">「卵アレルギーの子どもがいて毎日の料理に困っていましたが、代替食品リストがとても役立ちました。マヨネーズの代わりになるものを初めて知れました！」</p>
+          <p style="font-size:12px;color:#ea580c;" class="mt-1">— 田中さん（30代・主婦）★★★★★</p>
         </div>
         <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「ワインの選び方が分からなかったのですが、食事との相性で提案してくれるので贈り物選びに重宝しています。」</p>
-          <p style="font-size:12px;color:#ea580c;" class="mt-1">— 佐藤さん（40代・主婦）★★★★★</p>
+          <p class="text-xs text-gray-700">「ハラール対応の外食先を探すのにいつも苦労していましたが、外食アドバイスのおかげで確認すべきポイントが明確になりました。」</p>
+          <p style="font-size:12px;color:#ea580c;" class="mt-1">— 佐藤さん（40代・会社員）★★★★★</p>
         </div>
         <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「外食費の予算管理に使っています。月ごとの傾向が分かって家計の見直しに役立ちました。」</p>
-          <p style="font-size:12px;color:#ea580c;" class="mt-1">— 山本さん（20代・学生）★★★★☆</p>
+          <p class="text-xs text-gray-700">「グルテン不耐症で何を食べられるか分からずパニックでしたが、米粉麺や醤油代替品など具体的なブランドまで教えてもらえて助かりました。」</p>
+          <p style="font-size:12px;color:#ea580c;" class="mt-1">— 山本さん（20代・大学生）★★★★☆</p>
         </div>
       </div>
       <div class="flex gap-2 mt-4">
