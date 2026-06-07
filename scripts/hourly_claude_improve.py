@@ -732,17 +732,29 @@ def write_update_log(sheets, svc: dict, pre_issues: list, stdout: str, elapsed_s
 def update_spreadsheet(sheets, row: int, s_val: int, asset_value: int,
                        cooldown_expiry: datetime, update_progress: bool = True):
     """R列(CD期限)・S列(改善回数)・T列(最終更新日時)・AM列(資産価値)をbatchUpdateで更新。
-    update_progress=False の場合はR列のみ（失敗時のクールダウン記録）。"""
+    update_progress=False の場合はR列のみ（失敗時のクールダウン記録）。
+    R列はRAWで書き込み（USER_ENTEREDだとSheetsが日付シリアルに変換して読み返しに失敗する）。"""
     cd_str = cooldown_expiry.strftime(CD_FMT)
-    data_ranges = [{"range": f"{SHEET}!R{row}", "values": [[cd_str]]}]
-    if update_progress:
-        now_str = datetime.now().strftime(CD_FMT)
-        data_ranges.append({"range": f"{SHEET}!S{row}:T{row}", "values": [[s_val + 1, now_str]]})
-        data_ranges.append({"range": f"{SHEET}!AM{row}", "values": [[asset_value]]})
+    # R列: RAW（テキストとして格納。日付フォーマット列でも文字列のまま保持させる）
     sheets.batchUpdate(
         spreadsheetId=SPREADSHEET_ID,
-        body={"valueInputOption": "USER_ENTERED", "data": data_ranges}
+        body={
+            "valueInputOption": "RAW",
+            "data": [{"range": f"{SHEET}!R{row}", "values": [[cd_str]]}],
+        }
     ).execute()
+    if update_progress:
+        now_str = datetime.now().strftime(CD_FMT)
+        sheets.batchUpdate(
+            spreadsheetId=SPREADSHEET_ID,
+            body={
+                "valueInputOption": "USER_ENTERED",
+                "data": [
+                    {"range": f"{SHEET}!S{row}:T{row}", "values": [[s_val + 1, now_str]]},
+                    {"range": f"{SHEET}!AM{row}", "values": [[asset_value]]},
+                ],
+            }
+        ).execute()
 
 
 def _send_improve_notify(svc: dict, stdout: str, worker_id: int):
