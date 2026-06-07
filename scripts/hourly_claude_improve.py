@@ -803,20 +803,91 @@ P4（最低優先）見た目のみ: 色変更・デザイン微調整 → P0〜
 
 ⚠️ 色変更・テーマカラー変更など「見た目だけ」の修正は絶対に行わない。
 ⚠️ 必ずP0→P1→P2の順で改善を優先し、収益・集客・ユーザー継続に直結する改善を実施する。
-⚠️ 改善対象がP3・P4しか残っていない場合のみ、コード品質・見た目の修正を行う。"""
+⚠️ 改善対象がP3・P4しか残っていない場合のみ、コード品質・見た目の修正を行う。
+⚠️ 絶対禁止: px.a8.net を含むアフィリエイトリンク・ビーコンimgは削除・変更しないこと。収益源のため必須保持。
+⚠️ 絶対禁止: 外部ツール・外部API連携を新規追加しないこと。Firebase・Supabase・外部マップAPI・天気API・決済API・ソーシャルログイン等、アカウント管理・APIキー・運用コストが発生するものは一切追加禁止。既存のGA4/GTMは維持してよい。全機能はブラウザ内（localStorage・純粋なJS計算）のみで実装すること。"""
+
+
+def _extract_a8_pairs(html: str) -> list[dict]:
+    """index.htmlからA8.netのリンク+ビーコンimgペアを全て抽出する。
+    Returns: [{"mat": code, "link": link_html, "beacon": beacon_html}, ...]"""
+    import re as _re
+    pairs = []
+    seen = set()
+
+    a_pattern = _re.compile(
+        r'(<a\s[^>]*href=["\']https://px\.a8\.net/[^"\']*a8mat=([A-Z0-9+]+)[^"\']*["\'][^>]*>.*?</a>)',
+        _re.DOTALL | _re.IGNORECASE
+    )
+    for m in a_pattern.finditer(html):
+        link_html = m.group(1)
+        mat_code = m.group(2)
+        if mat_code in seen:
+            continue
+        seen.add(mat_code)
+        after = html[m.end():m.end() + 400]
+        beacon_m = _re.search(
+            r'<img\b[^>]*src=["\'][^"\']*a8\.net/0\.gif[^"\']*["\'][^>]*>',
+            after, _re.IGNORECASE
+        )
+        pairs.append({
+            "mat": mat_code,
+            "link": link_html,
+            "beacon": beacon_m.group(0) if beacon_m else "",
+        })
+    return pairs
+
+
+def _restore_missing_a8_pairs(idx: Path, saved: list[dict], repo: str) -> int:
+    """改善後のHTMLで消えたA8リンクを</body>前に再挿入する。Returns: 復元件数。"""
+    if not saved or not idx.exists():
+        return 0
+    html = idx.read_text(encoding="utf-8", errors="ignore")
+    missing = [p for p in saved if p["mat"] not in html]
+    if not missing:
+        return 0
+
+    blocks = []
+    for p in missing:
+        blocks.append(
+            f'<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;'
+            f'padding:12px;margin:8px auto;max-width:640px;text-align:center;">'
+            f'{p["link"]}{p["beacon"]}</div>'
+        )
+    insert = (
+        "\n<!-- AF RESTORED -->\n<div style='max-width:640px;margin:0 auto;padding:0 16px;'>\n"
+        + "\n".join(blocks)
+        + "\n</div>\n"
+    )
+    new_html = html.replace("</body>", insert + "</body>", 1)
+    idx.write_text(new_html, encoding="utf-8")
+    log(f"  AF保護: {len(missing)}件を復元 ({repo}): {[p['mat'][:10] for p in missing]}")
+    return len(missing)
 
 
 def run_improve(service: dict, pre_issues: list[str]) -> tuple[bool, str]:
     """指定サービスに /improve_auto を実行。(成功フラグ, stdout) を返す。"""
     no = service["no"]
     repo = service["repo"]
+    idx = WORKSPACE / repo / "index.html"
+
+    # アフィリエイトリンクを事前に退避（改善後に消えていたら復元する）
+    saved_af: list[dict] = []
+    if idx.exists():
+        saved_af = _extract_a8_pairs(idx.read_text(encoding="utf-8", errors="ignore"))
+
     cmd = f"/improve_auto {no} {repo}{_PRIORITY_GUIDE}"
     if pre_issues:
         # P4（見た目のみ）を末尾に追いやって優先度順に並べる
         sorted_issues = sorted(pre_issues, key=lambda x: x[:2] if x.startswith("[P") else "[P9")
         cmd += f"\n\n事前スキャン済み問題（優先度順）: {', '.join(sorted_issues)}"
+    if saved_af:
+        cmd += (
+            f"\n\n⚠️ このページには{len(saved_af)}件のA8.netアフィリエイトリンク（px.a8.net）が"
+            f"設置済みです。HTMLを編集する際は必ずこれらをそのまま保持すること。削除禁止。"
+        )
     high = [i for i in pre_issues if i.startswith(("[P0", "[P1", "[P2"))]
-    log(f"実行: /improve_auto {no} {repo} (高優先: {high or 'なし'}, 全:{len(pre_issues)}件)")
+    log(f"実行: /improve_auto {no} {repo} (高優先: {high or 'なし'}, 全:{len(pre_issues)}件, AF保護:{len(saved_af)}件)")
 
     try:
         env = os.environ.copy()
@@ -833,6 +904,9 @@ def run_improve(service: dict, pre_issues: list[str]) -> tuple[bool, str]:
             env=env,
         )
         if result.returncode == 0:
+            # アフィリエイトリンク保護チェック（消えていれば自動復元）
+            if saved_af:
+                _restore_missing_a8_pairs(idx, saved_af, repo)
             log(f"✓ {repo}: 完了")
             return True, result.stdout
         else:
