@@ -139,15 +139,19 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <option value="1">既存サービスと似ている</option>
           </select>
           <div style="display:flex;gap:8px;margin-top:20px;">
-            <button class="btn" style="flex:1;" onclick="generate()">アイデアを検証する</button>
-            <button class="btn" style="flex:0 0 auto;background:#999;padding:14px 16px;" title="すべての入力をリセット" onclick="resetForm()">🔄</button>
+            <button class="btn" style="flex:1;" onclick="generate()" aria-label="アイデアを検証するボタン">アイデアを検証する</button>
+            <button class="btn" style="flex:0 0 auto;background:#999;padding:14px 16px;" title="フォームをリセット" onclick="resetForm()" aria-label="リセットボタン">🔄</button>
+            <button class="btn" style="flex:0 0 auto;background:#7c3aed;padding:14px 16px;" title="現在の入力を含む共有URLをコピー" onclick="generateShareURL()" aria-label="共有URLを生成するボタン">🔗</button>
           </div>
         </div>
         <div class="result" id="result" style="margin-top:16px;">
           <div class="card">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap;">
               <h3 style="font-size:16px;font-weight:700;color:#4338CA;">✅ 検証レポート</h3>
-              <button class="btn" style="flex:0 0 auto;padding:8px 12px;font-size:13px;background:#4338CA;min-height:auto;" onclick="copyResult()" title="結果をコピー">📋 コピー</button>
+              <div style="display:flex;gap:6px;">
+                <button class="btn" style="flex:0 0 auto;padding:8px 12px;font-size:13px;background:#4338CA;min-height:auto;" onclick="copyResult()" title="結果をコピー">📋 コピー</button>
+                <button class="btn" style="flex:0 0 auto;padding:8px 12px;font-size:13px;background:#7c3aed;min-height:auto;" onclick="generateShareURL()" title="この結果を含む共有URLをコピー">🔗 シェア</button>
+              </div>
             </div>
             <div id="output"></div>
           </div>
@@ -245,6 +249,24 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       localStorage.setItem(STORAGE_PREFIX+'state',JSON.stringify(state));
     }
     function loadState(){
+      // URL パラメーター から復元を優先
+      const params=new URLSearchParams(window.location.search);
+      const hasUrlParams=['market','competition','skill','revenue','uniqueness'].some(p=>params.has(p));
+
+      if(hasUrlParams){
+        document.getElementById('market').value=params.get('market')||'2';
+        document.getElementById('competition').value=params.get('competition')||'2';
+        document.getElementById('skill').value=params.get('skill')||'2';
+        document.getElementById('revenue').value=params.get('revenue')||'2';
+        document.getElementById('uniqueness').value=params.get('uniqueness')||'2';
+        const ideaFromUrl=params.get('idea');
+        if(ideaFromUrl){
+          document.getElementById('idea').value=decodeURIComponent(ideaFromUrl);
+        }
+        return;
+      }
+
+      // localStorage から復元（フォールバック）
       const saved=localStorage.getItem(STORAGE_PREFIX+'state');
       if(!saved)return;
       const state=JSON.parse(saved);
@@ -256,7 +278,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('uniqueness').value=state.uniqueness||'2';
     }
     function resetForm(){
-      if(!confirm('すべての入力をリセットしますか？'))return;
+      const confirmed=confirm('フォームをリセットしますか？\n\n〇 OK: 入力をリセット（履歴は保持）\n✕ キャンセル: 処理を中止');
+      if(!confirmed)return;
       document.getElementById('idea').value='';
       document.getElementById('market').value='2';
       document.getElementById('competition').value='2';
@@ -266,6 +289,47 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('result').classList.remove('show');
       localStorage.removeItem(STORAGE_PREFIX+'state');
       saveState();
+      showToast('🔄 フォームをリセットしました（履歴は保持）');
+    }
+    function clearAllData(){
+      const confirmed=confirm('すべてのデータをクリアしますか？\n\n〇 OK: 入力・履歴をすべて削除\n✕ キャンセル: 処理を中止');
+      if(!confirmed)return;
+      document.getElementById('idea').value='';
+      document.getElementById('market').value='2';
+      document.getElementById('competition').value='2';
+      document.getElementById('skill').value='2';
+      document.getElementById('revenue').value='2';
+      document.getElementById('uniqueness').value='2';
+      document.getElementById('result').classList.remove('show');
+      localStorage.removeItem(STORAGE_PREFIX+'state');
+      localStorage.removeItem(STORAGE_PREFIX+'history');
+      saveState();
+      showToast('🗑 すべてのデータをクリアしました');
+    }
+    function generateShareURL(){
+      const idea=document.getElementById('idea').value.trim();
+      if(!idea){
+        alert('アイデアを入力してから共有してください');
+        return;
+      }
+      const market=document.getElementById('market').value;
+      const competition=document.getElementById('competition').value;
+      const skill=document.getElementById('skill').value;
+      const revenue=document.getElementById('revenue').value;
+      const uniqueness=document.getElementById('uniqueness').value;
+
+      const baseUrl=window.location.href.split('?')[0];
+      const params=new URLSearchParams({
+        idea:encodeURIComponent(idea),
+        market,competition,skill,revenue,uniqueness
+      });
+      const shareUrl=baseUrl+'?'+params.toString();
+
+      navigator.clipboard.writeText(shareUrl).then(()=>{
+        showToast('🔗 共有URLをコピーしました！');
+      }).catch(()=>{
+        alert('URLのコピーに失敗しました\n\n'+shareUrl);
+      });
     }
 
     function showToast(msg){

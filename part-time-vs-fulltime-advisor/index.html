@@ -297,12 +297,14 @@ function validateInputs() {
 }
 
 function calculateSalaryDeduction(annualIncome) {
+  // 令和2年（2020年）以降の給与所得控除
   if (annualIncome <= 0) return 0;
-  if (annualIncome <= 1625000) return Math.min(annualIncome * 0.4, 1100000);
-  if (annualIncome <= 1800000) return annualIncome * 0.3 + 110000;
-  if (annualIncome <= 3600000) return annualIncome * 0.2 + 310000;
-  if (annualIncome <= 6600000) return annualIncome * 0.1 + 1310000;
-  return Math.max(2200000, 6600000 * 0.05 + 1310000);
+  if (annualIncome <= 1625000) return 550000;
+  if (annualIncome <= 1800000) return Math.round(annualIncome * 0.4 - 100000);
+  if (annualIncome <= 3600000) return Math.round(annualIncome * 0.3 + 80000);
+  if (annualIncome <= 6600000) return Math.round(annualIncome * 0.2 + 440000);
+  if (annualIncome <= 8500000) return Math.round(annualIncome * 0.1 + 1100000);
+  return 1950000;
 }
 
 function calculate() {
@@ -411,23 +413,36 @@ function calculate() {
   wallHtml = '<h3 class="font-bold text-gray-800 mb-3">🧱 収入の壁チェック</h3><div class="space-y-2">';
   walls.forEach(w => {
     const diff = w.limit - annualIncome;
-    let status, statusClass;
+    let status, statusClass, barColor;
+    const pct = Math.min(annualIncome / w.limit * 100, 100);
     if (diff < 0) {
       status = `超過（${Math.abs(diff).toLocaleString()}円オーバー）`;
       statusClass = 'text-red-600 font-bold';
+      barColor = '#ef4444';
     } else if (diff < 200000) {
       status = `注意（残り${diff.toLocaleString()}円）`;
       statusClass = 'text-orange-600 font-bold';
+      barColor = '#f97316';
     } else {
       status = `安全（余裕${diff.toLocaleString()}円）`;
       statusClass = 'text-green-600';
+      barColor = '#10b981';
     }
+    // 安全な労働時間の目安（年収÷52週÷時給）
+    const safeHours = hourly > 0 ? Math.floor(w.limit / 52 / hourly) : 0;
+    const safeHoursNote = diff < 0
+      ? `<span class="text-red-500">⚠️ 壁を超えています（週${safeHours}時間以下で再計算を）</span>`
+      : `<span class="text-gray-500">目安：週<strong>${safeHours}</strong>時間以下で壁を超えない</span>`;
     wallHtml += `<div class="bg-gray-50 rounded-lg p-3">
       <div class="flex justify-between items-center mb-1">
         <span class="text-sm font-bold text-gray-700">${w.name}</span>
         <span class="text-xs ${statusClass}">${status}</span>
       </div>
-      <p class="text-xs text-gray-500">${w.desc}</p>
+      <div style="background:#e5e7eb;border-radius:4px;height:6px;margin:6px 0;">
+        <div style="background:${barColor};width:${pct.toFixed(1)}%;height:6px;border-radius:4px;transition:width 0.4s;"></div>
+      </div>
+      <p class="text-xs text-gray-500 mb-1">${w.desc}</p>
+      <p class="text-xs">${safeHoursNote}</p>
     </div>`;
   });
   wallHtml += '</div>';
@@ -456,6 +471,50 @@ function calculate() {
       </div>
       <p class="text-xs font-bold text-teal-700 bg-teal-50 rounded-lg px-2 py-1">${s.rec}</p>
     </div>`).join('');
+}
+
+function copyResults() {
+  if (!lastCalculationResult) return;
+  const r = lastCalculationResult;
+  const lines = [
+    '【パートvs正社員 収入比較 診断結果】',
+    `時給: ${r.hourly.toLocaleString()}円 / 週${r.weeklyH}時間`,
+    `月収（総支給）: ${r.monthlyIncome.toLocaleString()}円`,
+    `年収（総支給）: ${r.annualIncome.toLocaleString()}円`,
+    `月額手取り: ${Math.round(r.netIncome / 12).toLocaleString()}円`,
+    `年間手取り: ${r.netIncome.toLocaleString()}円`,
+    '',
+    '【手取り内訳】',
+    `給与所得控除: -${r.salaryDeduction.toLocaleString()}円`,
+    `所得税: -${r.incomeTax.toLocaleString()}円`,
+    `住民税: -${r.residentTax.toLocaleString()}円`,
+    `社会保険料: -${r.socialIns.toLocaleString()}円`,
+    '',
+    'https://appadaycreator.com/part-time-vs-fulltime-advisor/'
+  ];
+  const text = lines.join('\n');
+  const btn = document.querySelector('[onclick="copyResults()"]');
+  const done = () => {
+    if (btn) { btn.textContent = '✅ コピー済み'; setTimeout(() => { btn.textContent = '📋 結果をコピー'; }, 2000); }
+  };
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(done).catch(() => {
+      fallbackCopy(text); done();
+    });
+  } else {
+    fallbackCopy(text); done();
+  }
+}
+
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
 }
 </script>
 
@@ -503,16 +562,16 @@ function calculate() {
       <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
             <div class="space-y-3">
         <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「転職するかどうか迷っていましたが、自分の強みと市場価値が整理されて背中を押してもらえました。次のキャリアプランが明確になりました。」</p>
-          <p style="font-size:12px;color:#4338ca;" class="mt-1">— 田中さん（30代・会社員）★★★★★</p>
+          <p class="text-xs text-gray-700">「130万円の壁がどこにあるか数字で確認できてスッキリしました。週の勤務時間を少し調整して、無事に扶養の範囲内で働けています。」</p>
+          <p style="font-size:12px;color:#4338ca;" class="mt-1">— 田中さん（40代・主婦・パート勤務）★★★★★</p>
         </div>
         <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「副業を始めようと思っていたのですが、自分に向いている副業の種類が分かって方向性が定まりました。」</p>
-          <p style="font-size:12px;color:#4338ca;" class="mt-1">— 佐藤さん（40代・会社員）★★★★★</p>
+          <p class="text-xs text-gray-700">「扶養を外れるべきか迷っていましたが、手取りの差額が具体的な数字で見えたので決断できました。思い切って正社員に転向することにしました！」</p>
+          <p style="font-size:12px;color:#4338ca;" class="mt-1">— 佐藤さん（30代・パート勤務）★★★★★</p>
         </div>
         <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「MBA取得を検討していましたが、費用対効果を数値で確認できてとても判断しやすかったです。」</p>
-          <p style="font-size:12px;color:#4338ca;" class="mt-1">— 山本さん（20代・社会人）★★★★☆</p>
+          <p class="text-xs text-gray-700">「106万円の壁の意味が初めてちゃんと理解できました。社会保険に加入した方が老後のためになると分かり、働き方を見直すきっかけになりました。」</p>
+          <p style="font-size:12px;color:#4338ca;" class="mt-1">— 山本さん（50代・パート勤務）★★★★☆</p>
         </div>
       </div>
       <div class="flex gap-2 mt-4">

@@ -117,19 +117,40 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
         <div class="card">
           <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;">₿ 仮想通貨損益計算ツール</h2>
-          <label>購入単価（円）</label>
-          <input type="number" id="val1" placeholder="例: 5000000" min="0">
-          <label style="margin-top:12px;">現在単価（円）</label>
-          <input type="number" id="val2" placeholder="例: 8000000" min="0">
+          <label>購入単価</label>
+          <div style="display:flex;gap:8px;margin-top:4px;">
+            <input type="number" id="val1" placeholder="例: 5000000" min="0" style="flex:1;">
+            <select id="currency" style="width:100px;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:15px;font-family:inherit;min-height:44px;">
+              <option value="JPY">¥ JPY</option>
+              <option value="USD">$ USD</option>
+              <option value="EUR">€ EUR</option>
+              <option value="GBP">£ GBP</option>
+              <option value="CNY">¥ CNY</option>
+            </select>
+          </div>
+          <label style="margin-top:12px;">現在単価</label>
+          <input type="number" id="val2" placeholder="例: 8000000" min="0" style="margin-top:4px;">
           <label style="margin-top:12px;">保有数量（枚・個）</label>
-          <input type="number" id="val3" placeholder="例: 0.5" min="0" step="0.0001">
-          <label style="margin-top:12px;">課税所得（他の所得含む、万円）</label>
-          <input type="number" id="val4" placeholder="例: 500" min="0">
-          <button class="btn" style="margin-top:20px;" onclick="calculate()">計算する</button>
+          <input type="number" id="val3" placeholder="例: 0.5" min="0" step="0.0001" style="margin-top:4px;">
+          <label style="margin-top:12px;">課税所得（万円）</label>
+          <p style="font-size:12px;color:#666;margin:2px 0 6px;">給与・事業所得など他の所得を含めた合計。例：給与500万円＋暗号損益50万円の場合は「550」と入力</p>
+          <input type="number" id="val4" placeholder="例: 550" min="0" style="margin-top:4px;">
+          <div style="display:flex;gap:8px;margin-top:20px;">
+            <button class="btn" onclick="calculate()" style="flex:1;">計算する</button>
+            <button class="btn" style="background:#94a3b8;flex:1;" onclick="clearInputs()">クリア</button>
+          </div>
           <div class="result" id="result" style="margin-top:16px;">
             <div class="card" style="text-align:center;">
               <div id="output" style="font-size:2.2rem;font-weight:700;color:#16A34A;padding:12px 0;"></div>
-              <p id="detail" style="color:#666;font-size:14px;margin-top:4px;"></p>
+              <p id="detail" style="color:#666;font-size:13px;margin-top:8px;line-height:1.6;"></p>
+              <div id="breakdown" style="margin-top:12px;padding-top:12px;border-top:1px solid #e5e7eb;text-align:left;font-size:13px;">
+                <div style="display:flex;justify-content:space-between;padding:4px 0;"><span>購入時総額</span><span id="bd-cost" style="font-weight:600;"></span></div>
+                <div style="display:flex;justify-content:space-between;padding:4px 0;"><span>現在時総額</span><span id="bd-current" style="font-weight:600;"></span></div>
+                <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1.5px solid #e5e7eb;"><span style="font-weight:600;">税前利益/損失</span><span id="bd-profit" style="font-weight:700;color:#16A34A;"></span></div>
+                <div style="display:flex;justify-content:space-between;padding:4px 0;"><span>推定税額</span><span id="bd-tax" style="font-weight:600;color:#dc2626;"></span></div>
+                <div style="display:flex;justify-content:space-between;padding:4px 0;"><span>税率（参考値）</span><span id="bd-rate" style="font-weight:600;"></span></div>
+                <div style="display:flex;justify-content:space-between;padding:8px 0;background:#f0fdf4;padding:8px;border-radius:6px;margin-top:4px;"><span style="font-weight:600;">実質利益/損失（手取額）</span><span id="bd-net" style="font-weight:700;font-size:15px;color:#16A34A;"></span></div>
+              </div>
             </div>
           </div>
         </div>
@@ -211,15 +232,19 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     
 <script>
-    // ★ここだけ実装（約10行）★
     const CFG = {
       inputs: ['val1','val2','val3','val4'],
       error: '購入単価・現在単価・保有数量を入力してください',
     };
-    function calcLogic(vals) {
+    const CURRENCY_SYMBOLS = { JPY: '¥', USD: '$', EUR: '€', GBP: '£', CNY: '¥' };
+    function formatCurrency(value, currency) {
+      const symbol = CURRENCY_SYMBOLS[currency] || '¥';
+      return symbol + value.toLocaleString('ja-JP', { maximumFractionDigits: 0 });
+    }
+    function calcLogic(vals, currency) {
       const [buyPrice, nowPrice, qty, income] = vals;
-      const cost = buyPrice * qty;
-      const current = nowPrice * qty;
+      const cost = Math.round(buyPrice * qty);
+      const current = Math.round(nowPrice * qty);
       const profit = current - cost;
       const totalIncome = (income * 10000) + Math.max(0, profit);
       let taxRate = 0.05;
@@ -230,24 +255,55 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       else if (totalIncome > 3300000) taxRate = 0.20;
       else if (totalIncome > 1950000) taxRate = 0.10;
       const tax = profit > 0 ? Math.round(profit * taxRate) : 0;
-      const result = Math.round(profit);
+      const netProfit = profit - tax;
       const sign = profit >= 0 ? '+' : '';
+      const result = formatCurrency(Math.abs(profit), currency) + (profit >= 0 ? ' 利益' : ' 損失');
       const detail = profit > 0
-        ? `税率目安 ${Math.round(taxRate*100)}%・税額概算 ${tax.toLocaleString()} 円（雑所得として総合課税）`
-        : `損失: 翌年への繰越控除は仮想通貨には適用されません`;
-      return { result: sign + result.toLocaleString() + ' 円', detail };
+        ? `税率目安 ${Math.round(taxRate*100)}%（雑所得・総合課税）`
+        : `損失認識（繰越控除は仮想通貨には適用されません）`;
+      return { result, detail, cost, current, profit, tax, netProfit, taxRate };
     }
-    // ★以下変更不要★
+    function saveToStorage() {
+      const data = {};
+      CFG.inputs.forEach(id => { data[id] = document.getElementById(id)?.value || ''; });
+      data.currency = document.getElementById('currency')?.value || 'JPY';
+      localStorage.setItem('cryptoCalc', JSON.stringify(data));
+    }
+    function loadFromStorage() {
+      const data = JSON.parse(localStorage.getItem('cryptoCalc') || '{}');
+      CFG.inputs.forEach(id => { const el = document.getElementById(id); if(el && data[id]) el.value = data[id]; });
+      const cur = document.getElementById('currency');
+      if(cur && data.currency) cur.value = data.currency;
+    }
+    function clearInputs() {
+      CFG.inputs.forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+      document.getElementById('result').classList.remove('show');
+      localStorage.removeItem('cryptoCalc');
+    }
     document.addEventListener('DOMContentLoaded',()=>{
+      loadFromStorage();
+      const saveFields = [...CFG.inputs, 'currency'];
+      saveFields.forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('change', saveToStorage); });
       CFG.inputs.forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') calculate(); }); });
     });
     function calculate(){
       const vals=CFG.inputs.map(id=>parseFloat(document.getElementById(id)?.value)||0);
       if(!vals[0]){ alert(CFG.error); return; }
-      const {result,detail}=calcLogic(vals);
-      document.getElementById('output').textContent=typeof result==='number'?result.toLocaleString():result;
-      const d=document.getElementById('detail'); if(d) d.textContent=detail||'';
+      const currency = document.getElementById('currency')?.value || 'JPY';
+      const {result,detail,cost,current,profit,tax,netProfit,taxRate}=calcLogic(vals,currency);
+      document.getElementById('output').textContent=result;
+      document.getElementById('detail').textContent=detail;
+      document.getElementById('bd-cost').textContent=formatCurrency(cost,currency);
+      document.getElementById('bd-current').textContent=formatCurrency(current,currency);
+      const profitColor = profit >= 0 ? '#16A34A' : '#dc2626';
+      document.getElementById('bd-profit').textContent=(profit>=0?'+':'')+formatCurrency(Math.abs(profit),currency);
+      document.getElementById('bd-profit').style.color=profitColor;
+      document.getElementById('bd-tax').textContent=formatCurrency(Math.abs(tax),currency);
+      document.getElementById('bd-rate').textContent=tax>0?(Math.round(taxRate*100)+'%'):'-';
+      document.getElementById('bd-net').textContent=(netProfit>=0?'+':'')+formatCurrency(Math.abs(netProfit),currency);
+      document.getElementById('bd-net').style.color=profitColor;
       document.getElementById('result').classList.add('show');
+      saveToStorage();
     }
     </script>
     <!-- rakuten-affiliate-block -->

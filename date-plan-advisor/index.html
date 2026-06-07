@@ -196,6 +196,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             </div>
             <p id="q-text" style="font-size:16px;font-weight:600;margin-bottom:16px;"></p>
             <div id="q-options"></div>
+            <div class="q-nav-buttons" id="q-nav">
+              <button class="btn-back" onclick="goBack()">← 前の問題に戻る</button>
+            </div>
           </div>
         </div>
         <div class="result" id="result">
@@ -209,6 +212,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div id="r-plans"></div>
             <div style="margin-top:16px;padding:12px;background:#FCE7F3;border-radius:10px;">
               <p id="r-tip" style="font-size:13px;color:#BE185D;margin:0;"></p>
+            </div>
+            <div class="share-buttons" style="margin-top:16px;">
+              <button class="share-btn" onclick="shareToTwitter()">𝕏 シェア</button>
+              <button class="share-btn" onclick="shareToLine()">LINE 共有</button>
+              <button class="share-btn" onclick="copyToClipboard()">📋 コピー</button>
             </div>
             <button class="btn" style="margin-top:16px;" onclick="location.reload()">もう一度診断する</button>
           </div>
@@ -426,9 +434,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     const scores = {};
     let currentQ = 0;
+    let currentResult = null;
+    const planEmojis = ['🚶', '🍽️', '🎬', '⭐', '☀️', '🌙', '🎉', '📸', '🎪', '💝'];
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('q-total').textContent = QUESTIONS.length;
+      setupKeyboardHandlers();
     });
 
     function startQuiz() {
@@ -446,8 +457,22 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('q-bar').style.width = ((currentQ + 1) / QUESTIONS.length * 100) + '%';
       document.getElementById('q-text').textContent = q.text;
       document.getElementById('q-options').innerHTML = q.options.map((opt, i) =>
-        `<button class="q-option-btn" onclick="answer(${i})">${opt}</button>`
+        `<button class="q-option-btn" onclick="answer(${i})" tabindex="0">${opt}</button>`
       ).join('');
+
+      // 戻るボタンの表示/非表示
+      const navBtn = document.getElementById('q-nav');
+      if (currentQ > 0) {
+        navBtn.style.display = 'flex';
+      } else {
+        navBtn.style.display = 'none';
+      }
+
+      // フォーカス設定
+      setTimeout(() => {
+        const firstBtn = document.querySelector('#q-options button');
+        if (firstBtn) firstBtn.focus();
+      }, 100);
     }
 
     function answer(idx) {
@@ -457,10 +482,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       renderQuestion();
     }
 
+    function goBack() {
+      if (currentQ > 0) {
+        currentQ--;
+        renderQuestion();
+      }
+    }
+
     function showResult() {
       document.getElementById('quiz-area').style.display = 'none';
 
-      // scoresオブジェクトから診断結果を判定
       const s = {
         budget:   scores['budget']   || 0,
         area:     scores['area']     || 0,
@@ -469,8 +500,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         time:     scores['time']     || 0
       };
 
-      // 条件マッチで結果を選択（最初にマッチしたもの）
       const result = RESULTS.find(r => r.cond(s)) || RESULTS[RESULTS.length - 1];
+      currentResult = result;
 
       document.getElementById('r-emoji').textContent  = result.emoji;
       document.getElementById('r-title').textContent   = result.title;
@@ -478,20 +509,65 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('r-desc').textContent    = result.desc;
       document.getElementById('r-tip').textContent     = result.tip;
 
-      // プラン詳細リスト
+      // プラン詳細リスト（絵文字付き）
       document.getElementById('r-plans').innerHTML = `
         <div style="margin-top:14px;">
           <div style="font-size:13px;font-weight:700;color:#BE185D;margin-bottom:8px;">📋 おすすめコース</div>
           ${result.plans.map((p, i) => `
-            <div style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid #FCE7F3;font-size:13px;color:#444;">
-              <span style="color:#EC4899;font-weight:700;min-width:18px;">${i + 1}.</span>
-              <span>${p}</span>
+            <div style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid #FCE7F3;font-size:13px;color:#444;background:${i % 2 === 0 ? '#fff' : '#FFF7FB'};">
+              <span style="font-size:16px;min-width:24px;">${planEmojis[i % planEmojis.length]}</span>
+              <span>${i + 1}. ${p}</span>
             </div>
           `).join('')}
         </div>
       `;
 
       document.getElementById('result').classList.add('show');
+    }
+
+    function shareToTwitter() {
+      if (!currentResult) return;
+      const text = `${currentResult.emoji} ${currentResult.title}\\n${currentResult.subtitle}\\n\\nデートプラン診断で、ふたりにぴったりなコースが見つかった！🎯`;
+      const url = 'https://appadaycreator.com/date-plan-advisor/';
+      const twitterUrl = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(url);
+      window.open(twitterUrl, '_blank', 'width=500,height=500');
+    }
+
+    function shareToLine() {
+      if (!currentResult) return;
+      const text = `${currentResult.emoji} ${currentResult.title}\\n${currentResult.subtitle}\\n\\nデートプラン診断: https://appadaycreator.com/date-plan-advisor/`;
+      const lineUrl = 'https://social-plugins.line.me/web/share?text=' + encodeURIComponent(text);
+      window.open(lineUrl, '_blank');
+    }
+
+    function copyToClipboard() {
+      if (!currentResult) return;
+      const text = `${currentResult.emoji} ${currentResult.title}\\n${currentResult.subtitle}\\n\\nデートプラン診断: https://appadaycreator.com/date-plan-advisor/`;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('結果をコピーしました！');
+      });
+    }
+
+    function setupKeyboardHandlers() {
+      document.addEventListener('keydown', (e) => {
+        if (document.getElementById('quiz-area').style.display === 'none') return;
+
+        const buttons = document.querySelectorAll('#q-options .q-option-btn');
+        const activeBtn = document.activeElement;
+
+        if (e.key === 'Enter' && activeBtn.classList.contains('q-option-btn')) {
+          const idx = Array.from(buttons).indexOf(activeBtn);
+          if (idx >= 0) answer(idx);
+        } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+          e.preventDefault();
+          const idx = Array.from(buttons).indexOf(activeBtn);
+          if (idx < buttons.length - 1) buttons[idx + 1].focus();
+        } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+          e.preventDefault();
+          const idx = Array.from(buttons).indexOf(activeBtn);
+          if (idx > 0) buttons[idx - 1].focus();
+        }
+      });
     }
     </script>
 

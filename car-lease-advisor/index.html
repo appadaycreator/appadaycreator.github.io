@@ -563,6 +563,10 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         <label for="gas-price">ガソリン価格（円/L）</label>
         <input type="number" id="gas-price" class="input-field" placeholder="例: 170" min="100" value="170" aria-label="ガソリン価格（円/L）">
       </div>
+      <div>
+        <label for="loan-rate">ローン金利（%/年）</label>
+        <input type="number" id="loan-rate" class="input-field" placeholder="例: 3.5" min="0.1" max="15" step="0.1" value="3.5" aria-label="ローン金利（年利%）">
+      </div>
     </div>
     <button class="btn-primary" onclick="calculate()" aria-label="比較・診断を実行する">比較・診断する →</button>
     <p style="font-size:11px;color:#94a3b8;text-align:center;margin-top:10px;">※ 計算結果は参考値です。実際の費用は車種・金融機関等により異なります</p>
@@ -742,6 +746,10 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <footer>
   <p style="margin:0 0 6px;"><strong style="color:#cbd5e1;">免責事項</strong>：本ツールの計算結果はあくまで参考情報です。本サービスの利用により生じた損害について、当サイトは一切の責任を負いません。</p>
   <a href="privacy-policy.html" style="color:#64748b;text-decoration:underline;">プライバシーポリシー</a>
+<div style="text-align:center;margin:24px auto;max-width:760px;padding:0 16px">
+<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
+</div>
 </footer>
 
 <script>
@@ -758,13 +766,19 @@ function drawBarChart(lease,loan,cash,winnerKey){
     area.innerHTML='';area.appendChild(canvas);
   }
   var canvas=area.querySelector('canvas');
-  canvas.width=400;canvas.height=250;
+  // HiDPI/Retina対応: devicePixelRatioでCanvasを高解像度化
+  var dpr=window.devicePixelRatio||1;
+  var displayW=Math.min(400,area.clientWidth||400);
+  var displayH=250;
+  canvas.width=displayW*dpr;canvas.height=displayH*dpr;
+  canvas.style.width=displayW+'px';canvas.style.height=displayH+'px';
   var ctx=canvas.getContext('2d');
+  ctx.scale(dpr,dpr);
   var methods=[{key:'lease',label:'カーリース',val:lease},{key:'loan',label:'ローン',val:loan},{key:'cash',label:'一括',val:cash}];
   var max=Math.max(lease,loan,cash);
   var barW=60;var gap=20;var startX=40;var scale=180/max;
 
-  ctx.fillStyle='#f8fafc';ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='#f8fafc';ctx.fillRect(0,0,displayW,displayH);
   ctx.font='bold 12px sans-serif';ctx.textAlign='center';ctx.fillStyle='#64748b';
 
   methods.forEach(function(m,i){
@@ -776,7 +790,7 @@ function drawBarChart(lease,loan,cash,winnerKey){
     ctx.fillStyle='#374151';ctx.font='bold 11px sans-serif';ctx.fillText(Math.round(m.val/1000)+'千円',x+barW/2,y-8);
     ctx.fillStyle='#64748b';ctx.font='12px sans-serif';ctx.fillText(m.label,x+barW/2,220);
   });
-  ctx.strokeStyle='#e2e8f0';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(30,200);ctx.lineTo(canvas.width,200);ctx.stroke();
+  ctx.strokeStyle='#e2e8f0';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(30,200);ctx.lineTo(displayW,200);ctx.stroke();
 }
 
 function calculate(){
@@ -787,26 +801,31 @@ function calculate(){
     var mileage=parseInt(document.getElementById('mileage').value)||10000;
     var customPrice=parseFloat(document.getElementById('custom-price').value);
     var gasPrice=parseFloat(document.getElementById('gas-price').value)||170;
+    var loanRateInput=parseFloat(document.getElementById('loan-rate').value)||3.5;
 
     var carPrice=customPrice>0?customPrice*10000:carPrices[carClass];
     var residualRate=carResiduals[carClass];
     var fuelEconomy=carFuelEconomy[carClass];
-    var loanRate=0.035;
+    // ユーザー入力の金利を年利から月利へ変換
+    var loanRate=loanRateInput/100;
     var maintenanceMonthly=8000;
     var insuranceMonthly=12000;
     var taxMonthly=3000;
     var monthlyGasCost=Math.round((mileage/fuelEconomy/12)*gasPrice);
     var leaseMonths=useYears*12;
 
-    // カーリース
-    var residualValue=carPrice*residualRate*(useYears/5);
+    // カーリース: リース期間が長いほど残価は低下するため 5/useYears を乗算
+    var residualValue=carPrice*residualRate*(5/useYears);
     var leaseBase=(carPrice-residualValue)/leaseMonths;
     var leaseTotal=leaseBase+maintenanceMonthly+insuranceMonthly+taxMonthly+monthlyGasCost;
-    if(mileage>10000)leaseTotal+=2000;
+    // 過走行ペナルティ: 超過km×15円/kmを月次コストに加算
+    if(mileage>10000)leaseTotal+=Math.round((mileage-10000)/12*15);
 
-    // ローン
-    var loanAmount=carPrice-downPayment;
-    var loanPayment=loanAmount*(loanRate/12*Math.pow(1+loanRate/12,leaseMonths))/(Math.pow(1+loanRate/12,leaseMonths)-1);
+    // ローン: 頭金が車両価格以上なら実質ローンなし
+    var loanAmount=Math.max(0,carPrice-downPayment);
+    var loanPayment=loanAmount>0
+      ?loanAmount*(loanRate/12*Math.pow(1+loanRate/12,leaseMonths))/(Math.pow(1+loanRate/12,leaseMonths)-1)
+      :0;
     var loanTotal=loanPayment+maintenanceMonthly+insuranceMonthly+taxMonthly+monthlyGasCost;
 
     // 一括
@@ -816,10 +835,22 @@ function calculate(){
     var totalLoan=Math.round(loanTotal*leaseMonths);
     var totalCash=Math.round(cashMonthly*leaseMonths);
 
+    // 勝者判定: 計算した総費用を直接比較して最安の方法を選択
     var winner,reason,winnerKey;
-    if(downPayment<500000&&mileage<=10000){winner='カーリース';reason='頭金が少なく走行距離が標準的なためリースがお得';winnerKey='lease';}
-    else if(useYears>=7){winner='ローン購入（長期保有）';reason='長期間乗るならローン完済後の維持費の低さが有利';winnerKey='loan';}
-    else{winner='ローン購入';reason='頭金がある程度あるためローン購入がトータルでお得';winnerKey='loan';}
+    var minTotal=Math.min(totalLease,totalLoan,totalCash);
+    if(minTotal===totalLease){
+      winnerKey='lease';winner='カーリース';
+      var diff=Math.round((Math.min(totalLoan,totalCash)-totalLease)/10000);
+      reason='総費用がローン・一括より約'+diff+'万円安い。初期費用ゼロで始めやすい'+(mileage>10000?'（過走行には注意）':'');
+    }else if(minTotal===totalCash){
+      winnerKey='cash';winner='一括購入';
+      var diff=Math.round((Math.min(totalLease,totalLoan)-totalCash)/10000);
+      reason='総費用が最安。金利・リース手数料がかからず'+diff+'万円節約できる';
+    }else{
+      winnerKey='loan';winner='ローン購入'+(useYears>=7?'（長期保有）':'');
+      var diff=Math.round((Math.min(totalLease,totalCash)-totalLoan)/10000);
+      reason='総費用がリースより約'+diff+'万円安い。所有権を持ちながら維持できる';
+    }
 
     document.getElementById('r-winner').textContent=winner;
     document.getElementById('r-reason').textContent=reason;
@@ -843,9 +874,9 @@ function calculate(){
       '<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f1f5f9;"><span style="color:#64748b;">月間ガソリン代</span><strong>'+Math.round(monthlyGasCost/1000)+'千円</strong></div>'+
       '<div style="margin-top:10px;padding-top:8px;border-top:2px solid #e2e8f0;">'+
         '<div style="font-weight:700;color:#1e293b;margin-bottom:8px;">'+useYears+'年間 総支払額</div>'+
-        '<div style="display:flex;justify-content:space-between;padding:5px 0;"><span style="color:#64748b;">カーリース</span><strong style="color:#1e40af;">'+Math.round(totalLease/10000)+'万円</strong></div>'+
-        '<div style="display:flex;justify-content:space-between;padding:5px 0;"><span style="color:#64748b;">ローン購入</span><strong style="color:#6b7280;">'+Math.round(totalLoan/10000)+'万円</strong></div>'+
-        '<div style="display:flex;justify-content:space-between;padding:5px 0;"><span style="color:#64748b;">一括購入</span><strong style="color:#6b7280;">'+Math.round(totalCash/10000)+'万円</strong></div>'+
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;"><span style="color:#64748b;">カーリース</span><strong style="color:'+(winnerKey==='lease'?'#1e40af':'#6b7280')+';">'+Math.round(totalLease/10000)+'万円'+(winnerKey==='lease'?' ✓':'')+'</strong></div>'+
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;"><span style="color:#64748b;">ローン購入</span><strong style="color:'+(winnerKey==='loan'?'#1e40af':'#6b7280')+';">'+Math.round(totalLoan/10000)+'万円'+(winnerKey==='loan'?' ✓':'')+'</strong></div>'+
+        '<div style="display:flex;justify-content:space-between;padding:5px 0;"><span style="color:#64748b;">一括購入</span><strong style="color:'+(winnerKey==='cash'?'#1e40af':'#6b7280')+';">'+Math.round(totalCash/10000)+'万円'+(winnerKey==='cash'?' ✓':'')+'</strong></div>'+
       '</div>';
 
     document.getElementById('r-advice').innerHTML='💡 <strong>アドバイス：</strong>カーリースは初期費用ゼロ・車検込みで手軽ですが、過走行ペナルティと所有権がない点に注意。長期保有するならローン・一括購入の方が総額は安くなる傾向があります。';
@@ -857,6 +888,28 @@ function calculate(){
     document.getElementById('results').scrollIntoView({behavior:'smooth'});
   }catch(e){console.warn('計算エラー:',e);}
 }
+
+// localStorageへの入力値保存・復元
+var LS_KEY='car_lease_advisor_v1';
+var _saveIds=['car-class','use-years','down-payment','mileage','custom-price','gas-price','loan-rate'];
+function saveInputs(){
+  var vals={};
+  _saveIds.forEach(function(id){var el=document.getElementById(id);if(el)vals[id]=el.value;});
+  try{localStorage.setItem(LS_KEY,JSON.stringify(vals));}catch(e){}
+}
+function restoreInputs(){
+  try{
+    var saved=JSON.parse(localStorage.getItem(LS_KEY)||'{}');
+    _saveIds.forEach(function(id){var el=document.getElementById(id);if(el&&saved[id]!=null&&saved[id]!=='')el.value=saved[id];});
+  }catch(e){}
+}
+document.addEventListener('DOMContentLoaded',function(){
+  restoreInputs();
+  _saveIds.forEach(function(id){
+    var el=document.getElementById(id);
+    if(el)el.addEventListener('change',saveInputs);
+  });
+});
 
 function copyResult(){
   if(!_lastResult.winner)return;

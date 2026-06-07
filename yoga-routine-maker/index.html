@@ -243,15 +243,31 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
                 <div style="font-size:13px;font-weight:700;color:#9d174d;" id="routineTitle"></div>
                 <div style="font-size:12px;color:#666;margin-top:2px;" id="routineSub"></div>
               </div>
-              <div style="font-size:1.5rem;font-weight:800;color:#DB2777;" id="routineTotal"></div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div style="font-size:1.5rem;font-weight:800;color:#DB2777;" id="routineTotal"></div>
+                <button onclick="makeRoutine()" style="background:none;border:1.5px solid #DB2777;color:#DB2777;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;" title="同じ条件で別のルーティンを生成">🔄 再生成</button>
+              </div>
             </div>
 
-            <div id="timerSection" style="display:none;margin-bottom:12px;">
+            <div id="timerSection" style="display:none;margin-bottom:12px;position:sticky;top:0;z-index:100;">
               <div style="background:#FFF0F9;border:2px solid #DB2777;border-radius:12px;padding:16px;text-align:center;">
+                <!-- 進捗インジケーター -->
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                  <div id="timerProgressBar" style="flex:1;height:6px;background:#fbcfe8;border-radius:999px;overflow:hidden;">
+                    <div id="timerProgressFill" style="height:100%;background:#DB2777;border-radius:999px;transition:width 0.3s;width:0%;"></div>
+                  </div>
+                  <div id="timerProgressText" style="font-size:12px;color:#9d174d;font-weight:700;white-space:nowrap;"></div>
+                </div>
                 <div style="font-size:12px;color:#9d174d;font-weight:600;margin-bottom:4px;">現在のポーズ</div>
-                <div style="font-size:24px;font-weight:700;color:#DB2777;margin-bottom:8px;" id="currentPoseEmoji"></div>
-                <div style="font-size:16px;font-weight:600;color:#333;margin-bottom:12px;" id="currentPoseName"></div>
-                <div style="font-size:48px;font-weight:800;color:#DB2777;font-family:monospace;margin-bottom:12px;" id="timerDisplay">00:00</div>
+                <div style="font-size:24px;font-weight:700;color:#DB2777;margin-bottom:4px;" id="currentPoseEmoji"></div>
+                <div style="font-size:16px;font-weight:600;color:#333;margin-bottom:8px;" id="currentPoseName"></div>
+                <div style="font-size:48px;font-weight:800;color:#DB2777;font-family:monospace;margin-bottom:8px;" id="timerDisplay">00:00</div>
+                <!-- 次ポーズプレビュー -->
+                <div id="nextPosePreview" style="background:#fff;border:1px solid #fbcfe8;border-radius:8px;padding:6px 12px;margin-bottom:10px;font-size:12px;color:#9d174d;display:none;">
+                  <span style="color:#bbb;margin-right:4px;">次のポーズ →</span>
+                  <span id="nextPoseEmoji"></span>
+                  <span id="nextPoseName" style="font-weight:600;"></span>
+                </div>
                 <div style="display:flex;gap:8px;justify-content:center;">
                   <button id="timerPlayBtn" class="btn" style="flex:1;margin:0;padding:12px;background:#DB2777;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;" onclick="toggleTimer()">開始</button>
                   <button class="btn" style="flex:1;margin:0;padding:12px;background:#999;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;" onclick="resetTimer()">リセット</button>
@@ -532,27 +548,65 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('result').classList.add('show');
     }
 
+    // Web Audio API でビープ音を生成
+    function playBeep(freq, duration, vol) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = freq || 880;
+        gain.gain.setValueAtTime(vol || 0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (duration || 0.4));
+        osc.start(); osc.stop(ctx.currentTime + (duration || 0.4));
+      } catch(e) {}
+    }
+
     // Timer and share functions
     let timerInterval = null, timerRunning = false, currentPoseIndex = 0, remainingTime = 0;
     function startTimer() {
       if (!window.currentRoutineData || window.currentRoutineData.length === 0) return;
-      currentPoseIndex = 0; timerRunning = false; updateTimerDisplay();
+      currentPoseIndex = 0; timerRunning = false;
       document.getElementById('timerSection').style.display = 'block';
       document.getElementById('poseList').style.display = 'none';
+      updateTimerDisplay();
     }
     function updateTimerDisplay() {
-      if (currentPoseIndex >= window.currentRoutineData.length) {
-        document.getElementById('timerDisplay').textContent = '完了！';
-        document.getElementById('currentPoseName').textContent = '素晴らしい！';
-        document.getElementById('timerPlayBtn').textContent = '完了';
-        timerRunning = false; clearInterval(timerInterval);
+      const data = window.currentRoutineData;
+      const total = data ? data.length : 0;
+      if (currentPoseIndex >= total) {
+        // 完了画面
+        clearInterval(timerInterval); timerRunning = false;
+        document.getElementById('timerDisplay').textContent = '🎉';
+        document.getElementById('currentPoseEmoji').textContent = '✨';
+        document.getElementById('currentPoseName').textContent = 'ルーティン完了！お疲れ様でした';
+        document.getElementById('timerProgressFill').style.width = '100%';
+        document.getElementById('timerProgressText').textContent = total + ' / ' + total;
+        document.getElementById('nextPosePreview').style.display = 'none';
+        document.getElementById('timerPlayBtn').textContent = '✔ 完了';
+        document.getElementById('timerPlayBtn').disabled = true;
+        playBeep(1047, 0.6, 0.4); // 完了音（高め）
         return;
       }
-      const pose = window.currentRoutineData[currentPoseIndex];
+      const pose = data[currentPoseIndex];
       remainingTime = pose.sec;
       document.getElementById('currentPoseEmoji').textContent = pose.emoji;
       document.getElementById('currentPoseName').textContent = pose.name;
       formatAndDisplayTime(remainingTime);
+      // 進捗更新
+      const pct = total > 0 ? Math.round((currentPoseIndex / total) * 100) : 0;
+      document.getElementById('timerProgressFill').style.width = pct + '%';
+      document.getElementById('timerProgressText').textContent = (currentPoseIndex + 1) + ' / ' + total;
+      // 次ポーズプレビュー
+      const nextPreview = document.getElementById('nextPosePreview');
+      if (currentPoseIndex + 1 < total) {
+        const next = data[currentPoseIndex + 1];
+        document.getElementById('nextPoseEmoji').textContent = next.emoji;
+        document.getElementById('nextPoseName').textContent = next.name;
+        nextPreview.style.display = 'block';
+      } else {
+        nextPreview.style.display = 'none';
+      }
     }
     function formatAndDisplayTime(seconds) {
       const mins = Math.floor(seconds / 60);
@@ -570,9 +624,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         timerInterval = setInterval(() => {
           remainingTime--;
           if (remainingTime < 0) {
+            playBeep(660, 0.3); // ポーズ切り替え音
             currentPoseIndex++;
             updateTimerDisplay();
-            if (timerRunning && currentPoseIndex < window.currentRoutineData.length) {
+            if (timerRunning && currentPoseIndex < (window.currentRoutineData || []).length) {
               remainingTime = window.currentRoutineData[currentPoseIndex].sec;
             }
           }
@@ -585,6 +640,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       timerRunning = false;
       currentPoseIndex = 0;
       document.getElementById('timerPlayBtn').textContent = '開始';
+      document.getElementById('timerPlayBtn').disabled = false;
       updateTimerDisplay();
     }
     function copyRoutine() {

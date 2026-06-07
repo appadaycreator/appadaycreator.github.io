@@ -74,10 +74,10 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
             .result-value { font-size: 28px; }
         }
         /* ── サービス固有CSS ── */
-        .quiz-opt { width:100%; padding:12px 14px; margin-bottom:8px; border:2px solid #e5e7eb; border-radius:10px; font-size:14px; cursor:pointer; background:#fff; text-align:left; transition:border-color .15s, background .15s; }
-        .quiz-opt:hover { border-color:#7c3aed; background:#f5f3ff; }
-        .quiz-opt:active { transform:scale(0.99); background:#ede9fe; }
-        .quiz-opt:focus-visible { outline:3px solid #7c3aed; outline-offset:2px; }
+        .quiz-opt { width:100%; padding:12px 14px; margin-bottom:8px; border:2px solid #e5e7eb; border-radius:10px; font-size:14px; cursor:pointer; background:#fff; text-align:left; transition:border-color .15s, background .15s, box-shadow .15s; min-height:48px; }
+        .quiz-opt:hover { border-color:var(--opt-color, #7c3aed); background:color-mix(in srgb, var(--opt-color, #7c3aed) 5%, white); box-shadow:0 0 0 3px color-mix(in srgb, var(--opt-color, #7c3aed) 20%, transparent); }
+        .quiz-opt:active { transform:scale(0.98); }
+        .quiz-opt:focus-visible { outline:3px solid var(--opt-color, #7c3aed); outline-offset:2px; }
 
     
 @media print{
@@ -138,9 +138,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
         <div class="result" id="result">
           <div class="card">
-            <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;color:#7c3aed;"></h3>
-            <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
-            <button class="btn" style="margin-top:16px;" onclick="location.reload()">もう一度診断</button>
+            <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;"></h3>
+            <div id="r-gauge"></div>
+            <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;margin:12px 0;"></p>
+            <button class="btn" style="margin-top:16px;" onclick="confirmReset()">もう一度診断</button>
           </div>
         </div>
 
@@ -224,10 +225,22 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     ];
     function getResult(answers) {
       const score = answers.reduce((s, a) => s + a.idx, 0);
-      if (score <= 4) return { title:'ストレス度：低め 😊', desc:'現在の育児ストレスは比較的低い状態です。今の生活リズムや支援体制を大切に続けましょう。引き続き、パートナーや身近な人とのコミュニケーションを意識すると◎。' };
-      if (score <= 9) return { title:'ストレス度：中程度 😐', desc:'育児への負荷がやや蓄積しています。意識的に自分の休息時間を確保しましょう。週に一度でも「自分だけの時間」を30分作るだけで気持ちが楽になります。地域の子育て支援センターへの相談もおすすめです。' };
-      if (score <= 14) return { title:'ストレス度：高め ⚠️', desc:'かなりの負担を抱えている状態です。一人で抱え込まず、パートナーや家族に具体的なサポートをお願いしてください。市区町村の子育て相談窓口やファミリーサポートセンターを活用するのも有効です。' };
-      return { title:'ストレス度：非常に高い 🆘', desc:'心身ともに限界に近い状態です。すぐに信頼できる人に話を聞いてもらうか、専門の相談窓口（よりそいホットライン：0120-279-338）に連絡することをおすすめします。あなたが楽になることが、お子さんのためにもなります。' };
+      const colors = { low:'#10b981', mid:'#f59e0b', high:'#ef4444', vhigh:'#7c3aed' };
+      let level, color, detail;
+      if (score <= 4) {
+        level='低め 😊'; color=colors.low;
+        detail='<strong>🌟 現在の育児ストレスは比較的低い状態です</strong><br>• パートナーや身近な人とのコミュニケーションを意識する<br>• 現在の生活リズムや支援体制を大切に維持する<br>• 定期的に心身のバランスをチェックする';
+      } else if (score <= 9) {
+        level='中程度 😐'; color=colors.mid;
+        detail='<strong>⚠️ 育児への負荷がやや蓄積しています</strong><br>• 週に一度でも「自分だけの時間」を30分確保する<br>• 地域の子育て支援センターに相談する<br>• 家族やパートナーに具体的なサポートをお願いする';
+      } else if (score <= 14) {
+        level='高め ⚠️'; color=colors.high;
+        detail='<strong>🚨 かなりの負担を抱えている状態です</strong><br>• 市区町村の子育て相談窓口に連絡する<br>• ファミリーサポートセンターを活用する<br>• パートナーや家族に具体的なサポートをお願いする<br>• 信頼できる人に話を聞いてもらう';
+      } else {
+        level='非常に高い 🆘'; color=colors.vhigh;
+        detail='<strong>🚑 心身ともに限界に近い状態です</strong><br>• 専門の相談窓口に連絡してください<br>• よりそいホットライン：0120-279-338（24h）<br>• 児童相談所：189（虐待かもと思ったら）<br>• 信頼できる人にすぐに話を聞いてもらってください';
+      }
+      return { score, level, color, title:`ストレス度：${level}`, desc:'', detail };
     }
     // ★以下変更不要★
     const BTN='#7c3aed'; let cur=0; const ans=[];
@@ -235,19 +248,23 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function startQuiz(){ cur=0;ans.length=0; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); renderQ(); }
     function renderQ(){
       const q=QUESTIONS[cur];
+      const optColors=['#10b981','#f59e0b','#f97316','#ef4444'];
       document.getElementById('q-num').textContent=cur+1;
       document.getElementById('q-bar').style.width=((cur+1)/QUESTIONS.length*100)+'%';
       document.getElementById('q-text').textContent=q.text;
-      document.getElementById('q-options').innerHTML=q.opts.map((o,i)=>`<button class="quiz-opt" onclick="answer(${i})">${o}</button>`).join('');
+      document.getElementById('q-options').innerHTML=q.opts.map((o,i)=>`<button class="quiz-opt" onclick="answer(${i})" style="border-color:${optColors[i]};--opt-color:${optColors[i]}">${o}</button>`).join('');
     }
     function answer(idx){ ans.push({idx}); cur++; if(cur>=QUESTIONS.length) showResult(); else renderQ(); }
     function showResult(){
       document.getElementById('quiz-area').style.display='none';
       const r=getResult(ans);
-      document.getElementById('r-title').textContent=r.title;
-      document.getElementById('r-desc').textContent=r.desc;
+      document.getElementById('r-title').innerHTML=r.title;
+      document.getElementById('r-title').style.color=r.color;
+      document.getElementById('r-gauge').innerHTML=`<div style="background:#e5e7eb;height:24px;border-radius:12px;overflow:hidden;margin:8px 0;"><div style="background:${r.color};height:100%;width:${(r.score/18)*100}%;transition:width 0.3s;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:12px;">${r.score}/18</div></div>`;
+      document.getElementById('r-desc').innerHTML=r.detail;
       document.getElementById('result').classList.add('show');
     }
+    function confirmReset(){ if(confirm('診断を終了して最初に戻りますか？\n\n現在の結果は表示されなくなります。')){location.reload();} }
     </script>
     <!-- rakuten-affiliate-block -->
     <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">

@@ -185,7 +185,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   <div class="bg-white rounded-2xl shadow p-6">
     <h3 class="font-bold text-gray-700 mb-3">関連する資産・ライフプラン診断</h3>
     <div class="grid grid-cols-1 gap-3">
-      <a href="https://appadaycreator.com/fire-calculator/" class="flex items-center gap-3 p-3 border border-gray-200 rounded-xl hover:border-indigo-400 transition">
+      <a href="https://appadaycreator.com/fire-calculator/lp/" class="flex items-center gap-3 p-3 border border-gray-200 rounded-xl hover:border-indigo-400 transition">
         <span class="text-2xl">🔥</span>
         <div><p class="font-semibold text-sm">FIRE計算機</p><p class="text-xs text-gray-500">経済的自立に必要な資産を計算</p></div>
       </a>
@@ -211,7 +211,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. 計算結果をPDF・メモとして保存できますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">現在、PDF出力機能は非対応ですが、ブラウザの印刷機能（Ctrl+P）でページ全体を保存いただけます。</p>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">はい。結果画面の「📄 結果をPDFで保存」ボタンをクリックすると、基礎控除額・課税遺産・相続税額・アドバイスを含めたPDFファイルがダウンロードされます。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. このサービスは無料で使えますか？ <span>▼</span></summary>
@@ -323,33 +323,75 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     if (currentStep > 0) { currentStep--; renderQuestion(); }
   }
 
+  // 累進税率と控除額による正確な相続税計算（万円単位）
+  function calcSingleTax(amount) {
+    if (amount <= 0) return 0;
+    if (amount <= 1000) return amount * 0.10;
+    if (amount <= 3000) return amount * 0.15 - 50;
+    if (amount <= 5000) return amount * 0.20 - 200;
+    if (amount <= 10000) return amount * 0.30 - 700;
+    if (amount <= 20000) return amount * 0.40 - 1700;
+    if (amount <= 30000) return amount * 0.45 - 2700;
+    if (amount <= 60000) return amount * 0.50 - 4200;
+    return amount * 0.55 - 7200;
+  }
+
   function calcTax(answersOverride = null) {
     const a = answersOverride || answers;
     const estateMap = {'3,000万円未満': 2500, '3,000〜5,000万円': 4000, '5,000万円〜1億円': 7500, '1億〜3億円': 20000, '3億円以上': 40000};
     const heirMap = {'1人（配偶者のみ）': 1, '2人': 2, '3人': 3, '4人': 4, '5人以上': 5};
-    const estate = (estateMap[a.estate] || 4000) * 10000;
+    const estate = estateMap[a.estate] || 4000;
     const heirs = heirMap[a.heirs] || 2;
-    const basicDeduction = 3000 + 600 * heirs;
-    const taxableEstate = Math.max(0, estate / 10000 - basicDeduction);
     const hasSpouse = a.spouse === 'はい（配偶者あり）';
 
-    let taxRate = 0;
-    if (taxableEstate <= 1000) taxRate = 0.10;
-    else if (taxableEstate <= 3000) taxRate = 0.15;
-    else if (taxableEstate <= 5000) taxRate = 0.20;
-    else if (taxableEstate <= 10000) taxRate = 0.30;
-    else taxRate = 0.40;
+    const basicDeduction = 3000 + 600 * heirs;
+    const taxableEstate = Math.max(0, estate - basicDeduction);
 
-    let tax = Math.round(taxableEstate * taxRate / 100) * 100;
-    if (hasSpouse) tax = Math.round(tax * 0.5);
-    return { tax, taxableEstate, basicDeduction, hasSpouse, taxRate };
+    if (taxableEstate === 0) {
+      return { tax: 0, taxableEstate: 0, basicDeduction, hasSpouse, estate, heirs,
+               totalTaxBeforeCredit: 0, spouseTaxCredit: 0, childrenCount: 0,
+               spouseShare: hasSpouse ? 1 : 0, childShare: 0 };
+    }
+
+    // 法定相続分の計算
+    let spouseShare = 0;
+    let childrenCount = 0;
+    if (hasSpouse) {
+      if (heirs === 1) { spouseShare = 1; childrenCount = 0; }
+      else { spouseShare = 0.5; childrenCount = heirs - 1; }
+    } else {
+      childrenCount = heirs;
+    }
+    const childShare = childrenCount > 0 ? (1 - spouseShare) / childrenCount : 0;
+
+    // 相続税の総額計算（法定相続分課税方式）
+    let totalTaxBeforeCredit = 0;
+    if (hasSpouse && spouseShare > 0) totalTaxBeforeCredit += calcSingleTax(taxableEstate * spouseShare);
+    for (let i = 0; i < childrenCount; i++) totalTaxBeforeCredit += calcSingleTax(taxableEstate * childShare);
+    totalTaxBeforeCredit = Math.round(totalTaxBeforeCredit);
+
+    // 配偶者控除（取得額が1億6,000万円以下なら配偶者分は非課税）
+    let spouseTaxCredit = 0;
+    if (hasSpouse && spouseShare > 0) {
+      const spouseAcquisition = estate * spouseShare;
+      if (spouseAcquisition <= 16000) {
+        spouseTaxCredit = Math.round(calcSingleTax(taxableEstate * spouseShare));
+      }
+    }
+
+    const tax = Math.max(0, totalTaxBeforeCredit - spouseTaxCredit);
+
+    return { tax, taxableEstate, basicDeduction, hasSpouse, estate, heirs,
+             totalTaxBeforeCredit, spouseTaxCredit, spouseShare, childrenCount, childShare };
   }
 
   function showResult() {
     document.getElementById('quiz-section').classList.add('hidden');
     document.getElementById('result-section').classList.remove('hidden');
 
-    const { tax, taxableEstate, basicDeduction, hasSpouse } = calcTax();
+    const result = calcTax();
+    const { tax, taxableEstate, basicDeduction, hasSpouse, estate, heirs,
+            totalTaxBeforeCredit, spouseTaxCredit, spouseShare, childrenCount, childShare } = result;
     const urgency = answers.urgency;
     const needsAdvice = urgency === 'まだ何もしていない' || urgency === '検討を始めたところ';
 
@@ -360,32 +402,92 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     if (hasSpouse) advice.push('配偶者控除により、配偶者が相続する場合は1億6,000万円まで非課税です。');
     advice.push('相続税の申告期限は相続開始から10ヶ月以内です。早めの準備が重要です。');
 
-    const resultData = {tax, taxableEstate, basicDeduction, hasSpouse};
-    resultHistory = [resultData];
+    resultHistory = [result];
 
-    let html = `
-      <div class="bg-indigo-50 border-l-4 border-indigo-500 rounded-xl p-5 mb-5" id="result-display">
-        <p class="text-sm text-indigo-800 font-semibold mb-2">基礎控除額</p>
-        <p class="text-4xl font-bold text-indigo-700 mb-4">${basicDeduction.toLocaleString()}万円</p>
-        <p class="text-base text-gray-700 mb-1">課税遺産総額（概算）: <strong>${taxableEstate > 0 ? taxableEstate.toLocaleString() + '万円' : '0円（非課税）'}</strong></p>
-        <p class="text-base text-gray-700 mb-3">推定相続税額${hasSpouse ? '（配偶者控除適用後）' : ''}: <strong class="text-2xl text-red-600">${tax > 0 ? '約' + tax.toLocaleString() + '万円' : '0円（非課税）'}</strong></p>
-        ${taxableEstate <= 0 ? '<p class="text-base text-green-600 font-semibold">基礎控除内のため、相続税は発生しません。</p>' : ''}
-      </div>
-      <h3 class="font-bold text-gray-800 text-lg mb-3">あなたへの相続対策アドバイス</h3>
-      <div class="space-y-3 mb-5">
-        ${advice.map(a => `<div class="flex gap-3 p-3 bg-gray-50 rounded-xl"><span class="text-xl">💡</span><p class="text-base text-gray-700">${a}</p></div>`).join('')}
-      </div>
-      ${needsAdvice ? `<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5"><p class="text-base font-semibold text-amber-800">早めに税理士・相続専門家への相談をおすすめします。相続対策は早いほど選択肢が広がります。</p></div>` : ''}
-      <div class="flex flex-col gap-3 mb-5">
-        <button onclick="exportToPDF()" class="w-full py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition">📄 結果をPDFで保存</button>
-        <button onclick="showComparison()" class="w-full py-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition">📊 複数パターンで比較</button>
-      </div>`;
+    const estateLabel = answers.estate || '未回答';
+    const heirsLabel = answers.heirs || '未回答';
+    const spouseLabel = hasSpouse ? 'あり' : 'なし';
+    const realestateLabel = answers.realestate || '未回答';
+
+    // 相続人別内訳テーブルの行を事前生成
+    let heirRows = '';
+    if (taxableEstate > 0) {
+      if (hasSpouse && spouseShare > 0) {
+        const spouseTaxableAmt = Math.round(taxableEstate * spouseShare);
+        heirRows += '<tr class="border-t"><td class="p-2">配偶者</td><td class="p-2 text-right">' + Math.round(spouseShare * 100) + '%</td><td class="p-2 text-right">' + spouseTaxableAmt.toLocaleString() + '万円</td><td class="p-2 text-right text-green-600">0円 <span class="text-xs text-gray-400">（控除）</span></td></tr>';
+      }
+      if (childrenCount > 0) {
+        const childTaxableAmt = Math.round(taxableEstate * childShare);
+        const childTaxAmt = Math.round(calcSingleTax(taxableEstate * childShare));
+        heirRows += '<tr class="border-t"><td class="p-2">子 × ' + childrenCount + '人</td><td class="p-2 text-right">各' + Math.round(childShare * 100) + '%</td><td class="p-2 text-right">各' + childTaxableAmt.toLocaleString() + '万円</td><td class="p-2 text-right text-red-600">各' + childTaxAmt.toLocaleString() + '万円</td></tr>';
+      }
+    }
+
+    let html = '<div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-5">'
+      + '<h3 class="font-bold text-gray-700 text-sm mb-3">📝 入力条件</h3>'
+      + '<div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">'
+      + '<div class="flex justify-between gap-2"><span class="text-gray-500">遺産総額</span><span class="font-semibold text-gray-800">' + estateLabel + '</span></div>'
+      + '<div class="flex justify-between gap-2"><span class="text-gray-500">相続人数</span><span class="font-semibold text-gray-800">' + heirsLabel + '</span></div>'
+      + '<div class="flex justify-between gap-2"><span class="text-gray-500">配偶者</span><span class="font-semibold text-gray-800">' + spouseLabel + '</span></div>'
+      + '<div class="flex justify-between gap-2"><span class="text-gray-500">不動産</span><span class="font-semibold text-gray-800 text-xs">' + realestateLabel + '</span></div>'
+      + '</div></div>';
+
+    html += '<div class="bg-indigo-50 border-l-4 border-indigo-500 rounded-xl p-5 mb-5" id="result-display">'
+      + '<h3 class="font-bold text-indigo-800 mb-4">💰 相続税計算内訳</h3>'
+      + '<div class="space-y-1 text-sm">'
+      + '<div class="flex justify-between items-center py-1"><span class="text-gray-600">遺産総額（概算）</span><span class="font-bold text-gray-800">約' + estate.toLocaleString() + '万円</span></div>'
+      + '<div class="flex justify-between items-center py-1 text-blue-700"><span>基礎控除額（3,000 + 600×' + heirs + '人）</span><span class="font-bold">' + basicDeduction.toLocaleString() + '万円</span></div>'
+      + '<div class="border-t border-indigo-200 flex justify-between items-center py-2"><span class="text-gray-700 font-semibold">課税遺産総額</span><span class="font-bold text-indigo-700">' + (taxableEstate > 0 ? taxableEstate.toLocaleString() + '万円' : '0円（非課税）') + '</span></div>';
+
+    if (taxableEstate > 0) {
+      html += '<div class="flex justify-between items-center py-1 text-orange-600"><span>相続税の総額（法定相続分課税方式）</span><span class="font-bold">' + totalTaxBeforeCredit.toLocaleString() + '万円</span></div>';
+      if (hasSpouse && spouseTaxCredit > 0) {
+        html += '<div class="flex justify-between items-center py-1 text-green-600"><span>配偶者控除（1億6,000万円まで非課税）</span><span class="font-bold">▲' + spouseTaxCredit.toLocaleString() + '万円</span></div>';
+      }
+    }
+
+    html += '<div class="border-t-2 border-indigo-400 flex justify-between items-center pt-3 mt-1">'
+      + '<span class="text-gray-900 font-bold">推定相続税額' + (hasSpouse ? '（配偶者控除後）' : '') + '</span>'
+      + '<span class="font-bold text-2xl ' + (tax > 0 ? 'text-red-600' : 'text-green-600') + '">' + (tax > 0 ? '約' + tax.toLocaleString() + '万円' : '0円（非課税）') + '</span>'
+      + '</div></div></div>';
+
+    if (taxableEstate > 0 && heirs >= 1) {
+      html += '<div class="bg-white border border-gray-200 rounded-xl p-4 mb-5">'
+        + '<h3 class="font-bold text-gray-700 text-sm mb-3">👥 相続人別 法定相続分と税額内訳</h3>'
+        + '<div class="overflow-x-auto"><table class="w-full text-sm">'
+        + '<thead><tr class="bg-gray-50 text-gray-600"><th class="text-left p-2 font-semibold">相続人</th><th class="text-right p-2 font-semibold">法定相続分</th><th class="text-right p-2 font-semibold">課税遺産取り分</th><th class="text-right p-2 font-semibold">税額（目安）</th></tr></thead>'
+        + '<tbody>' + heirRows + '</tbody></table></div>'
+        + '<p class="text-xs text-gray-400 mt-2">※ 実際の分割割合と異なる場合、税額も変わります</p>'
+        + '</div>';
+    }
+
+    if (taxableEstate <= 0) {
+      html += '<div class="bg-green-50 border border-green-200 rounded-xl p-4 mb-5">'
+        + '<p class="text-base font-semibold text-green-700 mb-2">✓ 基礎控除内のため、相続税は発生しません</p>'
+        + '<p class="text-sm text-gray-700 mb-3">あなたの相続財産は基礎控除額（<strong>' + basicDeduction + '万円</strong>）以内です。</p>'
+        + '<div class="text-sm text-gray-600 space-y-2"><p><strong>ただし、相続手続きは必要です：</strong></p>'
+        + '<ul style="margin-left: 20px; list-style-type: disc;">'
+        + '<li>不動産の所有権移転登記（相続開始から3年以内）</li>'
+        + '<li>銀行口座の解約・相続手続き</li>'
+        + '<li>相続人間での遺産分割協議</li>'
+        + '</ul></div></div>';
+    }
+
+    html += '<h3 class="font-bold text-gray-800 text-lg mb-3">あなたへの相続対策アドバイス</h3>'
+      + '<div class="space-y-3 mb-5">'
+      + advice.map(adv => '<div class="flex gap-3 p-3 bg-gray-50 rounded-xl"><span class="text-xl">💡</span><p class="text-base text-gray-700">' + adv + '</p></div>').join('')
+      + '</div>'
+      + (needsAdvice ? '<div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5"><p class="text-base font-semibold text-amber-800">早めに税理士・相続専門家への相談をおすすめします。相続対策は早いほど選択肢が広がります。</p></div>' : '')
+      + '<div class="flex flex-col gap-3 mb-5">'
+      + '<button onclick="exportToPDF()" class="w-full py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition">📄 結果をPDFで保存</button>'
+      + '<button onclick="showComparison()" class="w-full py-3 bg-purple-600 text-white rounded-xl font-semibold hover:bg-purple-700 transition">📊 複数パターンで比較</button>'
+      + '</div>';
 
     document.getElementById('result-content').innerHTML = html;
   }
 
   function exportToPDF() {
-    const element = document.getElementById('result-display');
+    const resultContent = document.getElementById('result-content');
     const opt = {
       margin: 10,
       filename: 'inheritance-simulator-result.pdf',
@@ -393,14 +495,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       html2canvas: { scale: 2 },
       jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
     };
-    html2pdf().set(opt).fromElement(element).save();
+    html2pdf().set(opt).fromElement(resultContent).save();
   }
 
   function showComparison() {
+    const heirUpMap = {'1人（配偶者のみ）': '2人', '2人': '3人', '3人': '4人', '4人': '5人以上', '5人以上': '5人以上'};
+    const heirUp = heirUpMap[answers.heirs] || answers.heirs;
     const scenarios = [
       { name: '現在の設定', answers: answers },
       { name: '配偶者なしの場合', answers: { ...answers, spouse: 'いいえ（配偶者なし）' } },
-      { name: '生前贈与後', answers: { ...answers, gift: '年間110万円以内の贈与あり' } }
+      { name: '相続人+1人の場合', answers: { ...answers, heirs: heirUp } }
     ];
 
     const comparison = scenarios.map(s => {

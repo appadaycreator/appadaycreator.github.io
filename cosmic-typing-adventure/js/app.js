@@ -471,6 +471,11 @@ export class CosmicTypingApp {
       return;
     }
 
+    // P2-b: セレブレーション演出（完了時のみ）
+    if (results.cause !== 'death' && results.cause !== 'timeout') {
+      this.triggerCelebration();
+    }
+
     if (this.elements.results) {
       this.elements.results.style.display = "block";
 
@@ -582,6 +587,43 @@ export class CosmicTypingApp {
     if (taInterface) taInterface.style.display = "none";
     const taResults = document.getElementById('timeAttackResults');
     if (taResults) taResults.style.display = "none";
+  }
+
+  // P2-b: セレブレーション演出
+  triggerCelebration() {
+    const container = document.getElementById('celebrationEffectsContainer');
+    if (!container) return;
+
+    // 背景フラッシュ
+    const flash = document.createElement('div');
+    flash.className = 'celebration-flash';
+    flash.style.position = 'fixed';
+    flash.style.inset = '0';
+    flash.style.pointerEvents = 'none';
+    flash.style.zIndex = '999';
+    container.appendChild(flash);
+    setTimeout(() => flash.remove(), 400);
+
+    // パーティクル生成（6個）
+    const colors = ['#06b6d4', '#a78bfa', '#fbbf24'];
+    for (let i = 0; i < 6; i++) {
+      const particle = document.createElement('div');
+      particle.className = 'particle';
+      particle.textContent = ['⭐', '✨', '💫'][Math.floor(Math.random() * 3)];
+      particle.style.left = Math.random() * 100 + '%';
+      particle.style.color = colors[i % colors.length];
+      particle.style.top = '-30px';
+      container.appendChild(particle);
+      setTimeout(() => particle.remove(), 1000);
+    }
+
+    // 「完了」テキスト表示
+    const text = document.createElement('div');
+    text.className = 'celebration-text';
+    text.textContent = '🎉 完了！';
+    text.style.fontSize = window.innerWidth < 768 ? '2rem' : '3rem';
+    container.appendChild(text);
+    setTimeout(() => text.remove(), 1200);
   }
 
   startPractice() {

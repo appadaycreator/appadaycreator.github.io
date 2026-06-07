@@ -66,6 +66,13 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 
 .card{background:#fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.08);overflow:hidden;}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;}
+.content-box{max-width:720px;margin:0 auto;}
+.content-box-sm{max-width:680px;margin:0 auto;}
+.affiliate-link{display:inline-flex;align-items:center;padding:8px 14px;background:#fff;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;color:#334155;text-decoration:none;white-space:nowrap;}
+.share-btn{display:block;text-align:center;border-radius:8px;font-size:12px;text-decoration:none;padding:8px;font-weight:bold;}
+.share-btn-green{background:#06c755;color:#fff;}
+.share-btn-black{background:#000;color:#fff;}
+.share-btn-orange{background:#f97316;color:#fff;}
 
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
@@ -163,6 +170,12 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
     <div class="bg-blue-50 rounded-xl p-3 mb-4 text-center">
       <span class="text-sm text-gray-600">🏆 ハイスコア: </span>
       <span id="highScore" class="font-bold text-blue-600">---</span>
+    </div>
+
+    <div class="flex gap-2 mb-4 justify-center">
+      <button id="soundToggle" onclick="toggleSound()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg text-sm transition-colors" aria-label="音声設定">
+        <span id="soundIcon">🔊</span> 音声
+      </button>
     </div>
 
     <button onclick="startGame()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl text-lg transition-colors" aria-label="🚀 スタート！">
@@ -456,28 +469,33 @@ let wordList = [], currentIdx = 0, score = 0, correctCount = 0, totalAnswered = 
 let timerInterval = null, timerLeft = 60;
 let hintShown = false;
 let soundEnabled = localStorage.getItem('spellingSound') !== 'off';
+let audioContext = null;
+
+const SOUND_CONFIG = {
+  correct: {freq: 800, gain: 0.3, duration: 0.2},
+  wrong: {freq: 400, gain: 0.2, duration: 0.15}
+};
+
+function initAudioContext() {
+  if (!audioContext) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioContext;
+}
 
 function playSound(type) {
-  if (!soundEnabled) return;
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  if (!soundEnabled || !SOUND_CONFIG[type]) return;
+  const cfg = SOUND_CONFIG[type];
+  const ctx = initAudioContext();
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.connect(gain);
   gain.connect(ctx.destination);
-
-  if (type === 'correct') {
-    osc.frequency.value = 800;
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.2);
-  } else if (type === 'wrong') {
-    osc.frequency.value = 400;
-    gain.gain.setValueAtTime(0.2, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.15);
-  }
+  osc.frequency.value = cfg.freq;
+  gain.gain.setValueAtTime(cfg.gain, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + cfg.duration);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + cfg.duration);
 }
 
 function selectLevel(l) {
@@ -492,8 +510,30 @@ function selectMode(m) {
   document.querySelector(`[data-mode="${m}"]`).className = 'mode-btn active bg-blue-500 text-white py-2 px-3 rounded-lg text-sm font-medium';
 }
 
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  localStorage.setItem('spellingSound', soundEnabled ? 'on' : 'off');
+  document.getElementById('soundIcon').textContent = soundEnabled ? '🔊' : '🔇';
+  document.getElementById('soundToggle').className = soundEnabled ?
+    'bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2 px-4 rounded-lg text-sm transition-colors' :
+    'bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg text-sm transition-colors';
+}
+
+function updateSoundUI() {
+  document.getElementById('soundIcon').textContent = soundEnabled ? '🔊' : '🔇';
+}
+
 function startGame() {
-  wordList = [...WORDS[level]].sort(() => Math.random() - 0.5);
+  wordList = shuffle(WORDS[level]);
   currentIdx = 0; score = 0; correctCount = 0; totalAnswered = 0; hintShown = false;
   document.getElementById('startScreen').classList.add('hidden');
   document.getElementById('resultScreen').classList.add('hidden');
@@ -617,8 +657,7 @@ function saveGameHistory(accuracy, score) {
     score: score,
     count: totalAnswered
   });
-  if (history.length > 50) history.shift();
-  localStorage.setItem('spellingHistory', JSON.stringify(history));
+  localStorage.setItem('spellingHistory', JSON.stringify(history.slice(-50)));
 }
 
 function getRecentStats() {
@@ -634,16 +673,17 @@ function displayStatsChart() {
     return;
   }
 
-  let chart = '';
-  stats.forEach((s, i) => {
+  let chart = '', sumAcc = 0, totalScore = 0;
+  stats.forEach((s) => {
     const bar = '█'.repeat(Math.round(s.accuracy / 10)) + '░'.repeat(10 - Math.round(s.accuracy / 10));
     const dateStr = new Date(s.date).toLocaleDateString('ja-JP', {month:'numeric', day:'numeric'});
     chart += `${dateStr} [${bar}] ${s.accuracy}%\n`;
+    sumAcc += s.accuracy;
+    totalScore += s.score;
   });
   document.getElementById('statsChart').textContent = chart;
 
-  const avgAcc = Math.round(stats.reduce((a, s) => a + s.accuracy, 0) / stats.length);
-  const totalScore = stats.reduce((a, s) => a + s.score, 0);
+  const avgAcc = Math.round(sumAcc / stats.length);
   document.getElementById('statsSummary').textContent = `平均正答率: ${avgAcc}% | 合計スコア: ${totalScore}`;
 }
 
@@ -689,10 +729,11 @@ function showStart() {
 window.addEventListener('load', () => {
   const hs = localStorage.getItem(`spellingHS_${level}`);
   document.getElementById('highScore').textContent = hs ? hs + '点' : '---';
+  updateSoundUI();
 });
 </script>
-<div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px auto;max-width:680px;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">入力された値を計算式やスコアリングロジックで処理し、あなたに合った結果を算出します。本ツールの結果はあくまで参考情報です。重要な判断の際は専門家にご相談ください。</p></div>
-<section style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 16px;margin-top:16px;max-width:720px;margin-left:auto;margin-right:auto;">
+<div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;" class="content-box-sm"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">入力された値を計算式やスコアリングロジックで処理し、あなたに合った結果を算出します。本ツールの結果はあくまで参考情報です。重要な判断の際は専門家にご相談ください。</p></div>
+<section style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 16px;margin-top:16px;" class="content-box">
   <h2 style="font-size:16px;font-weight:700;color:#1e293b;margin:0 0 16px;text-align:center;">❓ よくある質問（FAQ）</h2>
   <div style="max-width:680px;margin:0 auto;">
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
@@ -775,10 +816,10 @@ window.addEventListener('load', () => {
 <!-- phase10-faq-enhanced -->
 
 
-<div style="margin:24px auto;max-width:720px;padding:16px 20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;">
+<div style="margin:24px auto;padding:16px 20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;" class="content-box">
   <p style="font-size:12px;font-weight:600;color:#94a3b8;text-align:center;margin:0 0 12px;letter-spacing:0.05em;">スポンサーリンク</p>
   <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">
-    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-flex;align-items:center;padding:8px 14px;background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;color:#334155;text-decoration:none;white-space:nowrap;">日々の生活にハッピーをプラス！《ハピタス》</a><img border="0" width="1" height="1" src="https://www14.a8.net/0.gif?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642" alt="">
+    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642" rel="nofollow noopener noreferrer" target="_blank" class="affiliate-link">日々の生活にハッピーをプラス！《ハピタス》</a><img border="0" width="1" height="1" src="https://www14.a8.net/0.gif?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642" alt="">
     <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ7+18PTPM+1O96+699KI" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-flex;align-items:center;padding:8px 14px;background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;color:#334155;text-decoration:none;white-space:nowrap;">《ヨガ》をはじめてみませんか？ホットヨガスタジオLAVA</a><img border="0" width="1" height="1" src="https://www12.a8.net/0.gif?a8mat=4B3WJ7+18PTPM+1O96+699KI" alt="">
     <a href="https://px.a8.net/svt/ejp?a8mat=457C4C+C23BCA+0K+10FXXU" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-flex;align-items:center;padding:8px 14px;background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;color:#334155;text-decoration:none;white-space:nowrap;">アフィリエイトならA8.net</a><img border="0" width="1" height="1" src="https://www15.a8.net/0.gif?a8mat=457C4C+C23BCA+0K+10FXXU" alt="">
     <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ5+C2OQY2+14CS+68EPE" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-flex;align-items:center;padding:8px 14px;background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;color:#334155;text-decoration:none;white-space:nowrap;">【じゃらん】国内25,000軒の宿をネットで予約OK！2％ポイント還元！</a><img border="0" width="1" height="1" src="https://www11.a8.net/0.gif?a8mat=4B3WJ5+C2OQY2+14CS+68EPE" alt="">

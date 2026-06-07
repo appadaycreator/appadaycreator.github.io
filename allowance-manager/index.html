@@ -92,11 +92,18 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
   [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
 }
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
+/* トースト通知 */
+#toast { position:fixed; top:16px; right:16px; background:#16A34A; color:white; padding:10px 18px; border-radius:10px; font-size:14px; font-weight:600; box-shadow:0 4px 16px rgba(0,0,0,0.15); z-index:9999; opacity:0; transform:translateY(-8px); transition:opacity .25s, transform .25s; pointer-events:none; }
+#toast.show { opacity:1; transform:translateY(0); }
+/* 貯金目標プログレス */
+.goal-bar-wrap { height:12px; background:#e5e7eb; border-radius:6px; margin:8px 0 4px; overflow:hidden; }
+.goal-bar-fill { height:100%; border-radius:6px; background:#16A34A; transition:width .5s; }
     </style>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://appadaycreator.com/"},{"@type":"ListItem","position":2,"name":"計算機/お金","item":"https://appadaycreator.com/category/finance/"},{"@type":"ListItem","position":3,"name":"子供のおこづかい管理アプリ記録・管理アプリ","item":"https://appadaycreator.com/allowance-manager/"}]}</script>
 </head>
 <body>
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+    <div id="toast" role="status" aria-live="polite"></div>
     <a href="#main-content" class="sr-only" style="position:absolute;top:8px;left:8px;background:#16A34A;color:white;padding:8px 16px;border-radius:6px;z-index:9999;text-decoration:none;font-size:14px;" tabindex="1">メインコンテンツへスキップ</a>
     <header class="site-header" role="banner">
         <div class="emoji" aria-hidden="true">🐷</div>
@@ -123,8 +130,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <p style="font-size:13px;color:#888;margin-bottom:14px;">収入・支出を記録してお金の流れを把握しよう</p>
 
           <div style="display:flex;gap:8px;margin-bottom:12px;">
-            <button class="allow-type-btn active-income" id="btn-income" onclick="setType('income')">＋ 収入（もらった）</button>
-            <button class="allow-type-btn" id="btn-expense" onclick="setType('expense')">－ 支出（つかった）</button>
+            <button class="allow-type-btn active-income" id="btn-income" aria-label="収入を記録" onclick="setType('income')">＋ 収入（もらった）</button>
+            <button class="allow-type-btn" id="btn-expense" aria-label="支出を記録" onclick="setType('expense')">－ 支出（つかった）</button>
           </div>
 
           <label>日付</label>
@@ -138,27 +145,51 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
           <label>カテゴリ</label>
           <select id="category">
-            <option value="お手伝い">お手伝い</option>
-            <option value="定期おこづかい">定期おこづかい</option>
-            <option value="お祝い・プレゼント">お祝い・プレゼント</option>
-            <option value="おかし・ジュース">おかし・ジュース</option>
-            <option value="おもちゃ・ゲーム">おもちゃ・ゲーム</option>
-            <option value="本・まんが">本・まんが</option>
-            <option value="貯金">貯金</option>
-            <option value="その他">その他</option>
+            <option value="お手伝い">🧹 お手伝い</option>
+            <option value="定期おこづかい">💰 定期おこづかい</option>
+            <option value="お祝い・プレゼント">🎁 お祝い・プレゼント</option>
+            <option value="おかし・ジュース">🍬 おかし・ジュース</option>
+            <option value="おもちゃ・ゲーム">🎮 おもちゃ・ゲーム</option>
+            <option value="本・まんが">📚 本・まんが</option>
+            <option value="貯金">🏦 貯金</option>
+            <option value="その他">📌 その他</option>
           </select>
 
           <div style="display:flex;gap:8px;margin-top:16px;">
-            <button class="btn" id="add-btn" onclick="addEntry()" style="flex:1;">追加する</button>
-            <button class="btn" id="cancel-btn" onclick="cancelEdit()" style="flex:1;background:#999;display:none;">キャンセル</button>
+            <button class="btn" id="add-btn" aria-label="記録を追加する" onclick="addEntry()" style="flex:1;">追加する</button>
+            <button class="btn" id="cancel-btn" aria-label="編集をキャンセル" onclick="cancelEdit()" style="flex:1;background:#999;display:none;">キャンセル</button>
           </div>
         </div>
 
         <div class="result" id="result">
+          <div class="card" style="padding:12px 20px;background:#f0fdf4;border:1px solid #bbf7d0;">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+              <span style="font-size:13px;font-weight:600;color:#16A34A;">📅 表示期間:</span>
+              <select id="month-filter" onchange="filterByMonth()" style="width:auto;min-width:120px;min-height:36px;padding:4px 10px;font-size:13px;margin-top:0;"></select>
+              <button onclick="setTodayMonth()" style="background:#16A34A;color:white;border:none;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;min-height:36px;">今月</button>
+              <button onclick="setLastMonth()" style="background:#6b7280;color:white;border:none;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;min-height:36px;">先月</button>
+            </div>
+          </div>
+
           <div class="card" style="background:#F0FDF4;border:1px solid #BBF7D0;">
             <h3 style="font-size:14px;font-weight:700;margin-bottom:8px;color:#16A34A;">📊 サマリー</h3>
             <div id="summary"></div>
-            <button onclick="exportCSV()" style="margin-top:12px;width:100%;background:#fff;border:1.5px solid #d1d5db;color:#374151;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">⬇ CSVダウンロード</button>
+            <button aria-label="CSVファイルをダウンロード" onclick="exportCSV()" style="margin-top:12px;width:100%;background:#fff;border:1.5px solid #d1d5db;color:#374151;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">⬇ CSVダウンロード</button>
+            <div id="goal-section" style="margin-top:14px;padding-top:12px;border-top:1px solid #bbf7d0;">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <span style="font-size:13px;font-weight:600;color:#16A34A;">🎯 貯金目標:</span>
+                <input type="number" id="goal-amount" min="1" placeholder="例: 3000" style="width:120px;min-height:34px;padding:4px 10px;font-size:13px;margin-top:0;" oninput="saveGoal()">
+                <span style="font-size:13px;color:#6b7280;">円</span>
+              </div>
+              <div id="goal-progress" style="display:none;margin-top:8px;">
+                <div style="display:flex;justify-content:space-between;font-size:12px;color:#555;margin-bottom:4px;">
+                  <span id="goal-label"></span>
+                  <span id="goal-pct"></span>
+                </div>
+                <div class="goal-bar-wrap"><div class="goal-bar-fill" id="goal-bar" style="width:0%;"></div></div>
+                <p id="goal-msg" style="font-size:12px;color:#16A34A;font-weight:600;margin-top:4px;display:none;"></p>
+              </div>
+            </div>
           </div>
 
           <div class="card">
@@ -166,12 +197,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div style="position:relative;height:250px;width:100%;"><canvas id="categoryChart"></canvas></div>
           </div>
 
+          <div class="card" id="income-category-card">
+            <h3 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#16A34A;">💰 カテゴリ別収入内訳</h3>
+            <div style="position:relative;height:250px;width:100%;"><canvas id="incomeCategoryChart"></canvas></div>
+          </div>
+
           <div class="card">
             <h3 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#16A34A;">📅 月別の推移</h3>
-            <label style="font-size:13px;font-weight:600;color:#555;display:block;margin-bottom:8px;">
-              表示期間:
-              <select id="month-filter" onchange="filterByMonth()"></select>
-            </label>
             <div style="position:relative;height:250px;width:100%;"><canvas id="monthChart"></canvas></div>
           </div>
         </div>
@@ -184,25 +216,29 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <button onclick="clearAll()" style="font-size:11px;color:#DC2626;background:none;border:1px solid #DC2626;border-radius:6px;padding:3px 8px;cursor:pointer;">全削除</button>
             </div>
           </div>
-          <div id="entries"><p style="text-align:center;color:#bbb;font-size:14px;padding:20px;">まだ記録がありません</p></div>
+          <div id="entries" style="max-height:400px;overflow-y:auto;"><p style="text-align:center;color:#bbb;font-size:14px;padding:20px;">まだ記録がありません</p></div>
         </div>
 
         <div id="edit-modal" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:999;align-items:center;justify-content:center;">
           <div style="background:white;border-radius:12px;padding:24px;max-width:400px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,0.2);">
-            <h3 style="font-size:16px;font-weight:700;margin-bottom:16px;">記録を編集</h3>
+            <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">記録を編集</h3>
+            <div style="display:flex;gap:8px;margin-bottom:12px;">
+              <button class="allow-type-btn" id="edit-btn-income" onclick="setEditType('income')">＋ 収入（もらった）</button>
+              <button class="allow-type-btn" id="edit-btn-expense" onclick="setEditType('expense')">－ 支出（つかった）</button>
+            </div>
             <label>日付</label><input type="date" id="edit-date">
             <label>金額（円）</label><input type="number" id="edit-amount" min="1">
             <label>内容</label><input type="text" id="edit-memo" maxlength="30">
             <label>カテゴリ</label>
             <select id="edit-category">
-              <option value="お手伝い">お手伝い</option>
-              <option value="定期おこづかい">定期おこづかい</option>
-              <option value="お祝い・プレゼント">お祝い・プレゼント</option>
-              <option value="おかし・ジュース">おかし・ジュース</option>
-              <option value="おもちゃ・ゲーム">おもちゃ・ゲーム</option>
-              <option value="本・まんが">本・まんが</option>
-              <option value="貯金">貯金</option>
-              <option value="その他">その他</option>
+              <option value="お手伝い">🧹 お手伝い</option>
+              <option value="定期おこづかい">💰 定期おこづかい</option>
+              <option value="お祝い・プレゼント">🎁 お祝い・プレゼント</option>
+              <option value="おかし・ジュース">🍬 おかし・ジュース</option>
+              <option value="おもちゃ・ゲーム">🎮 おもちゃ・ゲーム</option>
+              <option value="本・まんが">📚 本・まんが</option>
+              <option value="貯金">🏦 貯金</option>
+              <option value="その他">📌 その他</option>
             </select>
             <div style="display:flex;gap:8px;margin-top:16px;">
               <button onclick="saveEdit()" style="flex:1;background:#16A34A;color:white;border:none;padding:10px;border-radius:8px;font-weight:600;cursor:pointer;">保存</button>
@@ -316,20 +352,39 @@ AI導入・業務自動化・Webサービス開発のご相談はこちら。</p
 <script>
 const BTN_COLOR = '#16A34A';
 const STORAGE_KEY = 'allowance-manager-entries';
+const CATEGORY_ICONS = {
+  'お手伝い': '🧹',
+  '定期おこづかい': '💰',
+  'お祝い・プレゼント': '🎁',
+  'おかし・ジュース': '🍬',
+  'おもちゃ・ゲーム': '🎮',
+  '本・まんが': '📚',
+  '貯金': '🏦',
+  'その他': '📌'
+};
+const GOAL_KEY = 'allowance-manager-goal';
 let entries = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
 let currentType = 'income';
 let filteredEntries = [];
 let editingId = null;
+let editType = 'income';
 let categoryChart = null;
 let monthChart = null;
+let incomeCategoryChart = null;
+let toastTimer = null;
 const today = new Date().toISOString().split('T')[0];
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('entry-date').value = today;
+  updateCategoryOptions('category', 'income');
   initMonthFilter();
   renderEntries();
   updateSummary();
   updateCharts();
+  if (entries.length > 0) document.getElementById('result').classList.add('show');
+  // 保存済み目標金額を復元
+  const savedGoal = localStorage.getItem(GOAL_KEY);
+  if (savedGoal) { document.getElementById('goal-amount').value = savedGoal; updateGoalProgress(); }
   document.getElementById('amount').addEventListener('keydown', e => { if (e.key === 'Enter') addEntry(); });
   document.getElementById('memo').addEventListener('keydown', e => { if (e.key === 'Enter') addEntry(); });
 });
@@ -366,7 +421,31 @@ function filterByMonth() {
     });
   }
   renderEntries();
+  updateSummary();
   updateCharts();
+}
+
+const INCOME_CATEGORIES = [
+  { value: 'お手伝い', label: '🧹 お手伝い' },
+  { value: '定期おこづかい', label: '💰 定期おこづかい' },
+  { value: 'お祝い・プレゼント', label: '🎁 お祝い・プレゼント' },
+  { value: 'その他', label: '📌 その他' },
+];
+const EXPENSE_CATEGORIES = [
+  { value: 'おかし・ジュース', label: '🍬 おかし・ジュース' },
+  { value: 'おもちゃ・ゲーム', label: '🎮 おもちゃ・ゲーム' },
+  { value: '本・まんが', label: '📚 本・まんが' },
+  { value: '貯金', label: '🏦 貯金' },
+  { value: 'その他', label: '📌 その他' },
+];
+
+function updateCategoryOptions(selectId, type) {
+  const cats = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = cats.map(c => `<option value="${c.value}">${c.label}</option>`).join('');
+  if (cats.some(c => c.value === prev)) sel.value = prev;
 }
 
 function setType(type) {
@@ -380,6 +459,70 @@ function setType(type) {
     btnIncome.className = 'allow-type-btn';
     btnExpense.className = 'allow-type-btn active-expense';
   }
+  updateCategoryOptions('category', type);
+}
+
+function setEditType(type) {
+  editType = type;
+  const btnIncome = document.getElementById('edit-btn-income');
+  const btnExpense = document.getElementById('edit-btn-expense');
+  if (type === 'income') {
+    btnIncome.className = 'allow-type-btn active-income';
+    btnExpense.className = 'allow-type-btn';
+  } else {
+    btnIncome.className = 'allow-type-btn';
+    btnExpense.className = 'allow-type-btn active-expense';
+  }
+  updateCategoryOptions('edit-category', type);
+}
+
+function setTodayMonth() {
+  const currentMonth = today.substring(0, 7);
+  const select = document.getElementById('month-filter');
+  if (select) { select.value = currentMonth; filterByMonth(); }
+}
+
+function setLastMonth() {
+  const d = new Date(today + 'T00:00:00');
+  d.setMonth(d.getMonth() - 1);
+  const lastMonth = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  const select = document.getElementById('month-filter');
+  if (select) { select.value = lastMonth; filterByMonth(); }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function saveGoal() {
+  const val = document.getElementById('goal-amount').value;
+  if (val && parseInt(val) > 0) {
+    localStorage.setItem(GOAL_KEY, val);
+  } else {
+    localStorage.removeItem(GOAL_KEY);
+  }
+  updateGoalProgress();
+}
+
+function updateGoalProgress() {
+  const goalVal = parseInt(document.getElementById('goal-amount').value) || 0;
+  const section = document.getElementById('goal-progress');
+  if (!goalVal) { section.style.display = 'none'; return; }
+  const toSum = filteredEntries.length > 0 ? filteredEntries : entries;
+  const saved = toSum.filter(e => e.category === '貯金').reduce((s, e) => s + e.amount, 0);
+  const pct = Math.min(100, Math.round((saved / goalVal) * 100));
+  document.getElementById('goal-label').textContent = `貯金額: ${saved.toLocaleString()}円 / ${goalVal.toLocaleString()}円`;
+  document.getElementById('goal-pct').textContent = `${pct}%`;
+  document.getElementById('goal-bar').style.width = pct + '%';
+  document.getElementById('goal-bar').style.background = pct >= 100 ? '#f59e0b' : '#16A34A';
+  section.style.display = 'block';
+  const msg = document.getElementById('goal-msg');
+  if (pct >= 100) { msg.textContent = '🎉 目標達成おめでとう！'; msg.style.display = 'block'; }
+  else { msg.style.display = 'none'; }
 }
 
 function addEntry() {
@@ -403,10 +546,13 @@ function addEntry() {
   document.getElementById('entry-date').value = today;
   document.getElementById('amount').value = '';
   document.getElementById('memo').value = '';
+  updateCategoryOptions('category', currentType);
   document.getElementById('result').classList.add('show');
   initMonthFilter();
   filterByMonth();
   updateSummary();
+  updateGoalProgress();
+  showToast('✅ 記録を追加しました');
 }
 
 function deleteEntry(id) {
@@ -415,6 +561,8 @@ function deleteEntry(id) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
   filterByMonth();
   updateSummary();
+  updateGoalProgress();
+  showToast('🗑 記録を削除しました');
 }
 
 function editEntry(id) {
@@ -427,6 +575,8 @@ function editEntry(id) {
   }
   document.getElementById('edit-amount').value = entry.amount;
   document.getElementById('edit-memo').value = entry.memo;
+  editType = entry.type;
+  setEditType(editType);
   document.getElementById('edit-category').value = entry.category;
   document.getElementById('edit-modal').style.display = 'flex';
 }
@@ -440,12 +590,14 @@ function saveEdit() {
   const dateObj = new Date(date + 'T00:00:00');
   const dateStr = dateObj.toLocaleDateString('ja-JP');
   const idx = entries.findIndex(e => e.id === editingId);
-  if (idx !== -1) entries[idx] = { ...entries[idx], date: dateStr, amount, memo, category };
+  if (idx !== -1) entries[idx] = { ...entries[idx], date: dateStr, amount, memo, category, type: editType };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
   cancelEdit();
   initMonthFilter();
   filterByMonth();
   updateSummary();
+  updateGoalProgress();
+  showToast('✏️ 記録を更新しました');
 }
 
 function cancelEdit() {
@@ -459,8 +611,11 @@ function clearAll() {
   if (!confirm('すべての記録を削除してよいですか？')) return;
   entries = [];
   localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  filteredEntries = [];
+  document.getElementById('result').classList.remove('show');
   filterByMonth();
   updateSummary();
+  updateGoalProgress();
 }
 
 function renderEntries() {
@@ -475,10 +630,11 @@ function renderEntries() {
     const isIncome = e.type === 'income';
     const sign = isIncome ? '+' : '-';
     const cls = isIncome ? 'entry-income' : 'entry-expense';
+    const icon = CATEGORY_ICONS[e.category] || '';
     return `<div class="entry-row">
       <div>
         <span style="font-size:12px;color:#999;">${e.date}</span>
-        <span class="category-tag">${e.category}</span>
+        <span class="category-tag">${icon} ${e.category}</span>
         <div style="margin-top:2px;font-weight:500;">${e.memo}</div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
@@ -533,6 +689,7 @@ function updateSummary() {
 
 function updateCharts() {
   updateCategoryChart();
+  updateIncomeCategoryChart();
   updateMonthChart();
 }
 
@@ -544,16 +701,45 @@ function updateCategoryChart() {
   const categories = Object.keys(categoryData);
   const amounts = Object.values(categoryData);
   const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E2'];
+  const labelsWithIcons = categories.map(c => (CATEGORY_ICONS[c] ? CATEGORY_ICONS[c] + ' ' : '') + c);
   const ctx = document.getElementById('categoryChart').getContext('2d');
   if (categoryChart) categoryChart.destroy();
   categoryChart = new Chart(ctx, {
     type: 'doughnut',
     data: {
-      labels: categories.length > 0 ? categories : ['データなし'],
+      labels: labelsWithIcons.length > 0 ? labelsWithIcons : ['データなし'],
       datasets: [{
         data: amounts.length > 0 ? amounts : [1],
         backgroundColor: colors.slice(0, Math.max(categories.length, 1)),
       }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { font: { size: 12 }, padding: 15 } } }
+    }
+  });
+}
+
+function updateIncomeCategoryChart() {
+  const toChart = filteredEntries.length > 0 ? filteredEntries : entries;
+  const incomes = toChart.filter(e => e.type === 'income');
+  const card = document.getElementById('income-category-card');
+  if (incomes.length === 0) { card.style.display = 'none'; if (incomeCategoryChart) { incomeCategoryChart.destroy(); incomeCategoryChart = null; } return; }
+  card.style.display = 'block';
+  const categoryData = {};
+  incomes.forEach(e => { categoryData[e.category] = (categoryData[e.category] || 0) + e.amount; });
+  const categories = Object.keys(categoryData);
+  const amounts = Object.values(categoryData);
+  const colors = ['#4ADE80', '#34D399', '#86EFAC', '#6EE7B7', '#A7F3D0', '#BBF7D0', '#D1FAE5', '#ECFDF5'];
+  const labelsWithIcons = categories.map(c => (CATEGORY_ICONS[c] ? CATEGORY_ICONS[c] + ' ' : '') + c);
+  const ctx = document.getElementById('incomeCategoryChart').getContext('2d');
+  if (incomeCategoryChart) incomeCategoryChart.destroy();
+  incomeCategoryChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: labelsWithIcons,
+      datasets: [{ data: amounts, backgroundColor: colors.slice(0, categories.length) }]
     },
     options: {
       responsive: true,

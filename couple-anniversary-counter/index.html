@@ -5,7 +5,21 @@
 /* Supabase → LocalStorage モック (Supabase無料版停止対応) */
 (function() {
   function _get(t) { try { return JSON.parse(localStorage.getItem('sb_'+t)||'[]'); } catch(e) { return []; } }
-  function _set(t,d) { try { localStorage.setItem('sb_'+t, JSON.stringify(d)); } catch(e) {} }
+  function _set(t,d) {
+    try {
+      var old = localStorage.getItem('sb_'+t);
+      localStorage.setItem('sb_'+t, JSON.stringify(d));
+      if(old !== JSON.stringify(d)) {
+        var evt = new StorageEvent('storage', {
+          key: 'sb_'+t,
+          newValue: JSON.stringify(d),
+          oldValue: old,
+          storageArea: localStorage
+        });
+        window.dispatchEvent(evt);
+      }
+    } catch(e) {}
+  }
   function _uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
   function _now() { return new Date().toISOString(); }
 
@@ -189,24 +203,30 @@
 <meta property="og:locale" content="ja_JP" />
     <meta property="og:site_name" content="ふたりの歩み">
 
-    <!-- Google Tag Manager -->
-    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-    })(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-ZDPNYD2875"></script>
-<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-ZDPNYD2875',{send_page_view:false});</script>
-    <!-- End Google Tag Manager -->
-    <!-- Microsoft Clarity -->
-    <script type="text/javascript">
-        (function(c,l,a,r,i,t,y){
-            c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-            t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-            y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-        })(window, document, "clarity", "script", "s3t9vl8h3v");
+    <!-- Google Tag Manager & Analytics (遅延読み込み) -->
+    <script>
+    window.dataLayer=window.dataLayer||[];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js',new Date());
+    gtag('config','G-ZDPNYD2875',{send_page_view:false});
+    window.addEventListener('DOMContentLoaded',function(){
+      var s=document.createElement('script');
+      s.async=true;
+      s.src='https://www.googletagmanager.com/gtag/js?id=G-ZDPNYD2875';
+      document.head.appendChild(s);
+      (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-TXQGZRF9');
+    });
     </script>
-    <!-- End Microsoft Clarity -->
+    <!-- Microsoft Clarity (遅延読み込み) -->
+    <script>
+    window.addEventListener('DOMContentLoaded',function(){
+      (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+      })(window,document,"clarity","script","s3t9vl8h3v");
+    });
+    </script>
     <!-- Google AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858"
          crossorigin="anonymous"></script>
@@ -231,12 +251,40 @@
     
     <!-- Supabase -->
     <style>
+        :root {
+            --bg-primary: #fffaf0;
+            --bg-secondary: #ffffff;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --border-color: #e5e7eb;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-primary: #1a1a1a;
+                --bg-secondary: #2d2d2d;
+                --text-primary: #f3f4f6;
+                --text-secondary: #d1d5db;
+                --border-color: #4b5563;
+            }
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --text-primary: #f3f4f6;
+            --text-secondary: #d1d5db;
+            --border-color: #4b5563;
+        }
+
         body {
             font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: #fffaf0;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             min-height: 100vh;
             position: relative;
             overflow-x: hidden;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
         .cute-font {
@@ -815,6 +863,10 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 <div class="flex items-center space-x-3">
                     <!-- スクロール時の日数バッジ（カウンターが画面外になったとき表示） -->
                     <span id="headerDayBadge" class="hidden text-xs font-bold cute-font text-white bg-gradient-to-r from-pink-400 to-purple-500 px-3 py-1 rounded-full shadow-sm" aria-live="polite"></span>
+                    <!-- ダークモードトグルボタン -->
+                    <button id="headerDarkToggle" class="text-purple-500 hover:text-purple-700 transition-colors" onclick="toggleDarkModeHeader()" aria-label="ダークモード切替">
+                        <span class="text-xl" id="headerDarkIcon" aria-hidden="true">🌙</span>
+                    </button>
                     <button class="text-pink-500 hover:text-pink-600 transition-colors" onclick="toggleSettings()" aria-label="設定">
                         <span class="text-xl" aria-hidden="true">⚙️</span>
                     </button>
@@ -844,6 +896,13 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     <p class="text-sm text-purple-600 mt-1 mb-3">日目 💕</p>
                     <div id="dailySummaryNext" class="text-xs text-pink-600 font-medium bg-white bg-opacity-60 rounded-xl px-4 py-1 inline-block max-w-full break-words text-center leading-relaxed"></div>
                     <div id="dailySummaryMilestone" class="hidden text-xs text-purple-500 mt-2 font-medium"></div>
+                </div>
+            </div>
+            <!-- 記念日リマインダーセクション（7日以内の記念日を表示） -->
+            <div id="reminderSection" class="hidden max-w-md mx-auto mb-6">
+                <div class="glass-effect rounded-2xl p-4 text-left" style="border-left:4px solid #f472b6;">
+                    <h4 class="text-sm font-bold text-purple-800 mb-3">🔔 近日の記念日</h4>
+                    <div id="reminderList" class="space-y-2"></div>
                 </div>
             </div>
             <div class="flex flex-col sm:flex-row gap-4 justify-center">
@@ -947,9 +1006,10 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     </div>
                     <div id="thisMonthList" class="px-4 pb-3 space-y-2"></div>
                 </div>
-                <div class="mb-3 relative">
-                    <input type="text" id="memorySearch" placeholder="🔍 思い出を検索..." class="w-full px-4 py-2 border border-purple-200 rounded-full focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white bg-opacity-80 text-sm" oninput="updateMemories()" aria-label="思い出を検索">
-                    <div id="memorySearchCount" class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-purple-400"></div>
+                <div class="mb-3 relative flex items-center gap-2">
+                    <input type="text" id="memorySearch" placeholder="🔍 思い出を検索..." class="flex-1 px-4 py-2 border border-purple-200 rounded-full focus:outline-none focus:ring-2 focus:ring-pink-400 bg-white bg-opacity-80 text-sm" oninput="updateMemories()" aria-label="思い出を検索">
+                    <button id="memoryClearFilterBtn" class="hidden px-2 py-1 text-xs text-purple-500 hover:text-purple-700 border border-dashed border-purple-300 rounded-full transition-colors" onclick="clearMemoryFilters()" aria-label="フィルターをクリア">✕ クリア</button>
+                    <span id="memorySearchCount" class="text-xs text-purple-400 min-w-max"></span>
                 </div>
                 <!-- 感情タグフィルター（モバイルで横スクロール対応） -->
                 <div id="memoryEmojiFilter" class="flex gap-2 mb-4" style="overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:4px;" role="group" aria-label="感情タグで絞り込み">
@@ -1016,7 +1076,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         </div>
                     </div>
                     <div class="w-full bg-purple-100 rounded-full h-2 overflow-hidden">
-                        <div id="milestoneProgress" class="h-2 rounded-full transition-all duration-1000" style="background:#f0f9ff;width:0%;"></div>
+                        <div id="milestoneProgress" class="h-2 rounded-full transition-all duration-1000" style="background:linear-gradient(to right,#f472b6,#a855f7);width:0%;"></div>
                     </div>
                 </div>
             </div>
@@ -1095,6 +1155,43 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
   </dl>
 </section></main>
 
+    <!-- モーダル: 初回ガイダンス -->
+    <div id="onboardingModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="onboardingTitle">
+        <div class="modal-content max-w-sm">
+            <h2 id="onboardingTitle" class="text-3xl font-bold cute-font text-purple-800 mb-2 text-center">
+                <span class="text-pink-500" aria-hidden="true">❤️</span>ようこそ！
+            </h2>
+            <p class="text-center text-sm text-purple-600 mb-6">カップルの大切な瞬間を記録しましょう</p>
+            <div class="space-y-4 mb-6">
+                <div class="flex gap-3">
+                    <div class="text-2xl">1️⃣</div>
+                    <div>
+                        <h4 class="font-bold text-purple-800 text-sm">交際開始日を設定</h4>
+                        <p class="text-xs text-purple-600">ふたりの記念日をカウントスタート</p>
+                    </div>
+                </div>
+                <div class="flex gap-3">
+                    <div class="text-2xl">2️⃣</div>
+                    <div>
+                        <h4 class="font-bold text-purple-800 text-sm">思い出を記録</h4>
+                        <p class="text-xs text-purple-600">写真や思い出のテキストを保存</p>
+                    </div>
+                </div>
+                <div class="flex gap-3">
+                    <div class="text-2xl">3️⃣</div>
+                    <div>
+                        <h4 class="font-bold text-purple-800 text-sm">特別な記念日を追加</h4>
+                        <p class="text-xs text-purple-600">誕生日や付き合った日など</p>
+                    </div>
+                </div>
+            </div>
+            <button class="w-full btn-cute text-sm mb-2" onclick="startOnboarding()" aria-label="はじめる">
+                <span class="mr-2">✨</span>はじめる
+            </button>
+            <button class="w-full bg-white text-purple-600 hover:bg-purple-50 border-2 border-purple-200 py-2 px-4 rounded-xl text-sm font-medium transition-all" onclick="skipOnboarding()" aria-label="スキップ">スキップ</button>
+        </div>
+    </div>
+
     <!-- モーダル: 設定画面 -->
     <div id="settingsModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
         <div class="modal-content">
@@ -1135,7 +1232,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     </h4>
                     <div class="space-y-3">
                         <div class="text-sm text-purple-600">
-                            <p><strong>バージョン:</strong> 2.1.0</p>
+                            <p><strong>バージョン:</strong> 2.3.0</p>
                             <p><strong>作成者:</strong> @appadaycreator</p>
                         </div>
                         <div class="flex space-x-2">
@@ -1155,6 +1252,10 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         <span class="text-pink-500 mr-2">🎨</span>表示設定
                     </h4>
                     <div class="space-y-3">
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" id="darkModeToggle" class="w-4 h-4 accent-pink-500" onchange="toggleDarkMode(this.checked)">
+                            <span class="text-sm text-purple-700">ダークモード</span>
+                        </label>
                         <label class="flex items-center gap-3 cursor-pointer">
                             <input type="checkbox" id="animationToggle" class="w-4 h-4 accent-pink-500" onchange="toggleAnimation(this.checked)">
                             <span class="text-sm text-purple-700">背景アニメーション（ハート・桜）をオフにする</span>
@@ -1281,6 +1382,10 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     <input type="date" id="memoryDate" class="w-full px-4 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500" required>
                 </div>
                 <div class="mb-4">
+                    <label class="block text-sm font-medium text-purple-700 mb-2">記録時間</label>
+                    <input type="time" id="memoryTime" class="w-full px-4 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500">
+                </div>
+                <div class="mb-4">
                     <label class="block text-sm font-medium text-purple-700 mb-2">気持ちタグ</label>
                     <div id="memoryEmojiGroup" class="flex flex-wrap gap-2" role="group" aria-label="思い出の気持ちタグを選択">
                         <button type="button" class="memory-emoji-btn selected px-3 py-2 rounded-full border-2 border-pink-400 bg-pink-50 text-lg transition-all" style="width:auto!important;min-height:40px!important;" data-emoji="❤️" onclick="selectMemoryEmoji(this)" aria-label="愛">❤️</button>
@@ -1344,6 +1449,17 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 <button class="btn-cute" onclick="copyToClipboard()" aria-label="URLをコピー">
                     <span class="mr-2">📋</span>URLをコピー
                 </button>
+                <!-- データ共有URL生成 -->
+                <button class="btn-cute bg-purple-500 hover:bg-purple-600 w-full" onclick="generateShareDataUrl()" aria-label="記念日データをURLで共有">
+                    <span class="mr-2">🔗</span>記念日データをリンクで共有
+                </button>
+                <div id="shareDataUrlBox" class="hidden mt-2 p-3 bg-purple-50 rounded-xl text-left">
+                    <p class="text-xs text-purple-600 mb-1">以下のURLをパートナーに送ると、記念日データをインポートできます（写真除く）</p>
+                    <div class="flex gap-2">
+                        <input id="shareDataUrlInput" type="text" readonly class="flex-1 text-xs px-2 py-1 border border-purple-200 rounded-lg bg-white" aria-label="共有URL">
+                        <button onclick="copyShareDataUrl()" class="text-xs btn-cute py-1 px-3" aria-label="URLをコピー">コピー</button>
+                    </div>
+                </div>
                 <div class="mt-4">
                     <button class="btn-cute bg-green-500 hover:bg-green-600" onclick="nativeShare()" aria-label="ネイティブシェアを開く">
                         <span class="mr-2">📤</span>ネイティブシェア
@@ -1538,10 +1654,14 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             const sdInput = document.getElementById('startDateInput');
             if (sdInput) sdInput.max = todayStr;
 
+            // 共有URLハッシュのチェック（受信時のインポート）
+            checkShareHashOnLoad();
+
             setTimeout(() => {
                 if (!appState.coupleData) {
-                    showStartModal();
+                    showOnboardingIfNeeded() || showStartModal();
                 } else {
+                    showOnboardingIfNeeded();
                     checkTodayReminders();
                 }
             }, 800);
@@ -1721,6 +1841,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             updatePhotos();
             updateStatistics();
             updateHeaderDayBadge();
+            updateReminderSection();
         }
 
         // ヘッダー日数バッジの文字列更新（IntersectionObserverで表示/非表示はJSで制御）
@@ -1733,6 +1854,50 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             } else {
                 badge.classList.add('hidden');
             }
+        }
+
+        // リマインダーUIセクション更新（7日以内の記念日を表示）
+        function updateReminderSection() {
+            const section = document.getElementById('reminderSection');
+            const list = document.getElementById('reminderList');
+            if (!section || !list) return;
+            if (!appState.coupleData || !appState.coupleData.startDate) {
+                section.classList.add('hidden');
+                return;
+            }
+            const today = new Date(); today.setHours(0,0,0,0);
+            const items = [];
+            // カスタム記念日チェック
+            appState.anniversaries.forEach(ann => {
+                let d = new Date(ann.date); d.setHours(0,0,0,0);
+                if (ann.recurring) {
+                    d.setFullYear(today.getFullYear());
+                    if (d < today) d.setFullYear(today.getFullYear() + 1);
+                }
+                const diff = Math.round((d - today) / 86400000);
+                if (diff >= 0 && diff <= 7) items.push({ name: ann.name, diff });
+            });
+            // 交際マイルストーンチェック
+            const curDays = calculateDays(appState.coupleData.startDate);
+            MILESTONES.forEach(ms => {
+                const diff = ms.days - curDays;
+                if (diff >= 0 && diff <= 7) items.push({ name: ms.label + ' ' + ms.emoji, diff });
+            });
+            items.sort((a, b) => a.diff - b.diff);
+            if (items.length === 0) {
+                section.classList.add('hidden');
+                return;
+            }
+            list.innerHTML = items.map(item => {
+                if (item.diff === 0) {
+                    return `<div class="flex items-center gap-2 text-sm font-bold text-pink-600 bg-pink-50 rounded-xl px-3 py-2">🎉 今日は「${item.name}」！</div>`;
+                }
+                return `<div class="flex items-center justify-between text-sm px-3 py-1">
+                    <span class="text-purple-800">🔔 ${item.name}</span>
+                    <span class="text-xs font-bold text-pink-500">あと${item.diff}日</span>
+                </div>`;
+            }).join('');
+            section.classList.remove('hidden');
         }
 
         // ヒーローセクション更新（カップル名表示 + デイリーサマリーカード）
@@ -2134,7 +2299,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         <div class="flex-1">
                             <div class="flex items-center gap-2 mb-1">
                                 <span class="text-xl" aria-hidden="true">${esc(emojiTag)}</span>
-                                <span class="text-sm font-medium text-pink-600">${esc(memoryDate.toLocaleDateString('ja-JP'))}</span>
+                                <span class="text-sm font-medium text-pink-600">${esc(memoryDate.toLocaleDateString('ja-JP'))} ${memory.time ? memory.time : ''}</span>
                             </div>
                             <h4 class="font-bold text-purple-800 mb-2">${esc(memory.title)}</h4>
                             ${descHtml}
@@ -2340,7 +2505,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         <div class="text-xs text-purple-600 w-8 text-right">${m.label}</div>
                         <div class="flex-1">
                             <div class="bg-purple-100 rounded-full h-6 overflow-hidden">
-                                <div class="h-6 rounded-full transition-all duration-500" style="width:${percentage}%;background:#f0f9ff;"></div>
+                                <div class="h-6 rounded-full transition-all duration-500" style="width:${percentage}%;background:linear-gradient(to right,#f472b6,#a855f7);"></div>
                             </div>
                         </div>
                         <div class="text-xs font-bold text-pink-600 w-6 text-right">${m.count}</div>
@@ -2458,16 +2623,17 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 e.preventDefault();
                 const title = document.getElementById('memoryTitle').value;
                 const date = document.getElementById('memoryDate').value;
+                const time = document.getElementById('memoryTime').value || '00:00';
                 const description = document.getElementById('memoryDescription').value;
                 const emoji = document.getElementById('memoryEmoji').value || '❤️';
                 const editIndex = parseInt(document.getElementById('memoryEditIndex').value);
 
                 if (title && date) {
                     if (editIndex >= 0) {
-                        appState.memories[editIndex] = { title, date, description, emoji };
+                        appState.memories[editIndex] = { title, date, time, description, emoji };
                         showNotification('思い出を更新しました！', 'success');
                     } else {
-                        appState.memories.push({ title, date, description, emoji });
+                        appState.memories.push({ title, date, time, description, emoji });
                         showNotification('思い出を追加しました！', 'success');
                     }
                     await saveData();
@@ -2738,6 +2904,27 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             });
         });
 
+        // 初回ガイダンス表示（DOMContentLoaded後に呼ばれる）
+        function showOnboardingIfNeeded() {
+            const hasVisited = localStorage.getItem('couple_counter_visited');
+            const hasCoupleData = appState.coupleData && appState.coupleData.startDate;
+            // 初回訪問（hasVisited フラグなし）& まだ交際開始日未設定の場合のみ表示
+            if (!hasVisited && !hasCoupleData) {
+                showModal('onboardingModal');
+            }
+        }
+
+        function startOnboarding() {
+            closeModal('onboardingModal');
+            localStorage.setItem('couple_counter_visited', 'true');
+            setTimeout(() => showStartModal(), 200); // 交際開始日設定モーダルを開く
+        }
+
+        function skipOnboarding() {
+            closeModal('onboardingModal');
+            localStorage.setItem('couple_counter_visited', 'true');
+        }
+
         function showStartModal() {
             showModal('startModal');
         }
@@ -2760,6 +2947,11 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             if (editIndex === '-1') {
                 const today = new Date().toISOString().split('T')[0];
                 document.getElementById('memoryDate').value = today;
+                // 現在時刻をデフォルト入力
+                const now = new Date();
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                document.getElementById('memoryTime').value = `${hours}:${minutes}`;
             }
             showModal('addMemoryModal');
         }
@@ -2857,6 +3049,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             if (!mem) return;
             document.getElementById('memoryTitle').value = mem.title;
             document.getElementById('memoryDate').value = mem.date;
+            document.getElementById('memoryTime').value = mem.time || '00:00';
             document.getElementById('memoryDescription').value = mem.description || '';
             document.getElementById('memoryEditIndex').value = index;
             document.getElementById('memorySubmitBtn').innerHTML = '<span class="mr-2">💾</span>更新';
@@ -2998,6 +3191,75 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             }).catch(() => {
                 showNotification('コピーに失敗しました', 'error');
             });
+        }
+
+        // 記念日データURLで共有（写真除く・Base64エンコード）
+        function generateShareDataUrl() {
+            const shareData = {
+                coupleData: appState.coupleData || null,
+                anniversaries: appState.anniversaries || [],
+                memories: (appState.memories || []).map(m => ({ id: m.id, date: m.date, title: m.title, description: m.description, emoji: m.emoji }))
+            };
+            const json = JSON.stringify(shareData);
+            const encoded = btoa(encodeURIComponent(json));
+            const url = `${location.origin}${location.pathname}#share=${encoded}`;
+            const box = document.getElementById('shareDataUrlBox');
+            const input = document.getElementById('shareDataUrlInput');
+            if (box && input) {
+                input.value = url;
+                box.classList.remove('hidden');
+            }
+        }
+
+        function copyShareDataUrl() {
+            const input = document.getElementById('shareDataUrlInput');
+            if (!input) return;
+            navigator.clipboard.writeText(input.value).then(() => {
+                showNotification('共有URLをコピーしました！パートナーに送ってください', 'success');
+            }).catch(() => {
+                input.select();
+                document.execCommand('copy');
+                showNotification('共有URLをコピーしました！', 'success');
+            });
+        }
+
+        // URLハッシュからデータをインポート（共有URL受信時）
+        function checkShareHashOnLoad() {
+            const hash = location.hash;
+            if (!hash.startsWith('#share=')) return;
+            try {
+                const encoded = hash.slice(7);
+                const json = decodeURIComponent(atob(encoded));
+                const data = JSON.parse(json);
+                showConfirm(
+                    'パートナーから共有された記念日データをインポートしますか？（現在のデータに追加されます）',
+                    async function() {
+                        if (data.coupleData && !appState.coupleData) {
+                            appState.coupleData = data.coupleData;
+                        }
+                        if (Array.isArray(data.anniversaries)) {
+                            data.anniversaries.forEach(a => {
+                                if (!appState.anniversaries.find(x => x.id === a.id)) {
+                                    appState.anniversaries.push(a);
+                                }
+                            });
+                        }
+                        if (Array.isArray(data.memories)) {
+                            data.memories.forEach(m => {
+                                if (!appState.memories.find(x => x.id === m.id)) {
+                                    appState.memories.push(m);
+                                }
+                            });
+                        }
+                        await saveData();
+                        updateDisplay();
+                        history.replaceState(null, '', location.pathname);
+                        showNotification('データをインポートしました！', 'success');
+                    }
+                );
+            } catch(e) {
+                // 不正なハッシュは無視
+            }
         }
 
         function nativeShare() {
@@ -3520,6 +3782,68 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
 })();
 </script>
 <script>
+// ダークモード切り替え
+function toggleDarkMode(enabled) {
+    if (enabled) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        localStorage.setItem('darkMode', '1');
+    } else {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.setItem('darkMode', '0');
+    }
+    // ヘッダーボタンのアイコンも同期
+    const icon = document.getElementById('headerDarkIcon');
+    if (icon) icon.textContent = enabled ? '☀️' : '🌙';
+    const toggle = document.getElementById('darkModeToggle');
+    if (toggle) toggle.checked = enabled;
+}
+
+// ヘッダーのダークモードトグルボタン
+function toggleDarkModeHeader() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    toggleDarkMode(!isDark);
+}
+
+// ダークモード初期化
+(function() {
+    const savedDarkMode = localStorage.getItem('darkMode');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const isDark = savedDarkMode === '1' || (savedDarkMode === null && prefersDark);
+    if (isDark) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+    }
+    setTimeout(() => {
+        const toggle = document.getElementById('darkModeToggle');
+        if (toggle) toggle.checked = isDark;
+        const icon = document.getElementById('headerDarkIcon');
+        if (icon) icon.textContent = isDark ? '☀️' : '🌙';
+    }, 100);
+})();
+
+// 思い出フィルターをクリア
+function clearMemoryFilters() {
+    const searchEl = document.getElementById('memorySearch');
+    if (searchEl) searchEl.value = '';
+    setMemoryEmojiFilter('');
+    updateMemories();
+}
+
+// 思い出フィルター状態更新時に、クリアボタン表示/非表示を制御
+function updateMemoriesClearButtonVisibility() {
+    const keyword = (document.getElementById('memorySearch')?.value || '').trim();
+    const btn = document.getElementById('memoryClearFilterBtn');
+    if (btn) {
+        btn.classList.toggle('hidden', keyword === '' && memoryFilterEmoji === '');
+    }
+}
+
+// 思い出更新関数をオーバーライド（既存の updateMemories の最後に呼び出し）
+const originalUpdateMemories = window.updateMemories;
+window.updateMemories = function() {
+    originalUpdateMemories.apply(this, arguments);
+    updateMemoriesClearButtonVisibility();
+};
+
 // Service Worker 登録
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {

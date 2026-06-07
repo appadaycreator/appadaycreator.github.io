@@ -152,12 +152,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
           <div class="section-label" style="margin-top:16px;">含めるルーティン（任意）</div>
           <div id="task-checks">
-            <div class="checkbox-row"><input type="checkbox" id="ck-exercise" checked><label for="ck-exercise">🏃 軽い運動・ストレッチ（10分）</label></div>
-            <div class="checkbox-row"><input type="checkbox" id="ck-shower" checked><label for="ck-shower">🚿 シャワー・洗顔（15分）</label></div>
-            <div class="checkbox-row"><input type="checkbox" id="ck-breakfast" checked><label for="ck-breakfast">🍳 朝食（20分）</label></div>
-            <div class="checkbox-row"><input type="checkbox" id="ck-reading"><label for="ck-reading">📖 読書・情報収集（15分）</label></div>
-            <div class="checkbox-row"><input type="checkbox" id="ck-meditation"><label for="ck-meditation">🧘 瞑想・深呼吸（5分）</label></div>
-            <div class="checkbox-row"><input type="checkbox" id="ck-journal"><label for="ck-journal">📝 日記・TODO整理（10分）</label></div>
+            <div class="checkbox-row"><input type="checkbox" id="ck-exercise" checked><label for="ck-exercise">🏃 軽い運動・ストレッチ</label><input type="number" id="time-exercise" value="10" min="1" max="60" style="width:50px;padding:4px;font-size:12px;margin-left:auto;"/>分</div>
+            <div class="checkbox-row"><input type="checkbox" id="ck-shower" checked><label for="ck-shower">🚿 シャワー・洗顔</label><input type="number" id="time-shower" value="15" min="1" max="60" style="width:50px;padding:4px;font-size:12px;margin-left:auto;"/>分</div>
+            <div class="checkbox-row"><input type="checkbox" id="ck-breakfast" checked><label for="ck-breakfast">🍳 朝食</label><input type="number" id="time-breakfast" value="20" min="1" max="60" style="width:50px;padding:4px;font-size:12px;margin-left:auto;"/>分</div>
+            <div class="checkbox-row"><input type="checkbox" id="ck-reading"><label for="ck-reading">📖 読書・情報収集</label><input type="number" id="time-reading" value="15" min="1" max="60" style="width:50px;padding:4px;font-size:12px;margin-left:auto;"/>分</div>
+            <div class="checkbox-row"><input type="checkbox" id="ck-meditation"><label for="ck-meditation">🧘 瞑想・深呼吸</label><input type="number" id="time-meditation" value="5" min="1" max="60" style="width:50px;padding:4px;font-size:12px;margin-left:auto;"/>分</div>
+            <div class="checkbox-row"><input type="checkbox" id="ck-journal"><label for="ck-journal">📝 日記・TODO整理</label><input type="number" id="time-journal" value="10" min="1" max="60" style="width:50px;padding:4px;font-size:12px;margin-left:auto;"/>分</div>
           </div>
 
           <button class="btn" style="margin-top:20px;" onclick="calculate()">タイムテーブルを生成する</button>
@@ -257,7 +257,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }
       document.querySelectorAll('input').forEach(inp => {
         inp.addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });
-        inp.addEventListener('input', () => { if (document.querySelectorAll('input[type="number"]').length === 1) calculate(); });
+        inp.addEventListener('input', () => calculate());
       });
     });
 
@@ -282,28 +282,30 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       return String(h).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
     }
 
+    function getTaskDefs() {
+      return [
+        { id: 'exercise',  label: '🏃 軽い運動・ストレッチ', min: parseInt(document.getElementById('time-exercise').value) || 10 },
+        { id: 'meditation',label: '🧘 瞑想・深呼吸', min: parseInt(document.getElementById('time-meditation').value) || 5 },
+        { id: 'journal',   label: '📝 日記・TODO整理', min: parseInt(document.getElementById('time-journal').value) || 10 },
+        { id: 'shower',    label: '🚿 シャワー・洗顔', min: parseInt(document.getElementById('time-shower').value) || 15 },
+        { id: 'breakfast', label: '🍳 朝食', min: parseInt(document.getElementById('time-breakfast').value) || 20 },
+        { id: 'reading',   label: '📖 読書・情報収集', min: parseInt(document.getElementById('time-reading').value) || 15 },
+      ];
+    }
+
     function calculate() {
       const wakeVal  = document.getElementById('wake-time').value;
       const leaveVal = document.getElementById('leave-time').value;
-      if (!wakeVal || !leaveVal) { alert('起床時刻と出発時刻を入力してください'); return; }
+      if (!wakeVal || !leaveVal) return;
 
       const wakeMin  = timeToMin(wakeVal);
       const leaveMin = timeToMin(leaveVal);
       const totalMin = leaveMin - wakeMin;
 
-      if (totalMin <= 0) { alert('出発時刻は起床時刻より後に設定してください'); return; }
+      if (totalMin <= 0) return;
 
-      // チェックされたタスクを収集
-      const taskDefs = [
-        { id: 'ck-exercise',  label: '🏃 軽い運動・ストレッチ', min: 10 },
-        { id: 'ck-meditation',label: '🧘 瞑想・深呼吸',         min: 5  },
-        { id: 'ck-journal',   label: '📝 日記・TODO整理',        min: 10 },
-        { id: 'ck-shower',    label: '🚿 シャワー・洗顔',        min: 15 },
-        { id: 'ck-breakfast', label: '🍳 朝食',                  min: 20 },
-        { id: 'ck-reading',   label: '📖 読書・情報収集',        min: 15 },
-      ];
-
-      const selected = taskDefs.filter(t => document.getElementById(t.id).checked);
+      const taskDefs = getTaskDefs();
+      const selected = taskDefs.filter(t => document.getElementById('ck-' + t.id).checked);
       // 着替え・準備は常に末尾に追加
       const prep = { label: '👔 着替え・出発準備', min: 10 };
 
@@ -401,13 +403,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     }
 
     function shareUrl() {
-      if (!window.lastResult) { alert('まず結果を生成してください'); return; }
+      if (!window.lastResult) return;
       const { wakeVal, leaveVal, selected } = window.lastResult;
-      const checks = Array.from(document.querySelectorAll('input[id^="ck-"]'))
-        .filter(c => c.checked)
-        .map(c => c.id.replace('ck-', ''))
-        .join(',');
-      const url = `${window.location.href}?wake=${wakeVal}&leave=${leaveVal}&tasks=${checks}`;
+      const checks = selected.map(t => t.id).join(',');
+      const times = {};
+      selected.forEach(t => {
+        const inp = document.getElementById('time-' + t.id);
+        if (inp) times[t.id] = parseInt(inp.value) || 10;
+      });
+      const baseUrl = window.location.href.split('?')[0];
+      const url = `${baseUrl}?wake=${wakeVal}&leave=${leaveVal}&tasks=${checks}&times=${encodeURIComponent(JSON.stringify(times))}`;
       navigator.clipboard.writeText(url).then(() => {
         const btn = event.target;
         const orig = btn.textContent;
@@ -425,6 +430,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           const tasks = params.get('tasks').split(',');
           document.querySelectorAll('input[id^="ck-"]').forEach(c => {
             c.checked = tasks.includes(c.id.replace('ck-', ''));
+          });
+        }
+        if (params.has('times')) {
+          const times = JSON.parse(decodeURIComponent(params.get('times')));
+          Object.keys(times).forEach(key => {
+            const inp = document.getElementById('time-' + key);
+            if (inp) inp.value = times[key];
           });
         }
         setTimeout(() => calculate(), 100);

@@ -140,6 +140,7 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
       </div>
     </div>
     <div id="questionContainer"></div>
+    <div id="errorMsg" class="hidden mt-2 text-red-500 text-sm text-center font-medium animate-pulse">⚠️ 選択してから次へ進んでください</div>
     <div class="flex gap-3 mt-4">
       <button id="backBtn" onclick="prevQ()" class="hidden flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-3 rounded-xl transition-colors" aria-label="← 戻る">← 戻る</button>
       <button onclick="nextQ()" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl transition-colors" aria-label="次へ →">次へ →</button>
@@ -154,6 +155,7 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
         <p class="text-sm text-gray-500">※2026年5月時点の制度に基づく診断です。詳細は各窓口にお問い合わせください</p>
       </div>
 
+      <div id="totalSummary" class="bg-gradient-to-r from-purple-600 to-purple-800 text-white rounded-xl p-4 mb-4 text-center"></div>
       <div id="benefitsList" class="space-y-3 mb-4"></div>
 
       <div class="bg-purple-50 rounded-xl p-4 mb-4">
@@ -176,6 +178,9 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
         </a>
       </div>
 
+      <button id="copyBtn" onclick="copyResult()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl transition-colors mb-2">
+        📋 結果をコピー
+      </button>
       <button onclick="restart()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl transition-colors">
         🔄 もう一度診断する
       </button>
@@ -231,79 +236,174 @@ function renderQ() {
     </div>`;
 }
 
-function selectOpt(i) { answers[QUESTIONS[currentQ].id] = i; renderQ(); }
+function selectOpt(i) {
+  answers[QUESTIONS[currentQ].id] = i;
+  document.getElementById('errorMsg').classList.add('hidden');
+  renderQ();
+}
 function prevQ() { if (currentQ > 0) { currentQ--; renderQ(); } }
 function nextQ() {
-  if (answers[QUESTIONS[currentQ].id] === undefined) { alert('選択してください'); return; }
+  if (answers[QUESTIONS[currentQ].id] === undefined) {
+    const msg = document.getElementById('errorMsg');
+    msg.classList.remove('hidden');
+    return;
+  }
   if (currentQ < QUESTIONS.length - 1) { currentQ++; renderQ(); }
   else showResult();
 }
+
+let lastBenefits = [];
 
 function showResult() {
   document.getElementById('quizArea').classList.add('hidden');
   document.getElementById('resultArea').classList.remove('hidden');
 
-  const age = answers.childAge;
-  const income = answers.income;
-  const nursery = answers.nursery;
+  const age = answers.childAge;       // 0=0歳, 1=1〜2歳, 2=3〜5歳, 3=小学生, 4=中学生, 5=高校生, 6=18歳以上
+  const income = answers.income;      // 0=200万未満, 1=200〜350, 2=350〜500, 3=500〜800, 4=800〜1000, 5=1000以上
+  const nursery = answers.nursery;    // 0=家庭, 1=認可保育園, 2=認定こども園, 3=認可外
   const childleave = answers.childleave;
   const single = answers.singleParent;
   const disability = answers.disability;
 
   const benefits = [];
 
-  // 児童手当（全員対象）
+  // 児童手当（2024年10月改正：所得制限撤廃・高校生まで拡大）
   if (age <= 5) {
-    const monthly = income <= 3 ? 15000 : 10000;
+    // 0歳〜高校生まで対象。0〜2歳:月15,000円、3歳〜高校生:月10,000円
+    const monthly = age <= 1 ? 15000 : 10000;
     benefits.push({
       name: '児童手当',
       amount: `月${monthly.toLocaleString()}円`,
+      yearlyAmount: monthly * 12,
       status: 'eligible',
-      desc: '中学校卒業まで支給。0〜2歳は月15,000円、3歳〜小学生は月10,000円（第3子以降は増額）'
+      desc: '2024年10月改正：所得制限撤廃。0〜2歳は月15,000円、3歳〜高校生は月10,000円（第3子以降は月30,000円）'
     });
-  } else if (age <= 4) {
-    benefits.push({ name: '児童手当', amount: '月10,000円', status: 'eligible', desc: '中学校卒業まで支給' });
   }
 
-  // 幼保無償化
+  // 幼保無償化（3〜5歳）
   if (age === 2 && nursery >= 1) {
-    benefits.push({ name: '幼児教育・保育の無償化', amount: '月最大37,000円', status: 'eligible', desc: '3〜5歳は無償、0〜2歳は住民税非課税世帯が対象' });
-  } else if (age === 2 && income <= 1) {
-    benefits.push({ name: '幼保無償化（0〜2歳）', amount: '月最大42,000円', status: 'eligible', desc: '住民税非課税世帯（年収270万円以下目安）が対象' });
+    benefits.push({
+      name: '幼児教育・保育の無償化（3〜5歳）',
+      amount: '月最大37,000円',
+      yearlyAmount: 37000 * 12,
+      status: 'eligible',
+      desc: '3〜5歳の保育園・幼稚園・認定こども園の利用料が原則無料'
+    });
   }
 
-  // 高校無償化
+  // 幼保無償化（0〜2歳・住民税非課税世帯）
+  if (age <= 1 && income <= 1 && nursery >= 1) {
+    benefits.push({
+      name: '幼保無償化（0〜2歳・非課税世帯）',
+      amount: '月最大42,000円',
+      yearlyAmount: 42000 * 12,
+      status: 'eligible',
+      desc: '住民税非課税世帯（年収270万円以下目安）の0〜2歳児が対象'
+    });
+  }
+
+  // 高校無償化（年収910万円未満）
   if (age === 5 && income <= 3) {
-    benefits.push({ name: '高校等就学支援金', amount: '年最大118,800円', status: 'eligible', desc: '年収910万円未満の世帯が対象' });
+    benefits.push({
+      name: '高校等就学支援金',
+      amount: '年最大118,800円',
+      yearlyAmount: 118800,
+      status: 'eligible',
+      desc: '年収910万円未満の世帯が対象。私立高校は最大396,000円/年'
+    });
   }
 
   // 育休給付金
   if (childleave === 0) {
-    benefits.push({ name: '育児休業給付金', amount: '休前給与の67〜80%', status: 'eligible', desc: '雇用保険加入者が対象。子が1歳（延長で最大2歳）になるまで支給' });
+    benefits.push({
+      name: '育児休業給付金',
+      amount: '休前給与の67〜80%',
+      yearlyAmount: 0,
+      status: 'eligible',
+      desc: '雇用保険加入者が対象。子が1歳（延長で最大2歳）になるまで支給。最初の180日は80%'
+    });
   }
 
   // ひとり親
   if (single === 1 || single === 2) {
-    benefits.push({ name: '児童扶養手当', amount: '月最大45,500円', status: 'eligible', desc: 'ひとり親家庭向け。年収等により支給額が変わります' });
-    benefits.push({ name: 'ひとり親家庭医療費助成', amount: '医療費の自己負担軽減', status: 'check', desc: '都道府県・市区町村によって内容が異なります' });
+    benefits.push({
+      name: '児童扶養手当',
+      amount: '月最大45,500円',
+      yearlyAmount: 45500 * 12,
+      status: 'eligible',
+      desc: 'ひとり親家庭向け。年収等により支給額が変わります（全額〜一部支給）'
+    });
+    benefits.push({
+      name: 'ひとり親家庭医療費助成',
+      amount: '医療費の自己負担軽減',
+      yearlyAmount: 0,
+      status: 'check',
+      desc: '都道府県・市区町村によって内容が異なります。窓口でご確認ください'
+    });
   }
 
   // 障害
   if (disability >= 1) {
-    benefits.push({ name: '障害児通所給付費', amount: '通所費用の軽減', status: 'eligible', desc: '放課後等デイサービスなどの利用料が補助されます' });
+    benefits.push({
+      name: '障害児通所給付費',
+      amount: '通所費用の軽減',
+      yearlyAmount: 0,
+      status: 'eligible',
+      desc: '放課後等デイサービスなどの利用料が補助されます。市区町村窓口で申請'
+    });
     if (disability <= 2) {
-      benefits.push({ name: '特別児童扶養手当', amount: '月34,900〜52,500円', status: 'eligible', desc: '中度以上の障害がある20歳未満の子を養育する場合' });
+      benefits.push({
+        name: '特別児童扶養手当',
+        amount: '月34,900〜52,500円',
+        yearlyAmount: 52500 * 12,
+        status: 'eligible',
+        desc: '中度以上の障害がある20歳未満の子を養育する場合に支給'
+      });
     }
   }
 
   // 低所得
   if (income <= 1) {
-    benefits.push({ name: '就学援助制度', amount: '給食費・学用品費など', status: 'eligible', desc: '小中学校の就学にかかる費用を補助。学校を通じて申請' });
+    benefits.push({
+      name: '就学援助制度',
+      amount: '給食費・学用品費など',
+      yearlyAmount: 0,
+      status: 'eligible',
+      desc: '小中学校の就学にかかる費用を補助。お子さんの学校または市区町村教育委員会で申請'
+    });
   }
 
   // 誰でも
-  benefits.push({ name: '乳幼児医療費助成（マル乳）', amount: '医療費実質無料〜軽減', status: 'eligible', desc: 'ほぼ全都道府県で実施。18歳まで対象の自治体も増加中' });
-  benefits.push({ name: '出産育児一時金', amount: '50万円', status: age === 0 ? 'eligible' : 'past', desc: '健康保険に加入していれば出産時に支給' });
+  benefits.push({
+    name: '乳幼児・子ども医療費助成',
+    amount: '医療費実質無料〜軽減',
+    yearlyAmount: 0,
+    status: 'eligible',
+    desc: 'ほぼ全都道府県で実施。18歳まで対象の自治体も増加中。自治体によって内容が異なります'
+  });
+  benefits.push({
+    name: '出産育児一時金',
+    amount: '50万円（一時金）',
+    yearlyAmount: age === 0 ? 500000 : 0,
+    status: age === 0 ? 'eligible' : 'past',
+    desc: '健康保険に加入していれば出産時に支給。直接支払制度で産院に支払われるケースが多い'
+  });
+
+  lastBenefits = benefits;
+
+  // 年間合計金額サマリー
+  const totalYearly = benefits.filter(b => b.status === 'eligible').reduce((s, b) => s + (b.yearlyAmount || 0), 0);
+  const totalEl = document.getElementById('totalSummary');
+  if (totalYearly > 0) {
+    const totalMan = Math.floor(totalYearly / 10000);
+    totalEl.innerHTML = `
+      <div class="text-sm opacity-90 mb-1">診断結果：受給可能な給付金の目安</div>
+      <div class="text-3xl font-bold mb-1">年間 約${totalMan.toLocaleString()}万円</div>
+      <div class="text-xs opacity-75">※金額が算出できた給付金の合計目安です。実際の支給額は異なる場合があります</div>`;
+    totalEl.classList.remove('hidden');
+  } else {
+    totalEl.classList.add('hidden');
+  }
 
   const bl = document.getElementById('benefitsList');
   bl.innerHTML = benefits.map(b => `
@@ -327,10 +427,27 @@ function showResult() {
   document.getElementById('windowList').innerHTML = windows.map(w => `<p>• ${w}</p>`).join('');
 }
 
+function copyResult() {
+  const eligible = lastBenefits.filter(b => b.status === 'eligible');
+  const totalYearly = eligible.reduce((s, b) => s + (b.yearlyAmount || 0), 0);
+  const totalMan = Math.floor(totalYearly / 10000);
+  const lines = ['【育児支援・給付金チェッカー 診断結果】', ''];
+  if (totalMan > 0) lines.push(`年間 約${totalMan.toLocaleString()}万円 の給付・支援が受けられる可能性があります`, '');
+  eligible.forEach(b => lines.push(`✅ ${b.name}：${b.amount}`, `   ${b.desc}`, ''));
+  lines.push('詳細：https://appadaycreator.com/childcare-support-finder/');
+  navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = '✅ コピーしました！';
+    btn.classList.add('bg-green-100', 'text-green-700');
+    setTimeout(() => { btn.textContent = '📋 結果をコピー'; btn.classList.remove('bg-green-100', 'text-green-700'); }, 1500);
+  }).catch(() => alert('コピーに失敗しました。ブラウザの制限によりご利用いただけません。'));
+}
+
 function restart() {
   answers = {}; currentQ = 0;
   document.getElementById('resultArea').classList.add('hidden');
   document.getElementById('quizArea').classList.remove('hidden');
+  document.getElementById('errorMsg').classList.add('hidden');
   renderQ();
 }
 
@@ -363,8 +480,8 @@ renderQ();
       <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">入力データはサーバーに送信されません。お使いのブラウザ上でのみ処理されます。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
-      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. 何度でも使えますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">はい、何度でも無料でご利用いただけます。条件を変えてお試しいただけます。</p>
+      <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. 申請はどこでできますか？ <span>▼</span></summary>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">児童手当・児童扶養手当は市区町村の子育て支援課、育児休業給付金はハローワーク（会社経由）、就学援助はお子さんの学校または教育委員会にご相談ください。</p>
     </details>
   </div>
 </section>

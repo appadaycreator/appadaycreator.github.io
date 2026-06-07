@@ -312,6 +312,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <ul id="result-points" class="space-y-2 text-sm text-gray-700"></ul>
         </div>
 
+        <!-- 回答サマリー -->
+        <details class="bg-white rounded-2xl shadow-sm mb-4 border border-gray-100 overflow-hidden group">
+          <summary class="flex justify-between items-center p-4 cursor-pointer font-semibold text-gray-600 text-sm bg-gray-50 group-open:bg-emerald-50 group-open:text-emerald-700 list-none">
+            <span class="flex items-center gap-2"><span aria-hidden="true">📝</span>診断での回答を確認する</span>
+            <span class="text-gray-400 transition-transform group-open:rotate-180 inline-block">▼</span>
+          </summary>
+          <div class="px-4 py-3" id="result-summary"></div>
+        </details>
+
         <!-- Recommended Plan -->
         <div class="bg-white rounded-2xl shadow-sm p-5 mb-4 border border-gray-100">
           <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">
@@ -633,7 +642,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         { value: "mix", label: "雑種（ミックス）", icon: "🐾" }
       ],
       other: [
-        { value: "mix", label: "雑種（ミックス）", icon: "🐾" }
+        { value: "rabbit_ferret", label: "うさぎ・フェレット", icon: "🐇" },
+        { value: "small_animal", label: "小動物（ハムスター等）", icon: "🐹" },
+        { value: "bird_reptile", label: "鳥・爬虫類", icon: "🦜" }
       ]
     };
 
@@ -918,6 +929,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if (answers[1] === 'medium_dog') score.standard += 1;
       if (['small_dog', 'jp_cat', 'mix'].includes(answers[1])) score.value += 1;
       if (answers[1] === 'foreign_cat') score.rich += 1;
+      if (answers[1] === 'rabbit_ferret') score.standard += 1;
+      if (answers[1] === 'small_animal') score.value += 1;
+      if (answers[1] === 'bird_reptile') score.standard += 1;
 
       // Q3 age
       if (answers[2] === 'age_01') score.value += 2;
@@ -949,6 +963,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if (answers[6] === 'outpatient') score.standard += 2;
       if (answers[6] === 'surgery') score.rich += 2;
       if (answers[6] === 'usability') score.standard += 1;
+
+      // Q8 加入状況
+      if (answers[7] === 'review') score.rich += 1;
+      if (answers[7] === 'none') score.value += 1;
 
       // Q9 coverage
       if (answers[8] === 'cov_50') score.value += 2;
@@ -982,6 +1000,26 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       pointsList.innerHTML = result.points.map(p =>
         `<li class="flex items-start gap-2"><span class="text-emerald-400 mt-0.5 shrink-0">✅</span><span>${p}</span></li>`
       ).join('');
+
+      // 回答サマリーを生成して挿入
+      const summaryContainer = document.getElementById('result-summary');
+      if (summaryContainer) {
+        const summaryItems = questions.map((q, idx) => {
+          let opts = q.options;
+          if (idx === 1) {
+            const petType = answers[0];
+            opts = q2OptionsByPet[petType] || q2OptionsByPet.other;
+          }
+          const selectedOpt = opts.find(o => o.value === answers[idx]);
+          const label = selectedOpt ? (selectedOpt.icon + ' ' + selectedOpt.label) : '（未回答）';
+          return `<li class="flex items-start gap-2 text-xs text-gray-600 py-1 border-b border-gray-100 last:border-0">
+            <span class="text-gray-400 shrink-0 min-w-[3.5rem]">Q${idx + 1}.</span>
+            <span class="text-gray-500 shrink-0 mr-1">${q.text}</span>
+            <span class="font-medium text-emerald-700 ml-auto text-right">${label}</span>
+          </li>`;
+        }).join('');
+        summaryContainer.innerHTML = `<ul class="space-y-0">${summaryItems}</ul>`;
+      }
 
       const planContainer = document.getElementById('result-plan');
       const colorMap = {
@@ -1022,12 +1060,27 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const result = results[resultKey];
       const text = '【ペット保険診断結果】\n' + result.title + '\n' + result.subtitle + '\n\n' +
         result.points.map(p => '・' + p).join('\n') + '\n\n診断はこちら: https://appadaycreator.com/pet-insurance-check/';
-      navigator.clipboard.writeText(text).then(() => {
-        const btn = document.getElementById('copy-btn');
-        const prev = btn.textContent;
+      const btn = document.getElementById('copy-btn');
+      const prev = btn.textContent;
+      const showCopied = () => {
         btn.textContent = 'コピー完了 ✓';
         setTimeout(() => { btn.textContent = prev; }, 2000);
-      }).catch(() => {});
+      };
+      const fallbackCopy = () => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try { document.execCommand('copy'); showCopied(); } catch (e) { alert('コピーできませんでした。手動でコピーしてください。'); }
+        document.body.removeChild(ta);
+      };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(showCopied).catch(fallbackCopy);
+      } else {
+        fallbackCopy();
+      }
     }
 
     function resetQuiz() {

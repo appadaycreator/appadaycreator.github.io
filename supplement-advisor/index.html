@@ -40,7 +40,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
   .card{background:white;border-radius:1rem;box-shadow:0 4px 24px rgba(0,0,0,0.09);}
   .btn-primary{background:#16a34a;color:white;border:none;border-radius:.75rem;padding:.875rem 2rem;font-size:1.05rem;font-weight:700;cursor:pointer;transition:all .2s;width:100%;display:block;}
   .btn-primary:hover{background:#15803d;transform:translateY(-1px);}
-  .option-btn{border:2px solid #e5e7eb;border-radius:.75rem;padding:.875rem 1rem;cursor:pointer;transition:all .2s;background:white;width:100%;text-align:left;margin-bottom:.625rem;font-size:.95rem;}
+  .option-btn{border:2px solid #e5e7eb;border-radius:.75rem;padding:1rem 1.25rem;cursor:pointer;transition:all .2s;background:white;width:100%;text-align:left;margin-bottom:.625rem;font-size:.95rem;min-height:56px;display:flex;align-items:center;}
   .option-btn:hover,.option-btn.selected{border-color:#16a34a;background:#f0fdf4;font-weight:600;}
   .screen{display:none;}.screen.active{display:block;}
   .progress-track{background:#dcfce7;border-radius:9999px;height:8px;}
@@ -181,6 +181,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <h3 class="font-bold text-gray-800 mb-3">💊 おすすめサプリカテゴリ TOP3</h3>
       <div id="supplements-list"></div>
     </div>
+    <div id="caution-card" class="card p-6 mb-4" style="display:none;">
+      <h3 class="font-bold text-gray-800 mb-3">⚠️ 飲み合わせ注意</h3>
+      <div id="caution-list" class="space-y-2"></div>
+      <p class="text-xs text-gray-400 mt-3">※ 不安な場合は医師・薬剤師にご相談ください</p>
+    </div>
     <div class="card p-6 mb-4">
       <h3 class="font-bold text-gray-800 mb-3">🛒 おすすめ商品を探す</h3>
       <div id="aff-area"></div>
@@ -211,22 +216,29 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <script>
 var Qs=[
   {text:"年齢・性別を教えてください",opts:["10〜20代・女性","10〜20代・男性","30〜40代・女性","30〜40代・男性","50代以上・女性","50代以上・男性"],key:"age_gender"},
-  {text:"最も気になる健康上の悩みは？",opts:["疲れやすい・だるい","肌荒れ・くすみ・髪のトラブル","目・肩・腰のコリ・疲れ","ストレス・睡眠の質が悪い","免疫力・風邪をひきやすい"],key:"concern"},
+  {text:"気になる健康上の悩みは？（複数選択可）",opts:["疲れやすい・だるい","肌荒れ・くすみ・髪のトラブル","目・肩・腰のコリ・疲れ","ストレス・睡眠の質が悪い","免疫力・風邪をひきやすい"],key:"concern",isMulti:true},
   {text:"食生活について当てはまるものは？",opts:["野菜不足を感じる","肉・魚の摂取量が少ない","外食・コンビニが多い","食事は比較的バランスが良い"],key:"diet"},
   {text:"運動習慣は？",opts:["ほぼ運動しない","週1〜2回程度","週3回以上","毎日トレーニングしている"],key:"exercise"},
   {text:"日光に当たる時間は？",opts:["ほぼ室内（オフィス・在宅）","少し（通勤・外出程度）","毎日1時間以上屋外活動","屋外が多い（スポーツ等）"],key:"sun"}
 ];
 
 var suppMap={
-  fatigue:{name:"鉄分・フェリチン",emoji:"🩸",desc:"疲労・だるさの原因は鉄不足のことが多い。特に女性は月経で失われやすい",dosage:"15-50mg/日",food:"レバー・貝類・赤身肉",timing:"食後または食事と一緒に",note:"カルシウムと同時摂取は避ける"},
-  skin:{name:"ビオチン・コラーゲン",emoji:"✨",desc:"肌・髪・爪の健康維持に不可欠。ビオチン不足は肌荒れの原因になりやすい",dosage:"2.5-5mg/日",food:"卵黄・アーモンド・きのこ",timing:"食事と一緒に（脂溶性）",note:""},
-  eye:{name:"ルテイン・アスタキサンチン",emoji:"👁️",desc:"目の疲れ・ブルーライト対策に。デスクワーカーに特に重要",dosage:"6-20mg/日",food:"ほうれん草・ケール・人参",timing:"脂質食と一緒に",note:""},
-  stress:{name:"マグネシウム・L-テアニン",emoji:"🧘",desc:"ストレス軽減・睡眠の質改善に効果的。現代人が最も不足しがちなミネラル",dosage:"200-400mg/日",food:"アーモンド・カボチャ種・玄米",timing:"食後（お休み1-2時間前推奨）",note:""},
-  immune:{name:"ビタミンC・亜鉛",emoji:"🛡️",desc:"免疫機能の維持に必須。風邪予防・感染症対策に",dosage:"1000-2000mg/日",food:"オレンジ・キウイ・パプリカ",timing:"朝食後（吸収率向上）",note:""},
-  vitd:{name:"ビタミンD",emoji:"☀️",desc:"日光不足の人に特に重要。骨・免疫・メンタルに広く関与",dosage:"1000-4000IU/日",food:"サーモン・卵・きのこ",timing:"脂質食と一緒に",note:"カルシウムと組み合わせると相乗効果"},
-  protein:{name:"プロテイン・BCAA",emoji:"💪",desc:"運動パフォーマンス・筋肉合成・回復に必須",dosage:"20-40g/日",food:"鶏肉・豆・チーズ",timing:"運動後30分以内（効果最大）",note:""},
-  veg:{name:"マルチビタミン・食物繊維",emoji:"🥦",desc:"野菜不足を補う総合ビタミン。腸内環境の改善にも",dosage:"1-2錠/日",food:"全ての緑黄色野菜",timing:"食事と一緒に",note:""}
+  fatigue:{name:"鉄分・フェリチン",emoji:"🩸",desc:"疲労・だるさの原因は鉄不足のことが多い。特に女性は月経で失われやすい",dosage:"15-50mg/日",food:"レバー・貝類・赤身肉",timing:"食後または食事と一緒に",note:"カルシウムと同時摂取は吸収を妨げるため避ける。コーヒー・お茶との同時摂取も避ける"},
+  skin:{name:"ビオチン・コラーゲン",emoji:"✨",desc:"肌・髪・爪の健康維持に不可欠。ビオチン不足は肌荒れの原因になりやすい",dosage:"2.5-5mg/日",food:"卵黄・アーモンド・きのこ",timing:"食事と一緒に（脂溶性）",note:"生卵白の大量摂取はビオチン吸収を阻害する"},
+  eye:{name:"ルテイン・アスタキサンチン",emoji:"👁️",desc:"目の疲れ・ブルーライト対策に。デスクワーカーに特に重要",dosage:"6-20mg/日",food:"ほうれん草・ケール・人参",timing:"脂質食と一緒に（脂溶性のため吸収率向上）",note:"過剰摂取で皮膚が黄色くなることがある（カロテノイド色素）"},
+  stress:{name:"マグネシウム・L-テアニン",emoji:"🧘",desc:"ストレス軽減・睡眠の質改善に効果的。現代人が最も不足しがちなミネラル",dosage:"200-400mg/日",food:"アーモンド・カボチャ種・玄米",timing:"食後（お休み1-2時間前推奨）",note:"利尿薬・一部の抗生物質との相互作用あり。過剰摂取で下痢になることがある"},
+  immune:{name:"ビタミンC・亜鉛",emoji:"🛡️",desc:"免疫機能の維持に必須。風邪予防・感染症対策に",dosage:"1000-2000mg/日",food:"オレンジ・キウイ・パプリカ",timing:"朝食後（吸収率向上）",note:"鉄サプリと組み合わせると鉄の吸収を促進。一方で亜鉛は鉄・銅と競合するため過剰摂取に注意"},
+  vitd:{name:"ビタミンD",emoji:"☀️",desc:"日光不足の人に特に重要。骨・免疫・メンタルに広く関与",dosage:"1000-4000IU/日",food:"サーモン・卵・きのこ",timing:"脂質食と一緒に",note:"カルシウムと組み合わせると相乗効果。ただし過剰摂取は高カルシウム血症のリスク"},
+  protein:{name:"プロテイン・BCAA",emoji:"💪",desc:"運動パフォーマンス・筋肉合成・回復に必須",dosage:"20-40g/日",food:"鶏肉・豆・チーズ",timing:"運動後30分以内（効果最大）",note:"腎臓に負担がかかる場合あり。水分を十分に摂ること"},
+  veg:{name:"マルチビタミン・食物繊維",emoji:"🥦",desc:"野菜不足を補う総合ビタミン。腸内環境の改善にも",dosage:"1-2錠/日",food:"全ての緑黄色野菜",timing:"食事と一緒に",note:"脂溶性ビタミン（A・D・E・K）は空腹時の摂取を避ける"}
 };
+
+/* 飲み合わせ注意ペア */
+var cautionPairs=[
+  {keys:['fatigue','immune'],msg:"鉄サプリとビタミンC・亜鉛を同時摂取する場合：ビタミンCは鉄の吸収を促進しますが、亜鉛は鉄と競合します。鉄とビタミンC、鉄と亜鉛は時間を空けて摂取することを推奨します。"},
+  {keys:['fatigue','vitd'],msg:"鉄サプリとビタミンDの組み合わせ：カルシウムを含む食品と一緒の場合、鉄の吸収が低下することがあります。"},
+  {keys:['stress','protein'],msg:"マグネシウムと高タンパク食・プロテインの組み合わせ：過剰なたんぱく質摂取はマグネシウムの尿排泄を増やす場合があります。水分を十分に摂ることが大切です。"}
+];
 
 var cur=0,ans={};
 function startDiagnosis(){show('questions');renderQ();}
@@ -238,26 +250,53 @@ function renderQ(){
   document.getElementById('prog').style.width=pct+'%';
   document.getElementById('q-text').textContent=q.text;
   var c=document.getElementById('opts');c.innerHTML='';
-  q.opts.forEach(function(opt,i){var b=document.createElement('button');b.className='option-btn';b.textContent=opt;b.onclick=function(){pick(i,opt,q.key);};c.appendChild(b);});
+  var oldNext=document.getElementById('multi-next-btn');if(oldNext)oldNext.remove();
+  q.opts.forEach(function(opt,i){var b=document.createElement('button');b.className='option-btn';b.textContent=opt;b.dataset.idx=i;b.dataset.val=opt;b.dataset.key=q.key;if(q.isMulti&&ans[q.key]&&ans[q.key].includes(i)){b.classList.add('selected');}b.onclick=function(){pick(i,opt,q.key,q.isMulti);};c.appendChild(b);});
 }
-function pick(i,val,key){
-  ans[key]={i:i,val:val};
-  document.querySelectorAll('.option-btn').forEach(function(b,j){b.classList.toggle('selected',j===i);});
-  setTimeout(function(){cur++;if(cur<Qs.length){renderQ();}else{show('loading');setTimeout(showResults,1800);}},300);
+function pick(i,val,key,isMulti){
+  if(isMulti){
+    if(!ans[key]){ans[key]=[];}
+    var idx=ans[key].indexOf(i);
+    if(idx===-1){ans[key].push(i);}else{ans[key].splice(idx,1);}
+  }else{
+    ans[key]={i:i,val:val};
+  }
+  var opts=document.getElementById('opts').querySelectorAll('.option-btn');opts.forEach(function(b,j){if(isMulti){b.classList.toggle('selected',ans[key]&&ans[key].includes(j));}else{b.classList.toggle('selected',j===i);}});
+  if(!isMulti){
+    setTimeout(function(){cur++;if(cur<Qs.length){renderQ();}else{show('loading');setTimeout(showResults,1800);}},300);
+  } else {
+    /* 複数選択: 1件以上選択されたら「次へ」ボタンを表示 */
+    var nextBtn=document.getElementById('multi-next-btn');
+    if(ans[key]&&ans[key].length>0){
+      if(!nextBtn){
+        nextBtn=document.createElement('button');
+        nextBtn.id='multi-next-btn';
+        nextBtn.className='btn-primary';
+        nextBtn.style.marginTop='1rem';
+        nextBtn.textContent='次へ →';
+        nextBtn.onclick=function(){cur++;if(cur<Qs.length){renderQ();}else{show('loading');setTimeout(showResults,1800);}};
+        document.getElementById('opts').parentNode.appendChild(nextBtn);
+      }
+    } else if(nextBtn){
+      nextBtn.remove();
+    }
+  }
 }
 function showResults(){
-  var concernIdx=ans.concern?ans.concern.i:0;
+  var concernIdxList=Array.isArray(ans.concern)?ans.concern:[ans.concern?ans.concern.i:0];
   var sunIdx=ans.sun?ans.sun.i:0;
   var exIdx=ans.exercise?ans.exercise.i:0;
   var dietIdx=ans.diet?ans.diet.i:0;
   var ageGenderIdx=ans.age_gender?ans.age_gender.i:2;
 
   var defKeys=[];
-  if(concernIdx===0)defKeys.push('fatigue');
-  if(concernIdx===1)defKeys.push('skin');
-  if(concernIdx===2)defKeys.push('eye');
-  if(concernIdx===3)defKeys.push('stress');
-  if(concernIdx===4)defKeys.push('immune');
+  concernIdxList.forEach(function(concernIdx){
+    if(concernIdx===0)defKeys.push('fatigue');
+    if(concernIdx===1)defKeys.push('skin');
+    if(concernIdx===2)defKeys.push('eye');
+    if(concernIdx===3)defKeys.push('stress');
+    if(concernIdx===4)defKeys.push('immune');
+  });
   if(sunIdx<=1)defKeys.push('vitd');
   if(exIdx>=2)defKeys.push('protein');
   if(dietIdx<=1)defKeys.push('veg');
@@ -280,9 +319,43 @@ function showResults(){
     var s=suppMap[k];if(!s)return;
     var d=document.createElement('div');d.className='supp-card';
     var medal=idx===0?'🥇 ':idx===1?'🥈 ':idx===2?'🥉 ':'';
-    d.innerHTML='<div class="flex items-center gap-2 mb-2"><span class="text-xl">'+s.emoji+'</span><div><div class="font-bold text-gray-800">'+medal+s.name+'</div></div></div><p class="text-xs text-gray-600 mb-2">'+s.desc+'</p><div style="background:#f0fdf4;border-left:3px solid #16a34a;padding:8px;border-radius:4px;font-size:11px;color:#374151;"><div class="mb-1"><strong>推奨量:</strong> '+s.dosage+'</div><div class="mb-1"><strong>食事源:</strong> '+s.food+'</div><div><strong>摂取タイミング:</strong> '+s.timing+'</div>'+(s.note?'<div style="color:#9ca3af;margin-top:4px;">⚠️ '+s.note+'</div>':'')+'</div>';
+    var amazonLink='https://www.amazon.co.jp/s?k='+encodeURIComponent(s.name+' サプリメント')+'&tag=appadaycrea0f-22';
+    d.innerHTML='<div class="flex items-center gap-2 mb-2"><span class="text-xl">'+s.emoji+'</span><div><div class="font-bold text-gray-800">'+medal+s.name+'</div></div></div><p class="text-xs text-gray-600 mb-2">'+s.desc+'</p><div style="background:#f0fdf4;border-left:3px solid #16a34a;padding:8px;border-radius:4px;font-size:11px;color:#374151;"><div class="mb-1"><strong>推奨量:</strong> '+s.dosage+'</div><div class="mb-1"><strong>食事源:</strong> '+s.food+'</div><div><strong>摂取タイミング:</strong> '+s.timing+'</div>'+(s.note?'<div style="color:#dc2626;margin-top:4px;background:#fff7ed;padding:4px;border-radius:3px;">⚠️ '+s.note+'</div>':'')+'</div><a href="'+amazonLink+'" target="_blank" rel="noopener" style="display:block;margin-top:8px;background:#ff9900;color:#fff;font-weight:700;text-align:center;padding:7px;border-radius:8px;font-size:12px;text-decoration:none;">🛒 Amazonで'+s.name+'を探す →</a>';
     suppEl.appendChild(d);
   });
+
+  /* 飲み合わせ注意の表示 */
+  var cautionCard=document.getElementById('caution-card');
+  var cautionList=document.getElementById('caution-list');
+  cautionList.innerHTML='';
+  var cautionItems=[];
+  /* suppMapの個別note表示は既にカード内で行っている */
+  /* 組み合わせ警告 */
+  cautionPairs.forEach(function(pair){
+    var hasAll=pair.keys.every(function(k){return suppKeys.indexOf(k)!==-1;});
+    if(hasAll)cautionItems.push(pair.msg);
+  });
+  if(cautionItems.length>0){
+    cautionCard.style.display='';
+    cautionItems.forEach(function(msg){
+      var el=document.createElement('div');
+      el.style.cssText='background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px;font-size:12px;color:#92400e;';
+      el.textContent=msg;
+      cautionList.appendChild(el);
+    });
+  }else{
+    /* 個別の注意点があればカードを表示 */
+    var hasNotes=suppKeys.some(function(k){return suppMap[k]&&suppMap[k].note;});
+    if(hasNotes){
+      cautionCard.style.display='';
+      var el=document.createElement('div');
+      el.style.cssText='background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px;font-size:12px;color:#166534;';
+      el.textContent='各サプリの注意事項は上の「おすすめサプリTOP3」の赤字をご確認ください。';
+      cautionList.appendChild(el);
+    }else{
+      cautionCard.style.display='none';
+    }
+  }
 
   var mainSupp=suppMap[suppKeys[0]]||suppMap['vitd'];
   var searchTerm=encodeURIComponent(mainSupp.name+' サプリメント');
@@ -294,7 +367,13 @@ function restart(){cur=0;ans={};show('intro');}
 function copyResults(){
   var date=new Date().toISOString().split('T')[0];
   var ageGender=ans.age_gender?ans.age_gender.val:'';
-  var text='【サプリ診断結果】\n日付: '+date+'\n対象者: '+ageGender+'\n\n不足栄養素:\n';
+  var concernList='';
+  if(Array.isArray(ans.concern)){
+    concernList=ans.concern.map(function(idx){return Qs[1].opts[idx];}).join('、');
+  }else if(ans.concern){
+    concernList=Qs[1].opts[ans.concern.i];
+  }
+  var text='【サプリ診断結果】\n日付: '+date+'\n対象者: '+ageGender+'\n悩み: '+concernList+'\n\n不足栄養素:\n';
   document.querySelectorAll('#deficiencies div strong').forEach(function(el){text+=el.textContent+'\n';});
   text+='\n推奨サプリTOP3:\n';
   document.querySelectorAll('.supp-card').forEach(function(el){
@@ -302,9 +381,20 @@ function copyResults(){
     text+=name+'\n';
   });
   text+='\n詳細は https://appadaycreator.com/supplement-advisor/ をご確認ください';
-  navigator.clipboard.writeText(text).then(function(){
-    showToast();
-  });
+  if(navigator.clipboard&&window.isSecureContext){
+    navigator.clipboard.writeText(text).then(showToast).catch(function(){fallbackCopy(text);});
+  }else{
+    fallbackCopy(text);
+  }
+}
+function fallbackCopy(text){
+  var ta=document.createElement('textarea');
+  ta.value=text;
+  ta.style.cssText='position:fixed;left:-9999px;top:-9999px;';
+  document.body.appendChild(ta);
+  ta.focus();ta.select();
+  try{document.execCommand('copy');showToast();}catch(e){alert('コピーできませんでした。手動でコピーしてください。');}
+  document.body.removeChild(ta);
 }
 function showToast(){
   var toast=document.getElementById('toast');
@@ -363,16 +453,16 @@ function showToast(){
       <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
             <div class="space-y-3">
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「ダイエット法が多すぎてどれが自分に合うか迷っていましたが、生活スタイルに合ったものを提案してもらえました。3ヶ月で目標達成できました！」</p>
-          <p style="font-size:12px;color:#16a34a;" class="mt-1">— 田中さん（30代・会社員）★★★★★</p>
+          <p class="text-xs text-gray-700">「疲れやすくて悩んでいましたが、診断で鉄分不足を指摘されて鉄サプリを始めました。1ヶ月で朝の目覚めが明らかに変わりました！」</p>
+          <p style="font-size:12px;color:#16a34a;" class="mt-1">— 田中さん（30代・会社員・女性）★★★★★</p>
         </div>
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「BMIだけでなく、生活習慣も含めてアドバイスしてくれるのが良かったです。お医者さんに相談するきっかけになりました。」</p>
-          <p style="font-size:12px;color:#16a34a;" class="mt-1">— 佐藤さん（40代・主婦）★★★★★</p>
+          <p class="text-xs text-gray-700">「在宅ワークで日光不足が続いていて、診断でビタミンD不足と判明。飲み合わせの注意点も分かって助かりました。」</p>
+          <p style="font-size:12px;color:#16a34a;" class="mt-1">— 佐藤さん（40代・フリーランス）★★★★★</p>
         </div>
         <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「筋トレのスケジュールをこのアプリで管理するようになってから、継続率がアップしました。シンプルで使いやすいです。」</p>
-          <p style="font-size:12px;color:#16a34a;" class="mt-1">— 山本さん（20代・学生）★★★★☆</p>
+          <p class="text-xs text-gray-700">「運動前後の栄養補給に何が必要か分からなかったのですが、プロテイン・BCAAを勧めてもらって筋肉の回復が早くなった気がします。」</p>
+          <p style="font-size:12px;color:#16a34a;" class="mt-1">— 山本さん（20代・トレーニング好き）★★★★☆</p>
         </div>
       </div>
       <div class="flex gap-2 mt-4">
@@ -443,5 +533,9 @@ function showToast(){
   </div>
 </div>
 
+<div style="text-align:center;margin:24px auto;max-width:760px;padding:0 16px">
+<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
+</div>
 </body>
 </html>

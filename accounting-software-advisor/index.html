@@ -129,7 +129,16 @@ body{
   display:flex;align-items:center;gap:12px;
   transition:.18s;text-align:left;
   -webkit-tap-highlight-color:transparent;
+  min-height:48px;
 }
+
+/* プログレスバー */
+.progress-bar-wrap{height:4px;background:#e5e7eb;border-radius:2px;margin-bottom:20px;overflow:hidden;}
+.progress-bar{height:100%;background:linear-gradient(90deg,var(--g1),var(--g3));border-radius:2px;transition:width .4s ease;}
+
+/* 選定理由ボックス */
+.reason-box{background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:12px 14px;margin-top:14px;font-size:.82rem;color:#065f46;line-height:1.6;}
+.reason-box strong{display:block;font-size:.78rem;color:#047857;margin-bottom:4px;}
 .opt:hover{border-color:var(--g1);background:#f0fdf4;transform:translateX(3px);}
 .opt.sel{border-color:var(--g1);background:#ecfdf5;font-weight:700;color:#064e3b;}
 .opt-radio{
@@ -379,10 +388,14 @@ input,select{font-size:16px!important;}
   <!-- ─── クイズ画面 ─── -->
   <div id="screen-quiz" class="screen">
     <div class="quiz-card fade-in">
+      <div class="progress-bar-wrap"><div class="progress-bar" id="prog-bar" style="width:0%"></div></div>
       <div class="step-dots" id="step-dots"></div>
       <div class="q-label" id="q-num">質問 1 / 5</div>
       <h2 class="q-text" id="q-text"></h2>
       <div class="opts" id="opts"></div>
+      <div id="back-wrap" style="display:none;margin-top:14px;">
+        <button onclick="goBack()" style="background:none;border:1px solid var(--border);border-radius:10px;padding:9px 18px;font-size:.83rem;color:var(--sub);cursor:pointer;min-height:44px;">← 前の質問に戻る</button>
+      </div>
     </div>
   </div>
 
@@ -420,8 +433,8 @@ input,select{font-size:16px!important;}
 
     <!-- SNSシェア -->
     <div class="share-row">
-      <a href="https://line.me/R/share?text=会計ソフト比較診断freee・マネーフォワードどちらが合う？%20https://appadaycreator.com/accounting-software-advisor/" target="_blank" rel="noopener" class="share-btn share-line">LINEでシェア</a>
-      <a href="https://twitter.com/intent/tweet?text=会計ソフト比較診断freee・マネーフォワードどちらが合う？&url=https://appadaycreator.com/accounting-software-advisor/&via=appadaycreator" target="_blank" rel="noopener" class="share-btn share-x">Xでシェア</a>
+      <a id="share-line-btn" href="https://line.me/R/share?text=会計ソフト比較診断freee・マネーフォワードどちらが合う？%20https://appadaycreator.com/accounting-software-advisor/" target="_blank" rel="noopener" class="share-btn share-line">LINEでシェア</a>
+      <a id="share-x-btn" href="https://twitter.com/intent/tweet?text=会計ソフト比較診断freee・マネーフォワードどちらが合う？&url=https://appadaycreator.com/accounting-software-advisor/&via=appadaycreator" target="_blank" rel="noopener" class="share-btn share-x">Xでシェア</a>
     </div>
 
     <button onclick="restart()" style="width:100%;padding:14px;background:#f1f5f9;border:2px solid var(--border);border-radius:12px;font-size:.93rem;font-weight:700;cursor:pointer;color:#374151;margin-bottom:8px;" aria-label="もう一度診断する">🔄 もう一度診断する</button>
@@ -545,7 +558,7 @@ input,select{font-size:16px!important;}
       <a href="https://appadaycreator.com/sidejob-tax-simulator/" class="related-link">副業税金シミュレーター</a>
       <a href="https://appadaycreator.com/furusato-tax-calculator/" class="related-link">ふるさと納税計算</a>
       <a href="https://appadaycreator.com/second-career-advisor/" class="related-link">セカンドキャリア診断</a>
-      <a href="https://appadaycreator.com/fire-calculator/" class="related-link">FIRE計算機</a>
+      <a href="https://appadaycreator.com/fire-calculator/lp/" class="related-link">FIRE計算機</a>
     </div>
   </div>
 </div>
@@ -578,6 +591,10 @@ input,select{font-size:16px!important;}
 <footer>
   <p>免責事項：本ツールの診断結果はあくまで参考情報です。重要な判断の際は専門家にご相談ください。</p>
   <p style="margin-top:6px;"><a href="privacy-policy.html" style="color:inherit;text-decoration:underline;">プライバシーポリシー</a></p>
+<div style="text-align:center;margin:24px auto;max-width:760px;padding:0 16px">
+<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
+</div>
 </footer>
 
 <script>
@@ -664,10 +681,28 @@ function renderQ(){
     b.className='opt';
     b.setAttribute('aria-label',opt);
     b.innerHTML='<div class="opt-radio"></div><span>'+opt+'</span>';
+    // 既存の回答があれば選択済み状態を復元
+    if(ans[q.key]&&ans[q.key].i===i){b.classList.add('sel');}
     b.onclick=function(){pick(i,opt,q.key,b);};
     c.appendChild(b);
   });
+  // プログレスバー更新
+  var pb=document.getElementById('prog-bar');
+  if(pb){pb.style.width=(cur/Qs.length*100)+'%';}
+  // 前へボタン表示制御
+  var bw=document.getElementById('back-wrap');
+  if(bw){bw.style.display=cur>0?'':'none';}
   renderDots();
+}
+
+function goBack(){
+  if(cur>0){
+    cur--;
+    document.querySelector('.quiz-card').classList.remove('fade-in');
+    void document.querySelector('.quiz-card').offsetWidth;
+    document.querySelector('.quiz-card').classList.add('fade-in');
+    renderQ();
+  }
 }
 
 function pick(i,val,key,el){
@@ -683,7 +718,7 @@ function pick(i,val,key,el){
       renderQ();
     }else{
       show('loading');
-      setTimeout(showResults,1800);
+      setTimeout(showResults,1200);
     }
   },320);
 }
@@ -692,11 +727,26 @@ function showResults(){
   var typeIdx=ans.type?ans.type.i:1;
   var expIdx=ans.exp?ans.exp.i:0;
   var accIdx=ans.accounts?ans.accounts.i:1;
+  var invoiceIdx=ans.invoice?ans.invoice.i:1;
   var rankKeys;
   if(typeIdx>=3){rankKeys=['kaikei','mf','freee'];}
+  else if(invoiceIdx>=3){rankKeys=['freee','mf','yayoi'];}
+  else if(expIdx<=1&&typeIdx<=1&&invoiceIdx==0){rankKeys=['yayoi','freee','mf'];}
   else if(expIdx<=1&&typeIdx<=1){rankKeys=['freee','yayoi','mf'];}
   else if(accIdx>=2){rankKeys=['mf','freee','yayoi'];}
   else{rankKeys=['freee','yayoi','mf'];}
+
+  // 選定理由テキスト生成
+  var reasons=[];
+  if(typeIdx>=3)reasons.push('法人向け機能が必要なため');
+  else if(typeIdx==2)reasons.push('消費税課税事業者対応が充実しているため');
+  else if(typeIdx<=1)reasons.push('個人・副業向け確定申告に特化しているため');
+  if(expIdx<=1)reasons.push('簿記知識不要で初心者でも使いやすいため');
+  if(accIdx>=2)reasons.push('複数口座の自動連携に優れているため');
+  if(invoiceIdx>=3)reasons.push('インボイス対応が完全に整っているため');
+  else if(invoiceIdx==0)reasons.push('インボイス不要でコスト重視に最適なため');
+  if(!reasons.length)reasons.push('あなたの事業規模・経験に最も適しているため');
+  var reasonText=reasons.join('、');
 
   var rankClass=['r1','r2','r3'];
   var rankLabel=['🥇 第1位（あなたへのおすすめ）','🥈 第2位','🥉 第3位'];
@@ -708,6 +758,7 @@ function showResults(){
     var d=document.createElement('div');
     d.className='rank-card '+rankClass[idx]+' fade-in';
     d.style.animationDelay=(idx*0.1)+'s';
+    var reasonHTML=idx===0?'<div class="reason-box"><strong>📌 あなたへの選定理由</strong>'+reasonText+'</div>':'';
     d.innerHTML=
       '<div class="rank-badge">'+rankLabel[idx]+'</div>'+
       '<div class="sw-row">'+
@@ -718,7 +769,8 @@ function showResults(){
           '<span class="sw-tag">✓ '+s.strength+'</span>'+
         '</div>'+
       '</div>'+
-      '<p class="sw-desc">'+s.desc+'</p>';
+      '<p class="sw-desc">'+s.desc+'</p>'+
+      reasonHTML;
     list.appendChild(d);
   });
 
@@ -732,6 +784,14 @@ function showResults(){
       sec.emoji+' '+sec.name+'も見てみる →'+
     '</a>'+sec.affPixel;
   document.getElementById('aff-area').innerHTML=affHTML;
+
+  // シェアURLを診断結果で動的更新
+  var shareMsg=encodeURIComponent('会計ソフト診断：'+top.name+'が最適と診断されました！freee・MF・弥生を比較 https://appadaycreator.com/accounting-software-advisor/');
+  var lineBtn=document.getElementById('share-line-btn');
+  var xBtn=document.getElementById('share-x-btn');
+  if(lineBtn)lineBtn.href='https://line.me/R/share?text='+shareMsg;
+  if(xBtn)xBtn.href='https://twitter.com/intent/tweet?text='+shareMsg+'&via=appadaycreator';
+
   show('results');
 }
 

@@ -281,7 +281,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     <div class="card">
         <div class="card-title">📈 キャリアアップ後のFIRE計算</div>
-        <a href="https://appadaycreator.com/fire-calculator/" class="related-link">🔥 FIRE計算機 → エンジニア年収でいつリタイアできる？</a>
+        <a href="https://appadaycreator.com/fire-calculator/lp/" class="related-link">🔥 FIRE計算機 → エンジニア年収でいつリタイアできる？</a>
         <a href="https://appadaycreator.com/nisa-ideco-simulator/" class="related-link">📈 新NISA・iDeCo計算機 → 年収アップ分を資産形成へ</a>
     </div>
 </div>
@@ -368,6 +368,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
 <script>
 let selectedPeriod = 3;
+let currentFinalRole = null;
+let currentPhases = null;
 
 // ===== データ定義 =====
 const ROLES = {
@@ -484,17 +486,36 @@ function generateRoadmap() {
     document.getElementById('skills-required').innerHTML = skillsHtml +
         '<p style="font-size:0.72em;color:#94a3b8;margin-top:8px;">🟡 必須スキル &nbsp; 🟢 推奨スキル</p>';
 
-    document.getElementById('phases-content').innerHTML = phases.map((p, i) => `
-        <div class="phase">
-            <div class="phase-header">Phase ${i+1}: ${p.name} <span class="phase-duration">${monthsPerPhase}ヶ月</span></div>
-            <ul class="phase-items">${p.skills.map(s => `<li>${s}</li>`).join('')}</ul>
-        </div>`).join('');
+    currentFinalRole = finalRole;
+    currentPhases = phases;
+    const savedProgress = ecSafeGet('ecr_progress', {});
+    document.getElementById('phases-content').innerHTML =
+        '<div id="overall-progress" style="margin-bottom:12px;"></div>' +
+        phases.map((p, pi) => {
+            const comp = p.skills.filter((s, si) => !!savedProgress[finalRole + '_' + pi + '_' + si]).length;
+            const skillsHtml2 = p.skills.map((s, si) => {
+                const key = finalRole + '_' + pi + '_' + si;
+                const done = !!savedProgress[key];
+                return '<li style="display:flex;align-items:flex-start;gap:8px;padding:3px 0;">' +
+                    '<input type="checkbox" id="chk_' + pi + '_' + si + '" data-key="' + key + '"' + (done ? ' checked' : '') +
+                    ' onchange="saveProgress()" style="min-width:16px;width:16px;height:16px;margin-top:2px;accent-color:#1d4ed8;cursor:pointer;">' +
+                    '<label for="chk_' + pi + '_' + si + '" style="font-size:0.82em;color:' + (done ? '#94a3b8' : '#475569') + ';cursor:pointer;' + (done ? 'text-decoration:line-through;' : '') + '">' + s + '</label>' +
+                    '</li>';
+            }).join('');
+            return '<div class="phase">' +
+                '<div class="phase-header">Phase ' + (pi + 1) + ': ' + p.name +
+                ' <span class="phase-duration">' + monthsPerPhase + 'ヶ月</span>' +
+                '<span id="phase-ctr-' + pi + '" style="font-size:0.7em;color:#64748b;margin-left:6px;">' + comp + '/' + p.skills.length + '完了</span></div>' +
+                '<ul style="list-style:none;padding:0;margin:0;">' + skillsHtml2 + '</ul></div>';
+        }).join('');
+    updateOverallProgress();
 
     const resources = [...new Set(phases.flatMap(p => p.resources))].slice(0, 6);
     document.getElementById('resources-content').innerHTML = resources.map(r =>
         `<div class="step-card"><div class="step-desc">📌 ${r}</div></div>`).join('');
 
     switchTab('roadmap', document.querySelector('.tabs .tab:nth-child(2)'));
+    ecSafeSet('ecr_state', { job, level, role: roleVal, hours, period: selectedPeriod });
 }
 
 // ===== 年収シミュレーション =====
@@ -506,16 +527,19 @@ function updateSalary() {
     const sal = SALARIES[roleKey];
     const role = ROLES[roleKey];
     const maxBar = 2000;
+    const diff = sal.entry[0] - current;
+    const diffLabel = (diff >= 0 ? '+' : '') + diff + '万円';
+    const diffColor = diff >= 0 ? '#16a34a' : '#f59e0b';
 
     document.getElementById('salary-result').innerHTML = `
         <div class="card">
             <div class="card-title">📊 ${role.icon} ${role.name}の年収推移</div>
             <div style="margin-bottom:8px;">
                 <div style="font-size:0.78em;color:#64748b;margin-bottom:4px;">現在の年収</div>
-                <div class="salary-bar" style="width:${current/maxBar*100}%;background:#f0f9ff;">${current}万円</div>
+                <div class="salary-bar" style="width:${Math.max(current/maxBar*100,8)}%;background:linear-gradient(90deg,#64748b,#94a3b8);">${current}万円</div>
             </div>
             <div style="margin-bottom:8px;">
-                <div style="font-size:0.78em;color:#64748b;margin-bottom:4px;">転職直後（未経験入社）</div>
+                <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.78em;margin-bottom:4px;"><span style="color:#64748b;">転職直後（未経験入社）</span><span style="font-weight:700;color:${diffColor};">${diffLabel}</span></div>
                 <div class="salary-bar" style="width:${sal.entry[1]/maxBar*100}%;">${sal.entry[0]}〜${sal.entry[1]}万円</div>
             </div>
             <div style="margin-bottom:8px;">
@@ -552,8 +576,45 @@ function switchTab(name, el) {
     if (el) el.classList.add('active');
     document.getElementById('panel-'+name).classList.add('active');
     if (name === 'salary') updateSalary();
+    window.scrollTo({top: 0, behavior: 'smooth'});
 }
 function showComingSoon() { alert('転職エージェントのご紹介リンクは準備中です。もうしばらくお待ちください。'); }
+
+function saveProgress() {
+    if (!currentFinalRole || !currentPhases) return;
+    var progress = ecSafeGet('ecr_progress', {});
+    document.querySelectorAll('#phases-content input[type="checkbox"]').forEach(function(cb) {
+        progress[cb.dataset.key] = cb.checked;
+        var lbl = document.querySelector('label[for="' + cb.id + '"]');
+        if (lbl) {
+            lbl.style.color = cb.checked ? '#94a3b8' : '#475569';
+            lbl.style.textDecoration = cb.checked ? 'line-through' : '';
+        }
+    });
+    ecSafeSet('ecr_progress', progress);
+    updateOverallProgress();
+}
+function updateOverallProgress() {
+    if (!currentFinalRole || !currentPhases) return;
+    var savedProgress = ecSafeGet('ecr_progress', {});
+    var totalSkills = 0, completedSkills = 0;
+    currentPhases.forEach(function(p, pi) {
+        var comp = p.skills.filter(function(s, si) { return !!savedProgress[currentFinalRole + '_' + pi + '_' + si]; }).length;
+        totalSkills += p.skills.length;
+        completedSkills += comp;
+        var ctr = document.getElementById('phase-ctr-' + pi);
+        if (ctr) ctr.textContent = comp + '/' + p.skills.length + '完了';
+    });
+    var pct = totalSkills > 0 ? Math.round(completedSkills / totalSkills * 100) : 0;
+    var el = document.getElementById('overall-progress');
+    if (!el) return;
+    el.innerHTML = '<div style="background:#f1f5f9;border-radius:8px;padding:10px 12px;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
+        '<span style="font-size:0.82em;font-weight:700;color:#1d4ed8;">📈 学習進捗</span>' +
+        '<span style="font-size:0.88em;font-weight:800;color:#1d4ed8;">' + pct + '%（' + completedSkills + '/' + totalSkills + '完了）</span></div>' +
+        '<div style="background:#dbeafe;border-radius:20px;height:10px;overflow:hidden;">' +
+        '<div style="background:linear-gradient(90deg,#1d4ed8,#7c3aed);height:100%;width:' + pct + '%;border-radius:20px;transition:width 0.5s;"></div></div></div>';
+}
 
 document.addEventListener('click', function(e){
     const el = e.target.closest('.js-track-affiliate');
@@ -566,6 +627,21 @@ window.addEventListener('unhandledrejection',function(e){console.error('[Promise
 
 document.addEventListener('DOMContentLoaded', function(){
     updateSalary();
+    // 前回の診断設定を復元
+    var saved = typeof ecSafeGet === 'function' ? ecSafeGet('ecr_state', null) : null;
+    if (saved) {
+        if (saved.job) document.getElementById('current-job').value = saved.job;
+        if (saved.level) document.getElementById('it-level').value = saved.level;
+        if (saved.role) document.getElementById('target-role').value = saved.role;
+        if (saved.hours) { document.getElementById('study-hours').value = saved.hours; updateStudyHours(); }
+        if (saved.period) {
+            document.querySelectorAll('.period-btn').forEach(function(btn) {
+                var m = btn.getAttribute('onclick').match(/selectPeriod\((\d+)/);
+                if (m && parseInt(m[1]) === saved.period) selectPeriod(saved.period, btn);
+            });
+        }
+        generateRoadmap();
+    }
 });
 </script>
 

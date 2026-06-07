@@ -126,14 +126,39 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </select>
           <label style="margin-top:8px;">体重（kg）</label>
           <input type="number" id="weight" placeholder="5" min="0.1" max="100">
-          <label style="margin-top:12px;">年齢（歳）</label>
-          <input type="number" id="age" placeholder="3" min="0" max="30">
+          <label style="margin-top:12px;">年齢</label>
+          <div style="display:flex;gap:8px;margin-top:4px;">
+            <select id="age-unit" style="flex:1;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;">
+              <option value="years">歳</option>
+              <option value="months">月</option>
+            </select>
+            <input type="number" id="age" placeholder="3" min="0" max="30" style="flex:2;">
+            <input type="number" id="age-months" placeholder="0" min="0" max="11" style="flex:1;display:none;" title="月">
+          </div>
           <button class="btn" style="margin-top:20px;" onclick="calculate()">犬・猫の年齢換算ツールを計算する</button>
+          <div id="error-message" style="display:none;background:#fee2e2;color:#991b1b;padding:12px;border-radius:8px;margin-top:12px;font-size:14px;border-left:4px solid #dc2626;"></div>
           <div class="result" id="result" style="margin-top:16px;">
             <div class="card" style="text-align:center;">
               <div id="output" style="font-size:2.2rem;font-weight:700;color:#F97316;padding:12px 0;"></div>
               <p id="detail" style="color:#666;font-size:14px;margin-top:4px;"></p>
               <div id="share-result" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid #f1f5f9;"></div>
+            </div>
+            <div class="card" style="margin-top:12px;background:#fef3c7;border-left:4px solid #f59e0b;">
+              <h3 style="font-size:14px;font-weight:700;color:#92400e;margin-bottom:12px;">💡 ライフステージ別ケアアドバイス</h3>
+              <div id="care-advice" style="display:flex;flex-direction:column;gap:10px;">
+                <div style="background:white;padding:10px;border-radius:6px;">
+                  <p style="font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;">🥗 栄養</p>
+                  <p id="nutrition" style="font-size:13px;color:#6b7280;line-height:1.5;"></p>
+                </div>
+                <div style="background:white;padding:10px;border-radius:6px;">
+                  <p style="font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;">🏃 運動</p>
+                  <p id="exercise" style="font-size:13px;color:#6b7280;line-height:1.5;"></p>
+                </div>
+                <div style="background:white;padding:10px;border-radius:6px;">
+                  <p style="font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;">⚠️ 注意点</p>
+                  <p id="caution" style="font-size:13px;color:#6b7280;line-height:1.5;"></p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -207,19 +232,50 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     
 <script>
-    // ★ここだけ実装（約10行）★
     const CFG = {
       inputs: ["weight", "age"],
       error: '体重と年齢を入力してください',
     };
+
+    const careAdviceData = {
+      child: { // 0-17歳
+        nutrition: '成長期に必要な栄養をバランスよく摂取。高タンパク質・カルシウム・ビタミンD が重要です。',
+        exercise: '十分な遊びと運動で健全な発育を促進。1日複数回の活動時間を確保してください。',
+        caution: '子宮卵巣摘出手術・去勢手術の時期について獣医師に相談。感染症予防のワクチン接種が重要。'
+      },
+      adult: { // 18-39歳
+        nutrition: '栄養バランスの取れた食事。肥満予防を意識し、タンパク質・食物繊維を適切に摂取。',
+        exercise: '毎日の定期的な運動。散歩や遊びで体と心を健康に保つ。週3回以上の運動を推奨。',
+        caution: '年1回の健康診断を推奨。歯磨きで口腔衛生を保ち、定期的なグルーミングが大切。'
+      },
+      middle: { // 40-59歳
+        nutrition: '低カロリー・低脂肪食への切り替えを検討。消化しやすい食材を選び、肥満予防を重視。',
+        exercise: '無理のない適度な運動。散歩は継続しつつ、激しい運動は控えめに。',
+        caution: '年2回の健康診断推奨。関節炎やシニア特有の疾患に注意。定期的な体重測定が重要。'
+      },
+      senior: { // 60歳以上
+        nutrition: '消化しやすい高品質の食事。関節サポート成分（グルコサミン等）の摂取を検討。',
+        exercise: '軽い散歩程度の無理のない活動。転倒や段差注意。温かい環境を保つ。',
+        caution: '年2-3回の定期健診。認知機能や尿・便の変化を観察。快適な寝床を用意し、ストレス軽減を心がけて。'
+      }
+    };
+
+    function getAgeInYears() {
+      const unit = document.getElementById('age-unit')?.value || 'years';
+      const years = parseFloat(document.getElementById('age')?.value) || 0;
+      const months = unit === 'months' ? years : (parseFloat(document.getElementById('age-months')?.value) || 0);
+      return unit === 'months' ? years / 12 : years + months / 12;
+    }
+
     function calcLogic(vals) {
-      const [weight, age] = vals;
+      const [weight, actualAge] = vals;
+      const age = getAgeInYears();
       const type = document.getElementById('pettype')?.value || 'dog_small';
       let human;
       if (type === 'cat') {
         human = age <= 2 ? age * 12 : 24 + (age - 2) * 4;
       } else if (type === 'dog_large') {
-        human = age <= 2 ? age * 11 : 22 + (age - 2) * 7;
+        human = age <= 2 ? age * 12 : 24 + (age - 2) * 7.5;
       } else if (type === 'dog_medium') {
         human = age <= 2 ? age * 10.5 : 21 + (age - 2) * 6;
       } else {
@@ -227,27 +283,94 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }
       human = Math.round(human);
       const stage = human < 18 ? '子ども期' : human < 40 ? '青年期' : human < 60 ? '中年期' : '高齢期';
-      const care = human < 18 ? '成長期。栄養バランスの良い食事と十分な運動を。' : human < 40 ? '元気な盛り。定期健診と適度な運動を。' : human < 60 ? '中年期。体重管理と関節ケアに注意。' : '高齢期。消化しやすい食事と無理のない運動を。';
       const icon = type === 'cat' ? '🐱' : '🐶';
       const result = `${icon} 人間換算: ${human}歳`;
-      const detail = `ライフステージ: ${stage} — ${care}`;
-      return { result, detail };
+      const detail = `ライフステージ: ${stage}`;
+
+      let adviceKey = 'adult';
+      if (human < 18) adviceKey = 'child';
+      else if (human < 40) adviceKey = 'adult';
+      else if (human < 60) adviceKey = 'middle';
+      else adviceKey = 'senior';
+
+      return {
+        result,
+        detail,
+        stage,
+        advice: careAdviceData[adviceKey]
+      };
     }
-    // ★以下変更不要★
-    document.addEventListener('DOMContentLoaded',()=>{
-      CFG.inputs.forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') calculate(); }); });
+    document.addEventListener('DOMContentLoaded', () => {
+      const ageUnit = document.getElementById('age-unit');
+      const ageInput = document.getElementById('age');
+      const ageMonthsInput = document.getElementById('age-months');
+
+      if (ageUnit) {
+        ageUnit.addEventListener('change', () => {
+          const isMonths = ageUnit.value === 'months';
+          ageInput.style.display = isMonths ? 'none' : 'block';
+          ageMonthsInput.style.display = isMonths ? 'block' : 'none';
+          ageInput.placeholder = isMonths ? '' : '3';
+          ageMonthsInput.placeholder = isMonths ? '6' : '';
+          if (isMonths) ageMonthsInput.focus();
+          else ageInput.focus();
+        });
+      }
+
+      CFG.inputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });
+      });
+      [ageInput, ageMonthsInput].forEach(el => {
+        if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });
+      });
     });
-    function calculate(){
-      const vals=CFG.inputs.map(id=>parseFloat(document.getElementById(id)?.value)||0);
-      if(!vals[0]){ alert(CFG.error); return; }
-      const {result,detail}=calcLogic(vals);
-      document.getElementById('output').textContent=typeof result==='number'?result.toLocaleString():result;
-      const d=document.getElementById('detail'); if(d) d.textContent=detail||'';
+
+    function clearError() {
+      const errEl = document.getElementById('error-message');
+      if (errEl) errEl.style.display = 'none';
+    }
+
+    function showError(msg) {
+      const errEl = document.getElementById('error-message');
+      if (errEl) {
+        errEl.textContent = msg;
+        errEl.style.display = 'block';
+      }
+    }
+
+    function calculate() {
+      clearError();
+      const weight = parseFloat(document.getElementById('weight')?.value) || 0;
+      const age = getAgeInYears();
+
+      if (!weight || weight <= 0) {
+        showError('❌ 体重を入力してください（0より大きい値）');
+        return;
+      }
+      if (age <= 0) {
+        showError('❌ 年齢を入力してください（0より大きい値）');
+        return;
+      }
+
+      const calc = calcLogic([weight, age]);
+      const { result, detail, stage, advice } = calc;
+
+      document.getElementById('output').textContent = typeof result === 'number' ? result.toLocaleString() : result;
+      document.getElementById('detail').textContent = detail || '';
+
+      // ケアアドバイス表示
+      if (advice) {
+        document.getElementById('nutrition').textContent = advice.nutrition;
+        document.getElementById('exercise').textContent = advice.exercise;
+        document.getElementById('caution').textContent = advice.caution;
+      }
+
       // 動的シェアボタン生成
       const shareEl = document.getElementById('share-result');
       if (shareEl) {
         const shareText = encodeURIComponent(result + '\n犬・猫の年齢換算ツール #無料ツール');
-        const shareUrl  = encodeURIComponent('https://appadaycreator.com/dog-age-calculator/');
+        const shareUrl = encodeURIComponent('https://appadaycreator.com/dog-age-calculator/');
         shareEl.innerHTML = `
           <p style="font-size:12px;color:#94a3b8;width:100%;text-align:center;margin-bottom:4px;">📣 結果をシェアする</p>
           <a href="https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}" target="_blank" rel="noopener"

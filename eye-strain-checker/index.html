@@ -70,10 +70,12 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
             .card { padding: 16px; }
             .btn { font-size: 15px; padding: 13px 20px; }
             .result-value { font-size: 28px; }
+            .opt-btn { font-size: 15px; min-height: 52px; }
         }
         /* ── サービス固有CSS ── */
-        .opt-btn{width:100%;padding:11px;margin-bottom:8px;border:2px solid #e5e7eb;border-radius:10px;font-size:14px;cursor:pointer;background:#fff;text-align:left;transition:.2s;}
-        .opt-btn:hover{border-color:#EA580C;}
+        .opt-btn{width:100%;padding:13px 14px;margin-bottom:12px;border:2px solid #e5e7eb;border-radius:10px;font-size:14px;cursor:pointer;background:#fff;text-align:left;transition:.2s;min-height:48px;font-weight:500;}
+        .opt-btn:hover{border-color:#EA580C;background:#f9fafb;}
+        .opt-btn:focus-visible{outline:3px solid #EA580C;outline-offset:2px;}
     
 @media print{
   header,footer,nav,button,.no-print,
@@ -132,11 +134,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </div>
         </div>
         <div class="result" id="result">
-          <div class="card">
-            <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;color:#EA580C;"></h3>
-            <p id="r-score" style="font-size:13px;color:#888;margin-bottom:10px;"></p>
-            <p id="r-desc" style="color:#444;font-size:14px;line-height:1.8;white-space:pre-line;"></p>
-            <button class="btn" style="margin-top:16px;" onclick="location.reload()">もう一度診断</button>
+          <div class="card" id="result-card" style="background:#f8fafc;border-left:4px solid #EA580C;">
+            <h3 id="r-title" style="font-size:20px;font-weight:700;margin-bottom:12px;color:#EA580C;"></h3>
+            <div id="r-score" style="font-size:32px;color:#EA580C;font-weight:700;text-align:center;margin:16px 0;"></div>
+            <div id="r-score-bar" style="background:#e5e7eb;height:8px;border-radius:4px;margin-bottom:16px;overflow:hidden;">
+              <div id="r-score-fill" style="height:100%;background:#EA580C;border-radius:4px;width:0%;"></div>
+            </div>
+            <p id="r-desc" style="color:#444;font-size:14px;line-height:1.8;white-space:pre-line;margin-bottom:16px;"></p>
+            <div id="result-share" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:16px 0;"></div>
+            <button class="btn" style="margin-top:16px;" onclick="startQuiz()" aria-label="もう一度診断">もう一度診断</button>
           </div>
         </div>
 
@@ -209,67 +215,102 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     
 <script>
-    const BTN_COLOR = '#EA580C';
-    const QUESTIONS = [
-      {text:'1日のPC・スマホ使用時間は？', options:['2時間未満','2〜4時間','4〜7時間','7時間以上']},
-      {text:'目の疲れや乾燥を感じる頻度は？', options:['ほぼない','週1〜2回','ほぼ毎日','常に感じる']},
-      {text:'作業中に定期的に休憩を取りますか？', options:['1時間ごとに取る','2時間ごとに取る','気が向いたとき','ほとんど取らない']},
-      {text:'モニターとの距離・明るさは適切ですか？', options:['常に適切','だいたい適切','あまり気にしない','不適切だと思う']},
-      {text:'目薬の使用や眼科受診の習慣は？', options:['定期的に受診','目薬を常備','たまに使う','ほぼしない']}
-    ];
-    let score = 0, currentQ = 0;
-    document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('q-total').textContent = QUESTIONS.length;
-    });
-    function startQuiz() {
-      score = 0; currentQ = 0;
-      document.getElementById('quiz-start').style.display = 'none';
-      document.getElementById('quiz-area').style.display = 'block';
-      document.getElementById('result').classList.remove('show');
-      renderQuestion();
-    }
-    function renderQuestion() {
-      const q = QUESTIONS[currentQ];
-      document.getElementById('q-num').textContent = currentQ + 1;
-      document.getElementById('q-bar').style.width = ((currentQ + 1) / QUESTIONS.length * 100) + '%';
-      document.getElementById('q-text').textContent = q.text;
-      document.getElementById('q-options').innerHTML = q.options.map((opt, i) =>
-        `<button class="opt-btn" onclick="answer(${i})">${opt}</button>`).join('');
-    }
-    function answer(idx) {
-      score += idx;
-      currentQ++;
-      if (currentQ >= QUESTIONS.length) { showResult(); return; }
-      renderQuestion();
-    }
-    function showResult() {
-      document.getElementById('quiz-area').style.display = 'none';
-      const max = (QUESTIONS.length - 1) * 3;
-      const pct = Math.round(score / max * 100);
-      let title, desc;
-      if (pct < 30) {
-        title = '👍 眼精疲労リスク：低';
-        desc = 'デジタル機器との付き合い方が上手です。
-    引き続き定期的な休憩と適切な環境を維持しましょう。
-    推奨：20-20-20ルール（20分ごとに20フィート先を20秒見る）を継続。';
-      } else if (pct < 60) {
-        title = '⚠️ 眼精疲労リスク：中';
-        desc = '疲労が蓄積しやすい状態です。
-    対策を始めることで症状を改善できます。
-    推奨：1時間ごとに5〜10分の休憩、画面輝度の調整、目薬の常備。';
-      } else {
-        title = '🔴 眼精疲労リスク：高';
-        desc = '目への負担が大きい状態です。早急な改善が必要です。
-    推奨：今すぐ使用時間を削減し、近いうちに眼科受診を。
-    ブルーライトカットメガネの活用、モニター距離50〜70cmの確保も効果的です。';
-      }
-      document.getElementById('r-title').textContent = title;
-      document.getElementById('r-score').textContent = `スコア: ${score}/${max}点（リスク度 ${pct}%）`;
-      document.getElementById('r-desc').textContent = desc;
-      document.getElementById('result').classList.add('show');
-      document.getElementById('result').scrollIntoView({behavior:'smooth', block:'start'});
-    }
-    </script>
+const BTN_COLOR = '#EA580C';
+const QUESTIONS = [
+  {text:'1日のPC・スマホ使用時間は？', options:['2時間未満','2〜4時間','4〜7時間','7時間以上']},
+  {text:'目の疲れや乾燥を感じる頻度は？', options:['ほぼない','週1〜2回','ほぼ毎日','常に感じる']},
+  {text:'作業中に定期的に休憩を取りますか？', options:['1時間ごとに取る','2時間ごとに取る','気が向いたとき','ほとんど取らない']},
+  {text:'モニターとの距離・明るさは適切ですか？', options:['常に適切','だいたい適切','あまり気にしない','不適切だと思う']},
+  {text:'目薬の使用や眼科受診の習慣は？', options:['定期的に受診','目薬を常備','たまに使う','ほぼしない']}
+];
+let score = 0, currentQ = 0;
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('q-total').textContent = QUESTIONS.length;
+});
+function startQuiz() {
+  score = 0; currentQ = 0;
+  document.getElementById('quiz-start').style.display = 'none';
+  document.getElementById('quiz-area').style.display = 'block';
+  document.getElementById('result').classList.remove('show');
+  renderQuestion();
+}
+function renderQuestion() {
+  const q = QUESTIONS[currentQ];
+  document.getElementById('q-num').textContent = currentQ + 1;
+  document.getElementById('q-bar').style.width = ((currentQ + 1) / QUESTIONS.length * 100) + '%';
+  document.getElementById('q-text').textContent = q.text;
+  const optionsDiv = document.getElementById('q-options');
+  optionsDiv.innerHTML = q.options.map((opt, i) =>
+    `<button class="opt-btn" role="button" tabindex="${i === 0 ? 0 : -1}" aria-label="${q.text}: ${opt}" data-idx="${i}">${opt}</button>`).join('');
+  setTimeout(() => {
+    const firstBtn = optionsDiv.querySelector('[tabindex="0"]');
+    if (firstBtn) firstBtn.focus();
+  }, 50);
+  optionsDiv.addEventListener('keydown', handleKeyDown);
+}
+function handleKeyDown(e) {
+  const buttons = Array.from(document.querySelectorAll('#q-options .opt-btn'));
+  const focused = buttons.indexOf(document.activeElement);
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    if (focused !== -1) answer(parseInt(buttons[focused].getAttribute('data-idx')));
+  } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (focused < buttons.length - 1) buttons[focused + 1].focus();
+  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (focused > 0) buttons[focused - 1].focus();
+  }
+}
+function answer(idx) {
+  score += idx;
+  currentQ++;
+  if (currentQ >= QUESTIONS.length) { showResult(); return; }
+  renderQuestion();
+}
+function showResult() {
+  document.getElementById('quiz-area').style.display = 'none';
+  const max = (QUESTIONS.length - 1) * 3;
+  const pct = Math.round(score / max * 100);
+  let title, desc, riskLevel, bgColor;
+  if (pct < 30) {
+    title = '👍 眼精疲労リスク：低';
+    riskLevel = '低';
+    bgColor = '#f0fdf4';
+    desc = 'デジタル機器との付き合い方が上手です。\n引き続き定期的な休憩と適切な環境を維持しましょう。\n推奨：20-20-20ルール（20分ごとに20フィート先を20秒見る）を継続。';
+  } else if (pct < 60) {
+    title = '⚠️ 眼精疲労リスク：中';
+    riskLevel = '中';
+    bgColor = '#fffbeb';
+    desc = '疲労が蓄積しやすい状態です。\n対策を始めることで症状を改善できます。\n推奨：1時間ごとに5〜10分の休憩、画面輝度の調整、目薬の常備。';
+  } else {
+    title = '🔴 眼精疲労リスク：高';
+    riskLevel = '高';
+    bgColor = '#fef2f2';
+    desc = '目への負担が大きい状態です。早急な改善が必要です。\n推奨：今すぐ使用時間を削減し、近いうちに眼科受診を。\nブルーライトカットメガネの活用、モニター距離50〜70cmの確保も効果的です。';
+  }
+  document.getElementById('r-title').textContent = title;
+  document.getElementById('r-score').textContent = `${pct}%`;
+  document.getElementById('r-score-fill').style.width = pct + '%';
+  document.getElementById('r-desc').textContent = desc;
+  document.getElementById('result-card').style.backgroundColor = bgColor;
+  updateShareButtons(riskLevel, pct);
+  document.getElementById('result').classList.add('show');
+  document.getElementById('result').scrollIntoView({behavior:'smooth', block:'start'});
+  setTimeout(() => {
+    const retryBtn = document.querySelector('#result .btn');
+    if (retryBtn) retryBtn.focus();
+  }, 100);
+}
+function updateShareButtons(riskLevel, pct) {
+  const shareText = `眼精疲労チェッカーで診断しました。リスク度：${riskLevel}（${pct}%）。結果を確認して対策を始めましょう！https://appadaycreator.com/eye-strain-checker/`;
+  const shareContainer = document.getElementById('result-share');
+  shareContainer.innerHTML = `
+    <a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}" target="_blank" rel="noopener" style="background:#1DA1F2;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;cursor:pointer;">𝕏 結果をシェア</a>
+    <a href="https://line.me/R/msg/text/?${encodeURIComponent(shareText)}" target="_blank" rel="noopener" style="background:#00B900;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;cursor:pointer;">LINE シェア</a>
+  `;
+}
+</script>
 
     <!-- Amazon アフィリエイト -->
     <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;margin:16px auto;max-width:500px;text-align:center;">

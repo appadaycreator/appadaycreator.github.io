@@ -118,6 +118,7 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
   a[href]::after{content:none!important}
 }
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;}
+.field-error{border-color:#dc2626!important;background:#fff1f2!important;}
 
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
@@ -196,10 +197,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="card-title">📋 保有銘柄一覧</div>
         <div style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap;">
             <label style="margin:0;display:flex;align-items:center;gap:4px;font-size:0.78em;cursor:pointer;">
-                <input type="checkbox" id="show-gain" checked onchange="renderPortfolio()" style="width:auto;">含み益のみ
+                <input type="checkbox" id="show-gain" checked onchange="renderPortfolio()" style="width:auto;">含み益を表示
             </label>
             <label style="margin:0;display:flex;align-items:center;gap:4px;font-size:0.78em;cursor:pointer;">
-                <input type="checkbox" id="show-loss" checked onchange="renderPortfolio()" style="width:auto;">含み損のみ
+                <input type="checkbox" id="show-loss" checked onchange="renderPortfolio()" style="width:auto;">含み損を表示
             </label>
             <select id="sort-order" onchange="renderPortfolio()" style="width:auto;padding:4px 8px;font-size:0.78em;">
                 <option value="name">銘柄名順</option>
@@ -213,12 +214,22 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div style="font-size:2.5rem;margin-bottom:10px;">📊</div>
             <p style="font-size:0.9em;font-weight:700;color:#0369a1;margin-bottom:6px;">まだ銘柄が登録されていません</p>
             <p style="font-size:0.8em;color:#94a3b8;margin-bottom:14px;">👆 「銘柄追加」タブから最初の銘柄を登録してみましょう</p>
-            <button onclick="loadSampleData()" style="background:#f0f9ff;color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:0.84em;font-weight:700;cursor:pointer;" aria-label="📋 サンプルデータを読み込む">📋 サンプルデータを読み込む</button>
+            <button onclick="loadSampleData()" style="background:#0369a1;color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:0.84em;font-weight:700;cursor:pointer;" aria-label="📋 サンプルデータを読み込む">📋 サンプルデータを読み込む</button>
+        </div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;">
+        <button onclick="toggleBulkPricePanel()" id="bulk-price-btn" style="width:100%;background:#f0f9ff;border:none;border-bottom:1px solid #bae6fd;padding:13px 18px;font-size:0.88em;font-weight:700;cursor:pointer;color:#0369a1;display:flex;align-items:center;justify-content:space-between;" aria-expanded="false" aria-label="株価一括更新パネルを開く">
+            <span>📊 株価一括更新</span><span id="bulk-price-arrow">▼</span>
+        </button>
+        <div id="bulk-price-panel" style="display:none;padding:12px 18px 16px;">
+            <p style="font-size:0.8em;color:#64748b;margin-bottom:10px;">各銘柄の現在値を最新の株価に更新してください。</p>
+            <div id="price-update-list"></div>
+            <button class="btn-primary" onclick="applyPriceUpdates()" style="background:linear-gradient(135deg,#0369a1,#0ea5e9);margin-top:8px;" aria-label="✅ 現在値を更新する">✅ 現在値を更新する</button>
         </div>
     </div>
     <div class="card" style="text-align:center;">
-        <button onclick="exportCSV()" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:9px 18px;font-size:0.82em;font-weight:600;cursor:pointer;color:#0369a1;margin:4px;">📥 CSVエクスポート</button>
-        <button onclick="document.getElementById('csv-import-input').click()" style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:9px 18px;font-size:0.82em;font-weight:600;cursor:pointer;color:#16a34a;margin:4px;">📤 CSVインポート</button>
+        <button onclick="exportCSV()" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:9px 18px;font-size:0.82em;font-weight:600;cursor:pointer;color:#0369a1;margin:4px;" aria-label="📥 CSVエクスポート">📥 CSVエクスポート</button>
+        <button onclick="document.getElementById('csv-import-input').click()" style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:9px 18px;font-size:0.82em;font-weight:600;cursor:pointer;color:#16a34a;margin:4px;" aria-label="📤 CSVインポート">📤 CSVインポート</button>
         <input type="file" id="csv-import-input" accept=".csv" style="display:none;" onchange="importCSV(event)">
         <button onclick="clearAll()" style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:9px 18px;font-size:0.82em;font-weight:600;cursor:pointer;color:#dc2626;margin:4px;">🗑️ 全データ削除</button>
     </div>
@@ -260,12 +271,26 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
         <div class="form-grid">
             <div>
-                <label>💴 取得価格（円）</label>
-                <input type="number" id="f-buy-price" placeholder="例: 2500" min="0.01" step="0.01" required aria-label="例: 2500">
+                <label>🌍 通貨種別</label>
+                <select id="f-currency" onchange="toggleExchangeRate()" aria-label="通貨種別">
+                    <option value="JPY">円（JPY）</option>
+                    <option value="USD">米ドル（USD）</option>
+                    <option value="EUR">ユーロ（EUR）</option>
+                </select>
+            </div>
+            <div id="exchange-rate-field" style="display:none;">
+                <label>💱 為替レート</label>
+                <input type="number" id="f-exchange-rate" placeholder="例: 150" min="0.01" step="0.01" aria-label="為替レート（円/ドル）">
+            </div>
+        </div>
+        <div class="form-grid">
+            <div>
+                <label>💴 取得価格</label>
+                <input type="number" id="f-buy-price" placeholder="例: 2500" min="0.01" step="0.01" required aria-label="取得価格">
             </div>
             <div>
                 <label>📦 保有数量（株）</label>
-                <input type="number" id="f-qty" placeholder="例: 100" min="1" required aria-label="例: 100">
+                <input type="number" id="f-qty" placeholder="例: 100" min="1" required aria-label="保有数量">
             </div>
         </div>
         <div class="form-grid">
@@ -300,13 +325,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <button id="cancel-edit" onclick="cancelEdit()" style="display:none;width:100%;background:#f1f5f9;color:#64748b;border:none;border-radius:10px;padding:10px;font-size:0.88rem;cursor:pointer;margin-top:8px;" aria-label="キャンセル">キャンセル</button>
     </div>
 
-    <!-- 現在値一括更新 -->
-    <div class="card">
-        <div class="card-title">🔄 現在値を一括更新</div>
-        <p style="font-size:0.8em;color:#64748b;margin-bottom:10px;">各銘柄の現在値を最新の株価に更新してください。</p>
-        <div id="price-update-list"></div>
-        <button class="btn-primary" onclick="applyPriceUpdates()" style="background:#f0f9ff;margin-top:8px;" aria-label="✅ 現在値を更新する">✅ 現在値を更新する</button>
-    </div>
 </div>
 
 <!-- ===== 分析タブ ===== -->
@@ -331,7 +349,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="card-title">🔗 関連ツール</div>
         <a href="https://appadaycreator.com/ai-stock-analyzer/" class="related-link">🤖 AI株式投資分析ツール → 個別銘柄を分析</a>
         <a href="https://appadaycreator.com/nisa-ideco-simulator/" class="related-link">📈 新NISA・iDeCo計算機 → 非課税枠の活用計画</a>
-        <a href="https://appadaycreator.com/fire-calculator/" class="related-link">🔥 FIRE計算機 → 資産がいくらあれば引退できる？</a>
+        <a href="https://appadaycreator.com/fire-calculator/lp/" class="related-link">🔥 FIRE計算機 → 資産がいくらあれば引退できる？</a>
     </div>
     <div class="card" style="text-align:center;">
         <div class="card-title" style="justify-content:center;">📚 投資・株の参考書</div>
@@ -359,21 +377,70 @@ function setStocks(s) { try { localStorage.setItem(STORE_KEY, JSON.stringify(s))
 function fmt(n) { return Math.round(n).toLocaleString(); }
 function fmtW(n) { return n >= 10000 ? (n/10000).toFixed(1)+'万円' : fmt(n)+'円'; }
 
+// ===== 株価一括更新パネル折りたたみ =====
+function toggleBulkPricePanel() {
+    const panel = document.getElementById('bulk-price-panel');
+    const arrow = document.getElementById('bulk-price-arrow');
+    const btn = document.getElementById('bulk-price-btn');
+    const isOpen = panel.style.display !== 'none';
+    panel.style.display = isOpen ? 'none' : 'block';
+    if (arrow) arrow.textContent = isOpen ? '▼' : '▲';
+    if (btn) btn.setAttribute('aria-expanded', String(!isOpen));
+    if (!isOpen) renderPriceUpdateList();
+}
+
+// ===== バリデーションエラー表示 =====
+function setFieldError(fieldId) {
+    const el = document.getElementById(fieldId);
+    if (!el) return;
+    el.classList.add('field-error');
+    el.focus();
+}
+function clearFieldErrors() {
+    document.querySelectorAll('.field-error').forEach(el => el.classList.remove('field-error'));
+}
+
+// ===== 為替レート表示の切り替え =====
+function toggleExchangeRate() {
+    const currency = document.getElementById('f-currency').value;
+    const field = document.getElementById('exchange-rate-field');
+    if (currency === 'JPY') {
+        field.style.display = 'none';
+        const inp = document.getElementById('f-exchange-rate');
+        if (inp) inp.value = '';
+    } else {
+        field.style.display = 'block';
+    }
+}
+
 // ===== サマリー計算 =====
 function calcSummary() {
     const stocks = getStocks();
     let totalCost = 0, totalValue = 0, totalDividend = 0, nisaValue = 0;
+    let cagrNumer = 0, cagrDenom = 0, cagrCount = 0;
     stocks.forEach(s => {
-        const val = s.currentPrice * s.qty;
-        totalCost += s.buyPrice * s.qty;
+        const rate = (s.currency !== 'JPY' && s.exchangeRate) ? s.exchangeRate : 1;
+        const val = (s.currentPrice * rate) * s.qty;
+        totalCost += (s.buyPrice * rate) * s.qty;
         totalValue += val;
-        totalDividend += (s.dividend || 0) * s.qty;
+        totalDividend += (s.dividend || 0) * rate * s.qty;
         if (s.account && s.account.startsWith('NISA')) nisaValue += val;
+        // 購入日がある銘柄の加重平均CAGR計算（30日以上保有のみ）
+        if (s.buyDate && s.buyPrice > 0) {
+            const days = Math.floor((Date.now() - new Date(s.buyDate)) / 86400000);
+            if (days > 30) {
+                const cagr = Math.pow(s.currentPrice / s.buyPrice, 365 / days) - 1;
+                cagrNumer += cagr * val;
+                cagrDenom += val;
+                cagrCount++;
+            }
+        }
     });
     const pnl = totalValue - totalCost;
     const pnlRate = totalCost > 0 ? pnl / totalCost * 100 : 0;
     const divYield = totalValue > 0 ? totalDividend / totalValue * 100 : 0;
-    return { totalCost, totalValue, pnl, pnlRate, totalDividend, divYield, count: stocks.length, nisaValue };
+    const weightedCagr = cagrDenom > 0 ? cagrNumer / cagrDenom : null;
+    return { totalCost, totalValue, pnl, pnlRate, totalDividend, divYield, count: stocks.length, nisaValue, weightedCagr, cagrCount };
 }
 
 function getLastUpdated() {
@@ -415,6 +482,9 @@ function renderSummary() {
     const nisaTaxBlock = nisaSavedTax > 0
         ? `<div class="sum-box" style="background:#ecfdf5;border:1px solid #6ee7b7;"><div class="val" style="color:#047857;font-size:1rem;">+${fmtW(nisaSavedTax)}</div><div class="lbl">NISA節税効果（概算）</div></div>`
         : '';
+    const cagrBlock = s.weightedCagr !== null
+        ? `<div class="sum-box" style="background:#faf5ff;border:1px solid #ddd6fe;grid-column:1/-1;"><div class="val" style="color:#7c3aed;font-size:1rem;">${s.weightedCagr >= 0 ? '+' : ''}${(s.weightedCagr * 100).toFixed(1)}%/年</div><div class="lbl">平均年率リターン（CAGR）${s.cagrCount < s.count ? `・${s.cagrCount}/${s.count}銘柄` : ''}</div></div>`
+        : '';
 
     document.getElementById('summary-area').innerHTML = `
         <div class="summary-grid">
@@ -425,6 +495,7 @@ function renderSummary() {
             ${nisaBlock}
             ${taxBlock}
             ${nisaTaxBlock}
+            ${cagrBlock}
         </div>
         ${updated ? `<div style="text-align:right;font-size:0.72em;color:#94a3b8;margin:-6px 0 6px;">🕐 株価最終更新：${updated}</div>` : ''}
         ${s.count > 0 ? `<div style="margin-bottom:10px;display:flex;justify-content:flex-end;"><button onclick="saveSnapshot()" style="background:#0369a1;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:0.78em;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px;">📸 今日の資産を記録</button></div>` : ''}`;
@@ -476,6 +547,10 @@ function renderPortfolio() {
         const codeBadge = s.code
             ? `<a href="${yahooUrl}" target="_blank" rel="noopener" class="stock-code" style="text-decoration:none;cursor:pointer;" title="Yahooファイナンスで株価確認">${s.code} ↗</a>`
             : '';
+        // 外貨バッジ（USD/EUR等の場合に表示）
+        const currencyBadge = s.currency && s.currency !== 'JPY'
+            ? `<span style="font-size:0.65em;background:#fef3c7;color:#92400e;border:1px solid #fde68a;border-radius:4px;padding:1px 5px;margin-left:4px;">${s.currency}${s.exchangeRate ? ' @'+s.exchangeRate+'円' : ''}</span>`
+            : '';
         // 保有期間・年率リターン（購入日がある場合）
         let holdingInfo = '';
         if (s.buyDate) {
@@ -498,6 +573,7 @@ function renderPortfolio() {
                     <span class="stock-name">${s.name}</span>${stopLossAlert}
                     ${codeBadge}
                     ${accountBadge}
+                    ${currencyBadge}
                     <span style="font-size:0.72em;color:#94a3b8;margin-left:4px;">${s.sector||''}</span>
                 </div>
                 <div style="text-align:right;">
@@ -539,6 +615,8 @@ function saveStock() {
     const name = document.getElementById('f-name').value.trim();
     const code = document.getElementById('f-code').value.trim();
     const sector = document.getElementById('f-sector').value;
+    const currency = document.getElementById('f-currency').value;
+    const exchangeRate = currency !== 'JPY' ? parseFloat(document.getElementById('f-exchange-rate').value || '0') : null;
     const buyPrice = parseFloat(document.getElementById('f-buy-price').value);
     const qty = parseInt(document.getElementById('f-qty').value);
     const currentPrice = parseFloat(document.getElementById('f-current').value);
@@ -548,13 +626,15 @@ function saveStock() {
     const memo = document.getElementById('f-memo').value.trim();
     const editId = document.getElementById('edit-id').value;
 
-    if (!name) { showError('銘柄名を入力してください'); return; }
-    if (!buyPrice || buyPrice <= 0) { showError('取得価格を入力してください'); return; }
-    if (!qty || qty <= 0) { showError('保有数量を入力してください'); return; }
-    if (!currentPrice || currentPrice <= 0) { showError('現在値を入力してください'); return; }
+    clearFieldErrors();
+    if (!name) { showError('銘柄名を入力してください'); setFieldError('f-name'); return; }
+    if (!buyPrice || buyPrice <= 0) { showError('取得価格を入力してください'); setFieldError('f-buy-price'); return; }
+    if (!qty || qty <= 0) { showError('保有数量を入力してください'); setFieldError('f-qty'); return; }
+    if (!currentPrice || currentPrice <= 0) { showError('現在値を入力してください'); setFieldError('f-current'); return; }
+    if (currency !== 'JPY' && (!exchangeRate || exchangeRate <= 0)) { showError('為替レートを入力してください'); setFieldError('f-exchange-rate'); return; }
 
     const stocks = getStocks();
-    const stock = { id: editId || Date.now().toString(), name, code, sector, account, buyDate, buyPrice, qty, currentPrice, dividend, memo };
+    const stock = { id: editId || Date.now().toString(), name, code, sector, account, buyDate, buyPrice, qty, currentPrice, dividend, memo, currency, exchangeRate };
 
     if (editId) {
         const idx = stocks.findIndex(s => s.id === editId);
@@ -577,6 +657,8 @@ function editStock(id) {
     document.getElementById('f-name').value = s.name;
     document.getElementById('f-code').value = s.code || '';
     document.getElementById('f-sector').value = s.sector || 'その他';
+    document.getElementById('f-currency').value = s.currency || 'JPY';
+    if (s.exchangeRate) document.getElementById('f-exchange-rate').value = s.exchangeRate;
     document.getElementById('f-buy-price').value = s.buyPrice;
     document.getElementById('f-qty').value = s.qty;
     document.getElementById('f-current').value = s.currentPrice;
@@ -586,6 +668,7 @@ function editStock(id) {
     document.getElementById('f-memo').value = s.memo || '';
     document.getElementById('form-title').textContent = '✏️ 銘柄を編集';
     document.getElementById('cancel-edit').style.display = 'block';
+    toggleExchangeRate();
     switchTab('add', document.querySelectorAll('.tabs .tab')[1]);
 }
 
@@ -596,18 +679,22 @@ function cancelEdit() {
 }
 
 function clearForm() {
-    ['edit-id','f-name','f-code','f-buy-price','f-qty','f-current','f-memo'].forEach(id => {
+    clearFieldErrors();
+    ['edit-id','f-name','f-code','f-buy-price','f-qty','f-current','f-memo','f-exchange-rate'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
     const div = document.getElementById('f-dividend');
     if (div) div.value = '0';
+    const cur = document.getElementById('f-currency');
+    if (cur) cur.value = 'JPY';
     const sec = document.getElementById('f-sector');
     if (sec) sec.value = 'サービス';
     const acc = document.getElementById('f-account');
     if (acc) acc.value = '特定口座';
     const bd = document.getElementById('f-buy-date');
     if (bd) bd.value = '';
+    toggleExchangeRate();
 }
 
 function deleteStock(id) {
@@ -658,6 +745,15 @@ function confirmQuickUpdate(id) {
     renderPriceUpdateList();
     const diff = v - oldPrice;
     showSuccess(`${s.name}：${fmt(oldPrice)}円 → ${fmt(v)}円（${diff >= 0 ? '+' : ''}${diff.toFixed(2)}円）`);
+}
+
+// ===== スナップショット削除 =====
+function deleteSnapshot(date) {
+    const snaps = JSON.parse(localStorage.getItem(SNAP_KEY) || '[]');
+    localStorage.setItem(SNAP_KEY, JSON.stringify(snaps.filter(s => s.date !== date)));
+    renderAnalysis();
+    requestAnimationFrame(() => { renderSnapshotChart(); renderDonutChart(); });
+    showInfo(`${date}のスナップショットを削除しました`);
 }
 
 // ===== 資産スナップショット =====
@@ -712,7 +808,17 @@ function renderAnalysis() {
     const stocks = getStocks();
     const el = document.getElementById('analysis-content');
     const empty = document.getElementById('analysis-empty');
-    if (!stocks.length) { empty.style.display = 'block'; el.innerHTML = ''; return; }
+    if (!stocks.length) {
+        empty.style.display = 'block';
+        empty.innerHTML = `<div style="text-align:center;padding:24px 16px;">
+            <div style="font-size:2.5rem;margin-bottom:10px;">🔍</div>
+            <p style="font-size:0.9em;font-weight:700;color:#0369a1;margin-bottom:6px;">銘柄を登録すると分析が表示されます</p>
+            <p style="font-size:0.8em;color:#94a3b8;margin-bottom:14px;">セクター比率・損益ランキング・資産推移グラフなどが確認できます</p>
+            <button onclick="switchTab('add', document.querySelectorAll('.tabs .tab')[1])" style="background:#0369a1;color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:0.84em;font-weight:700;cursor:pointer;">➕ 銘柄を追加する</button>
+        </div>`;
+        el.innerHTML = '';
+        return;
+    }
     empty.style.display = 'none';
 
     const totalVal = stocks.reduce((a, s) => a + s.currentPrice * s.qty, 0);
@@ -854,7 +960,22 @@ function renderAnalysis() {
             <div style="font-size:0.82em;color:#64748b;">📸 資産推移グラフは2日分の記録から表示されます。<br>明日も「今日の資産を記録」ボタンを押してみましょう！</div>
         </div>` : `<div class="card" style="text-align:center;padding:16px;">
             <div style="font-size:0.82em;color:#64748b;">📸 保有株タブの「今日の資産を記録」で資産推移グラフが表示されます。</div>
-        </div>`}`;
+        </div>`}
+        ${snaps.length >= 1 ? `<div class="card">
+            <div class="card-title">📋 スナップショット一覧</div>
+            <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.82em;">
+                <tr style="background:#0369a1;color:#fff;"><th style="padding:6px;text-align:left;">日付</th><th style="padding:6px;text-align:right;">評価額</th><th style="padding:6px;text-align:right;">元本</th><th style="padding:6px;"></th></tr>
+                ${[...snaps].reverse().map(snap => {
+                    const diff = snap.value - snap.cost;
+                    return `<tr style="border-bottom:1px solid #e0f2fe;">
+                        <td style="padding:6px;">${snap.date}</td>
+                        <td style="padding:6px;text-align:right;font-weight:700;">${fmtW(snap.value)}</td>
+                        <td style="padding:6px;text-align:right;color:${diff>=0?'#16a34a':'#dc2626'};">${diff>=0?'+':''}${fmtW(diff)}</td>
+                        <td style="padding:6px;text-align:right;"><button onclick="deleteSnapshot('${snap.date}')" style="background:#fee2e2;color:#dc2626;border:none;border-radius:4px;padding:3px 8px;font-size:0.75em;cursor:pointer;min-height:28px;" aria-label="${snap.date}のスナップショットを削除">🗑️</button></td>
+                    </tr>`;
+                }).join('')}
+            </table></div>
+        </div>` : ''}`;
 }
 
 // ===== スナップショットグラフ描画 =====
@@ -976,12 +1097,12 @@ function renderDonutChart() {
 function exportCSV() {
     const stocks = getStocks();
     if (!stocks.length) { showError('データがありません'); return; }
-    const header = '銘柄名,コード,セクター,取得価格,保有数,現在値,評価額,含み損益,配当/株,年間配当,利回り\n';
+    const header = '銘柄名,コード,セクター,取得価格,保有数,現在値,評価額,含み損益,配当/株,年間配当,利回り,口座種別,購入日,通貨,為替レート,メモ\n';
     const rows = stocks.map(s => {
         const evalV = s.currentPrice * s.qty;
         const pnl = (s.currentPrice - s.buyPrice) * s.qty;
         const divY = s.dividend > 0 ? (s.dividend/s.currentPrice*100).toFixed(2) : '0';
-        return `"${s.name}","${s.code||''}","${s.sector||''}",${s.buyPrice},${s.qty},${s.currentPrice},${evalV},${pnl},${s.dividend||0},${(s.dividend||0)*s.qty},${divY}`;
+        return `"${s.name}","${s.code||''}","${s.sector||''}",${s.buyPrice},${s.qty},${s.currentPrice},${evalV},${pnl},${s.dividend||0},${(s.dividend||0)*s.qty},${divY},"${s.account||'特定口座'}","${s.buyDate||''}","${s.currency||'JPY'}",${s.exchangeRate||''},"${s.memo||''}"`;
     }).join('\n');
     const blob = new Blob(['﻿'+header+rows], {type:'text/csv;charset=utf-8;'});
     const a = document.createElement('a');
@@ -1018,12 +1139,27 @@ function importCSV(event) {
             if (lines.length < 2) { showError('CSVにデータがありません'); return; }
             const imported = [];
             for (let i = 1; i < lines.length; i++) {
-                const cols = lines[i].split(',').map(c => c.replace(/^"|"$/g, '').trim());
+                // クォート内のカンマを考慮した分割
+                const cols = [];
+                let cur = '', inQ = false;
+                for (const ch of lines[i]) {
+                    if (ch === '"') { inQ = !inQ; }
+                    else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
+                    else { cur += ch; }
+                }
+                cols.push(cur.trim());
+
                 if (cols.length < 6 || !cols[0]) continue;
                 const buyPrice = parseFloat(cols[3]);
                 const qty = parseInt(cols[4]);
                 const currentPrice = parseFloat(cols[5]);
                 if (!buyPrice || !qty || !currentPrice) continue;
+                // v1.3.5以降の拡張フィールド（cols[11]以降）を読み取り
+                const account = cols[11] || '特定口座';
+                const buyDate = cols[12] || '';
+                const currency = cols[13] || 'JPY';
+                const exchangeRate = cols[14] ? parseFloat(cols[14]) || null : null;
+                const memo = cols[15] || '';
                 imported.push({
                     id: Date.now().toString() + i,
                     name: cols[0],
@@ -1033,7 +1169,11 @@ function importCSV(event) {
                     qty,
                     currentPrice,
                     dividend: parseFloat(cols[8]) || 0,
-                    memo: ''
+                    account,
+                    buyDate,
+                    currency,
+                    exchangeRate,
+                    memo
                 });
             }
             if (!imported.length) { showError('有効なデータが見つかりませんでした'); return; }
@@ -1074,7 +1214,11 @@ function switchTab(name, el) {
     if (el) el.classList.add('active');
     document.getElementById('panel-'+name).classList.add('active');
     if (name === 'analysis') { renderAnalysis(); requestAnimationFrame(() => { renderSnapshotChart(); renderDonutChart(); }); }
-    if (name === 'add') renderPriceUpdateList();
+    if (name === 'portfolio') {
+        // 一括更新パネルが開いていれば再描画
+        const panel = document.getElementById('bulk-price-panel');
+        if (panel && panel.style.display !== 'none') renderPriceUpdateList();
+    }
 }
 
 document.addEventListener('click', function(e){

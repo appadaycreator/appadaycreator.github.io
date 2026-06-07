@@ -187,7 +187,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <span class="text-2xl">🍼</span>
         <div><p class="font-semibold text-sm">離乳食アドバイザー</p><p class="text-xs text-gray-500">月齢に合った離乳食メニューを提案</p></div>
       </a>
-      <a href="https://appadaycreator.com/kids-activity-cost-simulator/" class="flex items-center gap-3 p-3 border border-gray-200 rounded-xl hover:border-pink-400 transition">
+      <a href="https://appadaycreator.com/kids-activity-cost-simulator/lp/" class="flex items-center gap-3 p-3 border border-gray-200 rounded-xl hover:border-pink-400 transition">
         <span class="text-2xl">💰</span>
         <div><p class="font-semibold text-sm">子ども習い事費用シミュレーター</p><p class="text-xs text-gray-500">習い事にかかる年間コストを試算</p></div>
       </a>
@@ -205,7 +205,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. プライバシーは守られますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">入力された健康情報はサーバーに送信・保存されません。すべてお使いのブラウザ上で処理されます。</p>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">入力された情報はサーバーに送信・保存されません。すべてお使いのブラウザ上で処理されます。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. このサービスは無料で使えますか？ <span>▼</span></summary>
@@ -283,13 +283,17 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <input type="radio" name="${q.id}" value="${opt}" ${checked} class="accent-pink-500" aria-label="${q.text}: ${opt}"> <span class="text-sm">${opt}</span>
       </label>`;
     });
-    html += '</div>';
+    html += '</div><div id="error-msg" style="display:none;color:#ef4444;font-size:13px;margin-top:10px;padding:8px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;">⚠️ 選択肢を選んでから「次へ」を押してください</div>';
     document.getElementById('question-area').innerHTML = html;
   }
 
   function saveAnswer() {
     const el = document.querySelector(`input[name="${questions[currentStep].id}"]:checked`);
-    if (!el) { alert('選択してください'); return false; }
+    if (!el) {
+      const errEl = document.getElementById('error-msg');
+      if (errEl) errEl.style.display = 'block';
+      return false;
+    }
     answers[questions[currentStep].id] = el.value;
     return true;
   }
@@ -304,17 +308,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     if (currentStep > 0) { currentStep--; renderQuestion(); }
   }
 
-  function getRecommendation() {
-    const isFulltime = answers.work === '両親ともフルタイム勤務' || answers.work === '片方がフルタイム・片方がパート';
-    const needsLongHours = answers.hours !== '9:00〜17:00（標準的な幼稚園時間）';
-    const isYoung = ['0歳（産休・育休明け）', '1歳', '2歳'].includes(answers.age);
-    const prefersEducation = ['英語・音楽・体操など習い事系', '小学校受験を視野に入れた教育'].includes(answers.education);
+  function getRecommendation(a) {
+    a = a || answers;
+    const isFulltime = a.work === '両親ともフルタイム勤務' || a.work === '片方がフルタイム・片方がパート';
+    const needsLongHours = a.hours !== '9:00〜17:00（標準的な幼稚園時間）';
+    const isYoung = ['0歳（産休・育休明け）', '1歳', '2歳'].includes(a.age);
+    const prefersEducation = ['英語・音楽・体操など習い事系', '小学校受験を視野に入れた教育'].includes(a.education);
 
     if (isYoung && isFulltime) return { type: '認可保育所', reason: '0〜2歳のお子さまで共働きの場合、認可保育所が最適です。', fee: '0〜6万円/月（収入により異なる）' };
-    if (needsLongHours && isFulltime) return { type: '認定こども園（2号認定）', reason: 'フルタイム勤務で長時間保育が必要な場合は認定こども園の保育部門が最適です。', fee: '0〜5万円/月（3歳以上は無償化）' };
+    if (needsLongHours && isFulltime) return { type: '認定こども園', reason: 'フルタイム勤務で長時間保育が必要な場合は認定こども園の保育部門が最適です。', fee: '0〜5万円/月（3歳以上は無償化）' };
     if (!isFulltime && !needsLongHours && prefersEducation) return { type: '私立幼稚園', reason: 'ゆとりある保育時間と充実した教育カリキュラムが特徴。習い事・受験対策が充実した私立幼稚園がおすすめです。', fee: '0〜3万円/月（3歳以上は無償化＋施設費等）' };
     if (!isFulltime && !needsLongHours) return { type: '公立幼稚園', reason: '就業していない・パートタイムの場合は公立幼稚園が費用面で最もリーズナブルです。', fee: '0〜1万円/月（3歳以上は原則無償）' };
-    return { type: '認定こども園（1号・2号認定）', reason: '生活スタイルに合わせて保育時間を柔軟に選べる認定こども園がおすすめです。', fee: '0〜5万円/月（3歳以上は無償化）' };
+    return { type: '認定こども園', reason: '生活スタイルに合わせて保育時間を柔軟に選べる認定こども園がおすすめです。', fee: '0〜5万円/月（3歳以上は無償化）' };
   }
 
   function saveHistory() {
@@ -325,31 +330,31 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   }
 
   function renderComparisonTable(recommendedType) {
-    const types = ['認可保育所', '認定こども園（2号認定）', '公立幼稚園'];
-    let html = '<div style="overflow-x:auto;margin-bottom:16px;"><table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#f0f9ff;"><th style="border:1px solid #bae6fd;padding:10px;text-align:left;font-weight:600;">比較項目</th>';
-    types.forEach(t => html += '<th style="border:1px solid #bae6fd;padding:10px;text-align:center;font-weight:600;' + (t === recommendedType ? 'background:#fce7f3;' : '') + '">' + t + '</th>');
+    const types = ['認可保育所', '認定こども園', '公立幼稚園', '私立幼稚園'];
+    let html = '<div style="overflow-x:auto;margin-bottom:8px;-webkit-overflow-scrolling:touch;scroll-snap-type:x mandatory;"><p style="font-size:11px;color:#94a3b8;margin:0 0 6px;text-align:right;">👉 スクロール可</p><table style="width:100%;min-width:480px;border-collapse:collapse;font-size:12px;"><thead><tr style="background:#f0f9ff;"><th style="border:1px solid #bae6fd;padding:8px;text-align:left;font-weight:600;white-space:nowrap;">比較項目</th>';
+    types.forEach(t => html += '<th style="border:1px solid #bae6fd;padding:8px;text-align:center;font-weight:600;white-space:nowrap;' + (t === recommendedType ? 'background:#fce7f3;' : '') + '">' + t + '</th>');
     html += '</tr></thead><tbody>';
 
     const comparisons = [
-      { label: '保育料（3歳以上）', '認可保育所': '無料', '認定こども園（2号認定）': '無料', '公立幼稚園': '無料' },
-      { label: '保育時間', '認可保育所': '7:00-19:00+', '認定こども園（2号認定）': '7:00-19:00+', '公立幼稚園': '9:00-14:00' },
-      { label: '給食', '認可保育所': 'あり', '認定こども園（2号認定）': 'あり', '公立幼稚園': 'なし（弁当）' },
-      { label: '教育方針', '認可保育所': 'のびのび保育', '認定こども園（2号認定）': 'のびのび+教育', '公立幼稚園': '教育・知育重視' },
-      { label: '待機児童', '認可保育所': '多い傾向', '認定こども園（2号認定）': '中程度', '公立幼稚園': 'ほぼなし' }
+      { label: '保育料（3歳以上）', '認可保育所': '無料', '認定こども園': '無料', '公立幼稚園': '無料', '私立幼稚園': '0〜3万円' },
+      { label: '保育時間', '認可保育所': '7:00-19:00+', '認定こども園': '7:00-19:00+', '公立幼稚園': '9:00-14:00', '私立幼稚園': '9:00-14:00+' },
+      { label: '給食', '認可保育所': 'あり', '認定こども園': 'あり', '公立幼稚園': 'なし（弁当）', '私立幼稚園': '園による' },
+      { label: '教育方針', '認可保育所': 'のびのび保育', '認定こども園': 'のびのび+教育', '公立幼稚園': '知育重視', '私立幼稚園': '独自カリキュラム' },
+      { label: '待機児童', '認可保育所': '多い傾向', '認定こども園': '中程度', '公立幼稚園': 'ほぼなし', '私立幼稚園': 'ほぼなし' }
     ];
 
     comparisons.forEach(row => {
       html += '<tr>';
-      html += '<td style="border:1px solid #bae6fd;padding:10px;font-weight:500;">' + row.label + '</td>';
-      types.forEach(t => html += '<td style="border:1px solid #bae6fd;padding:10px;text-align:center;' + (t === recommendedType ? 'background:#fce7f3;font-weight:600;' : '') + '">' + row[t] + '</td>');
+      html += '<td style="border:1px solid #bae6fd;padding:8px;font-weight:500;white-space:nowrap;">' + row.label + '</td>';
+      types.forEach(t => html += '<td style="border:1px solid #bae6fd;padding:8px;text-align:center;' + (t === recommendedType ? 'background:#fce7f3;font-weight:600;' : '') + '">' + row[t] + '</td>');
       html += '</tr>';
     });
     html += '</tbody></table></div>';
     return html;
   }
 
-  function showResult() {
-    saveHistory();
+  function showResult(skipSave) {
+    if (!skipSave) saveHistory();
     document.getElementById('quiz-section').classList.add('hidden');
     document.getElementById('result-section').classList.remove('hidden');
 
@@ -389,13 +394,44 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
       <div style="margin-top:16px;padding:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;">
         <p style="margin:0;font-size:13px;color:#166534;"><strong>💡 ヒント:</strong> 診断結果はスクリーンショットで保存したり、下のシェアボタンで友人・家族と共有できます。</p>
-      </div>`;
+      </div>
+
+      ${renderHistorySection()}`;
 
     document.getElementById('result-content').innerHTML = html;
   }
 
+  function renderHistorySection() {
+    const history = JSON.parse(localStorage.getItem('nurseryHistory') || '[]');
+    if (history.length <= 1) return '';
+    let html = '<div style="margin-top:20px;"><h3 style="font-size:14px;font-weight:700;color:#374151;margin-bottom:10px;">📋 過去の診断履歴</h3>';
+    history.forEach((h, i) => {
+      if (i === 0) return;
+      const d = new Date(h.timestamp);
+      const ds = `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+      const pastRec = getRecommendation(h.answers);
+      html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div>
+          <p style="font-size:13px;font-weight:600;color:#334155;margin:0;">${pastRec.type}</p>
+          <p style="font-size:11px;color:#94a3b8;margin:4px 0 0;">${ds} の診断</p>
+        </div>
+        <button onclick="restoreHistory(${i})" style="padding:6px 14px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;cursor:pointer;white-space:nowrap;flex-shrink:0;">復元</button>
+      </div>`;
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function restoreHistory(idx) {
+    const history = JSON.parse(localStorage.getItem('nurseryHistory') || '[]');
+    if (history[idx]) {
+      answers = JSON.parse(JSON.stringify(history[idx].answers));
+      showResult(true);
+    }
+  }
+
   function shareResult() {
-    const rec = getRecommendation();
+    const rec = getRecommendation(answers);
     const text = `私の診断結果: ${rec.type} / 保育園・幼稚園選び診断 | AppADayCreator`;
     const url = 'https://appadaycreator.com/nursery-finder/';
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank');
@@ -434,7 +470,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <p style="font-size:12px;color:#9333ea;" class="mt-1">— 田中さん（30代・保護者）★★★★★</p>
         </div>
         <div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「子どもの習い事をどう選ぶか悩んでいましたが、興味・スケジュール・費用を考慮した提案が参考になりました。」</p>
+          <p class="text-xs text-gray-700">「育休が終わる前に保育所を探し始めて、このサービスで選び方の基準が明確になりました。認定こども園と認可保育所の違いがよくわかりました。」</p>
           <p style="font-size:12px;color:#9333ea;" class="mt-1">— 佐藤さん（30代・主婦）★★★★★</p>
         </div>
         <div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:8px;padding:12px;">

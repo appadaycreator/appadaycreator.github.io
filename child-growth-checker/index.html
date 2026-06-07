@@ -57,7 +57,10 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .btn:focus-visible { outline: 3px solid #7c3aed; outline-offset: 3px; }
         input, select, textarea { width: 100%; padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 15px; margin-top: 4px; font-family: inherit; min-height: 44px; }
         input:focus, select:focus, textarea:focus { outline: none; border-color: #7c3aed; box-shadow: 0 0 0 3px #7c3aed22; }
+        input.input-error { border-color: #ef4444; box-shadow: 0 0 0 3px #ef444422; }
         label { font-size: 13px; font-weight: 600; color: #555; display: block; margin-top: 14px; margin-bottom: 2px; }
+        .error-message { color: #dc2626; font-size: 13px; margin-top: 6px; font-weight: 500; display: none; }
+        .error-message.show { display: block; }
         .result { display: none; }
         .result.show { display: block; }
         .result-value { font-size: 36px; font-weight: 700; color: #7c3aed; text-align: center; padding: 16px 0; }
@@ -172,10 +175,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </select>
 
           <label style="margin-top:12px;">身長（cm）</label>
-          <input type="number" id="height" placeholder="例: 85.0" min="30" max="200" step="0.1">
+          <input type="number" id="height" placeholder="例: 85.0" min="30" max="200" step="0.1" inputmode="decimal" aria-describedby="height-error">
+          <div id="height-error" class="error-message">身長を正しく入力してください（30〜200cm）</div>
 
           <label style="margin-top:12px;">体重（kg）</label>
-          <input type="number" id="weight" placeholder="例: 12.0" min="1" max="150" step="0.1">
+          <input type="number" id="weight" placeholder="例: 12.0" min="1" max="150" step="0.1" inputmode="decimal" aria-describedby="weight-error">
+          <div id="weight-error" class="error-message">体重を正しく入力してください（1〜150kg）</div>
+
+          <div id="form-error" class="error-message">年齢・性別・身長・体重をすべて入力してください</div>
 
           <button class="btn" style="margin-top:20px;" onclick="calculate()">成長曲線を確認する</button>
           <button onclick="clearInputs()" style="margin-top:8px;width:100%;padding:10px;background:transparent;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;color:#888;cursor:pointer;">クリア</button>
@@ -232,8 +239,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="card">
             <h3 style="font-size:15px;font-weight:700;margin-bottom:10px;color:#374151;">📈 成長曲線グラフ</h3>
             <div class="graph-tabs" role="tablist">
-              <button class="graph-tab active" id="tab-height" onclick="switchTab('height')" role="tab" aria-selected="true">身長</button>
-              <button class="graph-tab" id="tab-weight" onclick="switchTab('weight')" role="tab" aria-selected="false">体重</button>
+              <button class="graph-tab active" id="tab-height" onclick="switchTab('height')" role="tab" aria-selected="true" aria-controls="growthChart" tabindex="0">身長</button>
+              <button class="graph-tab" id="tab-weight" onclick="switchTab('weight')" role="tab" aria-selected="false" aria-controls="growthChart" tabindex="-1">体重</button>
             </div>
             <div class="graph-canvas-wrap">
               <canvas id="growthChart" width="720" height="300" style="width:100%;height:auto;" aria-label="成長曲線グラフ"></canvas>
@@ -572,11 +579,64 @@ function drawChart(tab) {
 
 function switchTab(tab) {
   currentTab = tab;
-  document.getElementById('tab-height').classList.toggle('active', tab === 'height');
-  document.getElementById('tab-weight').classList.toggle('active', tab === 'weight');
-  document.getElementById('tab-height').setAttribute('aria-selected', tab === 'height');
-  document.getElementById('tab-weight').setAttribute('aria-selected', tab === 'weight');
+  const heightTab = document.getElementById('tab-height');
+  const weightTab = document.getElementById('tab-weight');
+
+  heightTab.classList.toggle('active', tab === 'height');
+  weightTab.classList.toggle('active', tab === 'weight');
+  heightTab.setAttribute('aria-selected', tab === 'height');
+  weightTab.setAttribute('aria-selected', tab === 'weight');
+
+  heightTab.setAttribute('tabindex', tab === 'height' ? '0' : '-1');
+  weightTab.setAttribute('tabindex', tab === 'weight' ? '0' : '-1');
+
+  if (tab === 'height') heightTab.focus();
+  else if (tab === 'weight') weightTab.focus();
+
   drawChart(tab);
+}
+
+function handleTabKeydown(e) {
+  const heightTab = document.getElementById('tab-height');
+  const weightTab = document.getElementById('tab-weight');
+  const tabs = [heightTab, weightTab];
+  const currentTabElement = e.currentTarget;
+  const currentIndex = tabs.indexOf(currentTabElement);
+  let newTab = null;
+
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+    e.preventDefault();
+    newTab = tabs[(currentIndex + 1) % tabs.length];
+    switchTab(newTab === heightTab ? 'height' : 'weight');
+  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    newTab = tabs[(currentIndex - 1 + tabs.length) % tabs.length];
+    switchTab(newTab === heightTab ? 'height' : 'weight');
+  }
+}
+
+// ─── エラー表示 ───
+function clearErrors() {
+  document.getElementById('height').classList.remove('input-error');
+  document.getElementById('weight').classList.remove('input-error');
+  document.getElementById('height-error').classList.remove('show');
+  document.getElementById('weight-error').classList.remove('show');
+  document.getElementById('form-error').classList.remove('show');
+}
+
+function showError(fieldId, messages = {}) {
+  clearErrors();
+  if (messages.form) {
+    document.getElementById('form-error').classList.add('show');
+  }
+  if (messages.height) {
+    document.getElementById('height').classList.add('input-error');
+    document.getElementById('height-error').classList.add('show');
+  }
+  if (messages.weight) {
+    document.getElementById('weight').classList.add('input-error');
+    document.getElementById('weight-error').classList.add('show');
+  }
 }
 
 // ─── メイン計算 ───
@@ -589,7 +649,7 @@ function calculate() {
   const gender = document.getElementById('gender').value;
 
   if (isNaN(height) || isNaN(weight) || height <= 0 || weight <= 0) {
-    alert('身長・体重を正しく入力してください');
+    showError('height', { height: true, weight: true });
     return;
   }
 
@@ -674,8 +734,27 @@ function updateAgeDisplay() {
   document.getElementById('age_display').textContent = `月齢: ${total}ヶ月`;
 }
 
+// ─── 動的テーマカラー更新 ───
+function updateThemeColor() {
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const color = isDark ? '#a78bfa' : '#7c3aed';
+  const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeColorMeta) {
+    themeColorMeta.setAttribute('content', color);
+  }
+}
+
 // ─── 初期化 ───
 document.addEventListener('DOMContentLoaded', () => {
+  // テーマカラー初期化と監視
+  updateThemeColor();
+  const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  if (darkModeQuery.addEventListener) {
+    darkModeQuery.addEventListener('change', updateThemeColor);
+  } else {
+    darkModeQuery.addListener(updateThemeColor);
+  }
+
   // 年齢セレクト生成
   const yearSel = document.getElementById('age_year');
   const monthSel = document.getElementById('age_month');
@@ -689,6 +768,18 @@ document.addEventListener('DOMContentLoaded', () => {
     opt.value = m; opt.textContent = m;
     monthSel.appendChild(opt);
   }
+
+  // エラー表示をクリア（入力開始時）
+  ['height', 'weight'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', clearErrors);
+      el.addEventListener('change', clearErrors);
+    }
+  });
+  yearSel.addEventListener('change', clearErrors);
+  monthSel.addEventListener('change', clearErrors);
+  document.getElementById('gender').addEventListener('change', clearErrors);
 
   // localStorage復元
   try {
@@ -716,6 +807,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });
   });
+
+  // タブキーボード操作対応
+  const heightTab = document.getElementById('tab-height');
+  const weightTab = document.getElementById('tab-weight');
+  if (heightTab) heightTab.addEventListener('keydown', handleTabKeydown);
+  if (weightTab) weightTab.addEventListener('keydown', handleTabKeydown);
 });
 </script>
     <!-- rakuten-affiliate-block -->

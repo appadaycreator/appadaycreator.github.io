@@ -177,9 +177,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
         <div id="qCategory" class="text-xs font-bold text-green-500 uppercase tracking-wide mb-1"></div>
         <div id="qText" class="text-base font-bold text-gray-800 mb-4 leading-relaxed"></div>
-        <div id="choicesContainer" class="grid gap-2"></div>
+        <div id="choicesContainer" class="grid gap-2 max-h-96 overflow-y-auto"></div>
       </div>
-      <button onclick="prevQ()" id="prevBtn" class="hidden w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded-xl text-sm transition mb-4" aria-label="← 前の質問へ">← 前の質問へ</button>
+      <button onclick="prevQ()" id="prevBtn" class="hidden w-full bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold py-2 rounded-xl text-sm transition mb-4" aria-label="← 戻る">← 戻る</button>
     </div>
 
     <!-- Result Screen -->
@@ -327,9 +327,21 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if(current > 0) { current--; showQ(); }
     }
 
+    function getStars(percentage) {
+      if(percentage >= 90) return '⭐⭐⭐⭐⭐';
+      if(percentage >= 75) return '⭐⭐⭐⭐☆';
+      if(percentage >= 60) return '⭐⭐⭐☆☆';
+      if(percentage >= 45) return '⭐⭐☆☆☆';
+      return '⭐☆☆☆☆';
+    }
+
     function calcTop3() {
       const scores = dietMethods.map((_,i)=>({idx:i,score:0}));
-      // Q0: 現在の体型 - BMI（使用しない）
+      // Q0: 現在の体型 - BMI
+      if(answers[0]===0) { scores[2].score+=2; scores[3].score+=2; } // 標準→運動・筋トレ向き
+      if(answers[0]===1) { scores[4].score+=1; scores[0].score+=1; } // 少し気になる→管理系
+      if(answers[0]===2) { scores[0].score+=2; scores[1].score+=1; } // 標準より多め→糖質制限
+      if(answers[0]===3) { scores[0].score+=3; scores[4].score+=2; scores[1].score+=1; } // かなり多い→即効性優先
       // Q1: 目標
       if(answers[1]===0) { scores[0].score+=2; scores[1].score+=1; scores[4].score+=2; }
       if(answers[1]===1) { scores[3].score+=3; scores[0].score+=1; }
@@ -368,18 +380,25 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const maxScore = top3[0].score;
       const rankLabels = ['🥇 第1位（最おすすめ）','🥈 第2位','🥉 第3位'];
       const top3El = document.getElementById('top3');
-      top3El.innerHTML = top3.map(({idx,score},i) => {
+
+      // 1位は強調表示、2・3位は折り畳み
+      const cards = top3.map(({idx,score},i) => {
         const d = dietMethods[idx];
         const percentage = Math.round((score / maxScore) * 100);
-        return `
-          <div class="border-2 rounded-xl p-4" style="border-color:${d.color};position:relative">
+        const stars = getStars(percentage);
+        const isFirst = i === 0;
+        const borderWidth = isFirst ? '3px' : '2px';
+        const bgStyle = isFirst ? `background:${d.color}08;` : '';
+        const badge = isFirst ? `<div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:${d.color};color:white;font-size:11px;font-weight:700;padding:3px 12px;border-radius:12px;white-space:nowrap;">★ あなたに最もおすすめ</div>` : '';
+        const cardContent = `
+            ${badge}
             <div class="text-xs font-bold mb-2" style="color:${d.color}">${rankLabels[i]}</div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-              <div class="text-lg font-bold">${d.emoji} ${d.name}</div>
-              <div style="font-size:13px;font-weight:700;padding:4px 8px;border-radius:6px;background:${d.color}22;color:${d.color}">マッチ度: ${percentage}%</div>
+              <div class="${isFirst ? 'text-xl' : 'text-lg'} font-bold">${d.emoji} ${d.name}</div>
+              <div style="font-size:13px;font-weight:700;padding:4px 8px;border-radius:6px;background:${d.color}22;color:${d.color}">${stars}</div>
             </div>
-            <div style="height:4px;background:#e5e7eb;border-radius:2px;margin-bottom:3px">
-              <div style="height:100%;background:${d.color};border-radius:2px;width:${percentage}%"></div>
+            <div style="height:4px;background:#e5e7eb;border-radius:2px;margin-bottom:8px">
+              <div class="meter-bar" style="height:100%;background:${d.color};border-radius:2px;width:${percentage}%"></div>
             </div>
             <p class="text-sm text-gray-600 mb-3 leading-relaxed">${d.desc}</p>
             <div class="mb-2">
@@ -389,10 +408,21 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div class="bg-yellow-50 rounded-lg p-2">
               <div class="text-xs font-bold text-yellow-600 mb-1">⚠️ 注意点</div>
               ${d.cautions.map(c=>`<div class="text-xs text-yellow-700 mb-1">${c}</div>`).join('')}
-            </div>
-          </div>
-        `;
-      }).join('');
+            </div>`;
+
+        if(isFirst) {
+          return `<div class="border rounded-xl p-4 diet-card" style="border-width:${borderWidth};border-color:${d.color};position:relative;margin-top:16px;${bgStyle}">${cardContent}</div>`;
+        } else {
+          return `<details class="border-2 rounded-xl diet-card" style="border-color:${d.color}88;">
+            <summary style="padding:14px 16px;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;">
+              <span class="font-bold text-sm">${rankLabels[i]} ${d.emoji} ${d.name}</span>
+              <span style="font-size:13px;font-weight:700;padding:3px 8px;border-radius:6px;background:${d.color}22;color:${d.color}">${stars} ▼</span>
+            </summary>
+            <div class="p-4" style="${bgStyle}">${cardContent}</div>
+          </details>`;
+        }
+      });
+      top3El.innerHTML = cards.join('');
     }
 
     function getResultText() {
@@ -525,7 +555,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;margin:10px 0;">
   <p style="font-size:13px;font-weight:700;color:#166534;margin:0 0 8px;">🥗 20分で2品できる献立キット</p>
   <p style="font-size:12px;color:#374151;margin:0 0 8px;">主菜・副菜の2品が20分で完成。カット済み食材と調味料がセットで届く手軽なミールキット。</p>
-  </div>
+  <a href="https://www.amazon.co.jp/s?k=Oisix+ミールキット&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="display:inline-block;background:#16a34a;color:white;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:bold;text-decoration:none;margin-top:4px;">🛒 Amazonで Kit Oisix を見る →</a>
+</div>
 <!-- /A8アフィリエイト: Kit Oisix -->
 
 <!-- A8アフィリエイト: ヨシケイ ミールキット -->

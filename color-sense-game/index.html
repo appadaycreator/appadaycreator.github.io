@@ -137,7 +137,40 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
           color: #fff;
           border-color: #7C3AED;
         }
-    
+        .timer-wrap {
+          background: #e5e7eb;
+          border-radius: 999px;
+          height: 6px;
+          margin: 6px 0 10px;
+          overflow: hidden;
+        }
+        .timer-bar {
+          height: 100%;
+          background: linear-gradient(90deg, #7C3AED, #a78bfa);
+          border-radius: 999px;
+          width: 100%;
+          transition: width linear;
+        }
+        .timer-bar.danger { background: linear-gradient(90deg, #ef4444, #fca5a5); }
+        .best-score-display {
+          font-size: 12px;
+          color: #9ca3af;
+          text-align: right;
+          margin-bottom: 2px;
+          min-height: 16px;
+        }
+        .best-banner {
+          display: none;
+          background: linear-gradient(135deg, #fbbf24, #f59e0b);
+          color: white;
+          font-size: 13px;
+          font-weight: 700;
+          padding: 6px 12px;
+          border-radius: 8px;
+          margin: 8px 0;
+          text-align: center;
+        }
+
 @media print{
   header,footer,nav,button,.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
@@ -190,7 +223,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </div>
 
           <div class="color-stage">
-            <div style="font-size:13px;color:#666;margin-bottom:6px;">問題 <span id="qNum">1</span> / 10</div>
+            <div class="best-score-display" id="bestDisplay"></div>
+            <div style="font-size:13px;color:#666;margin-bottom:4px;">問題 <span id="qNum">1</span> / 10</div>
+            <div class="timer-wrap"><div class="timer-bar" id="timerBar"></div></div>
             <div class="score-bar" id="scoreDots"></div>
             <div style="font-size:13px;color:#7C3AED;font-weight:600;margin-bottom:8px;" id="stageMsg">違う色のマスを見つけよう！</div>
             <div class="color-grid" id="colorGrid"></div>
@@ -201,7 +236,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <div style="font-size:2rem;font-weight:800;color:#7C3AED;" id="finalScore"></div>
               <div style="font-size:15px;font-weight:700;color:#4B2996;margin-top:6px;" id="finalMsg"></div>
               <div style="font-size:13px;color:#666;margin-top:6px;" id="finalRank"></div>
-              <button class="btn" onclick="startGame()" style="margin-top:14px;width:100%;">もう一度プレイ</button>
+              <div class="best-banner" id="bestBanner"></div>
+              <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;justify-content:center;">
+                <button class="btn" onclick="startGame()" style="flex:1;min-width:120px;">もう一度プレイ</button>
+                <a id="scoreShareBtn" href="#" target="_blank" rel="noopener" style="flex:1;min-width:120px;background:#1DA1F2;color:white;border:none;padding:14px 16px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;">𝕏 スコアをシェア</a>
+              </div>
             </div>
           </div>
         </div>
@@ -223,11 +262,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="card" style="margin-top:8px;background:#f8fafc;">
             <h2 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#374151;">📖 使い方</h2>
             <ol style="padding-left:20px;font-size:13px;color:#475569;line-height:1.9;">
-                <li>ページを開き、入力フォームの項目を確認する</li>
-                <li>必要な情報を入力または選択する</li>
-                <li>実行ボタンをクリックして結果を取得する</li>
-                <li>表示された結果・アドバイスを確認する</li>
-                <li>必要に応じてコピー・SNSシェアで活用する</li>
+                <li>「かんたん／ふつう／むずかしい」から難易度を選ぶ</li>
+                <li>カラーグリッドが表示されたら、制限時間内に1色だけ違うマスを探す</li>
+                <li>違う色だと思うマスをタップ（またはクリック）する</li>
+                <li>10問終了後にスコアとランクを確認する</li>
+                <li>ベストスコアを目指して繰り返しプレイ！SNSにスコアをシェアしよう</li>
             </ol>
         </div>
 
@@ -275,16 +314,30 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     
 <script>
-
     let difficulty = 1;
     let currentQ = 0;
     let score = 0;
     let answers = [];
     let oddIndex = -1;
     let canClick = true;
+    let timerTimeout = null;
+    let timerRafId = null;
     const TOTAL = 10;
 
+    // 難易度別タイマー秒数
+    const TIMER_SECS = {1: 12, 2: 8, 3: 5};
+    const DIFF_NAMES = {1: 'かんたん', 2: 'ふつう', 3: 'むずかしい'};
+
     document.addEventListener('DOMContentLoaded', startGame);
+
+    function getBestKey() { return 'bestScore_' + difficulty; }
+    function getBest() { return parseInt(localStorage.getItem(getBestKey()) || '0'); }
+    function saveBest(s) { if (s > getBest()) localStorage.setItem(getBestKey(), s); }
+
+    function showBestScore() {
+      const best = getBest();
+      document.getElementById('bestDisplay').textContent = best > 0 ? 'ベスト: ' + best + '/' + TOTAL : '';
+    }
 
     function setDiff(d, btn) {
       difficulty = d;
@@ -297,8 +350,49 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       currentQ = 0;
       score = 0;
       answers = [];
+      clearTimers();
       document.getElementById('result').classList.remove('show');
+      showBestScore();
       nextQuestion();
+    }
+
+    function clearTimers() {
+      if (timerTimeout) { clearTimeout(timerTimeout); timerTimeout = null; }
+      if (timerRafId) { cancelAnimationFrame(timerRafId); timerRafId = null; }
+    }
+
+    function startTimer() {
+      clearTimers();
+      const secs = TIMER_SECS[difficulty];
+      const bar = document.getElementById('timerBar');
+      // リセット（トランジションなし）
+      bar.style.transition = 'none';
+      bar.style.width = '100%';
+      bar.classList.remove('danger');
+
+      // 2フレーム後にアニメーション開始
+      timerRafId = requestAnimationFrame(() => {
+        timerRafId = requestAnimationFrame(() => {
+          bar.style.transition = 'width ' + secs + 's linear';
+          bar.style.width = '0%';
+        });
+      });
+
+      // 残り2秒でdanger色に切替
+      const dangerMs = Math.max(0, (secs - 2) * 1000);
+      setTimeout(() => { bar.classList.add('danger'); }, dangerMs);
+
+      timerTimeout = setTimeout(() => {
+        if (!canClick) return;
+        canClick = false;
+        const cells = document.querySelectorAll('.color-cell');
+        if (cells[oddIndex]) cells[oddIndex].classList.add('correct');
+        answers.push('wrong');
+        document.getElementById('stageMsg').textContent = '⏰ 時間切れ！正解は光っているマスです';
+        renderScoreDots();
+        currentQ++;
+        setTimeout(nextQuestion, 900);
+      }, secs * 1000);
     }
 
     function nextQuestion() {
@@ -318,29 +412,41 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const baseS = 60 + Math.floor(Math.random() * 30);
       const baseL = 50 + Math.floor(Math.random() * 20);
 
-      const diff = difficulty === 1 ? 30 : difficulty === 2 ? 18 : 10;
-      const oddH = (baseH + diff + Math.floor(Math.random() * 10)) % 360;
+      // 段階的難易度: 後半ほど色差（hue差）を小さくする
+      const maxDiff = difficulty === 1 ? 30 : difficulty === 2 ? 18 : 10;
+      const minDiff = difficulty === 1 ? 16 : difficulty === 2 ? 8 : 4;
+      const progress = TOTAL > 1 ? currentQ / (TOTAL - 1) : 0;
+      const diff = Math.max(minDiff, Math.round(maxDiff - (maxDiff - minDiff) * progress));
+      const oddH = (baseH + diff + Math.floor(Math.random() * 5)) % 360;
 
       oddIndex = Math.floor(Math.random() * total);
 
       const grid = document.getElementById('colorGrid');
-      grid.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
+      grid.style.gridTemplateColumns = 'repeat(' + gridSize + ', 1fr)';
       grid.innerHTML = '';
 
       for (let i = 0; i < total; i++) {
         const cell = document.createElement('div');
         cell.className = 'color-cell';
         const h = i === oddIndex ? oddH : baseH;
-        cell.style.background = `hsl(${h}, ${baseS}%, ${baseL}%)`;
+        cell.style.background = 'hsl(' + h + ', ' + baseS + '%, ' + baseL + '%)';
         cell.dataset.idx = i;
         cell.addEventListener('click', () => onCellClick(i, cell));
         grid.appendChild(cell);
       }
+
+      startTimer();
     }
 
     function onCellClick(idx, cell) {
       if (!canClick) return;
       canClick = false;
+      clearTimers();
+
+      // タイマーバー停止
+      const bar = document.getElementById('timerBar');
+      bar.style.transition = 'none';
+      bar.style.width = bar.style.width;
 
       const cells = document.querySelectorAll('.color-cell');
       cells[oddIndex].classList.add('correct');
@@ -348,11 +454,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if (idx === oddIndex) {
         score++;
         answers.push('correct');
-        document.getElementById('stageMsg').textContent = '正解！';
+        document.getElementById('stageMsg').textContent = '✅ 正解！';
       } else {
         cell.classList.add('wrong');
         answers.push('wrong');
-        document.getElementById('stageMsg').textContent = '残念！正解は光っているマスです';
+        document.getElementById('stageMsg').textContent = '❌ 残念！正解は光っているマスです';
       }
 
       renderScoreDots();
@@ -363,13 +469,22 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function renderScoreDots() {
       const html = Array.from({length: TOTAL}, (_, i) => {
         const cls = i < answers.length ? answers[i] : '';
-        return `<div class="score-dot ${cls}"></div>`;
+        return '<div class="score-dot ' + cls + '"></div>';
       }).join('');
       document.getElementById('scoreDots').innerHTML = html;
     }
 
     function showResult() {
-      document.getElementById('finalScore').textContent = `${score} / ${TOTAL}`;
+      clearTimers();
+      const bar = document.getElementById('timerBar');
+      bar.style.transition = 'none';
+      bar.style.width = '0%';
+
+      const prevBest = getBest();
+      saveBest(score);
+      const isNewBest = score > prevBest;
+
+      document.getElementById('finalScore').textContent = score + ' / ' + TOTAL;
       const pct = score / TOTAL;
       let msg, rank;
       if (pct === 1)       { msg = '完璧！天才的な色彩感覚です！';    rank = '🏆 Rank: SSS'; }
@@ -379,6 +494,23 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       else                 { msg = '色彩トレーニングを重ねましょう！'; rank = '📝 Rank: C'; }
       document.getElementById('finalMsg').textContent = msg;
       document.getElementById('finalRank').textContent = rank;
+
+      const bestBanner = document.getElementById('bestBanner');
+      if (isNewBest) {
+        bestBanner.style.display = 'block';
+        bestBanner.textContent = prevBest === 0 ? '🌟 初回ベストスコア！' : '🎉 自己ベスト更新！';
+      } else {
+        bestBanner.style.display = 'none';
+      }
+
+      showBestScore();
+
+      // スコア付きシェアURL生成
+      const rankText = rank.replace(/^[^\s]+ /, '');
+      const shareText = '色彩感覚クイズで ' + score + '/' + TOTAL + '点（' + rankText + '）獲得！難易度: ' + DIFF_NAMES[difficulty] + ' #色彩感覚 #カラーセンス';
+      const shareUrl = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText) + '&url=' + encodeURIComponent('https://appadaycreator.com/color-sense-game/');
+      document.getElementById('scoreShareBtn').href = shareUrl;
+
       document.getElementById('result').classList.add('show');
     }
     </script>

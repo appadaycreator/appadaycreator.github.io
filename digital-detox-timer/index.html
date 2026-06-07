@@ -166,6 +166,30 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <p id="summary" style="font-size:13px;color:#64748b;margin-bottom:12px;"></p>
             <div id="output"></div>
             <p style="font-size:12px;color:#94a3b8;margin-top:12px;">※無理なく続けることが大切です。1週間ごとに見直しましょう。</p>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;border-top:1px solid #e2e8f0;padding-top:12px;">
+              <button class="btn" style="flex:1;min-width:100px;background:#7c3aed;padding:10px 14px;font-size:13px;" onclick="copyPlan()">📋 コピー</button>
+              <button class="btn" style="flex:1;min-width:100px;background:#10b981;padding:10px 14px;font-size:13px;" onclick="downloadPlanImage()">🖼️ 画像保存</button>
+              <button class="btn" style="flex:1;min-width:100px;background:#3b82f6;padding:10px 14px;font-size:13px;" onclick="mailPlan()">✉️ 送信</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="result" id="progressSection" style="margin-top:16px;">
+          <div class="card" style="background:#f0fdf4;">
+            <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#16a34a;">📈 デトックス進捗トラッキング</h3>
+            <label style="margin-bottom:8px;">実際に削減できたスクリーン時間（時間）</label>
+            <div style="display:flex;gap:8px;margin-bottom:12px;">
+              <input type="number" id="savedHours" min="0" step="0.5" placeholder="例：1.5" style="flex:1;">
+              <button class="btn" style="flex:0 1 120px;background:#16a34a;padding:10px 14px;font-size:13px;" onclick="recordProgress()">記録</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <span style="font-size:12px;font-weight:600;color:#374151;">今週の進捗</span>
+              <span id="progressPercent" style="font-size:12px;font-weight:700;color:#16a34a;">0%</span>
+            </div>
+            <div style="background:white;border-radius:8px;height:24px;overflow:hidden;border:1px solid #d1d5db;">
+              <div id="progressBar" style="height:100%;background:linear-gradient(90deg,#10b981,#16a34a);width:0%;transition:width 0.3s ease;"></div>
+            </div>
+            <p style="font-size:12px;color:#6b7280;margin-top:8px;">目標: <span id="targetSavings">-</span> 時間 / 週間の削減</p>
           </div>
         </div>
 
@@ -238,6 +262,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     
 <script>
+    let currentPlan = null;
+    let dailySavings = 0;
+
     function generate() {
       const phone = parseInt(document.getElementById('phone-time').value);
       const pc    = parseInt(document.getElementById('pc-time').value);
@@ -247,8 +274,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const totalHours = phone + pc;
       const targetReduction = level === 'light' ? 0.2 : level === 'normal' ? 0.35 : 0.5;
       const saveHours = (totalHours * targetReduction).toFixed(1);
+      dailySavings = saveHours;
 
-      // === ルール生成 ===
       const morning = ['起床後30分はスマホを見ない','朝食中はスマホを机の上に伏せて置く'];
       const daytime = ['1時間作業ごとに10分のスクリーン休憩','通知はまとめて確認（1時間に1回）'];
       const evening = ['夕食中はデバイスをしまう','寝る1時間前はスマホ・PC禁止'];
@@ -286,9 +313,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
       const goalLabels = { sleep:'睡眠改善', focus:'集中力アップ', health:'目・体の疲れ解消', life:'生活習慣の改善' };
       const levelLabels = { light:'ライト', normal:'スタンダード', hard:'ハード' };
+      const summary = `現在の使用時間：スマホ ${phone}h + PC ${pc}h = 合計 ${totalHours}h／日 → 約 ${saveHours}h の節約を目標（${levelLabels[level]}プラン・目的：${goalLabels[goal]}）`;
 
-      document.getElementById('summary').textContent =
-        `現在の使用時間：スマホ ${phone}h + PC ${pc}h = 合計 ${totalHours}h／日 → 約 ${saveHours}h の節約を目標（${levelLabels[level]}プラン・目的：${goalLabels[goal]}）`;
+      document.getElementById('summary').textContent = summary;
+      currentPlan = summary;
 
       document.getElementById('output').innerHTML = sections.map(s => `
         <div class="section-card">
@@ -306,7 +334,84 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
          1ヶ月で約 ${(saveHours*30).toFixed(0)} 時間を読書・運動・家族との時間に充てられます。</div>`;
 
       document.getElementById('result').classList.add('show');
+      document.getElementById('progressSection').classList.add('show');
+      document.getElementById('targetSavings').textContent = (saveHours * 7).toFixed(1);
+      initProgress();
       document.getElementById('result').scrollIntoView({behavior:'smooth', block:'start'});
+    }
+
+    function copyPlan() {
+      const summary = document.getElementById('summary').textContent;
+      const output = document.getElementById('output').innerText;
+      const text = `${summary}\n\n${output}`;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('プランをコピーしました！');
+      }).catch(() => {
+        alert('コピーに失敗しました');
+      });
+    }
+
+    function downloadPlanImage() {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 800;
+      canvas.height = 600;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#374151';
+      ctx.font = 'bold 24px sans-serif';
+      ctx.fillText('デジタルデトックスプラン', 20, 40);
+      ctx.font = '14px sans-serif';
+      const summary = document.getElementById('summary').textContent;
+      const lines = summary.split('→');
+      let y = 80;
+      lines.forEach((line, i) => {
+        ctx.fillText((i === 0 ? '現在: ' : '目標: ') + line.trim(), 20, y);
+        y += 25;
+      });
+      const link = document.createElement('a');
+      link.href = canvas.toDataURL('image/png');
+      link.download = 'detox-plan.png';
+      link.click();
+    }
+
+    function mailPlan() {
+      const summary = document.getElementById('summary').textContent;
+      const subject = 'デジタルデトックスプラン';
+      const body = `${summary}\n\n詳しくは以下をご覧ください：\nhttps://appadaycreator.com/digital-detox-timer/`;
+      window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    }
+
+    function initProgress() {
+      const saved = localStorage.getItem('detoxProgress');
+      if (saved) {
+        updateProgressDisplay();
+      } else {
+        localStorage.setItem('detoxProgress', JSON.stringify({ total: 0 }));
+      }
+    }
+
+    function recordProgress() {
+      const input = document.getElementById('savedHours');
+      const hours = parseFloat(input.value);
+      if (!hours || hours < 0) {
+        alert('有効な時間を入力してください');
+        return;
+      }
+      const data = JSON.parse(localStorage.getItem('detoxProgress')) || { total: 0 };
+      data.total = (data.total || 0) + hours;
+      localStorage.setItem('detoxProgress', JSON.stringify(data));
+      input.value = '';
+      updateProgressDisplay();
+      alert(`${hours} 時間を記録しました！`);
+    }
+
+    function updateProgressDisplay() {
+      const data = JSON.parse(localStorage.getItem('detoxProgress')) || { total: 0 };
+      const target = dailySavings * 7;
+      const percent = target > 0 ? Math.min(100, (data.total / target) * 100).toFixed(0) : 0;
+      document.getElementById('progressPercent').textContent = `${percent}%`;
+      document.getElementById('progressBar').style.width = `${percent}%`;
     }
     </script>
 

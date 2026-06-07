@@ -193,9 +193,11 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
         <div id="tips" class="text-sm text-gray-700 space-y-2"></div>
       </div>
 
-      <button onclick="restart()" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-5 rounded-2xl transition-colors min-h-[56px] flex items-center justify-center text-base mb-4">
+      <button onclick="restart()" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-5 rounded-2xl transition-colors min-h-[56px] flex items-center justify-center text-base mb-3">
         🔄 もう一度診断する
       </button>
+
+      <div class="flex gap-2 mb-4" id="shareButtons"></div>
 
       <div class="bg-blue-50 rounded-2xl p-4 border border-blue-200">
         <p class="text-xs font-bold text-blue-900 mb-3 uppercase">💡 次のステップ</p>
@@ -232,8 +234,15 @@ function renderQ() {
   const pct = Math.round(((currentQ + 1) / QUESTIONS.length) * 100);
   document.getElementById('qPct').textContent = pct;
   document.getElementById('progressBar').style.width = pct + '%';
+  if (currentQ === QUESTIONS.length - 1) document.getElementById('progressBar').style.background = '#f97316';
+  else document.getElementById('progressBar').style.background = '#ef4444';
   document.getElementById('backBtn').classList.toggle('hidden', currentQ === 0);
+  const errorMsg = document.getElementById('errorMsg');
+  if (errorMsg) errorMsg.style.display = 'none';
   document.getElementById('questionContainer').innerHTML = `
+    <div id="errorMsg" style="display:none;background:#fee2e2;border:1px solid #fecaca;color:#dc2626;padding:12px 16px;border-radius:8px;margin-bottom:12px;font-weight:500;font-size:14px;">
+      ⚠️ 上から選択肢を選んでください
+    </div>
     <h2 class="text-lg font-bold text-gray-800 mb-6">${q.q}</h2>
     <div class="space-y-3">
       ${q.opts.map((opt, i) => `
@@ -249,7 +258,11 @@ function renderQ() {
 function selectOpt(i) { answers[QUESTIONS[currentQ].id] = i; renderQ(); }
 function prevQ() { if (currentQ > 0) { currentQ--; renderQ(); } }
 function nextQ() {
-  if (answers[QUESTIONS[currentQ].id] === undefined) { alert('選択してください'); return; }
+  if (answers[QUESTIONS[currentQ].id] === undefined) {
+    const errorMsg = document.getElementById('errorMsg');
+    if (errorMsg) { errorMsg.style.display = 'block'; errorMsg.scrollIntoView({behavior:'smooth',block:'start'}); }
+    return;
+  }
   if (currentQ < QUESTIONS.length - 1) { currentQ++; renderQ(); }
   else showResult();
 }
@@ -322,7 +335,8 @@ function showResult() {
   const meterColors = score >= 70 ? '#ef4444' : score >= 40 ? '#f59e0b' : '#22c55e';
   document.getElementById('scoreMeter').style.width = score + '%';
   document.getElementById('scoreMeter').style.background = meterColors;
-  document.getElementById('scoreLabel').textContent = `外食費スコア: ${score}/100`;
+  document.getElementById('scoreLabel').innerHTML = `
+    <div style="font-size:14px;font-weight:bold;">外食費スコア: <span style="font-size:18px;color:${meterColors};">${score}</span>/100</div>`;
 
   // Saving calc
   const outingCost = frequency === 0 ? 3000 : frequency === 1 ? 10000 : frequency === 2 ? 25000 : frequency === 3 ? 40000 : 60000;
@@ -333,12 +347,15 @@ function showResult() {
   const yearlySaving = monthlySaving * 12;
 
   document.getElementById('savingCalc').innerHTML = `
-    <div class="grid grid-cols-2 gap-2">
+    <div class="grid grid-cols-2 gap-2 mb-3">
       <div><span class="text-gray-500">推定外食費（月）</span><br><strong>${totalEatOut.toLocaleString()}円</strong></div>
       <div><span class="text-gray-500">目標外食費（月）</span><br><strong>${targetEatOut.toLocaleString()}円</strong></div>
       <div><span class="text-gray-500">削減可能額（月）</span><br><strong class="text-red-700">${monthlySaving.toLocaleString()}円</strong></div>
       <div><span class="text-gray-500">年間節約見込み</span><br><strong class="text-red-700 text-lg">${yearlySaving.toLocaleString()}円</strong></div>
-    </div>`;
+    </div>
+    <button onclick="copyResult()" id="copyBtn" class="w-full bg-white border-2 border-red-300 text-red-700 font-semibold py-2 px-4 rounded-xl hover:bg-red-50 transition-colors text-sm flex items-center justify-center gap-2 min-h-[44px]">
+      📋 結果をコピー
+    </button>`;
 
   // Tips based on answers（最多3個に制限）
   const tips = [];
@@ -350,10 +367,25 @@ function showResult() {
   tips.push({ icon: '🛒', text: '週1回まとめ買い＋献立を決めておくと食材ロスが減り節約に' });
 
   document.getElementById('tips').innerHTML = tips.map(t => `
-    <div class="flex items-start gap-2 bg-white rounded-lg p-3">
-      <span class="text-lg">${t.icon}</span>
-      <p class="text-xs text-gray-700">${t.text}</p>
+    <div class="flex items-start gap-3 bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+      <span class="text-xl flex-shrink-0">${t.icon}</span>
+      <p class="text-sm text-gray-800">${t.text}</p>
     </div>`).join('');
+
+  // SNSシェアテキスト（スコア・年間節約額を含む）
+  const shareText = encodeURIComponent(`【外食費診断】${badge} スコア${score}/100\n年間${yearlySaving.toLocaleString()}円の節約余地あり！\nhttps://appadaycreator.com/eating-out-budget-advisor/`);
+  document.getElementById('shareButtons').innerHTML = `
+    <a href="https://line.me/R/share?text=${shareText}" target="_blank" rel="noopener"
+       style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;background:#06C755;color:white;padding:12px;border-radius:12px;font-size:13px;font-weight:bold;text-decoration:none;min-height:48px;">
+      LINEでシェア
+    </a>
+    <a href="https://twitter.com/intent/tweet?text=${shareText}" target="_blank" rel="noopener"
+       style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;background:#000;color:white;padding:12px;border-radius:12px;font-size:13px;font-weight:bold;text-decoration:none;min-height:48px;">
+      Xでシェア
+    </a>`;
+
+  // コピー機能で使う変数をグローバルに保存
+  window._copyData = { badge, score, monthlySaving, yearlySaving };
 }
 
 function restart() {
@@ -361,6 +393,17 @@ function restart() {
   document.getElementById('resultArea').classList.add('hidden');
   document.getElementById('quizArea').classList.remove('hidden');
   renderQ();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function copyResult() {
+  const d = window._copyData;
+  if (!d) return;
+  const text = `【外食費診断結果】\n判定: ${d.badge}\nスコア: ${d.score}/100\n削減可能額（月）: ${d.monthlySaving.toLocaleString()}円\n年間節約見込み: ${d.yearlySaving.toLocaleString()}円\nhttps://appadaycreator.com/eating-out-budget-advisor/`;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copyBtn');
+    if (btn) { btn.textContent = '✅ コピーしました'; setTimeout(() => { btn.innerHTML = '📋 結果をコピー'; }, 2000); }
+  }).catch(() => {});
 }
 
 renderQ();
@@ -375,7 +418,7 @@ renderQ();
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. プライバシーは守られますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">入力された健康情報はサーバーに送信・保存されません。すべてお使いのブラウザ上で処理されます。</p>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">入力された食費・外食情報はサーバーに送信・保存されません。すべてお使いのブラウザ上で処理されます。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. このサービスは無料で使えますか？ <span>▼</span></summary>
@@ -408,11 +451,11 @@ renderQ();
       <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
             <div class="space-y-3">
         <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「食事制限の種類が多くて何が自分に合うか分からなかったのですが、アレルギーや好みに合わせて絞り込んでもらえました。」</p>
+          <p class="text-xs text-gray-700">「外食が多くて家計が心配でしたが、スコアが出ることで「やっぱり使いすぎ」と実感できました。週2回に減らしたら月1.5万円以上節約できています。」</p>
           <p style="font-size:12px;color:#ea580c;" class="mt-1">— 田中さん（30代・会社員）★★★★★</p>
         </div>
         <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「ワインの選び方が分からなかったのですが、食事との相性で提案してくれるので贈り物選びに重宝しています。」</p>
+          <p class="text-xs text-gray-700">「子育て中で外食費が増えていたのですが、診断してみたら年間10万円以上の節約余地があると分かって驚きました。お弁当生活を始めるきっかけになりました。」</p>
           <p style="font-size:12px;color:#ea580c;" class="mt-1">— 佐藤さん（40代・主婦）★★★★★</p>
         </div>
         <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px;">

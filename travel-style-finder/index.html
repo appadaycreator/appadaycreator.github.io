@@ -194,6 +194,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   </div>
 
   <div id="screen-questions" class="screen">
+    <div class="flex items-center mb-2">
+      <button id="back-btn" onclick="goBack()" style="display:none;background:none;border:none;color:#64748b;font-size:13px;cursor:pointer;padding:4px 8px 4px 0;">← 前の質問に戻る</button>
+    </div>
     <div class="mb-6">
       <div class="flex justify-between text-xs text-gray-500 mb-1">
         <span id="q-label">質問 1 / 5</span>
@@ -213,16 +216,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="text-gray-500 text-sm">最適な旅行先を検索しています</div>
   </div>
 
-  
-    <div class="card p-6 mb-4">
-      <h2 class="font-bold text-gray-800 mb-3">💡 使用例</h2>
-      <ul class="text-sm text-gray-700 space-y-2">
-        <li>• 複数の選択肢から最適なものを選びたい場合</li>
-        <li>• 意思決定に客観的な基準が欲しい場合</li>
-        <li>• プロフェッショナルなアドバイスが必要な場合</li>
-        <li>• 予算やニーズに合わせた提案を受けたい場合</li>
-      </ul>
-    </div>
+
 <div id="screen-results" class="screen">
     <div class="text-center mb-6">
       <div class="text-5xl mb-3">🗺️</div>
@@ -269,28 +263,54 @@ var Qs = [
 ];
 var cur=0,ans={};
 
-var destinations = {
-  relax: [
-    { name:"草津温泉（群馬）", emoji:"♨️", desc:"日本三名泉の一つ。湯畑を中心とした温泉街で心身ともにリフレッシュ。", tag:"温泉・湯治" },
-    { name:"別府温泉（大分）", emoji:"♨️", desc:"湧出量日本一の温泉地。地獄めぐりやBEPPU PROJECTも人気。", tag:"温泉・文化" },
-    { name:"伊豆（静岡）", emoji:"🌊", desc:"海と山の両方を楽しめる関東随一のリゾートエリア。", tag:"温泉・海鮮" }
-  ],
-  active: [
-    { name:"沖縄（本島・離島）", emoji:"🤿", desc:"シュノーケリング・ダイビング・マリンスポーツを満喫。離島での非日常体験も。", tag:"マリンスポーツ" },
-    { name:"北海道（ニセコ・富良野）", emoji:"⛷️", desc:"夏はトレッキング、冬はスキー。雄大な自然でアウトドアを満喫。", tag:"アウトドア" },
-    { name:"屋久島（鹿児島）", emoji:"🌳", desc:"世界自然遺産の屋久島。縄文杉トレッキングで大自然を体感。", tag:"トレッキング" }
-  ],
-  gourmet: [
-    { name:"京都・大阪（関西）", emoji:"🍱", desc:"京料理・大阪グルメを両方楽しめる。食い倒れツアーの定番。", tag:"和食・B級グルメ" },
-    { name:"福岡", emoji:"🍜", desc:"博多ラーメン・もつ鍋・屋台文化。コンパクトな都市で食べ歩きに最適。", tag:"博多グルメ" },
-    { name:"金沢（石川）", emoji:"🦀", desc:"日本海の新鮮な魚介・加賀料理。近江町市場で旬の味覚を堪能。", tag:"海鮮・加賀料理" }
-  ],
-  culture: [
-    { name:"京都", emoji:"⛩️", desc:"1200年の歴史が詰まった古都。寺社仏閣・伝統文化・舞妓さんも。", tag:"歴史・伝統文化" },
-    { name:"奈良", emoji:"🦌", desc:"東大寺・法隆寺・春日大社。鹿と触れ合いながら古代日本を散策。", tag:"古都・歴史" },
-    { name:"長崎", emoji:"🏯", desc:"異国情緒あふれる街並み。グラバー園・出島・眼鏡橋が見どころ。", tag:"異国情緒・歴史" }
-  ]
-};
+// style: 0=relax,1=active,2=gourmet,3=culture
+// c:同行者スコア[一人,カップル,家族,グループ]
+// b:予算スコア[1-2万,3-5万,6-10万,10万+]
+// s:季節スコア[春,夏,秋,冬]
+// d:距離スコア[近場<2h,中距離2-4h,遠い4h+]
+var allDests = [
+  { name:"草津温泉（群馬）", emoji:"♨️", desc:"日本三名泉の一つ。湯畑を中心とした温泉街で心身ともにリフレッシュ。", tag:"温泉・湯治", style:0,
+    c:[3,5,3,4], b:[2,4,5,5], s:[3,3,4,5], d:[3,5,3] },
+  { name:"別府温泉（大分）", emoji:"♨️", desc:"湧出量日本一の温泉地。地獄めぐりやBEPPU PROJECTも人気。", tag:"温泉・文化", style:0,
+    c:[4,5,4,4], b:[3,4,5,5], s:[3,3,4,5], d:[2,3,5] },
+  { name:"伊豆（静岡）", emoji:"🌊", desc:"海と山の両方を楽しめる関東随一のリゾートエリア。", tag:"温泉・海鮮", style:0,
+    c:[3,5,5,3], b:[3,5,4,4], s:[3,5,3,4], d:[4,5,3] },
+  { name:"城崎温泉（兵庫）", emoji:"♨️", desc:"外湯めぐりが楽しめる風情ある温泉街。カニ料理も絶品。", tag:"温泉・グルメ", style:0,
+    c:[3,5,3,3], b:[3,4,5,5], s:[4,3,4,5], d:[2,4,3] },
+  { name:"沖縄（本島・離島）", emoji:"🤿", desc:"シュノーケリング・ダイビング・マリンスポーツを満喫。離島での非日常体験も。", tag:"マリンスポーツ", style:1,
+    c:[4,5,3,5], b:[2,3,5,5], s:[2,5,3,2], d:[2,3,5] },
+  { name:"北海道（ニセコ・富良野）", emoji:"⛷️", desc:"夏はトレッキング、冬はスキー。雄大な自然でアウトドアを満喫。", tag:"アウトドア", style:1,
+    c:[4,4,4,4], b:[2,3,5,5], s:[3,4,3,5], d:[2,3,5] },
+  { name:"屋久島（鹿児島）", emoji:"🌳", desc:"世界自然遺産の屋久島。縄文杉トレッキングで大自然を体感。", tag:"トレッキング", style:1,
+    c:[5,4,2,4], b:[2,3,5,5], s:[3,4,4,3], d:[2,3,5] },
+  { name:"長野（上高地・アルプス）", emoji:"🏔️", desc:"日本アルプスの絶景トレッキング。上高地の澄んだ空気と美しい自然を満喫。", tag:"登山・自然", style:1,
+    c:[4,4,3,5], b:[3,4,4,4], s:[3,5,4,3], d:[3,4,4] },
+  { name:"大阪", emoji:"🍱", desc:"たこ焼き・串カツ・お好み焼き。食い倒れの街で食文化を堪能。", tag:"B級グルメ", style:2,
+    c:[4,5,4,5], b:[4,5,4,4], s:[4,3,4,3], d:[3,4,5] },
+  { name:"福岡", emoji:"🍜", desc:"博多ラーメン・もつ鍋・屋台文化。コンパクトな都市で食べ歩きに最適。", tag:"博多グルメ", style:2,
+    c:[4,5,3,5], b:[3,5,4,3], s:[4,4,4,4], d:[2,3,5] },
+  { name:"金沢（石川）", emoji:"🦀", desc:"日本海の新鮮な魚介・加賀料理。近江町市場で旬の味覚を堪能。", tag:"海鮮・加賀料理", style:2,
+    c:[4,5,3,4], b:[2,4,5,5], s:[2,3,5,4], d:[3,4,5] },
+  { name:"新潟・佐渡", emoji:"🍶", desc:"新鮮な日本海の幸と日本酒の産地。佐渡島では絶景の離島体験も楽しめる。", tag:"海鮮・地酒", style:2,
+    c:[4,5,3,4], b:[3,4,5,4], s:[2,3,4,5], d:[3,4,4] },
+  { name:"京都", emoji:"⛩️", desc:"1200年の歴史が詰まった古都。寺社仏閣・伝統文化・舞妓さんも。", tag:"歴史・伝統文化", style:3,
+    c:[4,5,4,4], b:[3,4,4,4], s:[5,3,5,4], d:[3,4,5] },
+  { name:"奈良", emoji:"🦌", desc:"東大寺・法隆寺・春日大社。鹿と触れ合いながら古代日本を散策。", tag:"古都・歴史", style:3,
+    c:[4,5,5,4], b:[4,5,4,3], s:[5,3,5,3], d:[3,4,5] },
+  { name:"長崎", emoji:"🏯", desc:"異国情緒あふれる街並み。グラバー園・出島・眼鏡橋が見どころ。", tag:"異国情緒・歴史", style:3,
+    c:[4,5,3,4], b:[2,4,5,5], s:[4,4,4,3], d:[2,3,5] },
+  { name:"鎌倉（神奈川）", emoji:"🗿", desc:"鎌倉大仏・鶴岡八幡宮・江の島散策。都心から気軽に行ける歴史の街。", tag:"歴史・自然", style:3,
+    c:[4,5,4,4], b:[4,5,4,3], s:[5,3,5,3], d:[5,4,2] },
+];
+
+function calcScore(d, a) {
+  var styleBonus = d.style === (a.style ? a.style.i : 0) ? 20 : 0;
+  var cS = a.companion ? d.c[a.companion.i] : 3;
+  var bS = a.budget ? d.b[a.budget.i] : 3;
+  var sS = a.season ? d.s[a.season.i] : 3;
+  var dS = a.distance ? d.d[a.distance.i] : 3;
+  return styleBonus + cS + bS + sS + dS;
+}
 
 function startDiagnosis() { show('questions'); renderQ(); }
 
@@ -300,43 +320,60 @@ function show(name) {
 }
 
 function renderQ() {
-  var q=Qs[cur];
-  var pct=Math.round((cur+1)/Qs.length*100);
-  document.getElementById('q-label').textContent='質問 '+(cur+1)+' / '+Qs.length;
-  document.getElementById('q-pct').textContent=pct+'%';
-  document.getElementById('prog').style.width=pct+'%';
-  document.getElementById('q-text').textContent=q.text;
-  var c=document.getElementById('opts'); c.innerHTML='';
-  q.opts.forEach(function(opt,i){
-    var b=document.createElement('button');
-    b.className='option-btn'; b.textContent=opt;
-    b.onclick=function(){ pick(i,opt,q.key); };
+  var q = Qs[cur];
+  var pct = Math.round((cur+1)/Qs.length*100);
+  document.getElementById('q-label').textContent = '質問 '+(cur+1)+' / '+Qs.length;
+  document.getElementById('q-pct').textContent = pct+'%';
+  document.getElementById('prog').style.width = pct+'%';
+  document.getElementById('q-text').textContent = q.text;
+  var c = document.getElementById('opts'); c.innerHTML = '';
+  q.opts.forEach(function(opt, i) {
+    var b = document.createElement('button');
+    b.className = 'option-btn'; b.textContent = opt;
+    if (ans[q.key] && ans[q.key].i === i) b.classList.add('selected');
+    b.onclick = function() { pick(i, opt, q.key); };
     c.appendChild(b);
   });
+  var backBtn = document.getElementById('back-btn');
+  if (backBtn) backBtn.style.display = cur > 0 ? 'block' : 'none';
 }
 
-function pick(i,val,key) {
-  ans[key]={i:i,val:val};
+function pick(i, val, key) {
+  ans[key] = {i:i, val:val};
   document.querySelectorAll('.option-btn').forEach(function(b,j){ b.classList.toggle('selected',j===i); });
   setTimeout(function(){
     cur++;
-    if(cur<Qs.length){ renderQ(); } else { show('loading'); setTimeout(showResults,1600); }
-  },300);
+    if (cur < Qs.length) { renderQ(); } else { show('loading'); setTimeout(showResults, 1600); }
+  }, 300);
+}
+
+function goBack() {
+  if (cur > 0) { cur--; renderQ(); }
 }
 
 function showResults() {
-  var styleIdx = ans.style ? ans.style.i : 0;
-  var styleKeys = ['relax','active','gourmet','culture'];
   var styleLabels = ['のんびりリラックス派','アクティブ・体験派','グルメ・食文化派','文化・歴史派'];
-  var key = styleKeys[styleIdx];
-  var dests = destinations[key];
-  document.getElementById('res-style').textContent = styleLabels[styleIdx]+'のあなたへのおすすめ';
+  var companionLabels = ['一人旅','カップル・夫婦','家族旅行','友人グループ'];
+  var seasonLabels = ['春','夏','秋','冬'];
+  var styleIdx = ans.style ? ans.style.i : 0;
+
+  var scored = allDests.map(function(d){ return { dest:d, score:calcScore(d,ans) }; });
+  scored.sort(function(a,b){ return b.score - a.score; });
+  var top3 = scored.slice(0, 3);
+
+  var parts = [styleLabels[styleIdx]];
+  if (ans.companion) parts.push(companionLabels[ans.companion.i]);
+  if (ans.season) parts.push(seasonLabels[ans.season.i]+'の旅');
+  document.getElementById('res-style').textContent = parts.join('・')+'のあなたへのおすすめ';
+
   var list = document.getElementById('destinations-list');
   list.innerHTML = '';
-  dests.forEach(function(d,i){
+  var medals = ['🥇','🥈','🥉'];
+  top3.forEach(function(item, i) {
+    var d = item.dest;
     var div = document.createElement('div');
     div.className = 'destination-card';
-    div.innerHTML = '<div class="flex items-center gap-2 mb-1"><span class="text-xl">'+d.emoji+'</span><div><div class="font-bold text-gray-800">'+(i===0?'🥇 ':'')+(i===1?'🥈 ':'')+(i===2?'🥉 ':'')+d.name+'</div><span class="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full">'+d.tag+'</span></div></div><p class="text-sm text-gray-600">'+d.desc+'</p>';
+    div.innerHTML = '<div class="flex items-center gap-2 mb-1"><span class="text-xl">'+d.emoji+'</span><div><div class="font-bold text-gray-800">'+medals[i]+' '+d.name+'</div><span class="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full">'+d.tag+'</span></div></div><p class="text-sm text-gray-600">'+d.desc+'</p>';
     list.appendChild(div);
   });
   show('results');
@@ -366,7 +403,7 @@ function restart() { cur=0; ans={}; show('intro'); }
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. プライバシーは守られますか？ <span>▼</span></summary>
-      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">入力された健康情報はサーバーに送信・保存されません。すべてお使いのブラウザ上で処理されます。</p>
+      <p style="padding:12px 16px;font-size:13px;color:#475569;margin:0;background:#f8fafc;">回答した旅行スタイルの情報はサーバーに送信・保存されません。すべてお使いのブラウザ上で処理されます。</p>
     </details>
     <details style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;overflow:hidden;">
       <summary style="padding:12px 16px;cursor:pointer;font-size:14px;font-weight:600;color:#334155;background:#fff;list-style:none;display:flex;justify-content:space-between;align-items:center;">Q. このサービスは無料で使えますか？ <span>▼</span></summary>
@@ -412,15 +449,15 @@ function restart() { cur=0; ans={}; show('intro'); }
       <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
             <div class="space-y-3">
         <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「旅行の予算計画を立てるのに役立ちました。費用の内訳が項目ごとに出てきて、節約ポイントも分かりやすかったです。」</p>
+          <p class="text-xs text-gray-700">「草津温泉を提案してもらい実際に行きました！湯畑の雰囲気が最高で、夫婦ともに大満足の旅になりました。」</p>
           <p style="font-size:12px;color:#d97706;" class="mt-1">— 田中さん（30代・会社員）★★★★★</p>
         </div>
         <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「ふるさと納税でどの返礼品が自分の税額に合っているか分かり、初めてでも迷わず申し込めました。」</p>
+          <p class="text-xs text-gray-700">「子連れでどこへ行くか悩んでいたのですが、伊豆を提案してもらい家族全員で楽しめました。質問が的確で驚きました。」</p>
           <p style="font-size:12px;color:#d97706;" class="mt-1">— 佐藤さん（40代・主婦）★★★★★</p>
         </div>
         <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「留学費用の総額をシミュレーションできて、親への説明にも使えました。分かりやすい内訳が助かりました。」</p>
+          <p class="text-xs text-gray-700">「一人旅で金沢に行くか福岡にするか迷っていたら、診断結果が金沢で背中を押してもらえました。近江町市場は最高でした！」</p>
           <p style="font-size:12px;color:#d97706;" class="mt-1">— 山本さん（20代・学生）★★★★☆</p>
         </div>
       </div>
@@ -445,13 +482,6 @@ function restart() { cur=0; ans={}; show('intro'); }
 </div>
 <!-- /A8アフィリエイト: じゃらん -->
 
-<!-- A8アフィリエイト: テアトルアカデミー エイジレス部 -->
-<div style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:10px;padding:14px;margin:10px 0;">
-  <p style="font-size:13px;font-weight:700;color:#6b21a8;margin:0 0 8px;">40歳以上のタレント挑戦 エイジレス部</p>
-  <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+CROYCQ+1E2S+6DJW2" rel="nofollow noopener noreferrer" target="_blank">40歳以上の新人を対象とした「エイジレス部」</a>
-<img border="0" width="1" height="1" src="https://www19.a8.net/0.gif?a8mat=4B3WJ6+CROYCQ+1E2S+6DJW2" alt="" loading="lazy">
-</div>
-<!-- /A8アフィリエイト: テアトルアカデミー エイジレス部 -->
 
     <!-- Amazon アフィリエイト -->
     <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;margin:16px auto;max-width:500px;text-align:center;">
@@ -477,6 +507,10 @@ function restart() { cur=0; ans={}; show('intro'); }
 </div>
 <div style="text-align:center;padding:8px;font-size:11px;"><a href="privacy-policy.html" style="color:inherit;font-size:11px;opacity:0.7;text-decoration:underline;">プライバシーポリシー</a></div>
 
+</div>
+<div style="text-align:center;margin:24px auto;max-width:760px;padding:0 16px">
+<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
 </div>
 </body>
 </html>

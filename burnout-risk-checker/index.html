@@ -72,10 +72,27 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
             .result-value { font-size: 28px; }
         }
         /* ── サービス固有CSS ── */
-        .quiz-opt { width:100%; padding:12px 14px; margin-bottom:8px; border:2px solid #e5e7eb; border-radius:10px; font-size:14px; cursor:pointer; background:#fff; text-align:left; transition:border-color .15s, background .15s; }
+        .quiz-opt { width:100%; padding:16px 14px; margin-bottom:8px; border:2px solid #e5e7eb; border-radius:10px; font-size:15px; cursor:pointer; background:#fff; text-align:left; transition:border-color .15s, background .3s; min-height:48px; display:flex; align-items:center; }
         .quiz-opt:hover { border-color:#7c3aed; background:#f5f3ff; }
         .quiz-opt:active { transform:scale(0.99); background:#ede9fe; }
         .quiz-opt:focus-visible { outline:3px solid #7c3aed; outline-offset:2px; }
+        .quiz-opt.selected { background:#7c3aed; color:white; border-color:#7c3aed; }
+        .score-breakdown { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:16px 0; }
+        .score-item { background:#f8fafc; padding:12px; border-radius:8px; border-left:4px solid #7c3aed; }
+        .score-label { font-size:12px; color:#666; font-weight:600; }
+        .score-value { font-size:24px; font-weight:700; color:#7c3aed; margin-top:4px; }
+        @keyframes slideIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        .result { animation:slideIn 0.3s ease-out; }
+        .share-buttons { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:16px 0; }
+        .share-btn { display:inline-flex; align-items:center; gap:4px; padding:10px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; border:none; cursor:pointer; min-height:44px; color:white; }
+        .share-btn-twitter { background:#1DA1F2; }
+        .share-btn-line { background:#00B900; }
+        .share-btn:hover { opacity:0.9; }
+        .consultation-notice { background:#fff0f1; border:1px solid #fbbf24; border-radius:10px; padding:14px; margin:16px 0; }
+        .consultation-notice h4 { font-size:14px; font-weight:700; color:#92400e; margin-bottom:8px; }
+        .consultation-notice p { font-size:13px; color:#78350f; line-height:1.6; margin:8px 0; }
+        .consultation-link { display:inline-block; background:#d97706; color:white; padding:8px 12px; border-radius:6px; text-decoration:none; font-weight:600; font-size:12px; margin-top:8px; }
+        .consultation-link:hover { background:#b45309; }
 
     
 @media print{
@@ -121,7 +138,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
         <div class="card" id="quiz-start">
           <h2 style="font-size:18px;font-weight:700;margin-bottom:12px;">😮‍💨 バーンアウトリスク診断</h2>
-          <p style="color:#666;font-size:14px;margin-bottom:20px;">5つの質問に答えるだけで、あなたのバーンアウト（燃え尽き症候群）リスクを判定します。</p>
+          <p style="color:#666;font-size:14px;margin-bottom:20px;">5つの質問に答えるだけで、あなたのバーンアウト（燃え尽き症候群）リスクを判定します。⏱ 所要時間：約2分</p>
           <button class="btn" onclick="startQuiz()">診断スタート →</button>
         </div>
         <div id="quiz-area" style="display:none;">
@@ -138,6 +155,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="card">
             <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;color:#7c3aed;"></h3>
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
+            <div id="score-breakdown" class="score-breakdown"></div>
+            <div id="consultation-section"></div>
+            <div class="share-buttons">
+              <button class="share-btn share-btn-twitter" onclick="shareOnTwitter()">𝕏 シェア</button>
+              <button class="share-btn share-btn-line" onclick="shareOnLine()">LINE</button>
+            </div>
             <button class="btn" style="margin-top:16px;" onclick="location.reload()">もう一度診断</button>
           </div>
         </div>
@@ -211,40 +234,122 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     
 <script>
-    // ★ここだけ実装（約15行）★
     const QUESTIONS = [
-      { text:'1週間の平均労働時間はどのくらいですか？', opts:['40時間以内','40〜50時間','50〜60時間','60時間以上'] },
-      { text:'最近、仕事へのやる気や情熱を感じますか？', opts:['十分に感じる','まあまあ感じる','あまり感じない','ほとんど感じない'] },
-      { text:'仕事が終わった後、十分に休めていますか？', opts:['よく休めている','まあまあ休めている','あまり休めていない','全く休めていない'] },
-      { text:'有給休暇をどの程度取得できていますか？', opts:['ほぼ全て取得','半分以上取得','ほとんど取得できない','全く取得できない'] },
-      { text:'仕事のことを考えると、どのような気持ちになりますか？', opts:['ポジティブ・楽しい','普通・中立','少し憂鬱','非常に憂鬱・つらい'] },
+      { text:'1週間の平均労働時間はどのくらいですか？', category:'労働時間', opts:['40時間以内','40〜50時間','50〜60時間','60時間以上'] },
+      { text:'最近、仕事へのやる気や情熱を感じますか？', category:'心理的消耗', opts:['十分に感じる','まあまあ感じる','あまり感じない','ほとんど感じない'] },
+      { text:'仕事が終わった後、十分に休めていますか？', category:'休息の質', opts:['よく休めている','まあまあ休めている','あまり休めていない','全く休めていない'] },
+      { text:'有給休暇をどの程度取得できていますか？', category:'休暇取得', opts:['ほぼ全て取得','半分以上取得','ほとんど取得できない','全く取得できない'] },
+      { text:'仕事のことを考えると、どのような気持ちになりますか？', category:'メンタルヘルス', opts:['ポジティブ・楽しい','普通・中立','少し憂鬱','非常に憂鬱・つらい'] },
     ];
+
     function getResult(answers) {
-      const score = answers.reduce((s, a) => s + a.idx, 0);
-      if (score <= 3) return { title:'✅ リスク低：現状維持を', desc:'バーンアウトリスクは低めです。良いワークライフバランスを維持しています。引き続き定期的な休息と趣味の時間を大切にしてください。' };
-      if (score <= 7) return { title:'⚠️ リスク中：注意が必要', desc:'バーンアウトの兆候が見られます。休息の質を高め、業務量の見直しを検討しましょう。週に1度は完全オフの時間を設けることをお勧めします。' };
-      return { title:'🚨 リスク高：早急な対策を', desc:'バーンアウトリスクが高い状態です。信頼できる上司や産業医への相談をお勧めします。まず今週の残業を減らし、連続した休暇取得を優先してください。' };
+      const total = answers.reduce((s, a) => s + a.idx, 0);
+      const scores = {
+        '労働時間': answers[0].idx,
+        '心理的消耗': answers[1].idx,
+        '休息の質': answers[2].idx,
+        '休暇取得': answers[3].idx,
+        'メンタルヘルス': answers[4].idx,
+      };
+      let result;
+      if (total <= 3) {
+        result = {
+          title:'✅ リスク低：現状維持を',
+          riskLevel:'低',
+          desc:'バーンアウトリスクは低めです。良いワークライフバランスを維持しています。引き続き定期的な休息と趣味の時間を大切にしてください。',
+          baseScore:total
+        };
+      } else if (total <= 7) {
+        result = {
+          title:'⚠️ リスク中：注意が必要',
+          riskLevel:'中',
+          desc:'バーンアウトの兆候が見られます。休息の質を高め、業務量の見直しを検討しましょう。週に1度は完全オフの時間を設けることをお勧めします。',
+          baseScore:total
+        };
+      } else {
+        result = {
+          title:'🚨 リスク高：早急な対策を',
+          riskLevel:'高',
+          desc:'バーンアウトリスクが高い状態です。信頼できる上司や産業医への相談をお勧めします。まず今週の残業を減らし、連続した休暇取得を優先してください。',
+          baseScore:total
+        };
+      }
+      result.scores = scores;
+      return result;
     }
-    // ★以下変更不要★
+
     const BTN='#7c3aed'; let cur=0; const ans=[];
     document.addEventListener('DOMContentLoaded',()=>{ document.getElementById('q-total').textContent=QUESTIONS.length; });
-    function startQuiz(){ cur=0;ans.length=0; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); renderQ(); }
+
+    function startQuiz(){
+      cur=0; ans.length=0;
+      document.getElementById('quiz-start').style.display='none';
+      document.getElementById('quiz-area').style.display='block';
+      document.getElementById('result').classList.remove('show');
+      renderQ();
+    }
+
     function renderQ(){
       const q=QUESTIONS[cur];
       document.getElementById('q-num').textContent=cur+1;
       document.getElementById('q-bar').style.width=((cur+1)/QUESTIONS.length*100)+'%';
       document.getElementById('q-text').textContent=q.text;
-      document.getElementById('q-options').innerHTML=q.opts.map((o,i)=>`<button class="quiz-opt" onclick="answer(${i})">${o}</button>`).join('');
+      document.getElementById('q-options').innerHTML=q.opts.map((o,i)=>`<button class="quiz-opt" onclick="answer(${i}, this)">${o}</button>`).join('');
     }
-    function answer(idx){ ans.push({idx}); cur++; if(cur>=QUESTIONS.length) showResult(); else renderQ(); }
+
+    function answer(idx, el){
+      el.classList.add('selected');
+      setTimeout(()=>{
+        ans.push({idx, category:QUESTIONS[cur].category});
+        cur++;
+        if(cur>=QUESTIONS.length) showResult();
+        else renderQ();
+      }, 300);
+    }
+
     function showResult(){
       document.getElementById('quiz-area').style.display='none';
       const r=getResult(ans);
       document.getElementById('r-title').textContent=r.title;
       document.getElementById('r-desc').textContent=r.desc;
+
+      // スコア内訳の表示
+      const scoreLabels = ['労働時間','心理的消耗','休息の質','休暇取得','メンタルヘルス'];
+      const breakdownHTML = scoreLabels.map((label, i) => {
+        const score = r.scores[label];
+        const maxScore = 3;
+        const pct = Math.round((score / maxScore) * 100);
+        return `<div class="score-item"><div class="score-label">${label}</div><div class="score-value">${score}/3</div></div>`;
+      }).join('');
+      document.getElementById('score-breakdown').innerHTML = breakdownHTML;
+
+      // リスク高の場合、相談窓口を表示
+      if(r.riskLevel === '高'){
+        document.getElementById('consultation-section').innerHTML = `
+          <div class="consultation-notice">
+            <h4>📞 相談窓口のご案内</h4>
+            <p>バーンアウトリスクが高い状態です。専門家への相談をお勧めします：</p>
+            <p style="margin:8px 0;">• 厚生労働省 こころの相談窓口（無料）：0570-064-556（平日 9:00-17:00）<br>• 産業医・産業保健スタッフへの相談（職場を通じて）<br>• メンタルヘルス専門医への受診</p>
+          </div>
+        `;
+      } else {
+        document.getElementById('consultation-section').innerHTML = '';
+      }
+
       document.getElementById('result').classList.add('show');
     }
-    </script>
+
+    function shareOnTwitter(){
+      const message = encodeURIComponent(`バーンアウトリスク診断を受けました 🔥\n\n完全無料で5つの質問に答えるだけで、あなたのバーンアウトリスクを診断できます。\n\nぜひ試してみてください！`);
+      const url = encodeURIComponent('https://appadaycreator.com/burnout-risk-checker/');
+      window.open(`https://twitter.com/intent/tweet?text=${message}&url=${url}`, '_blank');
+    }
+
+    function shareOnLine(){
+      const message = encodeURIComponent(`バーンアウトリスク診断\n\n労働時間・ストレス度・休暇状況から、あなたのバーンアウトリスクを5つの質問で診断。登録不要・完全無料です。\n\nhttps://appadaycreator.com/burnout-risk-checker/`);
+      window.open(`https://line.me/R/msg/text/?${message}`, '_blank');
+    }
+</script>
     <!-- rakuten-affiliate-block -->
     <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">
       <p style="font-size:0.85rem;color:#4b5563;margin-bottom:8px;">🛒 関連商品を楽天市場で探す</p>

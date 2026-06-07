@@ -310,6 +310,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       </div>
       <p id="result-description" class="text-gray-600 text-sm leading-relaxed mb-4"></p>
       <div id="result-points" class="space-y-2"></div>
+      <div id="result-scores" class="mt-4 pt-4 border-t border-gray-100 space-y-2"></div>
     </div>
 
     <!-- 学習ロードマップ -->
@@ -562,8 +563,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <p style="font-size:12px;color:#4338ca;" class="mt-1">— 佐藤さん（40代・主婦）★★★★★</p>
         </div>
         <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「プログラミングスクール選びに悩んでいたので、目標に合ったコースを絞り込めて時間が節約できました。」</p>
-          <p style="font-size:12px;color:#4338ca;" class="mt-1">— 山本さん（20代・大学生）★★★★☆</p>
+          <p class="text-xs text-gray-700">「TOEIC500点台から始めて、診断でスコアアップ型と出たのでスタディサプリを3ヶ月続けたら650点に上がりました！」</p>
+          <p style="font-size:12px;color:#4338ca;" class="mt-1">— 山本さん（20代・社会人1年目）★★★★☆</p>
         </div>
       </div>
       <div class="flex gap-2 mt-4">
@@ -925,11 +926,20 @@ function skipQuestion() {
 }
 
 function showResult() {
+  // 必須質問チェック（level・purpose・time）
+  const required = ["level", "purpose", "time"];
+  const missing = required.filter(k => !answers[k]);
+  if (missing.length > 0) {
+    alert("「現在の英語レベル」「学習目的」「1日の学習時間」はお答えください。");
+    return;
+  }
+
   document.getElementById("quiz-section").classList.add("hidden");
   document.getElementById("progress-bar").style.width = "100%";
   document.getElementById("q-percent").textContent = "100%";
 
-  const type = diagnose(answers);
+  const scores = diagnoseWithScores(answers);
+  const type = Object.entries(scores).reduce((a, b) => scores[a] >= b[1] ? a : b[0], "gap");
   const result = resultTypes[type];
 
   document.getElementById("result-icon").textContent = result.icon;
@@ -944,6 +954,23 @@ function showResult() {
        <span>${p}</span>
      </div>`
   ).join("");
+
+  // スコアバー表示
+  const typeLabels = { gap: "📱 隙間時間活用型", exam: "📝 スコアアップ型", speaking: "🗣 会話重視型", comprehensive: "🏫 総合学習型" };
+  const totalScore = Object.values(scores).reduce((a, b) => a + b, 1);
+  const scoresEl = document.getElementById("result-scores");
+  scoresEl.innerHTML = `<p class="text-xs font-semibold text-gray-500 mb-2">各学習タイプとの相性スコア</p>` +
+    Object.entries(scores).sort((a, b) => b[1] - a[1]).map(([k, v]) => {
+      const pct = Math.round((v / totalScore) * 100);
+      const isMain = k === type;
+      return `<div class="flex items-center gap-2">
+        <span class="text-xs text-gray-600 w-28 flex-shrink-0">${typeLabels[k]}</span>
+        <div class="flex-1 bg-gray-100 rounded-full h-2">
+          <div class="h-2 rounded-full ${isMain ? 'bg-cyan-500' : 'bg-gray-300'}" style="width:${pct}%"></div>
+        </div>
+        <span class="text-xs text-gray-500 w-8 text-right">${pct}%</span>
+      </div>`;
+    }).join("");
 
   const cardsEl = document.getElementById("affiliate-cards");
   cardsEl.innerHTML = result.services.map(sKey => {
@@ -1017,22 +1044,57 @@ function showResult() {
   resultSection.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function diagnoseWithScores(ans) {
+  const s = { gap: 0, exam: 0, speaking: 0, comprehensive: 0 };
+  // 目的
+  if (ans.purpose === "exam")                    { s.exam += 30; }
+  if (ans.purpose === "business")                { s.speaking += 15; s.comprehensive += 15; }
+  if (ans.purpose === "career")                  { s.speaking += 10; s.comprehensive += 20; }
+  if (ans.purpose === "travel" || ans.purpose === "hobby") { s.speaking += 25; }
+  // TOEIC目標
+  if (ans.toeic === "700" || ans.toeic === "900" || ans.toeic === "900plus") { s.exam += 20; }
+  if (ans.toeic === "500")                       { s.gap += 10; s.exam += 5; }
+  if (ans.toeic === "none")                      { s.speaking += 10; }
+  // 学習時間
+  if (ans.time === "short")                      { s.gap += 20; }
+  if (ans.time === "medium")                     { s.gap += 5; s.speaking += 5; }
+  if (ans.time === "long")                       { s.speaking += 10; s.exam += 5; }
+  if (ans.time === "very_long")                  { s.speaking += 10; s.comprehensive += 15; }
+  // 予算
+  if (ans.budget === "free")                     { s.gap += 25; }
+  if (ans.budget === "low")                      { s.gap += 15; }
+  if (ans.budget === "mid")                      { s.gap += 5; s.exam += 10; }
+  if (ans.budget === "high")                     { s.speaking += 20; }
+  if (ans.budget === "unlimited")                { s.comprehensive += 25; s.speaking += 5; }
+  // スタイル
+  if (ans.style === "app")                       { s.gap += 20; }
+  if (ans.style === "speaking")                  { s.speaking += 25; }
+  if (ans.style === "quiz")                      { s.exam += 20; }
+  if (ans.style === "video")                     { s.gap += 10; s.speaking += 5; }
+  if (ans.style === "text")                      { s.comprehensive += 20; s.exam += 5; }
+  // タイミング
+  if (ans.timing === "commute" || ans.timing === "gap") { s.gap += 20; }
+  if (ans.timing === "morning" || ans.timing === "night") { s.speaking += 5; s.exam += 5; }
+  if (ans.timing === "weekend")                  { s.comprehensive += 15; }
+  // 弱点
+  if (ans.weakness === "speaking")               { s.speaking += 20; }
+  if (ans.weakness === "listening")              { s.gap += 5; s.speaking += 10; }
+  if (ans.weakness === "grammar")                { s.exam += 15; }
+  if (ans.weakness === "reading")                { s.exam += 10; s.comprehensive += 5; }
+  if (ans.weakness === "writing")                { s.comprehensive += 15; }
+  // レベル
+  if (ans.level === "beginner")                  { s.gap += 15; }
+  if (ans.level === "elementary")                { s.gap += 5; s.speaking += 5; }
+  if (ans.level === "intermediate" || ans.level === "advanced") { s.comprehensive += 10; }
+  // 挫折経験
+  if (ans.dropout === "many")                    { s.gap += 15; }
+  if (ans.dropout === "never")                   { s.speaking += 5; }
+  return s;
+}
+
 function diagnose(ans) {
-  // 目的・スタイルから主タイプを判定
-  if (ans.purpose === "exam" || ans.toeic === "700" || ans.toeic === "900" || ans.toeic === "900plus") {
-    return "exam";
-  }
-  if (ans.style === "speaking" || ans.weakness === "speaking" || ans.purpose === "business" || ans.purpose === "career") {
-    if (ans.budget === "high" || ans.budget === "unlimited") return "comprehensive";
-    return "speaking";
-  }
-  if (ans.time === "short" || ans.timing === "commute" || ans.timing === "gap" || ans.budget === "free" || ans.budget === "low") {
-    return "gap";
-  }
-  if (ans.purpose === "travel" || ans.purpose === "hobby") {
-    return "speaking";
-  }
-  return "gap";
+  const s = diagnoseWithScores(ans);
+  return Object.entries(s).reduce((best, [k, v]) => s[best] >= v ? best : k, "gap");
 }
 
 function resetQuiz() {
@@ -1055,55 +1117,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 </script>
-
-<!-- phase10-rakuten-updated -->
-    <!-- スタディサプリENGLISH 新日常英会話 PR -->
-    <div style="text-align:center;margin:8px auto;max-width:500px;padding:12px;background:#fff;border-radius:10px;border:1px solid #e5e7eb;">
-      <p style="font-size:11px;color:#94a3b8;margin-bottom:8px;">PR・広告</p>
-      
-    </div>
-    <!-- スタディサプリENGLISH ビジネス英語 PR -->
-    <div style="text-align:center;margin:8px auto;max-width:500px;padding:12px;background:#fff;border-radius:10px;border:1px solid #e5e7eb;">
-      <p style="font-size:11px;color:#94a3b8;margin-bottom:8px;">PR・広告</p>
-      
-    </div>
-
-<!-- eスポーツ英会話eスピ affiliate -->
-<div style="text-align:center;margin:24px auto;max-width:640px;padding:0 16px;">
-  <p style="font-size:12px;color:#6b7280;margin-bottom:6px;">🎮 PR：ゲームで楽しく英語が上達！</p>
-  
-  <br><br>
-  
-</div>
-<!-- /eスポーツ英会話eスピ affiliate -->
-
-<!-- AF_PLACEHOLDER: スタサプ英語 (No.329/No.330) - リンク未取得 -->
-
-<!-- A8アフィリエイト: CampusTop オンライン英語専門校 -->
-<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;margin:10px 0;">
-  <p style="font-size:13px;font-weight:700;color:#166534;margin:0 0 8px;">小学生からのオンライン英語専門校</p>
-  <p style="font-size:12px;color:#15803d;margin:0 0 8px;">ネイティブ講師と1対1レッスン。英会話・英検・TOEICまで対応。</p>
-  
-</div>
-<!-- /A8アフィリエイト: CampusTop -->
-
-<!-- A8アフィリエイト: 英語リーディング実践講座44 -->
-<div style="background:#f0f7ff;border:1px solid #b3d4f5;border-radius:10px;padding:14px;margin:10px 0;">
-  <p style="font-size:13px;font-weight:700;color:#1a56db;margin:0 0 8px;">📚 英語リーディング力を鍛える</p>
-  <p style="font-size:12px;color:#374151;margin:0 0 8px;">英語リーディング実践講座44。実践的な読解力を身につけてビジネスや資格試験に活かそう。</p>
-  
-</div>
-<!-- /A8アフィリエイト: 英語リーディング実践講座44 -->
-<!-- A8アフィリエイト: Z会Adaptie -->
-<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px;margin:10px 0;">
-  <p style="font-size:13px;font-weight:700;color:#1e40af;margin:0 0 8px;">📚 TOEIC対策オンライン講座【Z会】</p>
-  <p style="font-size:12px;color:#374151;margin:0 0 8px;">Z会Adaptie。いつでも最適レベルで学べるTOEIC対策。社会人向けのオンライン英語講座。</p>
-  
-</div>
-<!-- /A8アフィリエイト: Z会Adaptie -->
-
-<!-- a8-nativecamp-af -->
-<div style="background:#fefce8;border:1px solid #fde68a;border-radius:8px;padding:12px;margin:12px auto;max-width:480px;text-align:center;"><p style="font-size:0.78em;color:#78350f;font-weight:bold;margin-bottom:6px;">🌏 英会話力をアップ</p></div>
 
 <div style="border-top:1px solid #e5e7eb;padding:14px 16px 18px;background:#fff;">
   <p style="text-align:center;font-size:11px;font-weight:600;color:#94a3b8;margin:0 0 10px;">スポンサーリンク</p>

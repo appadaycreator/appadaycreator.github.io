@@ -65,6 +65,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .result-value { font-size: 36px; font-weight: 700; color: #F97316; text-align: center; padding: 16px 0; }
         .badge { display: inline-block; background: #F9731620; color: #F97316; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+        #toast { position: fixed; bottom: 20px; right: 20px; background: #16a34a; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; opacity: 0; transition: opacity 0.3s; z-index: 1000; min-height: auto; }
+        #toast.show { opacity: 1; }
         @media (max-width: 480px) {
             .site-header { padding: 24px 16px; }
             .site-header h1 { font-size: 20px; }
@@ -88,10 +90,18 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
+/* バリデーションエラースタイル */
+.input-error{border-color:#dc2626!important;box-shadow:0 0 0 3px rgba(220,38,38,0.12)!important;background:#fff5f5!important;}
+#form-error{display:none;background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;margin-bottom:10px;}
+#form-error.show{display:block;}
+/* 新規追加ハイライトアニメーション */
+@keyframes highlightNew{0%,20%{background:#fff7ed;box-shadow:0 4px 20px rgba(249,115,22,0.25);}100%{background:white;box-shadow:0 4px 20px rgba(0,0,0,0.08);}}
+.card-new{animation:highlightNew 2s ease;}
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://appadaycreator.com/"},{"@type":"ListItem","position":2,"name":"生産性","item":"https://appadaycreator.com/category/productivity/"},{"@type":"ListItem","position":3,"name":"ペットワクチン・健康記録【無料】記録・管理アプリ","item":"https://appadaycreator.com/pet-vaccination-tracker/"}]}</script>
 </head>
 <body>
+    <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
     <a href="#main-content" class="sr-only" style="position:absolute;top:8px;left:8px;background:#F97316;color:white;padding:8px 16px;border-radius:6px;z-index:9999;text-decoration:none;font-size:14px;" tabindex="1">メインコンテンツへスキップ</a>
@@ -110,39 +120,89 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <li style="color:#9ca3af;">›</li>
       <li><a href="https://appadaycreator.com/category/productivity/" style="color:#4b5563;text-decoration:none;" onmouseover="this.style.color='#2563eb'" onmouseout="this.style.color='#4b5563'">生産性・日常</a></li>
       <li style="color:#9ca3af;">›</li>
-      <li style="color:#1f2937;">ペットワクチン・健康記録記録・管理アプリ</li>
+      <li style="color:#1f2937;">ペットワクチン・健康記録アプリ</li>
     </ol>
   </div>
 </nav>
         <div class="card">
           <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;">💉 ワクチン・健診を記録</h2>
           <div style="display:grid;gap:10px;margin-bottom:16px;">
-            <div>
-              <label style="font-size:12px;color:#666;">ペットの名前</label>
-              <input id="pet-name" type="text" placeholder="ポチ" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;margin-top:4px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div>
+                <label style="font-size:12px;color:#666;">ペットの名前 <span style="color:#dc2626;" aria-hidden="true">*</span></label>
+                <input id="pet-name" type="text" placeholder="ポチ" list="pet-name-list" autocomplete="off" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;margin-top:4px;">
+                <datalist id="pet-name-list"></datalist>
+              </div>
+              <div>
+                <label style="font-size:12px;color:#666;">種別（犬/猫など）<span style="color:#dc2626;" aria-hidden="true"> *</span></label>
+                <select id="pet-species" onchange="updateVaccineOptions()" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;margin-top:4px;">
+                  <option value="">選択してください</option>
+                  <option value="dog">🐕 犬</option>
+                  <option value="cat">🐱 猫</option>
+                  <option value="rabbit">🐰 ウサギ</option>
+                  <option value="other">その他</option>
+                </select>
+              </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
               <div>
-                <label style="font-size:12px;color:#666;">種別</label>
-                <select id="pet-type" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;margin-top:4px;">
-                  <option>混合ワクチン</option><option>狂犬病ワクチン</option><option>フィラリア予防</option><option>ノミ・ダニ予防</option><option>健康診断</option><option>その他</option>
-                </select>
+                <label style="font-size:12px;color:#666;">生年月日（任意）</label>
+                <input id="pet-birth" type="date" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;margin-top:4px;">
               </div>
               <div>
-                <label style="font-size:12px;color:#666;">実施日</label>
-                <input id="pet-date" type="date" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;margin-top:4px;">
+                <label style="font-size:12px;color:#666;">体重（kg、任意）</label>
+                <input id="pet-weight" type="number" placeholder="5.0" step="0.1" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;margin-top:4px;">
               </div>
             </div>
             <div>
-              <label style="font-size:12px;color:#666;">次回予定日（任意）</label>
-              <input id="pet-next" type="date" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;margin-top:4px;">
+              <label style="font-size:12px;color:#666;">接種種別 <span style="color:#dc2626;" aria-hidden="true">*</span></label>
+              <select id="pet-type" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;margin-top:4px;">
+                <option>選択してください</option>
+              </select>
             </div>
-            <div>
-              <label style="font-size:12px;color:#666;">メモ</label>
-              <input id="pet-memo" type="text" placeholder="病院名・費用など" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;margin-top:4px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div>
+                <label style="font-size:12px;color:#666;">実施日 <span style="color:#dc2626;" aria-hidden="true">*</span></label>
+                <input id="pet-date" type="date" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;margin-top:4px;">
+              </div>
+              <div>
+                <label style="font-size:12px;color:#666;">次回予定日（任意）</label>
+                <input id="pet-next" type="date" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;margin-top:4px;">
+              </div>
+            </div>
+            <!-- 詳細オプション折り畳み -->
+            <button type="button" id="toggle-optional" onclick="toggleOptional()" aria-expanded="false" aria-controls="optional-fields" style="background:none;border:1.5px solid #e5e7eb;border-radius:8px;padding:8px 14px;font-size:13px;color:#555;cursor:pointer;width:100%;text-align:left;display:flex;align-items:center;justify-content:space-between;">
+              <span>▼ 詳細情報を入力（病院・費用・特記事項）</span>
+              <span id="toggle-icon" style="font-size:11px;color:#999;">タップで展開</span>
+            </button>
+            <div id="optional-fields" style="display:none;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+              <div>
+                <label style="font-size:12px;color:#666;">病院名（任意）</label>
+                <input id="pet-hospital" type="text" placeholder="〇〇動物病院" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;margin-top:4px;">
+              </div>
+              <div>
+                <label style="font-size:12px;color:#666;">医師名（任意）</label>
+                <input id="pet-doctor" type="text" placeholder="医師名" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;margin-top:4px;">
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div>
+                <label style="font-size:12px;color:#666;">費用（円、任意）</label>
+                <input id="pet-fee" type="number" placeholder="3000" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;margin-top:4px;">
+              </div>
+              <div>
+                <label style="font-size:12px;color:#666;">特記事項（任意）</label>
+                <input id="pet-notes" type="text" placeholder="副反応なし等" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;margin-top:4px;">
+              </div>
+            </div>
             </div>
           </div>
-          <button class="btn" onclick="addEntry()">記録を追加 ＋</button>
+          <div id="form-error" role="alert" aria-live="assertive"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <button class="btn" id="submit-btn" onclick="addEntry()" aria-label="ペットワクチン・健康記録を追加する">記録を追加 ＋</button>
+            <button class="btn" id="cancel-btn" onclick="cancelEdit()" style="background:#999;display:none;">キャンセル</button>
+          </div>
         </div>
         <div id="result" class="result">
           <div id="list-area"></div>
@@ -222,8 +282,17 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <script>
     const KEY='pet-vaccination-tracker';
     const FILTER_KEY=KEY+'-filter';
+    const SORT_KEY=KEY+'-sort';
     const ICONS={'混合ワクチン':'💉','狂犬病ワクチン':'🐕','フィラリア予防':'🦟','ノミ・ダニ予防':'🐛','健康診断':'🏥','その他':'📋'};
-    const NEXT_INTERVALS={'混合ワクチン':365,'狂犬病ワクチン':365,'フィラリア予防':365,'ノミ・ダニ予防':30,'健康診断':365,'その他':365};
+    const VACCINE_MAP={
+      dog:['混合ワクチン','狂犬病ワクチン','フィラリア予防','ノミ・ダニ予防','健康診断','その他'],
+      cat:['混合ワクチン','フィラリア予防','ノミ・ダニ予防','健康診断','その他'],
+      rabbit:['定期検診','ワクチン','ノミ・ダニ予防','その他'],
+      other:['予防接種','健康診断','その他']
+    };
+    const NEXT_INTERVALS={'混合ワクチン':365,'狂犬病ワクチン':365,'フィラリア予防':365,'ノミ・ダニ予防':30,'健康診断':365,'その他':365,'定期検診':365,'ワクチン':365,'予防接種':365};
+    let editingId=null;
+    let sortMode='added';
 
     function load(){ return JSON.parse(localStorage.getItem(KEY)||'[]'); }
     function save(d){
@@ -247,24 +316,165 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       d.setDate(d.getDate()+interval);
       return d.toISOString().slice(0,10);
     }
+    function showToast(msg){
+      const toast=document.getElementById('toast');
+      toast.textContent=msg;
+      toast.classList.add('show');
+      setTimeout(()=>toast.classList.remove('show'),2000);
+    }
+    function updateVaccineOptions(){
+      const species=document.getElementById('pet-species').value;
+      const typeSelect=document.getElementById('pet-type');
+      const vaccines=VACCINE_MAP[species]||['選択してください'];
+      typeSelect.innerHTML='<option value="">選択してください</option>'+vaccines.map(v=>`<option value="${v}">${v}</option>`).join('');
+    }
+    function toggleOptional(){
+      const fields=document.getElementById('optional-fields');
+      const btn=document.getElementById('toggle-optional');
+      const icon=document.getElementById('toggle-icon');
+      const isOpen=fields.style.display!=='none';
+      fields.style.display=isOpen?'none':'block';
+      btn.setAttribute('aria-expanded',String(!isOpen));
+      btn.querySelector('span').textContent=isOpen?'▼ 詳細情報を入力（病院・費用・特記事項）':'▲ 詳細情報を入力（病院・費用・特記事項）';
+      icon.textContent=isOpen?'タップで展開':'閉じる';
+    }
+    function openOptional(){
+      const fields=document.getElementById('optional-fields');
+      const btn=document.getElementById('toggle-optional');
+      const icon=document.getElementById('toggle-icon');
+      fields.style.display='block';
+      btn.setAttribute('aria-expanded','true');
+      btn.querySelector('span').textContent='▲ 詳細情報を入力（病院・費用・特記事項）';
+      icon.textContent='閉じる';
+    }
+    function setSort(mode){
+      sortMode=mode;
+      try{localStorage.setItem(SORT_KEY,mode);}catch(e){}
+      render();
+    }
+    function updatePetNameSuggest(){
+      const data=load();
+      const names=[...new Set(data.map(x=>x.name))];
+      const dl=document.getElementById('pet-name-list');
+      dl.innerHTML=names.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
+    }
+    function getPetColor(name){
+      let hash=0;
+      for(let i=0;i<name.length;i++){
+        hash=((hash<<5)-hash)+name.charCodeAt(i);
+        hash=hash&hash;
+      }
+      const colors=['#FF6B6B','#4ECDC4','#45B7D1','#FFA07A','#98D8C8','#F7DC6F'];
+      return colors[Math.abs(hash)%colors.length];
+    }
     function addEntry(){
       const name=document.getElementById('pet-name').value.trim();
+      const species=document.getElementById('pet-species').value;
       const type=document.getElementById('pet-type').value;
       const date=document.getElementById('pet-date').value;
-      if(!name||!date){ alert('ペットの名前と実施日を入力してください'); return; }
+      const requiredFields=[['pet-name',name,'ペットの名前'],['pet-species',species,'動物種別'],['pet-type',type,'接種種別'],['pet-date',date,'実施日']];
+      const errEl=document.getElementById('form-error');
+      requiredFields.forEach(([id])=>document.getElementById(id).classList.remove('input-error'));
+      const missing=requiredFields.filter(([,v])=>!v);
+      if(missing.length){
+        missing.forEach(([id])=>document.getElementById(id).classList.add('input-error'));
+        errEl.textContent='⚠️ 未入力の必須項目があります: '+missing.map(([,,label])=>label).join('・');
+        errEl.classList.add('show');
+        document.getElementById(missing[0][0]).focus();
+        return;
+      }
+      errEl.classList.remove('show');
       const next=document.getElementById('pet-next').value;
-      const memo=document.getElementById('pet-memo').value.trim();
+      const birth=document.getElementById('pet-birth').value;
+      const weight=document.getElementById('pet-weight').value;
+      const hospital=document.getElementById('pet-hospital').value.trim();
+      const doctor=document.getElementById('pet-doctor').value.trim();
+      const fee=document.getElementById('pet-fee').value;
+      const notes=document.getElementById('pet-notes').value.trim();
       const data=load();
-      data.unshift({id:Date.now(),name,type,date,next,memo});
+      const isEditing=editingId!==null;
+      const entry={
+        id:editingId||Date.now(),
+        name,species,type,date,next,birth,weight,
+        hospital,doctor,fee,notes
+      };
+      if(editingId){
+        const idx=data.findIndex(x=>x.id===editingId);
+        if(idx>=0) data[idx]=entry;
+      }else{
+        data.unshift(entry);
+      }
       save(data);
+      showToast(isEditing?'✅ 記録を更新しました':'✅ 記録を保存しました');
+      clearForm();
+      editingId=null;
+      render();
+      if(!isEditing){
+        setTimeout(()=>{
+          const resultEl=document.getElementById('result');
+          if(resultEl.classList.contains('show')){
+            resultEl.scrollIntoView({behavior:'smooth',block:'start'});
+            const firstCard=resultEl.querySelector('.card');
+            if(firstCard) firstCard.classList.add('card-new');
+          }
+        },50);
+      }
+    }
+    function clearForm(){
+      document.getElementById('form-error').classList.remove('show');
+      ['pet-name','pet-species','pet-type','pet-date'].forEach(id=>document.getElementById(id).classList.remove('input-error'));
       document.getElementById('pet-name').value='';
-      document.getElementById('pet-type').selectedIndex=0;
+      document.getElementById('pet-species').value='';
+      document.getElementById('pet-birth').value='';
+      document.getElementById('pet-weight').value='';
+      document.getElementById('pet-type').value='';
+      document.getElementById('pet-hospital').value='';
+      document.getElementById('pet-doctor').value='';
+      document.getElementById('pet-fee').value='';
+      document.getElementById('pet-notes').value='';
       document.getElementById('pet-next').value='';
-      document.getElementById('pet-memo').value='';
+      document.getElementById('submit-btn').style.display='block';
+      document.getElementById('cancel-btn').style.display='none';
+      document.getElementById('submit-btn').textContent='記録を追加 ＋';
       const _n=new Date();
       document.getElementById('pet-date').value=`${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}`;
+      // 折り畳みを閉じる
+      const fields=document.getElementById('optional-fields');
+      const btn=document.getElementById('toggle-optional');
+      const icon=document.getElementById('toggle-icon');
+      fields.style.display='none';
+      btn.setAttribute('aria-expanded','false');
+      btn.querySelector('span').textContent='▼ 詳細情報を入力（病院・費用・特記事項）';
+      icon.textContent='タップで展開';
       document.getElementById('pet-name').focus();
-      render();
+    }
+    function editEntry(id){
+      editingId=id;
+      const data=load();
+      const entry=data.find(x=>x.id===id);
+      if(!entry) return;
+      document.getElementById('pet-name').value=entry.name;
+      document.getElementById('pet-species').value=entry.species;
+      updateVaccineOptions();
+      document.getElementById('pet-type').value=entry.type;
+      document.getElementById('pet-date').value=entry.date;
+      document.getElementById('pet-birth').value=entry.birth||'';
+      document.getElementById('pet-weight').value=entry.weight||'';
+      document.getElementById('pet-hospital').value=entry.hospital||'';
+      document.getElementById('pet-doctor').value=entry.doctor||'';
+      document.getElementById('pet-fee').value=entry.fee||'';
+      document.getElementById('pet-notes').value=entry.notes||'';
+      document.getElementById('pet-next').value=entry.next||'';
+      document.getElementById('submit-btn').style.display='block';
+      document.getElementById('cancel-btn').style.display='block';
+      document.getElementById('submit-btn').textContent='更新する';
+      // 編集時は詳細オプションを展開
+      if(entry.hospital||entry.doctor||entry.fee||entry.notes) openOptional();
+      window.scrollTo(0,0);
+    }
+    function cancelEdit(){
+      editingId=null;
+      clearForm();
     }
     function deleteEntry(id){
       if(!confirm('この記録を削除しますか？')){ return; }
@@ -281,6 +491,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     }
     function render(){
       const data=load();
+      updatePetNameSuggest();
       if(!data.length){
         document.getElementById('result').classList.remove('show');
         return;
@@ -292,21 +503,50 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if(!multiPet) currentFilter='';
       const filtered=currentFilter?data.filter(x=>x.name===currentFilter):data;
 
-      // 統計情報を計算
+      // ソート処理
+      const sorted=sortMode==='next'
+        ?[...filtered].sort((a,b)=>{
+            if(!a.next&&!b.next) return 0;
+            if(!a.next) return 1;
+            if(!b.next) return -1;
+            return a.next.localeCompare(b.next);
+          })
+        :filtered;
+
       const overdue=filtered.filter(x=>x.next&&x.next<today).length;
       const soon=filtered.filter(x=>x.next&&x.next>=today&&x.next<new Date(Date.now()+30*86400000).toISOString().slice(0,10)).length;
       const nextDateAll=[...filtered].filter(x=>x.next).sort((a,b)=>a.next.localeCompare(b.next));
       const nextSchedule=nextDateAll.length?nextDateAll[0].next:'なし';
 
-      // 統計パネル
-      const statsHtml=`<div style="background:#f0fdf4;border:1px solid #dcfce7;border-radius:8px;padding:12px;margin-bottom:12px;font-size:12px;">
+      // ペット別次回接種サマリー（2ペット以上のとき）
+      let petSummaryHtml='';
+      if(petNames.length>=2){
+        const summaryCards=petNames.map(name=>{
+          const petRecords=data.filter(x=>x.name===name&&x.next);
+          const upcomingRecords=petRecords.sort((a,b)=>a.next.localeCompare(b.next));
+          const nearest=upcomingRecords[0];
+          const petColor=getPetColor(name);
+          const speciesIcon={'dog':'🐕','cat':'🐱','rabbit':'🐰','other':'🐾'}[data.find(x=>x.name===name)?.species]||'🐾';
+          if(!nearest) return `<div style="background:white;border:1.5px solid ${petColor};border-radius:10px;padding:10px;flex:1;min-width:120px;text-align:center;"><div style="font-weight:700;font-size:13px;">${speciesIcon} ${name}</div><div style="font-size:11px;color:#999;margin-top:4px;">次回予定なし</div></div>`;
+          const isOverdue=nearest.next<today;
+          const days=Math.round((new Date(nearest.next)-new Date(today))/(86400000));
+          const daysStr=isOverdue?`<span style="color:#dc2626;font-weight:700;">⚠️ ${Math.abs(days)}日超過</span>`
+            :days===0?`<span style="color:#f59e0b;font-weight:700;">今日！</span>`
+            :days<=7?`<span style="color:#f59e0b;font-weight:700;">あと${days}日</span>`
+            :`<span style="color:#16a34a;font-weight:700;">あと${days}日</span>`;
+          return `<div style="background:white;border:1.5px solid ${petColor};border-radius:10px;padding:10px;flex:1;min-width:120px;text-align:center;"><div style="font-weight:700;font-size:13px;">${speciesIcon} ${name}</div><div style="font-size:11px;color:#555;margin-top:3px;">${nearest.type}</div><div style="font-size:11px;color:#374151;margin-top:2px;">${formatDate(nearest.next)}</div><div style="margin-top:3px;font-size:11px;">${daysStr}</div></div>`;
+        });
+        petSummaryHtml=`<div style="margin-bottom:12px;"><div style="font-size:12px;font-weight:600;color:#666;margin-bottom:6px;">🐾 ペット別 次回接種サマリー</div><div style="display:flex;gap:8px;flex-wrap:wrap;">${summaryCards.join('')}</div></div>`;
+      }
+
+      const statsHtml=`<div style="background:#fff0e6;border:1px solid #fed7aa;border-radius:8px;padding:12px;margin-bottom:12px;font-size:12px;">
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;">
-          <div><span style="color:#666;">総記録</span><div style="font-size:18px;font-weight:700;color:#16a34a;">${filtered.length}</div></div>
+          <div><span style="color:#666;">総記録</span><div style="font-size:18px;font-weight:700;color:#F97316;">${filtered.length}</div></div>
           <div><span style="color:#666;">期限超過</span><div style="font-size:18px;font-weight:700;color:${overdue>0?'#dc2626':'#16a34a'};"> ${overdue}</div></div>
           <div><span style="color:#666;">30日以内</span><div style="font-size:18px;font-weight:700;color:${soon>0?'#f59e0b':'#16a34a'};"> ${soon}</div></div>
         </div>
-        <div style="margin-top:8px;padding-top:8px;border-top:1px solid #dcfce7;text-align:center;">
-          <span style="color:#666;">次の接種予定:</span> <span style="font-weight:600;">${nextSchedule!=='なし'?formatDate(nextSchedule):nextSchedule}</span>
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid #fed7aa;text-align:center;">
+          <span style="color:#666;">次の接種予定:</span> <span style="font-weight:700;color:#F97316;">${nextSchedule!=='なし'?formatDate(nextSchedule):nextSchedule}</span>
         </div>
       </div>`;
 
@@ -315,21 +555,35 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <button onclick="setFilter('')" style="padding:4px 10px;border-radius:20px;border:1.5px solid ${currentFilter===''?'#F97316':'#e5e7eb'};background:${currentFilter===''?'#F97316':'white'};color:${currentFilter===''?'white':'#555'};font-size:12px;cursor:pointer;min-height:auto;">すべて</button>
         ${petNames.map(n=>`<button onclick="setFilter('${n.replace(/'/g,"\\'")}') " style="padding:4px 10px;border-radius:20px;border:1.5px solid ${currentFilter===n?'#F97316':'#e5e7eb'};background:${currentFilter===n?'#F97316':'white'};color:${currentFilter===n?'white':'#555'};font-size:12px;cursor:pointer;min-height:auto;">${n}</button>`).join('')}
       </div>`:'';
-      const exportHtml=`<button onclick="exportCSV()" style="padding:6px 14px;background:#f0fdf4;border:1.5px solid #16a34a;border-radius:8px;font-size:12px;color:#16a34a;cursor:pointer;font-weight:600;margin-bottom:12px;min-height:auto;">📥 CSV出力</button>`;
+      const sortHtml=`<div style="margin-bottom:10px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+        <span style="font-size:12px;color:#666;">並び順:</span>
+        <button onclick="setSort('added')" style="padding:4px 10px;border-radius:20px;border:1.5px solid ${sortMode==='added'?'#F97316':'#e5e7eb'};background:${sortMode==='added'?'#F97316':'white'};color:${sortMode==='added'?'white':'#555'};font-size:12px;cursor:pointer;min-height:auto;">追加順</button>
+        <button onclick="setSort('next')" style="padding:4px 10px;border-radius:20px;border:1.5px solid ${sortMode==='next'?'#F97316':'#e5e7eb'};background:${sortMode==='next'?'#F97316':'white'};color:${sortMode==='next'?'white':'#555'};font-size:12px;cursor:pointer;min-height:auto;">次回日が近い順</button>
+      </div>`;
+      const exportHtml=`<button onclick="exportCSV()" style="padding:8px 16px;background:#F97316;border:none;border-radius:8px;font-size:13px;color:white;cursor:pointer;font-weight:600;margin-bottom:12px;min-height:44px;">📥 CSV出力</button>`;
 
-      document.getElementById('list-area').innerHTML=`<h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">📋 記録一覧（${filtered.length}件${currentFilter?'・'+currentFilter:''}）</h3>${statsHtml}${filterHtml}${exportHtml}`+
-      filtered.map(x=>{
+      document.getElementById('list-area').innerHTML=`<h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">📋 記録一覧（${filtered.length}件${currentFilter?'・'+currentFilter:''}）</h3>${petSummaryHtml}${statsHtml}${filterHtml}${sortHtml}${exportHtml}`+
+      sorted.map(x=>{
         const isOverdue=x.next&&x.next<today;
         const isSoon=x.next&&!isOverdue&&x.next<new Date(Date.now()+30*86400000).toISOString().slice(0,10);
-        return `<div class="card" style="margin-bottom:10px;border-left:4px solid ${isOverdue?'#dc2626':isSoon?'#f59e0b':'#16a34a'};">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-            <span style="font-size:20px;">${ICONS[x.type]||'📋'}</span>
-            <div>
-              <div style="font-weight:600;">${x.name} — ${x.type}</div>
-              <div style="font-size:12px;color:#666;">実施: ${formatDate(x.date)}${x.next?` | 次回: ${formatDate(x.next)}${isOverdue?' ⚠️ 期限超過':isSoon?' 🔔 もうすぐ':''}`:''}${x.memo?` | ${x.memo}`:''}
-              </div>
+        const petColor=getPetColor(x.name);
+        const speciesIcon={'dog':'🐕','cat':'🐱','rabbit':'🐰','other':'🐾'}[x.species]||'🐾';
+        const cardBg=isOverdue?'background:#fff5f5;border-left:4px solid #dc2626;':isSoon?'background:#fffbeb;border-left:4px solid #f59e0b;':`background:white;border-left:4px solid ${petColor};`;
+        const nextInfo=x.next?`<div style="font-size:12px;margin-top:3px;">🗓 次回: <strong style="color:${isOverdue?'#dc2626':isSoon?'#d97706':'#374151'}">${formatDate(x.next)}</strong>${isOverdue?' <span style="color:#dc2626;font-weight:700;">⚠️ 期限超過</span>':isSoon?' <span style="color:#d97706;font-weight:700;">🔔 もうすぐ</span>':''}</div>`:'';
+        const hospitalDetail=x.hospital?`<div style="font-size:12px;color:#6b7280;margin-top:3px;">🏥 ${x.hospital}${x.doctor?' / '+x.doctor:''}</div>`:'';
+        const extraDetail=(x.fee||x.notes)?`<div style="font-size:12px;color:#6b7280;margin-top:2px;">${x.fee?'¥'+Number(x.fee).toLocaleString():''}${x.fee&&x.notes?' | ':''}${x.notes||''}</div>`:'';
+        return `<div class="card" style="margin-bottom:10px;${cardBg}position:relative;">
+          <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;">
+            <span style="font-size:20px;flex-shrink:0;">${ICONS[x.type]||'📋'}</span>
+            <div style="flex:1;">
+              <div style="font-weight:600;">${speciesIcon} ${x.name} — ${x.type}</div>
+              <div style="font-size:12px;color:#555;margin-top:2px;">📅 実施: ${formatDate(x.date)}</div>
+              ${nextInfo}${hospitalDetail}${extraDetail}
             </div>
-            <button onclick="deleteEntry(${x.id})" style="margin-left:auto;background:#ff6b6b;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;min-height:44px;min-width:44px;">削除</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <button onclick="editEntry(${x.id})" aria-label="${x.name}の${x.type}の記録を編集する" style="width:100%;background:#2563eb;color:white;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;min-height:44px;">✏️ 編集</button>
+            <button onclick="deleteEntry(${x.id})" aria-label="${x.name}の${x.type}の記録を削除する" style="width:100%;background:#ff6b6b;color:white;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;min-height:44px;">削除</button>
           </div>
         </div>`;
       }).join('');
@@ -338,19 +592,42 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const data=load();
       if(!data.length) return;
       const BOM='﻿';
-      const header='ペット名,種別,実施日,次回予定日,メモ\n';
-      const rows=data.map(x=>[x.name,x.type,x.date,x.next||'',x.memo||''].map(v=>'"'+v.replace(/"/g,'""')+'"').join(',')).join('\n');
+      const header='ペット名,動物種,実施日,次回予定日,生年月日,体重,病院,医師,費用,特記事項\n';
+      const rows=data.map(x=>[x.name,x.species||'',x.date,x.next||'',x.birth||'',x.weight||'',x.hospital||'',x.doctor||'',x.fee||'',x.notes||''].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
       const blob=new Blob([BOM+header+rows],{type:'text/csv;charset=utf-8;'});
       const a=document.createElement('a');
       a.href=URL.createObjectURL(blob);
       a.download=`pet-records-${new Date().toISOString().slice(0,10)}.csv`;
       a.click();
     }
+    function requestNotificationPermission(){
+      if('Notification' in window&&Notification.permission==='default'){
+        Notification.requestPermission();
+      }
+    }
+    function checkAndNotify(){
+      if('Notification' in window&&Notification.permission==='granted'){
+        const data=load();
+        const today=new Date().toISOString().slice(0,10);
+        const upcoming=data.filter(x=>x.next&&x.next===new Date(Date.now()+86400000).toISOString().slice(0,10));
+        upcoming.forEach(x=>{
+          new Notification(`🔔 ${x.name}のワクチン接種予定日`,{body:`${x.type}の接種予定日は明日です`,icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">💉</text></svg>'});
+        });
+      }
+    }
     document.getElementById('pet-date').addEventListener('change',function(){
       const next=document.getElementById('pet-next');
       if(!next.value){
         const type=document.getElementById('pet-type').value;
-        next.value=calcNextDate(this.value,type);
+        if(type) next.value=calcNextDate(this.value,type);
+      }
+    });
+    // 接種種別変更時も次回日を自動更新（次回日が空の場合のみ）
+    document.getElementById('pet-type').addEventListener('change',function(){
+      const next=document.getElementById('pet-next');
+      const date=document.getElementById('pet-date').value;
+      if(!next.value&&date&&this.value){
+        next.value=calcNextDate(date,this.value);
       }
     });
     document.addEventListener('DOMContentLoaded',function(){
@@ -358,10 +635,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('pet-date').value=`${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}`;
       try{
         currentFilter=localStorage.getItem(FILTER_KEY)||'';
+        sortMode=localStorage.getItem(SORT_KEY)||'added';
       }catch(e){}
+      requestNotificationPermission();
+      checkAndNotify();
       render();
+      // 必須フィールドの入力でエラー状態をクリア
+      ['pet-name','pet-species','pet-type','pet-date'].forEach(id=>{
+        const el=document.getElementById(id);
+        ['input','change'].forEach(ev=>el.addEventListener(ev,()=>{
+          el.classList.remove('input-error');
+          if(!document.querySelector('.input-error')) document.getElementById('form-error').classList.remove('show');
+        }));
+      });
     });
-    // ★以下変更不要★
     </script>
     <!-- rakuten-affiliate-block -->
     <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">

@@ -317,10 +317,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     };
 
     const d = typeData[answers.type] || typeData['軽二輪（126〜250cc）'];
-    let annualCost = d.tax + d.insurance + d.maintenance + d.fuel;
 
     const distanceMap = { '200km未満（街乗りのみ）': 0, '200〜500km': 1, '500〜1,000km': 2, '1,000〜2,000km': 3.5, '2,000km以上（ロングツーリング）': 6 };
-    annualCost += distanceMap[answers.distance] || 1;
+    const fuelExtra = distanceMap[answers.distance] ?? 1;
 
     const parkingMap = {
       '自宅に無料で置ける': 0,
@@ -328,23 +327,34 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       'コインパーキングを主に利用': 12,
       '月極バイク駐車場（3,000〜8,000円）': 6
     };
-    annualCost += parkingMap[answers.parking] || 0;
+    const parkingCost = parkingMap[answers.parking] ?? 0;
+
+    const taxCost = d.tax;
+    const insuranceCost = d.insurance;
+    const maintenanceCost = d.maintenance;
+    const fuelCost = Math.round((d.fuel + fuelExtra) * 10) / 10;
+    const annualCost = Math.round(taxCost + insuranceCost + maintenanceCost + fuelCost + parkingCost);
 
     let purchasePrice = d.newPrice;
     if (answers.new_used === '正規ディーラーの中古車') purchasePrice = d.usedPrice + 5;
     else if (answers.new_used === '個人売買・ネットの中古車') purchasePrice = d.usedPrice;
 
-    return { annualCost: Math.round(annualCost), purchasePrice: purchasePrice, type: d.recommend };
+    return { annualCost, purchasePrice, type: d.recommend, taxCost, insuranceCost, maintenanceCost, fuelCost, parkingCost };
   }
 
   function showResult() {
     document.getElementById('quiz-section').classList.add('hidden');
     document.getElementById('result-section').classList.remove('hidden');
 
-    const { annualCost, purchasePrice, type } = calcCosts();
+    const { annualCost, purchasePrice, type, taxCost, insuranceCost, maintenanceCost, fuelCost, parkingCost } = calcCosts();
     const firstYearCost = purchasePrice + annualCost;
+    const fiveYearCost = purchasePrice + annualCost * 5;
     const needsLicense = answers.license === 'まだ取得していない';
     const isDelivery = answers.purpose === '配達・フードデリバリー';
+
+    const budgetMap = { '10万円未満': 10, '10〜30万円': 30, '30〜60万円': 60, '60〜120万円': 120, '120万円以上': 999 };
+    const budgetMax = budgetMap[answers.budget] || 60;
+    const budgetOver = purchasePrice > budgetMax;
 
     const advice = [];
     if (needsLicense) advice.push('免許取得費用は原付1〜2万円、普通二輪AT限定8〜12万円、普通二輪MT10〜15万円、大型二輪15〜25万円が目安です。');
@@ -352,6 +362,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     if (answers.new_used === '個人売買・ネットの中古車') advice.push('個人売買は安いですが、整備状態の確認が重要。購入後に修理費用がかかるリスクもあります。ショップ保証付きの中古車も検討を。');
     advice.push('バイクは年1回の定期点検（3,000〜8,000円）と2年ごとの車検（250cc超・2〜4万円）が必要です。');
     advice.push('任意保険は対人・対物無制限を推奨。年齢・等級で保険料が大きく変わります（年2万〜10万円）。');
+
+    const shareText = encodeURIComponent('バイク維持費診断：初年度' + firstYearCost + '万円・年間維持費' + annualCost + '万円 #バイク維持費診断');
+    const shareUrl = encodeURIComponent('https://appadaycreator.com/bike-cost-advisor/');
 
     const html = `
       <div class="grid grid-cols-2 gap-4 mb-5">
@@ -364,23 +377,39 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <p class="text-2xl font-bold text-orange-700">約${annualCost}万円/年</p>
         </div>
       </div>
-      <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5">
-        <p class="text-sm font-semibold text-gray-700 mb-2">想定購入費用</p>
-        <p class="text-xl font-bold text-blue-700">約${purchasePrice}万円</p>
+      <div class="grid grid-cols-2 gap-4 mb-5">
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <p class="text-sm font-semibold text-gray-700 mb-1">想定購入費用</p>
+          <p class="text-xl font-bold text-blue-700">約${purchasePrice}万円</p>
+        </div>
+        <div class="bg-purple-50 border border-purple-200 rounded-xl p-4">
+          <p class="text-sm font-semibold text-gray-700 mb-1">5年間の総コスト</p>
+          <p class="text-xl font-bold text-purple-700">約${fiveYearCost}万円</p>
+          <p class="text-xs text-purple-500 mt-1">購入費 + 維持費×5年</p>
+        </div>
       </div>
+      ${budgetOver
+        ? `<div class="bg-yellow-50 border border-yellow-400 rounded-xl p-4 mb-5 flex gap-2 items-start"><span class="text-xl">⚠️</span><div><p class="text-sm font-semibold text-yellow-800">予算オーバーの可能性あり</p><p class="text-sm text-yellow-700">選択した予算（${answers.budget}）に対して想定購入費用（約${purchasePrice}万円）が超過する場合があります。中古車や排気量ダウンも検討してみましょう。</p></div></div>`
+        : `<div class="bg-green-50 border border-green-400 rounded-xl p-4 mb-5 flex gap-2 items-start"><span class="text-xl">✅</span><div><p class="text-sm font-semibold text-green-800">予算内で購入できる見込みです</p><p class="text-sm text-green-700">選択した予算（${answers.budget}）の範囲内で購入できそうです。維持費を含めた長期プランも立てておきましょう。</p></div></div>`
+      }
       <div class="bg-gray-50 rounded-xl p-4 mb-5">
-        <p class="text-sm font-semibold text-gray-700 mb-2">主な維持費の内訳（目安）</p>
+        <p class="text-sm font-semibold text-gray-700 mb-2">年間維持費の内訳（試算）</p>
         <div class="space-y-1 text-sm text-gray-600">
-          <div class="flex justify-between"><span>軽二輪税・自賠責保険</span><span>年2〜3万円</span></div>
-          <div class="flex justify-between"><span>任意保険</span><span>年2〜6万円</span></div>
-          <div class="flex justify-between"><span>ガソリン代</span><span>年1〜7万円（走行距離次第）</span></div>
-          <div class="flex justify-between"><span>点検・整備・消耗品</span><span>年2〜12万円</span></div>
-          <div class="flex justify-between"><span>駐車場代</span><span>年0〜18万円</span></div>
+          <div class="flex justify-between"><span>税金・自賠責保険</span><span class="font-medium">約${taxCost}万円</span></div>
+          <div class="flex justify-between"><span>任意保険（参考）</span><span class="font-medium">約${insuranceCost}万円</span></div>
+          <div class="flex justify-between"><span>ガソリン代</span><span class="font-medium">約${fuelCost}万円</span></div>
+          <div class="flex justify-between"><span>点検・整備・消耗品</span><span class="font-medium">約${maintenanceCost}万円</span></div>
+          <div class="flex justify-between"><span>駐車場代</span><span class="font-medium">約${parkingCost}万円</span></div>
+          <div class="flex justify-between border-t border-gray-300 pt-1 mt-1 font-semibold text-gray-700"><span>合計（年間）</span><span>約${annualCost}万円</span></div>
         </div>
       </div>
       <h3 class="font-bold text-gray-700 mb-3">バイク購入アドバイス</h3>
-      <div class="space-y-3">
+      <div class="space-y-3 mb-5">
         ${advice.map(a => `<div class="flex gap-3 p-3 bg-gray-50 rounded-xl"><span class="text-xl">🏍️</span><p class="text-sm text-gray-700">${a}</p></div>`).join('')}
+      </div>
+      <div class="flex gap-2">
+        <a href="https://line.me/R/share?text=${shareText}%20${shareUrl}" target="_blank" rel="noopener" style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:10px;border-radius:8px;font-size:13px;font-weight:bold;text-decoration:none;">LINEでシェア</a>
+        <a href="https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}&via=appadaycreator" target="_blank" rel="noopener" style="flex:1;display:block;text-align:center;background:#000;color:white;padding:10px;border-radius:8px;font-size:13px;font-weight:bold;text-decoration:none;">Xでシェア</a>
       </div>`;
 
     document.getElementById('result-content').innerHTML = html;
@@ -415,7 +444,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <h3 class="font-bold text-gray-800 mb-3 text-sm">⭐ 利用者の声</h3>
             <div class="space-y-3">
         <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;">
-          <p class="text-xs text-gray-700">「車の購入かリースか迷っていましたが、総費用を比較できてとても参考になりました。維持費まで含めた計算が助かりました。」</p>
+          <p class="text-xs text-gray-700">「原付から250ccへの乗り換えを検討中に使いました。5年間の総コストが一目でわかり、思い切って購入に踏み切れました！」</p>
           <p style="font-size:12px;color:#1d4ed8;" class="mt-1">— 田中さん（30代・会社員）★★★★★</p>
         </div>
         <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;">

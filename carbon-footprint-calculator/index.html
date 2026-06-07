@@ -73,6 +73,50 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         }
         /* ── サービス固有CSS ── */
 
+        /* カテゴリ内訳 */
+        .breakdown-item {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 6px;
+          font-size: 13px;
+        }
+        .breakdown-label {
+          width: 110px;
+          flex-shrink: 0;
+          color: #374151;
+        }
+        .breakdown-bar-wrap {
+          flex: 1;
+          background: #e5e7eb;
+          border-radius: 999px;
+          height: 8px;
+          overflow: hidden;
+        }
+        .breakdown-bar {
+          height: 100%;
+          border-radius: 999px;
+          transition: width 0.5s ease;
+        }
+        .breakdown-val {
+          width: 70px;
+          text-align: right;
+          font-weight: 600;
+          color: #059669;
+          flex-shrink: 0;
+        }
+        /* 年間換算 */
+        .annual-co2 {
+          text-align: center;
+          font-size: 13px;
+          color: #6b7280;
+          margin-bottom: 12px;
+        }
+        .annual-co2 span {
+          font-weight: 700;
+          color: #374151;
+        }
+
         .section-title {
           font-size: 14px;
           font-weight: 700;
@@ -250,8 +294,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <div style="display:flex;justify-content:space-between;font-size:11px;color:#888;margin-bottom:12px;">
                 <span>0</span><span>日本平均: 400kg</span><span>800kg+</span>
               </div>
+              <div class="annual-co2">年間換算: <span id="annualCO2">0</span> kg-CO2/年</div>
               <div style="font-size:14px;font-weight:700;color:#065f46;margin-bottom:8px;" id="levelMsg"></div>
+              <!-- カテゴリ内訳 -->
+              <div style="margin-bottom:12px;">
+                <div style="font-size:12px;font-weight:700;color:#6b7280;margin-bottom:6px;">▼ カテゴリ別内訳</div>
+                <div id="breakdownArea"></div>
+              </div>
               <div id="adviceArea"></div>
+              <button class="btn" onclick="resetCalc()" style="background:#6b7280;margin-top:12px;font-size:14px;padding:10px;">↩ やり直す（リセット）</button>
             </div>
           </div>
         </div>
@@ -260,7 +311,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="card" style="margin-top:8px;">
             <h3 style="font-size:13px;font-weight:600;color:#888;margin-bottom:10px;">🔗 関連サービス</h3>
             <div style="display:flex;flex-direction:column;gap:6px;">
-                <a href="https://appadaycreator.com/green-diary-app/" style="color:#7c3aed;font-size:13px;text-decoration:none;padding:6px 0;border-bottom:1px solid #f1f5f9;">Green Diary App →</a>
+                <a href="https://appadaycreator.com/green-diary-app/lp/" style="color:#7c3aed;font-size:13px;text-decoration:none;padding:6px 0;border-bottom:1px solid #f1f5f9;">Green Diary App →</a>
                 <a href="https://appadaycreator.com/electricity-plan-advisor/" style="color:#7c3aed;font-size:13px;text-decoration:none;padding:6px 0;border-bottom:1px solid #f1f5f9;">⚡ 電力会社・プラン最適診断 →</a>
                 <a href="https://appadaycreator.com/gasoline-cost-calculator/" style="color:#7c3aed;font-size:13px;text-decoration:none;padding:6px 0;border-bottom:1px solid #f1f5f9;">⛽ ガソリン代計算ツール →</a>
             </div>
@@ -325,10 +376,24 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     
 <script>
+    const LS_KEY = 'cfp_inputs';
 
+    /* localStorage から入力値を復元 */
     document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('electric').value = 300;
-      document.getElementById('gas').value = 20;
+      const saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+      if (saved) {
+        if (saved.carKm    != null) document.getElementById('carKm').value    = saved.carKm;
+        if (saved.carFuel  != null) document.getElementById('carFuel').value  = saved.carFuel;
+        if (saved.transitKm != null) document.getElementById('transitKm').value = saved.transitKm;
+        if (saved.flightH  != null) document.getElementById('flightH').value  = saved.flightH;
+        if (saved.meatFreq != null) document.getElementById('meatFreq').value = saved.meatFreq;
+        if (saved.electric != null) document.getElementById('electric').value = saved.electric;
+        if (saved.gas      != null) document.getElementById('gas').value      = saved.gas;
+      } else {
+        /* 初期値のみ設定 */
+        document.getElementById('electric').value = 300;
+        document.getElementById('gas').value = 20;
+      }
     });
 
     function calcCarbon() {
@@ -340,6 +405,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const electric = parseFloat(document.getElementById('electric').value) || 0;
       const gas      = parseFloat(document.getElementById('gas').value) || 0;
 
+      /* 入力値を localStorage に保存 */
+      localStorage.setItem(LS_KEY, JSON.stringify({ carKm, carFuel: carFactor, transitKm: transit, flightH, meatFreq: meat, electric, gas }));
+
       const co2Car     = carKm * carFactor;
       const co2Transit = transit * 0.04;
       const co2Flight  = flightH * 80;
@@ -350,6 +418,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const total = co2Car + co2Transit + co2Flight + co2Meat + co2Elec + co2Gas;
 
       document.getElementById('totalCO2').textContent = total.toFixed(1);
+      /* 年間換算 */
+      document.getElementById('annualCO2').textContent = (total * 12).toFixed(0);
 
       const pct = Math.min(100, (total / 800) * 100);
       let barColor;
@@ -368,27 +438,67 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       else                  level = '高め。積極的な削減が効果的です';
       document.getElementById('levelMsg').textContent = level;
 
+      /* カテゴリ内訳 */
+      const categories = [
+        { label: '🚗 車・移動',    val: co2Car,     color: '#3b82f6' },
+        { label: '🚌 電車・バス',  val: co2Transit, color: '#8b5cf6' },
+        { label: '✈️ 飛行機',     val: co2Flight,  color: '#ec4899' },
+        { label: '🍽️ 食事',      val: co2Meat,    color: '#f97316' },
+        { label: '⚡ 電力',       val: co2Elec,    color: '#eab308' },
+        { label: '🔥 ガス',       val: co2Gas,     color: '#ef4444' },
+      ];
+      const maxVal = Math.max(...categories.map(c => c.val), 1);
+      document.getElementById('breakdownArea').innerHTML = categories.map(c => {
+        const pctBar = Math.round((c.val / maxVal) * 100);
+        return `<div class="breakdown-item">
+          <span class="breakdown-label">${c.label}</span>
+          <div class="breakdown-bar-wrap">
+            <div class="breakdown-bar" style="width:${pctBar}%;background:${c.color};"></div>
+          </div>
+          <span class="breakdown-val">${c.val.toFixed(1)} kg</span>
+        </div>`;
+      }).join('');
+
+      /* アドバイス（推定削減量付き） */
       const advices = [];
-      if (co2Car > 30)     advices.push({ icon: '🚗', text: '車の利用を減らして公共交通機関を活用しましょう' });
-      if (co2Elec > 100)   advices.push({ icon: '💡', text: 'LED照明への交換や家電の省エネ設定を見直しましょう' });
-      if (co2Meat > 30)    advices.push({ icon: '🥗', text: '週1〜2回、肉なしの日（ミートフリーデー）を設けましょう' });
-      if (co2Flight > 100) advices.push({ icon: '✈️', text: '飛行機の利用を減らし、新幹線や車の活用を検討しましょう' });
-      if (co2Gas > 40)     advices.push({ icon: '🔥', text: 'ガスの使用を節約し、シャワー時間を短縮しましょう' });
-      if (advices.length === 0) advices.push({ icon: '✅', text: '現在の生活スタイルを継続してください！' });
+      if (co2Car > 30)     advices.push({ icon: '🚗', text: '車の利用を減らして公共交通機関を活用しましょう', saving: Math.round(co2Car * 0.2) });
+      if (co2Elec > 100)   advices.push({ icon: '💡', text: 'LED照明への交換や家電の省エネ設定を見直しましょう', saving: Math.round(co2Elec * 0.15) });
+      if (co2Meat > 30)    advices.push({ icon: '🥗', text: '週1〜2回、肉なしの日（ミートフリーデー）を設けましょう', saving: Math.round(co2Meat * 0.25) });
+      if (co2Flight > 100) advices.push({ icon: '✈️', text: '飛行機の利用を減らし、新幹線や車の活用を検討しましょう', saving: Math.round(co2Flight * 0.5) });
+      if (co2Gas > 40)     advices.push({ icon: '🔥', text: 'ガスの使用を節約し、シャワー時間を短縮しましょう', saving: Math.round(co2Gas * 0.2) });
+      if (advices.length === 0) advices.push({ icon: '✅', text: '現在の生活スタイルを継続してください！', saving: 0 });
 
       document.getElementById('adviceArea').innerHTML = advices.map(a =>
-        `<div class="advice-item"><span>${a.icon}</span><span>${a.text}</span></div>`
+        `<div class="advice-item">
+          <span>${a.icon}</span>
+          <span>${a.text}${a.saving > 0 ? `<br><small style="color:#059669;font-weight:600;">→ 実践で約 ${a.saving} kg/月 削減できます</small>` : ''}</span>
+        </div>`
       ).join('');
 
-      document.getElementById('result').classList.add('show');
+      const result = document.getElementById('result');
+      result.classList.add('show');
+      /* 結果エリアへ自動スクロール */
+      result.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    /* リセット処理 */
+    function resetCalc() {
+      ['carKm', 'transitKm', 'flightH'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('carFuel').value = '0.21';
+      document.getElementById('meatFreq').value = '55';
+      document.getElementById('electric').value = 300;
+      document.getElementById('gas').value = 20;
+      document.getElementById('result').classList.remove('show');
+      localStorage.removeItem(LS_KEY);
+      document.querySelector('.card').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
     </script>
 
     <!-- Amazon アフィリエイト -->
     <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;margin:16px auto;max-width:500px;text-align:center;">
       <p style="font-size:0.78em;color:#15803d;font-weight:bold;margin-bottom:8px;">📚 関連書籍・グッズをAmazonでチェック</p>
-      <a href="https://www.amazon.co.jp/s?k=カーボンフットプ+本+おすすめ&tag=appadaycrea0f-22" target="_blank" rel="noopener noreferrer" class="js-track-affiliate" data-platform="Amazon" data-item-name="カーボンフットプ 関連書籍" data-link-type="affiliate_link" style="display:inline-block;background:#ff9900;color:#fff;padding:9px 20px;border-radius:8px;font-size:0.85em;font-weight:bold;text-decoration:none;margin:4px;">🛒 カーボンフットプ 関連書籍</a>
-      <a href="https://www.amazon.co.jp/s?k=カーボンフットプ+入門+書籍&tag=appadaycrea0f-22" target="_blank" rel="noopener noreferrer" class="js-track-affiliate" data-platform="Amazon" data-item-name="カーボンフットプ 入門ガイド" data-link-type="affiliate_link" style="display:inline-block;background:#ff9900;color:#fff;padding:9px 20px;border-radius:8px;font-size:0.85em;font-weight:bold;text-decoration:none;margin:4px;">🛒 カーボンフットプ 入門ガイド</a>
+      <a href="https://www.amazon.co.jp/s?k=カーボンフットプリント+本+おすすめ&tag=appadaycrea0f-22" target="_blank" rel="noopener noreferrer" class="js-track-affiliate" data-platform="Amazon" data-item-name="カーボンフットプリント 関連書籍" data-link-type="affiliate_link" style="display:inline-block;background:#ff9900;color:#fff;padding:9px 20px;border-radius:8px;font-size:0.85em;font-weight:bold;text-decoration:none;margin:4px;">🛒 カーボンフットプリント 関連書籍</a>
+      <a href="https://www.amazon.co.jp/s?k=カーボンフットプリント+入門+書籍&tag=appadaycrea0f-22" target="_blank" rel="noopener noreferrer" class="js-track-affiliate" data-platform="Amazon" data-item-name="カーボンフットプリント 入門ガイド" data-link-type="affiliate_link" style="display:inline-block;background:#ff9900;color:#fff;padding:9px 20px;border-radius:8px;font-size:0.85em;font-weight:bold;text-decoration:none;margin:4px;">🛒 カーボンフットプリント 入門ガイド</a>
     </div>
     <!-- rakuten-affiliate-block -->
     <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">

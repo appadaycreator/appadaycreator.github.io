@@ -893,6 +893,10 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                             <option value="espresso">エスプレッソ</option>
                                             <option value="aeropress">エアロプレス</option>
                                             <option value="cold-brew">コールドブリュー</option>
+                                            <option value="siphon">サイフォン</option>
+                                            <option value="moka-pot">モカポット</option>
+                                            <option value="clever">クレバードリッパー</option>
+                                            <option value="chemex">ケメックス</option>
                                         </select>
                                     </div>
                                 </div>
@@ -1230,6 +1234,22 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                                     aria-label="シトラスフレーバーを選択"
                                                 >
                                                     シトラス
+                                                </button>
+                                            </div>
+                                            <!-- カスタムフレーバータグ入力 -->
+                                            <div class="flex gap-2 mt-2" id="customFlavorInput">
+                                                <input type="text" id="customFlavorText"
+                                                    placeholder="カスタムフレーバー（例: マンゴー）"
+                                                    class="flex-1 p-2 border border-gray-300 rounded-lg text-sm"
+                                                    style="min-height:36px;font-size:14px;"
+                                                    maxlength="20"
+                                                    aria-label="カスタムフレーバーを入力"
+                                                />
+                                                <button type="button" onclick="addCustomFlavor()"
+                                                    class="px-3 py-1 rounded-lg text-sm font-semibold flex-shrink-0"
+                                                    style="background:#8B4513;color:#fff;border:none;cursor:pointer;"
+                                                    aria-label="カスタムフレーバーを追加">
+                                                    + 追加
                                                 </button>
                                             </div>
                                             <input type="hidden" id="flavorNotes" value="" />
@@ -1595,6 +1615,16 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                             <option value="espresso">エスプレッソ</option>
                             <option value="aeropress">エアロプレス</option>
                             <option value="cold-brew">コールドブリュー</option>
+                            <option value="siphon">サイフォン</option>
+                            <option value="moka-pot">モカポット</option>
+                            <option value="clever">クレバードリッパー</option>
+                            <option value="chemex">ケメックス</option>
+                        </select>
+                        <select id="historyRatingFilter" class="p-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="">評価: すべて</option>
+                            <option value="3">★3以上</option>
+                            <option value="4">★4以上</option>
+                            <option value="5">★5のみ</option>
                         </select>
                     </div>
                     <div class="r34-reveal card p-6">
@@ -2182,6 +2212,14 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     .addEventListener('click', openSignupModal);
                 document.getElementById('signupForm').addEventListener('submit', handleSignup);
 
+                // カスタムフレーバーテキスト入力でEnterキー押下時に追加
+                const customFlavorText = document.getElementById('customFlavorText');
+                if (customFlavorText) {
+                    customFlavorText.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') { e.preventDefault(); addCustomFlavor(); }
+                    });
+                }
+
                 // Affiliate links
                 document.querySelectorAll('[data-affiliate]').forEach((link) => {
                     link.addEventListener('click', handleAffiliateClick);
@@ -2197,8 +2235,10 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 const historyFav = document.getElementById('historyFavoriteFilter');
                 const historyRoast = document.getElementById('historyRoastFilter');
                 const historyMethod = document.getElementById('historyMethodFilter');
+                const historyRating = document.getElementById('historyRatingFilter');
                 if (historySearch) historySearch.addEventListener('input', renderHistoryList);
                 if (historySort) historySort.addEventListener('change', renderHistoryList);
+                if (historyRating) historyRating.addEventListener('change', renderHistoryList);
                 if (historyFav) historyFav.addEventListener('change', renderHistoryList);
                 if (historyRoast) historyRoast.addEventListener('change', renderHistoryList);
                 if (historyMethod) historyMethod.addEventListener('change', renderHistoryList);
@@ -2400,7 +2440,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     return;
                 }
                 const roastLabels = { light: 'ライト', medium: 'ミディアム', dark: 'ダーク', french: 'フレンチ', italian: 'イタリアン' };
-                const methodLabels = { 'pour-over': 'ドリップ', 'french-press': 'フレンチプレス', espresso: 'エスプレッソ', aeropress: 'エアロプレス', 'cold-brew': 'コールドブリュー' };
+                const methodLabels = { 'pour-over': 'ドリップ', 'french-press': 'フレンチプレス', espresso: 'エスプレッソ', aeropress: 'エアロプレス', 'cold-brew': 'コールドブリュー', siphon: 'サイフォン', 'moka-pot': 'モカポット', clever: 'クレバードリッパー', chemex: 'ケメックス' };
                 const headers = ['日付', '豆の名前', '産地', '焙煎度', '抽出方法', '豆の量(g)', '水の量(ml)', '水温(℃)', '抽出時間(秒)', '挽き具合', '総合評価', '香り', '酸味', '苦味', '甘味', 'コク', 'フレーバーノート', 'メモ', 'お気に入り'];
                 const rows = coffeeRecords.map(r => [
                     new Date(r.date).toLocaleString('ja-JP'),
@@ -2538,6 +2578,9 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     if (el) el.textContent = '3';
                 });
                 document.getElementById('extractionRatio').textContent = '';
+                // カスタムフレーバータグを削除してデフォルト8タグのみに戻す
+                document.querySelectorAll('.flavor-tag[data-custom="1"]').forEach(tag => tag.remove());
+                document.getElementById('customFlavorText').value = '';
                 // 日時フィールドを現在時刻にリセット
                 const rdEl2 = document.getElementById('recordDate');
                 if (rdEl2) { const now = new Date(); now.setSeconds(0, 0); rdEl2.value = now.toISOString().slice(0, 16); }
@@ -2750,12 +2793,13 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 if (!historyList) return;
                 const searchVal = (document.getElementById('historySearch')?.value || '').toLowerCase();
                 const sortVal = document.getElementById('historySort')?.value || 'date_desc';
-                const methodLabels = { 'pour-over': 'ドリップ', 'french-press': 'フレンチプレス', espresso: 'エスプレッソ', aeropress: 'エアロプレス', 'cold-brew': 'コールドブリュー' };
+                const methodLabels = { 'pour-over': 'ドリップ', 'french-press': 'フレンチプレス', espresso: 'エスプレッソ', aeropress: 'エアロプレス', 'cold-brew': 'コールドブリュー', siphon: 'サイフォン', 'moka-pot': 'モカポット', clever: 'クレバードリッパー', chemex: 'ケメックス' };
                 const grindLabels = { 'extra-fine': '極細挽き', 'fine': '細挽き', 'medium-fine': '中細挽き', 'medium': '中挽き', 'coarse': '粗挽き' };
 
                 const favoriteOnly = document.getElementById('historyFavoriteFilter')?.checked;
                 const roastFilter = document.getElementById('historyRoastFilter')?.value || '';
                 const methodFilter = document.getElementById('historyMethodFilter')?.value || '';
+                const ratingFilter = parseInt(document.getElementById('historyRatingFilter')?.value || '0') || 0;
                 let records = [...coffeeRecords];
                 if (searchVal) {
                     records = records.filter(r =>
@@ -2774,11 +2818,14 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 if (methodFilter) {
                     records = records.filter(r => r.brewingMethod === methodFilter);
                 }
+                if (ratingFilter > 0) {
+                    records = records.filter(r => (r.overallRating || 0) >= ratingFilter);
+                }
 
                 // 件数バッジ更新
                 const countEl = document.getElementById('historyCount');
                 if (countEl) {
-                    const isFiltered = searchVal || favoriteOnly || roastFilter || methodFilter;
+                    const isFiltered = searchVal || favoriteOnly || roastFilter || methodFilter || ratingFilter > 0;
                     countEl.textContent = isFiltered
                         ? `${records.length}件 / 全${coffeeRecords.length}件`
                         : `全${coffeeRecords.length}件`;
@@ -3074,7 +3121,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 }
 
                 // 週間サマリー計算
-                const methodLabelsWeek = { 'pour-over': 'ドリップ', 'french-press': 'フレンチプレス', espresso: 'エスプレッソ', aeropress: 'エアロプレス', 'cold-brew': 'コールドブリュー' };
+                const methodLabelsWeek = { 'pour-over': 'ドリップ', 'french-press': 'フレンチプレス', espresso: 'エスプレッソ', aeropress: 'エアロプレス', 'cold-brew': 'コールドブリュー', siphon: 'サイフォン', 'moka-pot': 'モカポット', clever: 'クレバードリッパー', chemex: 'ケメックス' };
                 const now = new Date();
                 const dayOfWeek = now.getDay();
                 const weekStart = new Date(now);
@@ -3302,7 +3349,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     return;
                 }
                 const roastLabels = { light: 'ライト', medium: 'ミディアム', dark: 'ダーク', french: 'フレンチ', italian: 'イタリアン' };
-                const methodLabels = { 'pour-over': 'ドリップ', 'french-press': 'フレンチプレス', espresso: 'エスプレッソ', aeropress: 'エアロプレス', 'cold-brew': 'コールドブリュー' };
+                const methodLabels = { 'pour-over': 'ドリップ', 'french-press': 'フレンチプレス', espresso: 'エスプレッソ', aeropress: 'エアロプレス', 'cold-brew': 'コールドブリュー', siphon: 'サイフォン', 'moka-pot': 'モカポット', clever: 'クレバードリッパー', chemex: 'ケメックス' };
 
                 // Bean Chart: 焙煎度分布
                 const beanCtx = document.getElementById('beanChart');
@@ -3593,6 +3640,10 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 'espresso': { light: '93〜96℃', medium: '91〜94℃', dark: '88〜92℃', french: '86〜90℃', italian: '85〜88℃', '': '90〜95℃' },
                 'aeropress': { light: '80〜85℃', medium: '80〜85℃', dark: '75〜82℃', french: '70〜80℃', italian: '68〜78℃', '': '75〜85℃' },
                 'cold-brew': { '': '常温〜冷水（20℃以下）', light: '常温〜冷水', medium: '常温〜冷水', dark: '常温〜冷水', french: '常温〜冷水', italian: '常温〜冷水' },
+                'siphon': { light: '90〜94℃', medium: '88〜92℃', dark: '85〜88℃', french: '83〜87℃', italian: '82〜85℃', '': '88〜94℃' },
+                'moka-pot': { light: '常温〜60℃（タンク水）', medium: '常温〜60℃（タンク水）', dark: '常温〜60℃（タンク水）', french: '常温〜60℃（タンク水）', italian: '常温〜60℃（タンク水）', '': '常温〜60℃（タンク水）' },
+                'clever': { light: '90〜93℃', medium: '88〜92℃', dark: '85〜88℃', french: '83〜86℃', italian: '82〜85℃', '': '88〜93℃' },
+                'chemex': { light: '90〜93℃', medium: '88〜92℃', dark: '85〜88℃', french: '83〜86℃', italian: '82〜85℃', '': '88〜93℃' },
             };
             const updateWaterTempHint = () => {
                 const method = document.getElementById('brewingMethod')?.value || '';
@@ -3606,10 +3657,45 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 hintEl.style.display = temp ? '' : 'none';
             };
 
+            // カスタムフレーバータグ追加
+            window.addCustomFlavor = () => {
+                const input = document.getElementById('customFlavorText');
+                const flavor = input.value.trim();
+                if (!flavor) return;
+                // 重複チェック（既存タグとの重複）
+                const existingFlavors = Array.from(document.querySelectorAll('.flavor-tag')).map(t => t.dataset.flavor);
+                if (existingFlavors.includes(flavor)) {
+                    // 既存タグをアクティブにする
+                    const existing = document.querySelector(`.flavor-tag[data-flavor="${flavor}"]`);
+                    if (existing) { existing.classList.add('active'); input.value = ''; updateFlavorNotes(); return; }
+                }
+                // 新規タグ生成
+                const container = document.querySelector('#customFlavorInput').parentElement.querySelector('.flex.flex-wrap.gap-2');
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'flavor-tag active';
+                btn.dataset.flavor = flavor;
+                btn.dataset.custom = '1';
+                btn.setAttribute('aria-label', `${flavor}フレーバーを選択`);
+                btn.textContent = flavor;
+                btn.addEventListener('click', handleFlavorClick);
+                container.appendChild(btn);
+                input.value = '';
+                updateFlavorNotes();
+            };
+
+            // フレーバーノート入力フィールドを同期更新
+            const updateFlavorNotes = () => {
+                const selected = Array.from(document.querySelectorAll('.flavor-tag.active')).map(t => t.dataset.flavor);
+                document.getElementById('flavorNotes').value = selected.join(',');
+            };
+
             // ---- datalist 更新 ----
+            const DEFAULT_ORIGINS = ['エチオピア', 'コロンビア', 'ブラジル', 'グアテマラ', 'ケニア', 'インドネシア（スマトラ）', 'ホンジュラス', 'コスタリカ', 'ペルー', 'ハワイ（コナ）', 'タンザニア', 'イエメン'];
             const updateRecordDatalist = () => {
                 const beanNames = [...new Set(coffeeRecords.map(r => r.beanName).filter(Boolean))];
-                const origins = [...new Set(coffeeRecords.map(r => r.origin).filter(Boolean))];
+                const recordOrigins = [...new Set(coffeeRecords.map(r => r.origin).filter(Boolean))];
+                const origins = [...new Set([...recordOrigins, ...DEFAULT_ORIGINS])];
                 const beanList = document.getElementById('beanNameList');
                 const originList = document.getElementById('originList');
                 if (beanList) beanList.innerHTML = beanNames.map(n => `<option value="${escHtml(n)}">`).join('');
@@ -3803,7 +3889,7 @@ window.cnSave=function(d){try{var h=JSON.parse(localStorage.getItem("cn_hist")||
 <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
 <script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
 </div>
-<section style="max-width:800px;margin:0 auto 16px;padding:14px;background:#fdf6ec;border-radius:12px;"><h2 style="font-size:0.88rem;font-weight:bold;color:#92400e;margin-bottom:10px;text-align:center;">☕ 趣味・ライフスタイルサービス</h2><div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"><a href="https://appadaycreator.com/hobby-matcher/" style="background:#fff;border:2px solid #f5d3a0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#92400e'" onmouseout="this.style.borderColor='#f5d3a0'"><div style="font-size:1.3rem;">🎨</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">趣味マッチング</div></a><a href="https://appadaycreator.com/ai-meditation-forest/" style="background:#fff;border:2px solid #f5d3a0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#92400e'" onmouseout="this.style.borderColor='#f5d3a0'"><div style="font-size:1.3rem;">🧘</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">AI瞑想</div></a><a href="https://appadaycreator.com/plant-encyclopedia/" style="background:#fff;border:2px solid #f5d3a0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#92400e'" onmouseout="this.style.borderColor='#f5d3a0'"><div style="font-size:1.3rem;">🌿</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">観葉植物</div></a><a href="https://appadaycreator.com/green-diary-app/" style="background:#fff;border:2px solid #f5d3a0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#92400e'" onmouseout="this.style.borderColor='#f5d3a0'"><div style="font-size:1.3rem;">📔</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">グリーン日記</div></a></div></section>
+<section style="max-width:800px;margin:0 auto 16px;padding:14px;background:#fdf6ec;border-radius:12px;"><h2 style="font-size:0.88rem;font-weight:bold;color:#92400e;margin-bottom:10px;text-align:center;">☕ 趣味・ライフスタイルサービス</h2><div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;"><a href="https://appadaycreator.com/hobby-matcher/lp/" style="background:#fff;border:2px solid #f5d3a0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#92400e'" onmouseout="this.style.borderColor='#f5d3a0'"><div style="font-size:1.3rem;">🎨</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">趣味マッチング</div></a><a href="https://appadaycreator.com/ai-meditation-forest/" style="background:#fff;border:2px solid #f5d3a0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#92400e'" onmouseout="this.style.borderColor='#f5d3a0'"><div style="font-size:1.3rem;">🧘</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">AI瞑想</div></a><a href="https://appadaycreator.com/plant-encyclopedia/" style="background:#fff;border:2px solid #f5d3a0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#92400e'" onmouseout="this.style.borderColor='#f5d3a0'"><div style="font-size:1.3rem;">🌿</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">観葉植物</div></a><a href="https://appadaycreator.com/green-diary-app/lp/" style="background:#fff;border:2px solid #f5d3a0;border-radius:10px;padding:10px 14px;text-decoration:none;text-align:center;min-width:100px;" onmouseover="this.style.borderColor='#92400e'" onmouseout="this.style.borderColor='#f5d3a0'"><div style="font-size:1.3rem;">📔</div><div style="font-size:0.75rem;font-weight:bold;color:#374151;margin-top:3px;">グリーン日記</div></a></div></section>
 <div style="text-align:center;margin:14px auto;max-width:800px;padding:0 16px;">
 <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
 <script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
@@ -3931,7 +4017,7 @@ window.cnSave=function(d){try{var h=JSON.parse(localStorage.getItem("cn_hist")||
     <a href="https://appadaycreator.com/cosmic-typing-adventure/" class="related-link">TypingMaster Pro</a>
     <a href="https://appadaycreator.com/muscle-rotation-manager/" class="related-link">筋トレ部位ローテーション管理</a>
     <a href="https://appadaycreator.com/kanji-tower-defense/" class="related-link">漢字タワーディフェンス「文字城防衛」</a>
-    <a href="https://appadaycreator.com/codebreaker-puzzle/" class="related-link">暗号解読パズル「コードブレイカー」</a>
+    <a href="https://appadaycreator.com/codebreaker-puzzle/lp/" class="related-link">暗号解読パズル「コードブレイカー」</a>
   </div>
 </section>
 </div>

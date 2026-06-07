@@ -17,7 +17,6 @@
   <meta property="og:url" content="https://appadaycreator.com/dog-walk-tracker/">
   <meta property="og:type" content="website">
 <meta property="og:locale" content="ja_JP" />
-  <text y='.9em' font-size='90'>🐕</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
@@ -33,8 +32,8 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Noto Sans JP', 'Inter', sans-serif; background: #f8fafc; min-height: 100vh; color: #f1f8e9; }
-    header { background: rgba(255,255,255,0.05);padding: 1rem 1.5rem; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    body { font-family: 'Noto Sans JP', 'Inter', sans-serif; background: #0d1f00; min-height: 100vh; color: #f1f8e9; }
+    header { background: rgba(255,255,255,0.05); padding: 1rem 1.5rem; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); }
     header h1 { font-size: 1.6rem; color: #fff; font-weight: 700; }
     header p { font-size: 0.9rem; color: #aed581; margin-top: 0.3rem; }
     main { max-width: 900px; margin: 0 auto; padding: 1.5rem; }
@@ -184,13 +183,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="timer-display" id="timerDisplay">00:00:00</div>
     <div class="timer-btns">
       <button class="timer-btn timer-start" onclick="startTimer()" id="startBtn">▶ 開始</button>
-      <button class="timer-btn timer-stop" onclick="stopTimer()" id="stopBtn">⏹ 停止</button>
+      <button class="timer-btn timer-pause" onclick="pauseTimer()" id="pauseBtn" style="display:none;background:linear-gradient(90deg,#e65100,#ff9800);color:#fff;">⏸ 一時停止</button>
+      <button class="timer-btn timer-stop" onclick="stopTimer()" id="stopBtn">⏹ 終了・記録</button>
       <button class="timer-btn timer-reset" onclick="resetTimer()">↺ リセット</button>
     </div>
   </section>
 
   <!-- 散歩記録の追加 -->
-  <section class="card">
+  <section class="card" id="walkFormCard">
     <h2>📝 散歩を記録する</h2>
     <div class="form-grid">
       <div class="form-group">
@@ -233,16 +233,22 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <label>メモ（気になること・出来事）</label>
       <textarea id="walkNote" placeholder="今日は公園でお友達のワンちゃんと遊んだ！"></textarea>
     </div>
-    <button class="btn" onclick="addWalk()">散歩を記録する</button>
+    <button class="btn" id="saveWalkBtn" onclick="addWalk()">散歩を記録する</button>
   </section>
 
   <!-- 統計 -->
   <section class="card">
-    <h2>📊 散歩統計（今週）</h2>
+    <h2>📊 散歩統計</h2>
+    <!-- 期間タブ -->
+    <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+      <button id="tabWeek" onclick="switchStatTab('week')" style="flex:1;padding:0.4rem 0.6rem;border-radius:8px;border:1px solid #aed581;background:linear-gradient(90deg,#558b2f,#7cb342);color:#fff;font-weight:700;font-size:0.85rem;cursor:pointer;">今週</button>
+      <button id="tabMonth" onclick="switchStatTab('month')" style="flex:1;padding:0.4rem 0.6rem;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.07);color:#aed581;font-weight:700;font-size:0.85rem;cursor:pointer;">今月</button>
+      <button id="tabAll" onclick="switchStatTab('all')" style="flex:1;padding:0.4rem 0.6rem;border-radius:8px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.07);color:#aed581;font-weight:700;font-size:0.85rem;cursor:pointer;">全期間</button>
+    </div>
     <div class="stats-grid" id="statsGrid">
-      <div class="stat-box"><div class="sv" id="weeklyWalks">0</div><div class="sl">今週の散歩回数</div></div>
-      <div class="stat-box"><div class="sv" id="weeklyMinutes">0</div><div class="sl">今週の合計時間（分）</div></div>
-      <div class="stat-box"><div class="sv" id="weeklyDistance">0</div><div class="sl">今週の合計距離（km）</div></div>
+      <div class="stat-box"><div class="sv" id="weeklyWalks">0</div><div class="sl" id="statLabelWalks">今週の散歩回数</div></div>
+      <div class="stat-box"><div class="sv" id="weeklyMinutes">0</div><div class="sl" id="statLabelMinutes">今週の合計時間（分）</div></div>
+      <div class="stat-box"><div class="sv" id="weeklyDistance">0</div><div class="sl" id="statLabelDistance">今週の合計距離（km）</div></div>
       <div class="stat-box"><div class="sv" id="totalWalks">0</div><div class="sl">通算散歩回数</div></div>
     </div>
     <!-- Weekly Chart -->
@@ -391,23 +397,43 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       timerSeconds++;
       updateTimerDisplay();
     }, 1000);
-    // Auto-fill minutes field
-    document.getElementById('startBtn').style.opacity = '0.5';
+    document.getElementById('startBtn').style.display = 'none';
+    document.getElementById('pauseBtn').style.display = '';
+  }
+
+  function pauseTimer() {
+    if (!timerRunning) {
+      // 再開
+      timerRunning = true;
+      timerInterval = setInterval(() => { timerSeconds++; updateTimerDisplay(); }, 1000);
+      document.getElementById('pauseBtn').textContent = '⏸ 一時停止';
+    } else {
+      // 一時停止
+      clearInterval(timerInterval);
+      timerRunning = false;
+      document.getElementById('pauseBtn').textContent = '▶ 再開';
+    }
   }
 
   function stopTimer() {
     clearInterval(timerInterval);
     timerRunning = false;
-    // Auto-fill the minutes field
+    // 散歩時間をフォームに反映
     const mins = Math.round(timerSeconds / 60);
     if (mins > 0) document.getElementById('walkMinutes').value = mins;
-    document.getElementById('startBtn').style.opacity = '1';
+    document.getElementById('startBtn').style.display = '';
+    document.getElementById('pauseBtn').style.display = 'none';
+    document.getElementById('pauseBtn').textContent = '⏸ 一時停止';
   }
 
   function resetTimer() {
-    stopTimer();
+    clearInterval(timerInterval);
+    timerRunning = false;
     timerSeconds = 0;
     updateTimerDisplay();
+    document.getElementById('startBtn').style.display = '';
+    document.getElementById('pauseBtn').style.display = 'none';
+    document.getElementById('pauseBtn').textContent = '⏸ 一時停止';
   }
 
   // Set default datetime
@@ -423,15 +449,28 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     const mood = document.getElementById('walkMood').value;
     const note = document.getElementById('walkNote').value.trim();
     if (!date || !minutes) { alert('日時と散歩時間を入力してください'); return; }
-    const walk = { id: Date.now(), name, date, minutes, distance, weather, mood, note };
-    walks.unshift(walk);
+
+    if (editingWalkId !== null) {
+      // 編集モード: 既存レコードを更新
+      const idx = walks.findIndex(x => x.id === editingWalkId);
+      if (idx !== -1) walks[idx] = { id: editingWalkId, name, date, minutes, distance, weather, mood, note };
+      editingWalkId = null;
+      const btn = document.getElementById('saveWalkBtn');
+      if (btn) { btn.textContent = '散歩を記録する'; btn.style.background = 'linear-gradient(90deg, #558b2f, #7cb342)'; }
+      showToast('✅ 記録を更新しました！');
+    } else {
+      // 新規追加モード
+      const walk = { id: Date.now(), name, date, minutes, distance, weather, mood, note };
+      walks.unshift(walk);
+      resetTimer();
+      showToast('✅ 散歩を記録しました！');
+    }
+
     localStorage.setItem('dogWalks', JSON.stringify(walks));
-    resetTimer();
     renderWalkList();
     renderStats();
     renderDwtGoalBar();
     document.getElementById('walkNote').value = '';
-    showToast('✅ 散歩を記録しました！');
   }
 
   function deleteWalk(id) {
@@ -463,7 +502,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div><div class="walk-date">${dow} ${dateStr} ${w.weather}</div></div>
           <div style="display:flex;align-items:center;gap:0.5rem;">
             <div class="walk-duration">${w.minutes}分 ${w.distance}km</div>
-            <button class="delete-btn" onclick="deleteWalk(${w.id})">✕</button>
+            <button class="delete-btn" onclick="editWalk(${w.id})" style="color:#ccff90;" title="編集">✏️</button>
+            <button class="delete-btn" onclick="deleteWalk(${w.id})" title="削除">✕</button>
           </div>
         </div>
         <div class="walk-meta">🐕 ${w.name} ・ ${w.mood}</div>
@@ -472,16 +512,75 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     }).join('') + '</div>';
   }
 
+  let currentStatTab = 'week';
+
+  function switchStatTab(tab) {
+    currentStatTab = tab;
+    const tabs = { week: 'tabWeek', month: 'tabMonth', all: 'tabAll' };
+    Object.entries(tabs).forEach(([key, id]) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (key === tab) {
+        el.style.background = 'linear-gradient(90deg,#558b2f,#7cb342)';
+        el.style.color = '#fff';
+        el.style.border = '1px solid #aed581';
+      } else {
+        el.style.background = 'rgba(255,255,255,0.07)';
+        el.style.color = '#aed581';
+        el.style.border = '1px solid rgba(255,255,255,0.2)';
+      }
+    });
+    renderStats();
+  }
+
   function renderStats() {
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    const weeklyWalks = walks.filter(w => new Date(w.date) >= weekAgo);
-    document.getElementById('weeklyWalks').textContent = weeklyWalks.length;
-    document.getElementById('weeklyMinutes').textContent = weeklyWalks.reduce((s, w) => s + w.minutes, 0);
-    document.getElementById('weeklyDistance').textContent = weeklyWalks.reduce((s, w) => s + w.distance, 0).toFixed(1);
+    let filtered;
+    let labelSuffix;
+    if (currentStatTab === 'week') {
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      filtered = walks.filter(w => new Date(w.date) >= weekAgo);
+      labelSuffix = '今週の';
+    } else if (currentStatTab === 'month') {
+      const now = new Date();
+      filtered = walks.filter(w => {
+        const d = new Date(w.date);
+        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      });
+      labelSuffix = '今月の';
+    } else {
+      filtered = walks;
+      labelSuffix = '全期間の';
+    }
+    document.getElementById('weeklyWalks').textContent = filtered.length;
+    document.getElementById('weeklyMinutes').textContent = filtered.reduce((s, w) => s + w.minutes, 0);
+    document.getElementById('weeklyDistance').textContent = filtered.reduce((s, w) => s + w.distance, 0).toFixed(1);
     document.getElementById('totalWalks').textContent = walks.length;
+    if (document.getElementById('statLabelWalks')) {
+      document.getElementById('statLabelWalks').textContent = labelSuffix + '散歩回数';
+      document.getElementById('statLabelMinutes').textContent = labelSuffix + '合計時間（分）';
+      document.getElementById('statLabelDistance').textContent = labelSuffix + '合計距離（km）';
+    }
     renderWeeklyChart();
     renderQuickDogNames();
+  }
+
+  // 散歩記録の編集
+  let editingWalkId = null;
+  function editWalk(id) {
+    const w = walks.find(x => x.id === id);
+    if (!w) return;
+    editingWalkId = id;
+    document.getElementById('dogName').value = w.name || '';
+    document.getElementById('walkDate').value = w.date || '';
+    document.getElementById('walkMinutes').value = w.minutes || 30;
+    document.getElementById('walkDistance').value = w.distance || 1.5;
+    document.getElementById('walkWeather').value = w.weather || '☀️ 晴れ';
+    document.getElementById('walkMood').value = w.mood || '😊 普通';
+    document.getElementById('walkNote').value = w.note || '';
+    const btn = document.getElementById('saveWalkBtn');
+    if (btn) { btn.textContent = '✏️ 記録を更新する'; btn.style.background = 'linear-gradient(90deg,#1565c0,#1976d2)'; }
+    document.getElementById('walkFormCard').scrollIntoView({ behavior: 'smooth' });
   }
 
   function renderWeeklyChart() {
@@ -765,6 +864,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 </div>
   <div style="margin-top:8px;"><a href="privacy-policy.html" style="color:inherit;font-size:11px;opacity:0.7;text-decoration:underline;">プライバシーポリシー</a></div>
 <p style="text-align:center;font-size:10px;color:#9ca3af;margin-top:4px;">最終更新: 2026年5月 | 本サービスはアフィリエイト広告（A8.net/Amazon）を掲載しています</p>
+<div style="text-align:center;margin:24px auto;max-width:760px;padding:0 16px">
+<ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+<script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
+</div>
 </footer>
 
 </div>
