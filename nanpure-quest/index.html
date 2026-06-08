@@ -17,6 +17,7 @@
     <meta property="og:url" content="https://appadaycreator.com/nanpure-quest/">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="数独バトルRPG【ナンプレクエスト】無料で遊べる脳トレゲーム" />
+    <meta name="twitter:image" content="https://appadaycreator.com/nanpure-quest/ogp.png">
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
     <link rel="canonical" href="https://appadaycreator.com/nanpure-quest/">
@@ -862,6 +863,11 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 <div class="grid lg:grid-cols-2 gap-4 md:gap-8 mb-8">
                     <!-- Sudoku Game Area -->
                     <div class="game-container p-4 md:p-6">
+                        <!-- Quick Actions Bar -->
+                        <div class="flex gap-2 mb-4 flex-wrap">
+                            <button id="quickPlayBtn" onclick="quickPlayLastDifficulty()" style="display:none;background:#16a34a;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.9rem;font-weight:bold;border:none;cursor:pointer;flex:1;min-width:140px;" aria-label="前回の難易度で続きから遊ぶ">📝 続きから遊ぶ <span id="quickPlayLevel" style="font-size:0.8em;opacity:0.9;"></span></button>
+                            <button id="pwaInstallBtn" onclick="installPWA()" style="display:none;background:#3b82f6;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.9rem;font-weight:bold;border:none;cursor:pointer;flex:1;min-width:140px;" aria-label="ホーム画面にアプリを追加">📱 ホーム画面に追加</button>
+                        </div>
                         <div class="flex items-center mb-2">
                             <label for="difficultySelect" class="mr-2">難易度:</label>
                             <select id="difficultySelect" class="bg-gray-800 text-white px-2 py-1 rounded" onchange="updateDifficultyGuide()">
@@ -1069,6 +1075,14 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
   <h3 style="font-size:1.1rem;font-weight:800;color:#e65100">注意点・補足</h3>
   <p style="margin:8px 0 0;line-height:1.7;color:#1a1a2e">数独は判断力・集中力の維持に良い刺激を与えます。長時間のプレイは目の疲れに注意し、適度に休憩してください。</p>
 </div>
+<!-- r20-tool-links -->
+<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:.75rem;padding:1.25rem 1.5rem;margin:2rem 0">
+  <p style="font-weight:700;color:#374151;margin:0 0 .75rem;font-size:.9rem">📖 このツールに関連するコラム記事</p>
+  <ul style="margin:0;padding-left:1.25rem;color:#4b5563;line-height:2">
+    <li><a href="/blog/fire-calculation-guide/" style="color:#4f46e5">FIRE達成のための資産計算入門</a></li>
+    <li><a href="/blog/nisa-ideco-guide/" style="color:#4f46e5">新NISA＆iDeCoを最大活用する方法</a></li>
+  </ul>
+</div>
 <div id="tool-disclaimer" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1.25rem 1.5rem;margin:1.5rem 0;font-size:.875rem">
   <p style="font-weight:700;color:#374151;margin:0 0 .5rem">⚠️ 計算結果の活用にあたって</p>
   <p style="color:#4b5563;margin:0 0 .5rem;line-height:1.75">計算結果は参考値です。入力値や前提条件によって結果が変わります。重要な判断の際は最新の公式情報をご確認ください。</p>
@@ -1223,6 +1237,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             pendingDifficulty = gameDifficulty;
             sel.addEventListener('change', e => {
                 pendingDifficulty = e.target.value;
+                nqSafeSet('nq_last_difficulty', e.target.value);
             });
             btn.addEventListener('click', () => {
                 if (pendingDifficulty === gameDifficulty) {
@@ -1231,6 +1246,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 }
                 const diffLabel = sel.options[sel.selectedIndex].text;
                 gameDifficulty = pendingDifficulty;
+                nqSafeSet('nq_last_difficulty', pendingDifficulty);
                 newGame();
                 showNqToast(`🎯 難易度を「${diffLabel}」に変更しました`, 'info');
             });
@@ -1727,7 +1743,31 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             startGameTimer();
             addBattleLog('🎮 新しいバトル開始！');
         }
-        
+
+        // Quick Play - Start with last difficulty
+        function quickPlayLastDifficulty() {
+            const lastDiff = nqSafeGet('nq_last_difficulty', 'normal');
+            document.getElementById('difficultySelect').value = lastDiff;
+            updateDifficultyGuide();
+            newGame();
+        }
+
+        // PWA Install function
+        let deferredPrompt;
+        function installPWA() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then(choiceResult => {
+                    if (choiceResult.outcome === 'accepted') {
+                        nqSafeSet('nq_pwa_installed', true);
+                        nqSafeSet('nq_pwa_install_date', new Date().toISOString());
+                    }
+                    deferredPrompt = null;
+                    document.getElementById('pwaInstallBtn').style.display = 'none';
+                });
+            }
+        }
+
         // Show hint（MP 10消費）
         function showHint() {
             if (gameState.isPaused) { showNqToast('⏸ ポーズ中です。再開してから操作してください', 'info'); return; }
@@ -2559,6 +2599,32 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     .catch(err => { try { console.warn('[nq SW]', err.message); } catch(e) {} });
             });
         }
+
+        // PWA Install prompt handling
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            const installBtn = document.getElementById('pwaInstallBtn');
+            if (installBtn) installBtn.style.display = 'flex';
+        });
+
+        window.addEventListener('appinstalled', () => {
+            deferredPrompt = null;
+            const installBtn = document.getElementById('pwaInstallBtn');
+            if (installBtn) installBtn.style.display = 'none';
+            nqSafeSet('nq_pwa_installed', true);
+        });
+
+        // Initialize quick-play button
+        document.addEventListener('DOMContentLoaded', () => {
+            const lastDiff = nqSafeGet('nq_last_difficulty', null);
+            const quickPlayBtn = document.getElementById('quickPlayBtn');
+            if (lastDiff && quickPlayBtn) {
+                const diffNames = { beginner: '初心者', easy: 'かんたん', normal: 'ふつう', hard: 'むずかしい', superhard: '超難問' };
+                quickPlayBtn.style.display = 'flex';
+                document.getElementById('quickPlayLevel').textContent = `(${diffNames[lastDiff] || 'ふつう'})`;
+            }
+        });
         
     </script>
     <!-- --- キーボード・十字キー操作 --- -->
@@ -2748,22 +2814,22 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         </div>
     </div>
 
-    <!-- 数独・脳トレ 通信講座（A8.netアフィリエイト） -->
+    <!-- Amazon・Rakuten ナンプレ関連書籍アフィリエイト -->
     <div style="background:#f0fdf4;border-top:2px solid #86efac;padding:20px 16px;font-family:'Noto Sans JP',system-ui,sans-serif">
-      <h2 style="font-size:1rem;font-weight:800;color:#14532d;text-align:center;margin:0 0 12px">🧩 脳トレ・論理思考力をさらに鍛えよう</h2>
+      <h2 style="font-size:1rem;font-weight:800;color:#14532d;text-align:center;margin:0 0 12px">📚 難易度別ナンプレ問題集で、さらに鍛えよう</h2>
       <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;max-width:680px;margin:0 auto">
         <div style="background:#fff;border:1px solid #86efac;border-radius:12px;padding:16px;flex:1;min-width:260px;max-width:300px">
-          <div style="font-size:.7rem;font-weight:700;color:#15803d;background:#dcfce7;display:inline-block;padding:2px 8px;border-radius:20px;margin-bottom:8px">🧠 脳トレ定番</div>
-          <div style="font-weight:700;color:#14532d;font-size:.95rem;margin-bottom:6px">ユーキャン｜数学検定・論理思考講座</div>
-          <p style="font-size:.8rem;color:#374151;line-height:1.55;margin-bottom:10px">数独で鍛えた論理力を資格に活かそう。数学検定・ロジカルシンキング講座で思考力を証明。ビジネス・就職で評価されるスキルが身につく。</p>
-          <a class="js-track-affiliate" href="https://www.amazon.co.jp/s?k=数独+ナンプレ+問題集+解き方&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="background:#16a34a;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;" data-platform="Amazon" data-item-name="数独ナンプレ問題集" data-link-type="affiliate_link">📚 Amazon関連書籍を見る →</a></div>
+          <div style="font-size:.7rem;font-weight:700;color:#15803d;background:#dcfce7;display:inline-block;padding:2px 8px;border-radius:20px;margin-bottom:8px">📖 問題集で習得</div>
+          <div style="font-weight:700;color:#14532d;font-size:.95rem;margin-bottom:6px">Amazon | ナンプレ問題集</div>
+          <p style="font-size:.8rem;color:#374151;line-height:1.55;margin-bottom:10px">初級〜超難問まで、難易度別の詳しい問題集。ゲームで磨いた解法をさらに深掘りして、論理思考力を極めよう。</p>
+          <a class="js-track-affiliate" href="https://www.amazon.co.jp/s?k=数独+ナンプレ+問題集+解き方&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="background:#16a34a;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;" data-platform="Amazon" data-item-name="数独ナンプレ問題集" data-link-type="affiliate_link">📚 Amazonで探す →</a></div>
         <div style="background:#fff;border:1px solid #86efac;border-radius:12px;padding:16px;flex:1;min-width:260px;max-width:300px">
-          <div style="font-size:.7rem;font-weight:700;color:#15803d;background:#dcfce7;display:inline-block;padding:2px 8px;border-radius:20px;margin-bottom:8px">📚 脳科学・記憶術</div>
-          <div style="font-weight:700;color:#14532d;font-size:.95rem;margin-bottom:6px">クレアール｜思考力・脳活性化講座</div>
-          <p style="font-size:.8rem;color:#374151;line-height:1.55;margin-bottom:10px">パズルで磨いた思考力をビジネスに展開。論理的思考・問題解決・クリティカルシンキングの本格的なビジネス研修が自宅で受講できる。</p>
-          <a class="js-track-affiliate" href="https://www.amazon.co.jp/s?k=数独+ナンプレ+問題集+解き方&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="background:#0369a1;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;" data-platform="Amazon" data-item-name="数独ナンプレ問題集" data-link-type="affiliate_link">📚 おすすめ商品を見る →</a></div>
+          <div style="font-size:.7rem;font-weight:700;color:#15803d;background:#dcfce7;display:inline-block;padding:2px 8px;border-radius:20px;margin-bottom:8px">🎁 楽天で購入</div>
+          <div style="font-weight:700;color:#14532d;font-size:.95rem;margin-bottom:6px">楽天市場 | ナンプレゲーム</div>
+          <p style="font-size:.8rem;color:#374151;line-height:1.55;margin-bottom:10px">ポイント還元率の高い楽天でナンプレ関連商品を検索。ゲーム本や攻略本、グッズまで種類豊富。</p>
+          <a class="js-track-affiliate" href="https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2Fnanpure%2520%25E3%2582%25B2%25E3%2583%25BC%25E3%2583%25A0%2F&link_type=text" target="_blank" rel="nofollow sponsored noopener" style="background:#BF0000;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;" data-platform="Rakuten" data-item-name="ナンプレゲーム" data-link-type="affiliate_link">🛒 楽天で探す →</a></div>
       </div>
-      <p style="text-align:center;font-size:.7rem;color:#94a3b8;margin-top:12px">※本広告はA8.netアフィリエイトプログラムを利用しています</p>
+      <p style="text-align:center;font-size:.7rem;color:#94a3b8;margin-top:12px">※本広告はアフィリエイトプログラムを利用しています</p>
     </div>
     <div style="display:none">
       <input type="text" id="nqPlayerName" required minlength="1" maxlength="20" placeholder="名前" aria-label="名前">
