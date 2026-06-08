@@ -14,7 +14,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0f172a">
-    <meta name="description" content="シーザー暗号・ヴィジュネル暗号など様々な暗号を解読するパズルゲーム。論理思考力・語彙力が鍛えられる無料の謎解きゲーム。登録不要・完全無料でご利用いただけます。">
+    <meta name="description" content="無料の暗号解読パズルゲーム。シーザー暗号から高度な暗号まで15段階で挑戦。論理思考力を鍛える本格的な謎解きゲーム。登録不要で即プレイできます。">
     <meta name="keywords" content="暗号解読,パズルゲーム,謎解き,シーザー暗号,論理的思考,無料ゲーム">
     <meta name="robots" content="index, follow">
     <meta name="author" content="AppADayCreator">
@@ -457,6 +457,13 @@
 
             .modal-content {
                 padding: 16px;
+            }
+
+            /* P2: モバイルでタイマーを sticky 化して常に見える位置に */
+            #timerDisplay {
+                position: sticky;
+                top: 100px;
+                z-index: 50;
             }
         }
 
@@ -2516,6 +2523,27 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         <button class="btn-primary mr-4" onclick="shareResult()">結果をシェア</button>
                         <button class="btn-secondary" onclick="resetGame()">もう一度プレイ</button>
                     </div>
+                    <div style="margin-top:32px;padding-top:24px;border-top:1px solid rgba(251,191,36,0.2);">
+                        <h3 style="text-center;color:#ffe066;font-weight:700;margin-bottom:16px;font-size:1rem;">他のおすすめパズル</h3>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:400px;margin:0 auto;">
+                            <a href="https://appadaycreator.com/bmi-body-tracker/" style="background:rgba(30,41,59,0.8);border:1px solid rgba(251,191,36,0.3);border-radius:10px;padding:12px;text-decoration:none;transition:all 0.2s;display:flex;flex-direction:column;align-items:center;gap:8px;" onmouseover="this.style.borderColor='#fbbf24'" onmouseout="this.style.borderColor='rgba(251,191,36,0.3)'">
+                                <div style="font-size:1.8rem;">⚖️</div>
+                                <span style="color:#f1f5f9;font-size:0.85rem;text-align:center;font-weight:600;">BMI・体重管理</span>
+                            </a>
+                            <a href="https://appadaycreaker.com/sleep-quality-checker/" style="background:rgba(30,41,59,0.8);border:1px solid rgba(251,191,36,0.3);border-radius:10px;padding:12px;text-decoration:none;transition:all 0.2s;display:flex;flex-direction:column;align-items:center;gap:8px;" onmouseover="this.style.borderColor='#fbbf24'" onmouseout="this.style.borderColor='rgba(251,191,36,0.3)'">
+                                <div style="font-size:1.8rem;">😴</div>
+                                <span style="color:#f1f5f9;font-size:0.85rem;text-align:center;font-weight:600;">睡眠診断</span>
+                            </a>
+                            <a href="https://appadaycreaker.com/household-budget-analyzer/" style="background:rgba(30,41,59,0.8);border:1px solid rgba(251,191,36,0.3);border-radius:10px;padding:12px;text-decoration:none;transition:all 0.2s;display:flex;flex-direction:column;align-items:center;gap:8px;" onmouseover="this.style.borderColor='#fbbf24'" onmouseout="this.style.borderColor='rgba(251,191,36,0.3)'">
+                                <div style="font-size:1.8rem;">💰</div>
+                                <span style="color:#f1f5f9;font-size:0.85rem;text-align:center;font-weight:600;">家計簿診断</span>
+                            </a>
+                            <a href="https://appadaycreaker.com/" style="background:rgba(30,41,59,0.8);border:1px solid rgba(251,191,36,0.3);border-radius:10px;padding:12px;text-decoration:none;transition:all 0.2s;display:flex;flex-direction:column;align-items:center;gap:8px;" onmouseover="this.style.borderColor='#fbbf24'" onmouseout="this.style.borderColor='rgba(251,191,36,0.3)'">
+                                <div style="font-size:1.8rem;">🎮</div>
+                                <span style="color:#f1f5f9;font-size:0.85rem;text-align:center;font-weight:600;">全サービス</span>
+                            </a>
+                        </div>
+                    </div>
                 </div>
             `;
         }
@@ -2523,7 +2551,18 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         // 結果シェア
         function shareResult() {
             const hintMsg = gameState.hintsUsed === 0 ? 'ノーヒントで全制覇！🧠' : `ヒント${gameState.hintsUsed}回使用`;
-            const text = `🔐 コードブレイカー 全15暗号制覇！\n${hintMsg}\n解読数: ${gameState.totalSolved}問\n#コードブレイカー #暗号解読 #謎解き`;
+            // ベストタイム合計を計算してシェアテキストに追加
+            let totalBestSeconds = 0, allHaveBest = true;
+            const totalCiphers = Object.keys(ciphers).length;
+            for (let i = 1; i <= totalCiphers; i++) {
+                const b = getBestTime(i);
+                if (b !== null) totalBestSeconds += b;
+                else allHaveBest = false;
+            }
+            const totalBestStr = allHaveBest
+                ? (totalBestSeconds >= 60 ? `${Math.floor(totalBestSeconds / 60)}分${totalBestSeconds % 60}秒` : `${totalBestSeconds}秒`)
+                : `${Math.floor(totalBestSeconds / 60)}分${totalBestSeconds % 60}秒+`;
+            const text = `🔐 コードブレイカー 全15暗号制覇！\n${hintMsg}\n🏅 ベストタイム: ${totalBestStr}\n解読数: ${gameState.totalSolved}問\n#コードブレイカー #暗号解読 #謎解き`;
             shareToTwitter(text);
         }
 
