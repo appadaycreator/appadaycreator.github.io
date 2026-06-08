@@ -34,6 +34,9 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
     <meta property="og:site_name" content="株式ポートフォリオ管理ツール">
+    <meta property="og:article:published_time" content="2026-05-23T00:00:00+09:00">
+    <meta property="og:article:modified_time" content="2026-06-08T00:00:00+09:00">
+    <meta property="og:article:author" content="appadaycreator">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="株式ポートフォリオ管理ツール｜保有株の損益を無料管理">
     <meta name="twitter:description" content="保有株の含み損益・配当利回りを無料で管理。登録不要。">
@@ -335,6 +338,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <p style="text-align:center;color:#94a3b8;padding:20px;">銘柄を登録すると分析が表示されます。</p>
     </div>
     <div id="analysis-content"></div>
+    <div id="diagnosis-section" class="card" style="display:none;background:linear-gradient(135deg,#f5f3ff 0%,#faf5ff 100%);border:1px solid #ddd6fe;margin-top:14px;">
+        <div class="card-title">🔍 ポートフォリオ診断</div>
+        <div id="diagnosis-content"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;justify-content:center;">
+            <button onclick="exportScreenshot()" style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:0.82em;font-weight:600;cursor:pointer;">📸 スクリーンショット</button>
+            <button onclick="window.open('https://twitter.com/intent/tweet?url=' + encodeURIComponent(window.location.href) + '&text=' + encodeURIComponent('📊 ポートフォリオ管理中\n'))" style="background:#000;color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:0.82em;font-weight:600;cursor:pointer;">𝕏 シェア</button>
+        </div>
+    </div>
 </div>
 
 <!-- ===== Tipsタブ ===== -->
@@ -1215,7 +1226,44 @@ function switchTab(name, el) {
     document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
     if (el) el.classList.add('active');
     document.getElementById('panel-'+name).classList.add('active');
-    if (name === 'analysis') { renderAnalysis(); requestAnimationFrame(() => { renderSnapshotChart(); renderDonutChart(); }); }
+    if (name === 'analysis') {
+        renderAnalysis();
+        requestAnimationFrame(() => {
+            renderSnapshotChart();
+            renderDonutChart();
+            // ===== 診断セクション表示 =====
+            const diag = generatePortfolioDiagnosis();
+            const stocks = getStocks();
+            if (stocks.length > 0) {
+                document.getElementById('diagnosis-section').style.display = 'block';
+                document.getElementById('diagnosis-content').innerHTML = `
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+                        <div style="background:#fff;border-radius:8px;padding:10px;text-align:center;border:1px solid #e9d5ff;">
+                            <div style="font-size:0.75em;color:#6b7280;">分散度スコア</div>
+                            <div style="font-size:1.3em;font-weight:800;color:#7c3aed;margin-top:4px;">${diag.dispersal}</div>
+                        </div>
+                        <div style="background:#fff;border-radius:8px;padding:10px;text-align:center;border:1px solid #e9d5ff;">
+                            <div style="font-size:0.75em;color:#6b7280;">リターン効率</div>
+                            <div style="font-size:1.3em;font-weight:800;color:#7c3aed;margin-top:4px;">${diag.efficiency}</div>
+                        </div>
+                        <div style="background:#fff;border-radius:8px;padding:10px;text-align:center;border:1px solid #e9d5ff;">
+                            <div style="font-size:0.75em;color:#6b7280;">リスク度</div>
+                            <div style="font-size:1.3em;font-weight:800;color:#7c3aed;margin-top:4px;">${diag.risk}</div>
+                        </div>
+                        <div style="background:#fff;border-radius:8px;padding:10px;text-align:center;border:1px solid #e9d5ff;">
+                            <div style="font-size:0.75em;color:#6b7280;">配当利回り</div>
+                            <div style="font-size:1.3em;font-weight:800;color:#7c3aed;margin-top:4px;">${diag.dividend}</div>
+                        </div>
+                    </div>
+                    <div style="background:#fff;border-radius:8px;padding:10px;border:1px solid #ddd6fe;">
+                        <div style="font-size:0.8em;font-weight:700;color:#6b7280;margin-bottom:8px;">💡 アドバイス</div>
+                        ${diag.advice.map((a, i) => `<div style="font-size:0.78em;color:#475569;margin-bottom:${i < diag.advice.length-1 ? '6px' : '0px'};">• ${a}</div>`).join('')}
+                    </div>`;
+            } else {
+                document.getElementById('diagnosis-section').style.display = 'none';
+            }
+        });
+    }
     if (name === 'portfolio') {
         // 一括更新パネルが開いていれば再描画
         const panel = document.getElementById('bulk-price-panel');
@@ -1312,6 +1360,86 @@ window.spSave=function(d){try{var h=JSON.parse(localStorage.getItem("sp_hist")||
   window.safeGet=function(k,d){try{var v=localStorage.getItem(k);return v!==null?JSON.parse(v):d;}catch(e){return d;}};
   window.safeSet=function(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){console.warn('storage err',e);}};
 })();
+// ===== ポートフォリオ診断機能 =====
+window.generatePortfolioDiagnosis = function() {
+    const stocks = getStocks();
+    if (stocks.length === 0) return { score: 0, advice: [] };
+    const totalVal = stocks.reduce((a, s) => a + s.currentPrice * s.qty, 0);
+    const totalCost = stocks.reduce((a, s) => a + s.buyPrice * s.qty, 0);
+    const pnl = totalVal - totalCost;
+    let diagnostics = { dispersal: 0, efficiency: '', risk: '', dividend: '', advice: [] };
+
+    // 分散度スコア（セクター集中度、銘柄集中度）
+    const sectorMap = {}, stockPcts = [];
+    stocks.forEach(s => {
+        const val = s.currentPrice * s.qty;
+        sectorMap[s.sector] = (sectorMap[s.sector] || 0) + val;
+        stockPcts.push(val / totalVal * 100);
+    });
+    const maxStockPct = Math.max(...stockPcts);
+    const sectorCnt = Object.keys(sectorMap).length;
+    diagnostics.dispersal = Math.round(Math.min(100, sectorCnt * 15 + (100 - maxStockPct) * 0.8));
+    if (maxStockPct > 30) diagnostics.advice.push('1銘柄が' + maxStockPct.toFixed(0) + '%を占めています。20%以内に抑えてリスク低減を検討してください。');
+    if (sectorCnt < 3) diagnostics.advice.push('セクターが' + sectorCnt + '個と少ないです。業種分散を検討しましょう。');
+
+    // リターン効率（含み益率）
+    const returnRate = totalCost > 0 ? pnl / totalCost * 100 : 0;
+    if (returnRate >= 20) { diagnostics.efficiency = '優秀'; diagnostics.advice.push('リターン効率が優秀です。利益確定のタイミングを検討してください。'); }
+    else if (returnRate >= 5) { diagnostics.efficiency = '良好'; }
+    else if (returnRate >= 0) { diagnostics.efficiency = '平均'; }
+    else { diagnostics.efficiency = '要注視'; diagnostics.advice.push('全体で含み損です。リバランスまたは損切り検討が必要です。'); }
+
+    // リスク度（含み損銘柄の割合）
+    const lossStocks = stocks.filter(s => (s.currentPrice - s.buyPrice) * s.qty < 0).length;
+    const lossRatio = lossStocks / stocks.length * 100;
+    if (lossRatio > 50) { diagnostics.risk = '高'; diagnostics.advice.push('含み損銘柄が全体の' + lossRatio.toFixed(0) + '%です。ポートフォリオ見直しを推奨します。'); }
+    else if (lossRatio > 30) { diagnostics.risk = '中'; diagnostics.advice.push('含み損銘柄が比較的多いです。リバランスを検討してください。'); }
+    else { diagnostics.risk = '低'; }
+
+    // 配当利回り
+    const totalDiv = stocks.reduce((a, s) => a + (s.dividend || 0) * s.qty, 0);
+    const divYield = totalVal > 0 ? totalDiv / totalVal * 100 : 0;
+    if (divYield >= 3) { diagnostics.dividend = '高'; diagnostics.advice.push('配当利回り' + divYield.toFixed(2) + '%は高水準です。継続保有で配当再投資を検討。'); }
+    else if (divYield >= 1.5) { diagnostics.dividend = '中'; }
+    else if (divYield > 0) { diagnostics.dividend = '低'; }
+    else { diagnostics.dividend = 'なし'; diagnostics.advice.push('配当銘柄が少ないです。インカムゲインを狙うなら配当株の追加を検討。'); }
+
+    if (diagnostics.advice.length === 0) diagnostics.advice.push('ポートフォリオはバランスの取れた状態です。定期的な見直しを続けてください。');
+
+    return diagnostics;
+};
+
+// スクリーンショット・PDF エクスポート
+window.exportScreenshot = function() {
+    const elem = document.getElementById('summary-area');
+    if (!elem) { showError('エクスポート対象が見つかりません'); return; }
+
+    // html2canvas と jsPDF をCDNから動的にロード
+    const script1 = document.createElement('script');
+    script1.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    script1.onload = function() {
+        const script2 = document.createElement('script');
+        script2.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+        script2.onload = function() {
+            window.html2canvas(elem, { scale: 2, allowTaint: true }).then(canvas => {
+                const img = canvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.href = img;
+                link.download = 'portfolio_' + new Date().toISOString().split('T')[0] + '.png';
+                link.click();
+                showSuccess('スクリーンショットをダウンロードしました');
+                // Twitter シェア提案
+                const text = '📊 私のポートフォリオ\n総評価額: ' + document.querySelector('.sum-box .val')?.textContent || '未設定' + '\n' +
+                             window.location.href;
+                const twitterUrl = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text);
+                if (confirm('Twitterでシェアしますか？')) window.open(twitterUrl, '_blank', 'width=550,height=420');
+            });
+        };
+        document.body.appendChild(script2);
+    };
+    document.body.appendChild(script1);
+};
+
 </script>
 
 <div style="text-align:center;margin:20px auto;max-width:500px;padding:16px;background:#f9fafb;border-radius:10px;">
@@ -1340,7 +1468,14 @@ window.spSave=function(d){try{var h=JSON.parse(localStorage.getItem("sp_hist")||
 </section></div>
 
 <section aria-labelledby="faq-h" class="bg-white rounded-2xl shadow-md p-4 mb-4" style="max-width:740px;margin-left:auto;margin-right:auto">
-  <h2 id="faq-h" style="font-size:1.05rem;font-weight:700;margin-bottom:12px;border-left:4px solid #4f46e5;padding-left:10px;">よくある質問</h2>
+  
+<div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:12px;padding:1.5rem 1.75rem;margin:2rem 0" id="tool-desc-box">
+  <h2 style="font-size:1.05rem;font-weight:800;color:#1e40af;margin:0 0 1rem">📋 このツールの詳細</h2>
+  <p style="color:#374151;margin:0 0 .75rem;line-height:1.8">「📈 株式ポートフォリオ管理ツール」は、日々のデータを記録・管理するための無料記録・管理ツールです。</p>
+  <p style="color:#374151;margin:0 0 .75rem;line-height:1.8">継続的に記録することで傾向やパターンが見えてきて、改善や意思決定の参考にできます。</p>
+  <p style="color:#374151;margin:0;line-height:1.8">データはブラウザに保存（ローカルストレージ）されるため、サーバーへの送信なく安心してご利用いただけます。</p>
+</div>
+<h2 id="faq-h" style="font-size:1.05rem;font-weight:700;margin-bottom:12px;border-left:4px solid #4f46e5;padding-left:10px;">よくある質問</h2>
   <dl style="line-height:1.8;">
     <dt style="font-weight:600;margin-top:12px;">Q: 記録したデータはどこに保存されますか？</dt>
     <dd style="margin-left:16px;color:#374151;">データはブラウザのローカルストレージに保存されます。外部サーバーへの送信は行いません。</dd>
