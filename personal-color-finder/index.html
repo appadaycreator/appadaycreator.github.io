@@ -19,7 +19,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#7c3aed">
-    <meta name="description" content="肌・瞳・髪の色から春夏秋冬タイプを無料診断。似合うファッション・メイクカラーが分かる。登録不要。スマホ・PC対応。完全無料・スマホ対応。今すぐ無料でお試しください。">
+    <meta name="description" content="肌・瞳・髪・骨格の特徴から春夏秋冬タイプとストレート・ウェーブ・ナチュラルを無料診断。似合う色・コスメ・洋服が全てわかる。登録不要・スマホ対応。今すぐ5分で無料診断してみよう。">
     <meta name="keywords" content="パーソナルカラー,診断,無料,イエベ,ブルべ,骨格,似合う色,コスメ,ファッション,春夏秋冬">
     <link rel="canonical" href="https://appadaycreator.com/personal-color-finder/">
     <!-- C3: preconnect -->
@@ -401,6 +401,7 @@ function showResult(){
         document.getElementById('loading-screen').classList.add('hidden');
         renderResult();
         document.getElementById('result-screen').classList.remove('hidden');
+        checkLastDiagnosis();
         if(window.dataLayer)window.dataLayer.push({event:'personal_color_diagnosis_complete',result:getTop()});
     },600);
 }
@@ -437,6 +438,21 @@ function renderResult(){
     }catch(e){}
     // 推奨リンク動的生成
     renderRecommendedServices(top.color);
+}
+
+function checkLastDiagnosis(){
+    try{
+        const lastDiagnosisTime=parseInt(localStorage.getItem('personal_color_last_diagnosis_time')||'0');
+        const now=Date.now();
+        const oneWeekMs=7*24*60*60*1000;
+        if(lastDiagnosisTime>0&&now-lastDiagnosisTime>oneWeekMs){
+            const lastResult=JSON.parse(localStorage.getItem('personal_color_result')||'{}');
+            if(lastResult.label){
+                showToast(`🌟 前回の診断は「${lastResult.label}」でした。季節やヘアカラーが変わったら、再度診断すると新しい可能性が見つかるかも！`,3000);
+            }
+        }
+        localStorage.setItem('personal_color_last_diagnosis_time',now.toString());
+    }catch(e){}
 }
 
 function renderHistory(){
@@ -498,21 +514,24 @@ function downloadPDF(){
     showToast('📥 PDFダウンロードしました');
 }
 
-function showToast(msg){
+function showToast(msg,duration){
     const t=document.getElementById('toast-notification');
     if(!t)return;
     t.textContent=msg;
     t.classList.remove('hidden');
     t.style.opacity='1';
+    const dur=typeof duration==='number'?duration:3000;
     setTimeout(()=>{
         t.style.opacity='0';
         setTimeout(()=>t.classList.add('hidden'),300);
-    },3000);
+    },dur);
 }
 
 function shareLINE(){
     const d=JSON.parse(localStorage.getItem('personal_color_result')||'{}');
-    const text=`パーソナルカラー診断で「${d.label}」と判定されました！似合う色が分かって目からウロコです。あなたも診断してみては？`;
+    const r=TYPES[d.type];
+    const amazonLink=r?.amazon?.[0]?`\n\n🛍️ ${r.amazon[0].replace(/ おすすめ/,'')}\nhttps://www.amazon.co.jp/s?k=${encodeURIComponent(r.amazon[0])}&tag=appadaycrea0f-22`:'';
+    const text=`パーソナルカラー診断で「${d.label}」と判定されました！似合う色が分かって目からウロコです。あなたも診断してみては？${amazonLink}`;
     const url=`https://line.me/R/share?text=${encodeURIComponent(text+'\n\nhttps://appadaycreator.com/personal-color-finder/')}`;
     window.open(url,'_blank');
     showToast('📱 LINEでシェアしました');
