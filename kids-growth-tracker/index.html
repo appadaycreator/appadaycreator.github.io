@@ -10,7 +10,7 @@
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#7c3aed">
-  <meta name="description" content="お子さまの身長・体重・発達マイルストーン・予防接種を一元管理。成長グラフで発育の推移を可視化する無料の子ども成長記録アプリです。複数のお子さまに対応、データは端末内のみに保存。">
+  <meta name="description" content="【無料・登録不要】子どもの成長記録ダッシュボード。身長・体重・発達マイルストーン・予防接種を一元管理。成長グラフで発育推移を可視化。複数のお子さまに対応、データはブラウザに保存。">
   <meta property="og:title" content="子どもの成長記録ダッシュボード | KidsGrowth">
   <meta property="og:description" content="お子さまの身長・体重・発達マイルストーン・予防接種を一元管理。成長グラフで発育推移を可視化。無料で今すぐ使える！">
   <meta property="og:type" content="website">
@@ -847,6 +847,11 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
   <p style="color:#374151;margin:0 0 .75rem;line-height:1.8">継続的に記録することで傾向やパターンが見えてきて、改善や意思決定の参考にできます。</p>
   <p style="color:#374151;margin:0;line-height:1.8">データはブラウザに保存（ローカルストレージ）されるため、サーバーへの送信なく安心してご利用いただけます。</p>
 </div>
+<div id="tool-disclaimer" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1.25rem 1.5rem;margin:1.5rem 0;font-size:.875rem">
+  <p style="font-weight:700;color:#374151;margin:0 0 .5rem">⚠️ 計算結果の活用にあたって</p>
+  <p style="color:#4b5563;margin:0 0 .5rem;line-height:1.75">計算結果は参考値です。入力値や前提条件によって結果が変わります。重要な判断の際は最新の公式情報をご確認ください。</p>
+  <ul style="margin:0;padding-left:1.25rem;color:#4b5563;line-height:1.9"><li><a href="https://www.caa.go.jp/" target="_blank" rel="noopener noreferrer" style="color:#4f46e5;font-size:.85rem">消費者庁「くらしの安心ガイド」</a></li></ul>
+</div>
 <h2 id="faq-h" style="font-size:1.05rem;font-weight:700;margin-bottom:12px;border-left:4px solid #4f46e5;padding-left:10px;">よくある質問</h2>
   <dl style="line-height:1.8;">
     <dt style="font-weight:600;margin-top:12px;">Q: 記録したデータはどこに保存されますか？</dt>
@@ -876,7 +881,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
 
 <div class="max-w-2xl mx-auto px-4"><section  style="background:#f0f9ff;border:1px solid #bae6fd;padding:16px;text-align:center;font-size:12px;color:#0369a1;border-radius:14px;margin-bottom:16px;">
   <p style="margin:0 0 4px;font-weight:600;">📧 お問い合わせ</p>
-  <p style="margin:0;">ご意見・ご要望・不具合のご報告は <a href="mailto:appadaycreator@gmail.com" style="color:#0369a1;font-weight:bold;">appadaycreator@gmail.com</a> または <a href="contact.html" style="color:#0369a1;">お問い合わせフォーム</a> へ</p>
+  <p style="margin:0;">ご意見・ご要望・不具合のご報告は <a href="mailto:appadaycreator@gmail.com" style="color:#0369a1;font-weight:bold;">appadaycreator@gmail.com</a> または <a href="contact.html" style="color:#0369a1;" onclick="try { gtag('event', 'contact_clicked', { from: 'footer' }); } catch(e) {}">お問い合わせフォーム</a> へ</p>
 </section></div>
 
 <script>
@@ -1072,6 +1077,7 @@ function exportData() {
     a.href = url; a.download = `kidsgrowth-backup-${date}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    try { gtag('event', 'data_exported', { child_count: state.children.length }); } catch(e) {}
     toast('ok', 'エクスポートしました');
   } catch(e) {
     toast('err', 'エクスポートに失敗しました');
@@ -1147,6 +1153,7 @@ function addRecord() {
     document.getElementById('r-memo').value = '';
     renderGrowth();
     renderHero();
+    try { gtag('event', 'record_added', { child_name: child.name, has_height: hRaw !== '', has_weight: wRaw !== '' }); } catch(e) {}
     toast('ok', '記録を追加しました！');
   } catch(e) {
     toast('err', '保存エラーが発生しました');
@@ -1296,6 +1303,7 @@ function saveMilestone() {
   if (!date) { toast('err', '日付を入力してください'); return; }
   try {
     child.milestones[pendingMsId] = { date, memo };
+    try { gtag('event', 'milestone_recorded', { milestone_id: pendingMsId, child_name: child.name }); } catch(e) {}
     saveState();
     closeModal('modal-milestone');
     renderMilestones();
@@ -1966,6 +1974,11 @@ function init() {
   _initConfirm();
   renderFaq();
   renderAll();
+  if (state.children.length === 0) {
+    setTimeout(() => {
+      toast('ok', '✅ あなたのデータはブラウザ内のみに保存されます');
+    }, 500);
+  }
 }
 
 init();
@@ -2077,11 +2090,37 @@ init();
 <!-- rakuten-affiliate-block -->
     <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">
       <p style="font-size:0.85rem;color:#4b5563;margin-bottom:8px;">🛒 関連商品を楽天市場で探す</p>
-      <a href="https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F%25E5%25AD%2590%25E4%25BE%259B%2520%25E6%2588%2590%25E9%2595%25B7%2520%25E8%25A8%2598%25E9%258C%25B2%2F&link_type=text" target="_blank" rel="nofollow sponsored noopener"
+      <div style="display:flex;gap:6px;flex-direction:column;margin-bottom:8px;">
+        <select id="rakuten-keyword-select" style="padding:8px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-weight:600;background:#fff;cursor:pointer;">
+          <option value="0">子供 成長 記録</option>
+          <option value="1">ベビー スケール 体重計</option>
+          <option value="2">赤ちゃん 成長記録 ノート</option>
+          <option value="3">子供 身長 計</option>
+          <option value="4">母子手帳 ケース</option>
+        </select>
+      </div>
+      <a id="rakuten-link" href="https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F%25E5%25AD%2590%25E4%25BE%259B%2520%25E6%2588%2590%25E9%2595%25B7%2520%25E8%25A8%2598%25E9%258C%25B2%2F&link_type=text" target="_blank" rel="nofollow sponsored noopener"
          style="display:inline-block;background:#BF0000;color:white;padding:10px 24px;border-radius:8px;font-weight:bold;font-size:14px;text-decoration:none;">
-        楽天市場で「子供 成長 記録」を検索 →
+        楽天市場で商品を検索 →
       </a>
     </div>
+    <script>
+      const rakutenKeywords = [
+        { text: '子供 成長 記録', url: 'https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F%25E5%25AD%2590%25E4%25BE%259B%2520%25E6%2588%2590%25E9%2595%25B7%2520%25E8%25A8%2598%25E9%258C%25B2%2F&link_type=text' },
+        { text: 'ベビー スケール 体重計', url: 'https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F%25E3%2583%2599%25E3%2583%2593%25E3%2583%25BC%2520%25E3%2582%25B9%25E3%2582%25B1%25E3%2583%25BC%25E3%2583%25AB%2520%25E4%25BD%2593%25E9%2587%258D%25E8%25A8%2581%2F&link_type=text' },
+        { text: '赤ちゃん 成長記録 ノート', url: 'https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F%25E8%25B5%25A4%25E3%2581%25A1%25E3%2582%2583%25E3%2582%2593%2520%25E6%2588%2590%25E9%2595%25B7%25E8%25A8%2598%25E9%258C%25B2%2520%25E3%2583%258E%25E3%2583%25BC%25E3%2583%2588%2F&link_type=text' },
+        { text: '子供 身長 計', url: 'https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F%25E5%25AD%2590%25E4%25BE%259B%2520%25E8%25BA%25AB%25E9%2595%25B7%2520%25E8%25A8%2581%2F&link_type=text' },
+        { text: '母子手帳 ケース', url: 'https://hb.afl.rakuten.co.jp/ichiba/541ad0d2.ce2bed12.541ad0d3.a1a2318c/?pc=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F%25E6%25AF%258D%25E5%25AD%2590%25E6%2589%258B%25E5%25B8%25B3%2520%25E3%2582%25B1%25E3%2583%25BC%25E3%2582%25B9%2F&link_type=text' }
+      ];
+      document.getElementById('rakuten-keyword-select').addEventListener('change', function() {
+        const idx = parseInt(this.value);
+        const link = document.getElementById('rakuten-link');
+        if (rakutenKeywords[idx]) {
+          link.href = rakutenKeywords[idx].url;
+          try { gtag('event', 'rakuten_keyword_selected', { keyword: rakutenKeywords[idx].text }); } catch(e) {}
+        }
+      });
+    </script>
 <!-- phase10-rakuten-updated -->
 <script id="ux-behavior">
 (function(){
