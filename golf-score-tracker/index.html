@@ -19,7 +19,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#7c3aed">
-    <meta name="description" content="ゴルフスコアを無料で記録・管理・グラフ分析。ラウンドごとの成績・ベストスコア・ハンデキャップを自動計算。登録不要ですぐ使える。スマホ・PC対応。">
+    <meta name="description" content="スコア管理・分析・ハンディ計算が無料。初心者から上級者まで、ラウンド成績を一括管理するゴルフアプリ。登録不要・スマホ対応。">
     <meta name="keywords" content="ゴルフ,スコア管理,スコア記録,アプリ,無料,ラウンド,ハンデキャップ,分析,統計">
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
@@ -42,6 +42,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
     <!-- Schema -->
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "name": "ゴルフスコア管理・分析アプリ", "url": "https://appadaycreator.com/golf-score-tracker/", "description": "ゴルフのスコアを無料で記録・管理・分析するWebアプリ。ラウンドごとの成績、平均スコア、推移グラフを自動集計。", "applicationCategory": "UtilityApplication", "operatingSystem": "Any", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "JPY"}}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"Tech&Brace","url":"https://appadaycreator.com/","logo":"https://appadaycreator.com/logo.png","sameAs":["https://twitter.com/appadaycreator"]}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Person","name":"徳永将之","url":"https://appadaycreator.com/","jobTitle":"Founder","affiliation":{"@type":"Organization","name":"Tech&Brace"}}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"ゴルフスコアの管理・分析はどうやって使いますか？","acceptedAnswer":{"@type":"Answer","text":"ラウンドごとのスコアを入力すると、ホール別・番手別の分析グラフが自動生成されます。"}},{"@type":"Question","name":"ハンディキャップの計算方法は？","acceptedAnswer":{"@type":"Answer","text":"最近のラウンドスコアと各コースのスロープレーティングをもとに計算します。"}},{"@type":"Question","name":"フェアウェイキープ率とは何ですか？","acceptedAnswer":{"@type":"Answer","text":"ティーショットがフェアウェイに乗った割合です。高いほど安定したドライバーショットを打てていることを示します。"}},{"@type":"Question","name":"スコア改善のための練習優先度は？","acceptedAnswer":{"@type":"Answer","text":"パッティング・アプローチ・ショートゲームを優先すると最も効率よくスコアアップできます。"}},{"@type":"Question","name":"ゴルフの初心者が最初に意識すべきことは？","acceptedAnswer":{"@type":"Answer","text":"まずは100切りを目標に、コースマネジメント（無理をしない）とパッティング練習を重点的に行いましょう。"}},{"@type":"Question","name":"どのような人が使っていますか？","acceptedAnswer":{"@type":"Answer","text":"初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}},{"@type":"Question","name":"結果をシェアできますか？","acceptedAnswer":{"@type":"Answer","text":"はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}},{"@type":"Question","name":"有料プランはありますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、すべての機能を完全無料でご利用いただけます。"}}]}</script>
     <style>
         *{box-sizing:border-box;margin:0;padding:0;}
@@ -552,6 +554,15 @@ function saveRound() {
         clearTimeout(banner._hideTimer);
         banner._hideTimer = setTimeout(() => { banner.style.display = 'none'; }, 5000);
     }
+    // 目標スコア達成時の励まし機能
+    const target = parseInt(localStorage.getItem('gst_target') || '0');
+    if (target && score <= target) {
+        setTimeout(() => {
+            if (typeof showToast === 'function') {
+                showToast(`🎉 目標スコア ${target}打を達成！素晴らしい！次の目標に向けて頑張ろう！`, 'success', 4000);
+            }
+        }, 1500);
+    }
     renderQuickStats();
     renderWeeklySummary();
     renderTargetGoal();
@@ -952,6 +963,46 @@ document.addEventListener('click', function(e) {
     }
 });
 
+// ===== シェア機能（最新スコア情報を含む） =====
+function getLatestScore() {
+    const rounds = getRounds();
+    if (rounds.length === 0) return null;
+    return rounds[rounds.length - 1];
+}
+
+function shareToLine() {
+    const latest = getLatestScore();
+    let shareText = 'ゴルフスコア記録【無料アプリ】ラウンド管理・ハンデキャップ計算';
+    if (latest) {
+        const score = latest.score || latest.total;
+        const avg = Math.round(getRounds().reduce((sum, r) => sum + (r.score || r.total), 0) / getRounds().length);
+        const handicap = latest.handicap ? Math.round(latest.handicap * 10) / 10 : '計算中';
+        shareText = `🏌️ 今日のラウンド: ${score}打 | 平均: ${avg}打 | ハンデ: ${handicap} | ゴルフスコア記録【無料アプリ】`;
+    }
+    const lineUrl = `https://line.me/R/share?text=${encodeURIComponent(shareText + ' https://appadaycreator.com/golf-score-tracker/')}`;
+    window.open(lineUrl, '_blank');
+    if (typeof dataLayer !== 'undefined') {
+        dataLayer.push({event:'share_click', share_platform:'LINE', share_type:'score'});
+    }
+    return false;
+}
+
+function shareToX() {
+    const latest = getLatestScore();
+    let shareText = 'ゴルフスコア記録【無料アプリ】ラウンド管理・ハンデキャップ計算を試しています';
+    if (latest) {
+        const score = latest.score || latest.total;
+        const avg = Math.round(getRounds().reduce((sum, r) => sum + (r.score || r.total), 0) / getRounds().length);
+        shareText = `🏌️ 今日のラウンド: ${score}打 🎯 平均: ${avg}打\nゴルフスコア記録【無料アプリ】で進捗を管理中`;
+    }
+    const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=https://appadaycreator.com/golf-score-tracker/&via=appadaycreator`;
+    window.open(xUrl, '_blank');
+    if (typeof dataLayer !== 'undefined') {
+        dataLayer.push({event:'share_click', share_platform:'X', share_type:'score'});
+    }
+    return false;
+}
+
 // ===== 週次サマリー + ストリーク（green-diary P6/P4横展開） =====
 function checkGstStreak() {
     const today = new Date().toISOString().slice(0, 10);
@@ -1141,12 +1192,29 @@ window.hideLoading=function(){var el=document.getElementById('loadingOverlay');i
 <div class="max-w-2xl mx-auto px-4 mb-4">
 <!-- Related Services -->
 <section class="bg-white rounded-2xl shadow-md p-5">
-  <h3 style="font-size:14px;font-weight:700;color:#64748b;margin-bottom:12px;letter-spacing:0.03em;">関連サービス</h3>
-  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
-    <a href="https://appadaycreator.com/reskilling-advisor/" style="padding: 10px; text-align: center; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #333; display: block; hover:background: #f5f5f5;">リスキリング診断</a>
-    <a href="https://appadaycreator.com/kids-activity-cost-simulator/lp/" style="padding: 10px; text-align: center; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #333; display: block; hover:background: #f5f5f5;">子供の習い事費用シミュレーター</a>
-    <a href="https://appadaycreator.com/nisa-ideco-simulator/" style="padding: 10px; text-align: center; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #333; display: block; hover:background: #f5f5f5;">新NISA・iDeCo最適化計算機</a>
-    <a href="https://appadaycreator.com/housing-loan-simulator/" style="padding: 10px; text-align: center; border: 1px solid #ddd; border-radius: 4px; text-decoration: none; color: #333; display: block; hover:background: #f5f5f5;">住宅ローン返済シミュレーター</a>
+  <h3 style="font-size:14px;font-weight:700;color:#64748b;margin-bottom:12px;letter-spacing:0.03em;">カテゴリから探す</h3>
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <div>
+      <p style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px">💪 健康・スポーツ</p>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
+        <a href="https://appadaycreator.com/bmi-body-tracker/" style="padding:10px;text-align:center;border:1px solid #e2e8f0;border-radius:6px;text-decoration:none;color:#166534;font-size:12px;display:block">BMI・体重管理</a>
+        <a href="https://appadaycreator.com/sleep-quality-checker/" style="padding:10px;text-align:center;border:1px solid #e2e8f0;border-radius:6px;text-decoration:none;color:#166534;font-size:12px;display:block">睡眠の質チェッカー</a>
+      </div>
+    </div>
+    <div>
+      <p style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px">💰 家計・投資</p>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
+        <a href="https://appadaycreator.com/household-budget-analyzer/" style="padding:10px;text-align:center;border:1px solid #e2e8f0;border-radius:6px;text-decoration:none;color:#0891b2;font-size:12px;display:block">家計簿診断</a>
+        <a href="https://appadaycreator.com/nisa-ideco-simulator/" style="padding:10px;text-align:center;border:1px solid #e2e8f0;border-radius:6px;text-decoration:none;color:#0891b2;font-size:12px;display:block">新NISA・iDeCo</a>
+      </div>
+    </div>
+    <div>
+      <p style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px">🎓 教育・キャリア</p>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px">
+        <a href="https://appadaycreator.com/reskilling-advisor/" style="padding:10px;text-align:center;border:1px solid #e2e8f0;border-radius:6px;text-decoration:none;color:#7c3aed;font-size:12px;display:block">リスキリング診断</a>
+        <a href="https://appadaycreator.com/kids-activity-cost-simulator/lp/" style="padding:10px;text-align:center;border:1px solid #e2e8f0;border-radius:6px;text-decoration:none;color:#7c3aed;font-size:12px;display:block">習い事費用計算</a>
+      </div>
+    </div>
   </div>
 </section>
 </div>
@@ -1168,11 +1236,11 @@ window.hideLoading=function(){var el=document.getElementById('loadingOverlay');i
       </div>
       <p style="font-size:.75rem;color:#9ca3af;margin-top:.5rem;text-align:center">※ご利用イメージです</p>
       <div style="display:flex;gap:.5rem;margin-top:1rem">
-        <a href="https://line.me/R/share?text=ゴルフスコア記録【無料アプリ】ラウンド管理・ハンデキャップ計算%20https://appadaycreator.com/golf-score-tracker/" target="_blank" rel="noopener"
+        <a id="share-line-btn" href="#" onclick="return shareToLine()" target="_blank" rel="noopener"
            style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
           LINEでシェア
         </a>
-        <a href="https://twitter.com/intent/tweet?text=ゴルフスコア記録【無料アプリ】ラウンド管理・ハンデキャップ計算&url=https://appadaycreator.com/golf-score-tracker/&via=appadaycreator" target="_blank" rel="noopener"
+        <a id="share-x-btn" href="#" onclick="return shareToX()" target="_blank" rel="noopener"
            style="flex:1;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
           Xでシェア
         </a>
