@@ -468,7 +468,7 @@ function backToLP(){
     Resume.checkResume();
     window.scrollTo({top:0});
   } else {
-    location.href = './lp/';
+    location.href = '/lp/credit-card-finder/';
   }
 }
 
