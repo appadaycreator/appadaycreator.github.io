@@ -427,6 +427,24 @@ function shareLine(){
   window.open(`https://social-plugins.line.me/lineit/share?url=${url}`,'_blank','noopener');
 }
 
+function copySummary(){
+  const labels = [
+    { key:'age', label:'年齢層', vals:['20代','30代','40代','50代以上'] },
+    { key:'scene', label:'利用シーン', vals: questions[1].options.map(o=>o.label) },
+    { key:'amount', label:'月間利用額', vals:['3万円未満','3〜5万円','5〜10万円','10万円以上'] },
+    { key:'priority', label:'重視ポイント', vals: questions[3].options.map(o=>o.label) },
+    { key:'lifestyle', label:'ライフスタイル', vals: questions[4].options.map(o=>o.label) }
+  ];
+  const text = '【クレジットカード診断の回答】\n' + labels.map(l=>{
+    return `${l.label}: ${l.vals[answers[l.key]??0]||'−'}`;
+  }).join('\n') + `\n${location.href}`;
+  navigator.clipboard?.writeText(text).then(()=>{
+    Toast.show('回答をコピーしました！', 'ok');
+  }).catch(()=>{
+    Toast.show('コピーに失敗しました', 'err');
+  });
+}
+
 function copyResult(){
   const ranking = getRanking().slice(0,3);
   const text = `【クレカ診断結果】\n` + ranking.map((r,i)=>{
@@ -581,6 +599,7 @@ function bindEvents(){
   document.getElementById('sh-x')?.addEventListener('click', shareX);
   document.getElementById('sh-line')?.addEventListener('click', shareLine);
   document.getElementById('sh-copy')?.addEventListener('click', copyResult);
+  document.querySelector('.copy-btn')?.addEventListener('click', copySummary);
   document.getElementById('btn-copy-share')?.addEventListener('click', copyShareText);
   // others
   document.getElementById('btn-others')?.addEventListener('click', showOtherCards);

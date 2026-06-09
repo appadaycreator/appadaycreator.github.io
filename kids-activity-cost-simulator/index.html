@@ -43,6 +43,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
+    <!-- P2-7: PDF出力ライブラリ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <!-- Schema.org -->
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "name": "子供の習い事費用シミュレーター", "url": "https://appadaycreator.com/kids-activity-cost-simulator/", "description": "子供の習い事にかかる費用を年齢・習い事の種類別にシミュレーション。月謝・入会金・年間費用の相場を計算できます。", "applicationCategory": "FinanceApplication", "operatingSystem": "Any", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "JPY"}}</script>
     <script type="application/ld+json">
@@ -854,13 +856,17 @@ function renderResults() {
                 <span style="color:rgba(255,255,255,0.85);font-size:0.7em;">🟢 教材費 ${pExtra}%</span>
             </div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
-            <button onclick="copyResults()" aria-label="シミュレーション結果をコピー" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.5);color:#fff;border-radius:8px;padding:9px 6px;font-size:0.78rem;font-weight:600;cursor:pointer;">📋 コピー</button>
-            <button onclick="window.print()" aria-label="シミュレーション結果を印刷" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.5);color:#fff;border-radius:8px;padding:9px 6px;font-size:0.78rem;font-weight:600;cursor:pointer;">🖨 印刷</button>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-top:12px;">
+            <button onclick="copyResults()" aria-label="シミュレーション結果をコピー" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.5);color:#fff;border-radius:8px;padding:8px 4px;font-size:0.7rem;font-weight:600;cursor:pointer;">📋 コピー</button>
+            <button onclick="generatePDF()" aria-label="シミュレーション結果をPDFで保存" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.5);color:#fff;border-radius:8px;padding:8px 4px;font-size:0.7rem;font-weight:600;cursor:pointer;">📄 PDF</button>
             <a id="share-line-result" href="#" target="_blank" rel="noopener"
-               style="display:block;text-align:center;background:#06C755;color:#fff;border-radius:8px;padding:9px 6px;font-size:0.78rem;font-weight:600;text-decoration:none;">📱 LINE</a>
+               style="display:block;text-align:center;background:#06C755;color:#fff;border-radius:8px;padding:8px 4px;font-size:0.7rem;font-weight:600;text-decoration:none;">📱 LINE</a>
             <a id="share-x-result" href="#" target="_blank" rel="noopener"
-               style="display:block;text-align:center;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:8px;padding:9px 6px;font-size:0.78rem;font-weight:600;text-decoration:none;">𝕏 X</a>
+               style="display:block;text-align:center;background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:8px;padding:8px 4px;font-size:0.7rem;font-weight:600;text-decoration:none;">𝕏 X</a>
+            <button onclick="window.print()" aria-label="シミュレーション結果を印刷" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.5);color:#fff;border-radius:8px;padding:8px 4px;font-size:0.7rem;font-weight:600;cursor:pointer;">🖨 印刷</button>
+            <button onclick="copyShareUrl()" aria-label="結果URLをコピー" style="background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.5);color:#fff;border-radius:8px;padding:8px 4px;font-size:0.7rem;font-weight:600;cursor:pointer;">🔗 共有</button>
+            <button id="share-mail-result" aria-label="メールで共有" style="display:block;text-align:center;background:rgba(100,150,200,0.5);border:1px solid rgba(255,255,255,0.4);color:#fff;border-radius:8px;padding:8px 4px;font-size:0.7rem;font-weight:600;text-decoration:none;cursor:pointer;">📧 メール</button>
+            <div style="background:rgba(255,255,255,0.1);border-radius:8px;padding:8px 4px;text-align:center;color:rgba(255,255,255,0.7);font-size:0.65rem;font-weight:600;">📋 計算履歴</div>
         </div>
     </div>
     <details style="margin-top:12px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
@@ -1529,6 +1535,162 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
 </div>
 <!-- r17-mobile-ux -->
 <a href="#top" id="back-to-top" aria-label="ページトップへ戻る" style="display:none;position:fixed;bottom:24px;right:20px;background:#4f46e5;color:#fff;border:none;border-radius:50%;width:48px;height:48px;font-size:1.4rem;line-height:48px;text-align:center;text-decoration:none;box-shadow:0 4px 12px rgba(79,70,229,.4);z-index:9000;cursor:pointer" title="ページトップへ">↑</a>
+<!-- P2: PDF出力、メール共有、URL共有、計算履歴機能 -->
+<script>
+// P2-7: PDF出力
+function generatePDF() {
+    const age = parseInt(document.getElementById('age-slider').value);
+    const selected = activities.filter(a => selectedActivities.has(a.id));
+    if (selected.length === 0) { showError('習い事を選択してください'); return; }
+    const totalMin = selected.reduce((s,a) => s+a.min, 0);
+    const totalMax = selected.reduce((s,a) => s+a.max, 0);
+    const totalExtraMin = selected.reduce((s,a) => s+a.extraMin, 0);
+    const totalExtraMax = selected.reduce((s,a) => s+a.extraMax, 0);
+    const totalInitMin = selected.reduce((s,a) => s+a.initMin, 0);
+    const totalInitMax = selected.reduce((s,a) => s+a.initMax, 0);
+    const years = parseInt(document.getElementById('years-slider').value) || 1;
+    const annualMin = totalMin * 12 + totalExtraMin;
+    const annualMax = totalMax * 12 + totalExtraMax;
+    const totalYMin = totalInitMin + annualMin * years;
+    const totalYMax = totalInitMax + annualMax * years;
+    const now = new Date();
+    const fileName = `kids-activity-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.pdf`;
+
+    const htmlContent = `
+    <div style="font-family:serif;padding:20px;line-height:1.6;">
+        <h1 style="text-align:center;font-size:20px;margin-bottom:5px;">子供の習い事費用シミュレーター</h1>
+        <p style="text-align:center;font-size:12px;color:#666;margin-bottom:20px;">計算結果 ${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日</p>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:15px;">
+            <tr><td style="width:35%;font-weight:bold;">対象年齢</td><td>${age}歳</td></tr>
+            <tr><td style="font-weight:bold;">継続年数</td><td>${years}年</td></tr>
+        </table>
+        <h3 style="font-size:14px;margin-top:15px;margin-bottom:10px;">選んだ習い事</h3>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:15px;border:1px solid #ddd;">
+            <thead><tr style="background:#f5f5f5;"><th style="border:1px solid #ddd;padding:8px;text-align:left;">習い事</th><th style="border:1px solid #ddd;padding:8px;text-align:right;">月謝</th><th style="border:1px solid #ddd;padding:8px;text-align:right;">初期費用</th><th style="border:1px solid #ddd;padding:8px;text-align:right;">年間費用</th></tr></thead>
+            <tbody>
+    `;
+    selected.forEach(a => {
+        const aMin = a.min, aMax = a.max, aInitMin = a.initMin, aInitMax = a.initMax;
+        const aExtraMin = a.extraMin, aExtraMax = a.extraMax;
+        const aAnnual = aMin*12 + aExtraMin;
+        htmlContent += `<tr><td style="border:1px solid #ddd;padding:8px;">${a.emoji} ${a.name}</td><td style="border:1px solid #ddd;padding:8px;text-align:right;">¥${fmtYen(aMin)}-${fmtYen(aMax)}</td><td style="border:1px solid #ddd;padding:8px;text-align:right;">¥${fmtYen(aInitMin)}-${fmtYen(aInitMax)}</td><td style="border:1px solid #ddd;padding:8px;text-align:right;">¥${fmtYen(aAnnual)}</td></tr>`;
+    });
+    htmlContent += `
+            </tbody>
+        </table>
+        <h3 style="font-size:14px;margin-top:15px;margin-bottom:10px;">費用合計</h3>
+        <table style="width:100%;border-collapse:collapse;border:1px solid #ddd;">
+            <tr><td style="border:1px solid #ddd;padding:10px;font-weight:bold;width:50%;">月謝合計</td><td style="border:1px solid #ddd;padding:10px;text-align:right;">¥${fmtYen(totalMin)}-${fmtYen(totalMax)}</td></tr>
+            <tr style="background:#f9f9f9;"><td style="border:1px solid #ddd;padding:10px;font-weight:bold;">初期費用合計</td><td style="border:1px solid #ddd;padding:10px;text-align:right;">¥${fmtYen(totalInitMin)}-${fmtYen(totalInitMax)}</td></tr>
+            <tr><td style="border:1px solid #ddd;padding:10px;font-weight:bold;">年間費用（月謝×12+教材等）</td><td style="border:1px solid #ddd;padding:10px;text-align:right;">¥${fmtYen(annualMin)}-${fmtYen(annualMax)}</td></tr>
+            <tr style="background:#e8f4f8;"><td style="border:1px solid #ddd;padding:10px;font-weight:bold;font-size:13px;">${years}年間総費用（初期費用+月謝×${years}年）</td><td style="border:1px solid #ddd;padding:10px;text-align:right;font-size:13px;font-weight:bold;">¥${fmtYen(totalYMin)}-${fmtYen(totalYMax)}</td></tr>
+        </table>
+        <p style="font-size:11px;color:#999;margin-top:15px;">※ 本PDFの金額は参考値です。実際の費用は各教室にお問い合わせください。</p>
+    </div>
+    `;
+    const element = document.createElement('div');
+    element.innerHTML = htmlContent;
+    const options = { margin: [10, 10, 10, 10], filename: fileName, image: {type:'png',quality:0.98}, html2canvas:{scale:2}, jsPDF:{orientation:'portrait',unit:'mm',format:'a4'} };
+    html2pdf().set(options).from(element).save().then(() => { showSuccess('📥 PDFをダウンロードしました'); saveCalculation(); }).catch(() => { showError('PDF生成エラー'); });
+}
+
+// P2-9: メール送信リンク生成
+function generateMailLink() {
+    const age = parseInt(document.getElementById('age-slider').value);
+    const selected = activities.filter(a => selectedActivities.has(a.id));
+    if (selected.length === 0) { showError('習い事を選択してください'); return; }
+    const totalMin = selected.reduce((s,a) => s+a.min, 0);
+    const totalMax = selected.reduce((s,a) => s+a.max, 0);
+    const subject = encodeURIComponent('子供の習い事費用シミュレーション結果');
+    const body = encodeURIComponent(`子どもの習い事費用シミュレーション結果をお知らせします。\n\n【条件】\n年齢: ${age}歳\n習い事: ${selected.map(a=>a.name).join('・')}\n\n【月謝合計】\n¥${fmtYen(totalMin)}〜¥${fmtYen(totalMax)}\n\n【年間費用】\nhttps://appadaycreator.com/kids-activity-cost-simulator/`);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    showSuccess('📧 メール送信フォームが開きます');
+}
+
+// P2-9: 結果URL共有
+function copyShareUrl() {
+    const age = parseInt(document.getElementById('age-slider').value);
+    const selectedIds = Array.from(selectedActivities).join(',');
+    const budget = parseInt(document.getElementById('budget-slider').value);
+    const years = parseInt(document.getElementById('years-slider').value) || 1;
+    if (!selectedIds) { showError('習い事を選択してください'); return; }
+    const baseUrl = window.location.origin + window.location.pathname;
+    const shareUrl = `${baseUrl}?age=${age}&selected=${selectedIds}&budget=${budget}&years=${years}`;
+    navigator.clipboard.writeText(shareUrl).then(() => {
+        showSuccess('🔗 結果URLをコピーしました');
+        saveCalculation();
+    }).catch(() => {
+        showError('URLコピー失敗');
+    });
+}
+
+// P2-10: 計算結果保存（localStorage）
+function saveCalculation() {
+    try {
+        const age = parseInt(document.getElementById('age-slider').value);
+        const selected = activities.filter(a => selectedActivities.has(a.id));
+        if (selected.length === 0) return;
+        const totalMin = selected.reduce((s,a) => s+a.min, 0);
+        const totalMax = selected.reduce((s,a) => s+a.max, 0);
+        const annualMin = totalMin * 12 + selected.reduce((s,a) => s+a.extraMin, 0);
+        const annualMax = totalMax * 12 + selected.reduce((s,a) => s+a.extraMax, 0);
+        const years = parseInt(document.getElementById('years-slider').value) || 1;
+        const histories = JSON.parse(localStorage.getItem('kac_histories') || '[]');
+        const newItem = {
+            id: Date.now(),
+            timestamp: new Date().toLocaleString('ja-JP'),
+            age: age,
+            selectedIds: Array.from(selectedActivities),
+            selectedNames: selected.map(a => a.name),
+            totalMin: totalMin,
+            totalMax: totalMax,
+            annualMin: annualMin,
+            annualMax: annualMax,
+            years: years
+        };
+        histories.unshift(newItem);
+        if (histories.length > 10) histories.pop();
+        localStorage.setItem('kac_histories', JSON.stringify(histories));
+    } catch(e) {}
+}
+
+// P2-9: URL パラメータから復元
+function loadFromUrl() {
+    try {
+        const params = new URLSearchParams(window.location.search);
+        const age = params.get('age');
+        const selected = params.get('selected');
+        const budget = params.get('budget');
+        const years = params.get('years');
+        if (age) {
+            document.getElementById('age-slider').value = age;
+            document.getElementById('age-display').textContent = age;
+        }
+        if (selected) {
+            selected.split(',').forEach(id => {
+                if (activities.find(a => a.id === id)) {
+                    selectedActivities.add(id);
+                }
+            });
+        }
+        if (budget) {
+            document.getElementById('budget-slider').value = budget;
+        }
+        if (years) {
+            document.getElementById('years-slider').value = years;
+        }
+        if (age || selected) {
+            setTimeout(() => { renderGrid(); updateResults(); }, 100);
+        }
+    } catch(e) {}
+}
+
+// ページ読み込み時に URL パラメータから復元
+window.addEventListener('DOMContentLoaded', function() {
+    loadFromUrl();
+    document.getElementById('share-mail-result').onclick = generateMailLink;
+});
+</script>
 <script>
 (function(){
   var btn = document.getElementById('back-to-top');

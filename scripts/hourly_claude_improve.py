@@ -184,84 +184,149 @@ def quick_scan(repo: str) -> list[str]:
         # ===== Vue/Vite サービス =====
         if idx.exists():
             html = idx.read_text(errors="ignore")
-            # P1: SEO
+            # M4: ビジュアライゼーション
+            has_chart = "chart.js" in html.lower() or "<canvas" in html.lower()
+            if not has_chart:
+                issues.append("[M4] グラフ/ビジュアライゼーションなし（Chart.jsで結果を可視化推奨）")
+            # M14: SEOスキーマ
+            schema_missing = []
+            if "FAQPage" not in html:
+                schema_missing.append("FAQPage")
+            if "HowTo" not in html:
+                schema_missing.append("HowTo")
+            if schema_missing:
+                issues.append(f"[M14] SEOスキーマ未実装: {'/'.join(schema_missing)}")
+            # M15: meta/OGタグ
+            meta_missing = []
             if 'name="description"' not in html and "og:description" not in html:
-                issues.append("[P1-SEO] meta description未設定")
+                meta_missing.append("meta description")
             if "og:title" not in html and "og:image" not in html:
-                issues.append("[P1-SEO] OGタグ(og:title/image)未設定")
-            if "application/ld+json" not in html:
-                issues.append("[P1-SEO] 構造化データ(ld+json)なし")
-        # P2: ユーザー継続機能
+                meta_missing.append("OGタグ")
+            if meta_missing:
+                issues.append(f"[M15] SEOメタ未設定: {'/'.join(meta_missing)}")
+        # M3: データ保存・履歴
         if not grep("localStorage", str(src), ["--include=*.js", "--include=*.vue"]):
-            issues.append("[P2-機能] localStorage未使用（ユーザーデータ保存・履歴機能なし）")
+            issues.append("[M3] localStorage未使用（データ保存・履歴機能なし）")
+        # M9: 結果シェア機能
         has_share = any(
             grep(pat, str(src), ["--include=*.js", "--include=*.vue"])
-            for pat in ["navigator.share", "twitter.com/intent", "line.me/R"]
+            for pat in ["navigator.share", "twitter.com/intent", "line.me/R", "clipboard"]
         )
         if not has_share:
-            issues.append("[P2-機能] SNSシェア機能なし")
-        # P3: コード品質
+            issues.append("[M9] 結果シェア機能なし（Twitter/LINE/クリップボードコピー）")
+        # M19: コード品質
         if grep("font-awesome", str(service_dir), ["--include=*.html", "--include=*.vue"]):
-            issues.append("[P3-コード] FontAwesome残存（軽量アイコンへ置換推奨）")
+            issues.append("[M19] FontAwesome残存（軽量アイコンへ置換推奨）")
         if grep("console\\.log", str(src), ["--include=*.js", "--include=*.vue"]):
-            issues.append("[P3-コード] console.log残存")
-        if grep("glass-panel", str(src), ["--include=*.vue"]):
-            issues.append("[P3-コード] glass-panel残存")
+            issues.append("[M19] console.log残存")
         no_alt = [l for l in grep_n("<img", str(src), ["--include=*.vue"]) if "alt=" not in l]
         if no_alt:
-            issues.append(f"[P3-コード] img alt属性なし({len(no_alt)}件)")
-        # P4: 見た目（最低優先度・単独改善は行わない）
-        if idx.exists():
-            html = idx.read_text(errors="ignore")
-            if "#6366" in html or "6366f1" in html.lower():
-                issues.append("[P4-見た目] PWA theme-colorデフォルト色（他改善と抱き合わせのみ）")
+            issues.append(f"[M20] img alt属性なし({len(no_alt)}件)")
 
     elif idx.exists():
         # ===== 静的HTML サービス =====
         html = idx.read_text(errors="ignore")
         import re as _re
-        # P0: 収益化 - CTAの有無
+        # M1: 文脈CTAの有無
         has_cta = any(kw in html for kw in [
             "申し込む", "無料登録", "詳しく見る", "今すぐ", "無料で始める",
             "資料請求", "お問い合わせ", "会員登録", "申込", "affiliate",
         ])
         if not has_cta:
-            issues.append("[P0-収益] 申込/CTA導線なし（アフィリエイト・登録ボタン未設置）")
-        # P1: SEO / 計測
-        if "GTM-" not in html:
-            issues.append("[P1-SEO] GTM未設定（アクセス計測不能）")
-        if "FAQPage" not in html:
-            issues.append("[P1-SEO] FAQPageスキーマなし")
-        if "HowTo" not in html:
-            issues.append("[P1-SEO] HowToスキーマなし")
-        if "schema.org" not in html:
-            issues.append("[P1-SEO] 構造化データなし")
-        if 'name="description"' not in html:
-            issues.append("[P1-SEO] meta description未設定")
-        if "og:title" not in html and "og:image" not in html:
-            issues.append("[P1-SEO] OGタグ未設定")
-        # 内部リンク（他サービスへの送客）
-        if "appadaycreator.com" not in html:
-            issues.append("[P1-SEO] 内部リンク（他サービス誘導）なし")
-        # P2: ユーザー継続
-        has_howto_section = any(kw in html for kw in ["使い方", "ご利用方法", "使用例", "step", "Step", "STEP"])
-        if not has_howto_section:
-            issues.append("[P2-機能] 使い方/使用例セクションなし")
-        has_share = any(kw in html for kw in ["twitter.com/intent", "line.me/R", "facebook.com/share", "navigator.share"])
+            issues.append("[M1] 申込/CTA導線なし（アフィリエイト・登録ボタン未設置）")
+        # M2: コア機能UX - inputにplaceholderなし
+        inputs = _re.findall(r'<input[^>]*>', html, _re.IGNORECASE)
+        user_inputs = [i for i in inputs if not any(
+            t in i.lower() for t in ['type="hidden"', "type='hidden'", 'type="submit"', "type='submit'"]
+        )]
+        no_placeholder = [i for i in user_inputs if "placeholder" not in i.lower()]
+        if len(no_placeholder) >= 2:
+            issues.append(f"[M2] inputにplaceholder未設定({len(no_placeholder)}件) - UX改善余地あり")
+        # M3: データ保存・履歴
+        if "localStorage" not in html:
+            issues.append("[M3] localStorage未使用（データ保存・履歴機能なし）")
+        # M4: ビジュアライゼーション（計算/診断系のみ）
+        is_data_service = any(kw in html for kw in ["計算", "診断", "分析", "スコア", "結果", "calculator", "result"])
+        has_chart = "chart.js" in html.lower() or "<canvas" in html.lower()
+        if is_data_service and not has_chart:
+            issues.append("[M4] グラフ/ビジュアライゼーションなし（Chart.jsで結果を可視化推奨）")
+        # M5: 結果連動アフィリエイト推薦
+        if "px.a8.net" in html or "amazon" in html.lower():
+            has_dynamic_rec = any(kw in html for kw in ["おすすめ", "あなたに", "診断結果", "結果に応じ", "recommend"])
+            if not has_dynamic_rec:
+                issues.append("[M5] 結果連動アフィリエイト推薦なし（診断/計算結果に合わせた動的CTA未実装）")
+        # M6: 目標設定・トラッキング（家計/健康/学習系のみ）
+        is_tracking = any(kw in html for kw in ["家計", "節約", "体重", "運動", "学習", "貯金", "ダイエット", "フィットネス", "おこづかい"])
+        has_goal = any(kw in html for kw in ["目標", "goal", "ゴール", "達成"])
+        if is_tracking and not has_goal:
+            issues.append("[M6] 目標設定・達成度トラッキング機能なし")
+        # M7: 比較・シミュレーション（計算/比較系のみ）
+        is_calc = any(kw in html for kw in ["計算", "比較", "シミュレーション", "プラン", "コース"])
+        has_compare = any(kw in html for kw in ["比較", "compare", "シミュレーション", "simulation", "パターン"])
+        if is_calc and not has_compare:
+            issues.append("[M7] 比較・シミュレーション機能なし（複数パターン計算推奨）")
+        # M8: ツールチップ・入力ガイダンス
+        has_text_inputs = bool(_re.search(r'<input[^>]*type=["\']?(text|number|email|tel)["\']?', html, _re.IGNORECASE)) or "<textarea" in html.lower()
+        has_tooltip = any(kw in html for kw in ["tooltip", "data-tip", "aria-describedby", "help-text", "hint"])
+        if has_text_inputs and not has_tooltip:
+            issues.append("[M8] 入力フォームへのツールチップ/ガイダンステキスト未設定")
+        # M9: 結果シェア
+        has_share = any(kw in html for kw in ["twitter.com/intent", "line.me/R", "facebook.com/share", "navigator.share", "clipboard"])
         if not has_share:
-            issues.append("[P2-機能] SNSシェアボタンなし")
-        # P3: コード品質
+            issues.append("[M9] 結果シェア機能なし（Twitter/LINE/クリップボードコピー）")
+        # M10: 印刷・エクスポート（計算/診断系のみ）
+        if is_data_service:
+            has_export = any(kw in html for kw in ["window.print", ".print()", "download", "CSV", "エクスポート", "ダウンロード"])
+            if not has_export:
+                issues.append("[M10] 印刷/エクスポート機能なし")
+        # M11: 使い方・活用例・FAQ
+        has_howto = any(kw in html for kw in ["使い方", "ご利用方法", "使用例", "活用例", "step", "Step", "STEP", "FAQ", "よくある"])
+        if not has_howto:
+            issues.append("[M11] 使い方/活用例/FAQセクションなし")
+        # M12: 関連コンテンツ・解説記事
+        has_related = any(kw in html for kw in ["関連", "コラム", "記事", "豆知識", "ヒント", "アドバイス", "解説"])
+        if not has_related:
+            issues.append("[M12] 関連コンテンツ/解説記事セクションなし")
+        # M13: 内部リンク
+        if "appadaycreator.com" not in html:
+            issues.append("[M13] 内部リンク（他サービス誘導）なし")
+        # M14: SEO構造化データ
+        schema_missing = []
+        if "FAQPage" not in html:
+            schema_missing.append("FAQPage")
+        if "HowTo" not in html:
+            schema_missing.append("HowTo")
+        if schema_missing:
+            issues.append(f"[M14] SEOスキーマ未実装: {'/'.join(schema_missing)}")
+        # M15: meta description・OGタグ
+        meta_missing = []
+        if 'name="description"' not in html:
+            meta_missing.append("meta description")
+        if "og:title" not in html and "og:image" not in html:
+            meta_missing.append("OGタグ")
+        if meta_missing:
+            issues.append(f"[M15] SEOメタ未設定: {'/'.join(meta_missing)}")
+        # M16: PWA化
+        if 'rel="manifest"' not in html and "manifest.json" not in html:
+            issues.append("[M16] PWA化未実施（manifest.json未設定）")
+        # M17: 収益導線最適化
+        if "px.a8.net" in html:
+            has_cta_btn = any(kw in html for kw in ['class="btn', "class='btn", "btn-primary", "cta-btn", "cta-button", "btn-cta"])
+            if not has_cta_btn:
+                issues.append("[M17] アフィリエイトCTAボタン化未実施（収益導線最適化余地あり）")
+        # M18: モバイル最適化
+        if 'name="viewport"' not in html:
+            issues.append("[M18] viewportメタタグ未設定（モバイル未対応）")
+        # M19: パフォーマンス・コード品質
         if "font-awesome" in html.lower() or ' class="fa-' in html:
-            issues.append("[P3-コード] FontAwesome残存")
+            issues.append("[M19] FontAwesome残存（軽量アイコンへ置換推奨）")
         if "console.log" in html:
-            issues.append("[P3-コード] console.log残存")
+            issues.append("[M19] console.log残存")
+        # M20: アクセシビリティ
         imgs = _re.findall(r"<img[^>]*>", html, _re.IGNORECASE)
         no_alt = [img for img in imgs if "alt=" not in img.lower()]
         if no_alt:
-            issues.append(f"[P3-コード] img alt属性なし({len(no_alt)}件)")
-        # P4: 見た目（最低優先度）
-        if "#6366" in html or "6366f1" in html.lower():
-            issues.append("[P4-見た目] PWA theme-colorデフォルト色（他改善と抱き合わせのみ）")
+            issues.append(f"[M20] img alt属性なし({len(no_alt)}件)")
 
     return issues
 
@@ -794,18 +859,72 @@ def _send_improve_notify(svc: dict, stdout: str, worker_id: int):
 
 _PRIORITY_GUIDE = """\
 
-【改善優先順位 - 必ず以下の順で実施すること】
-P0（最優先）収益化: アフィリエイトリンク設置・申込CTA追加・収益導線の改善
-P1: SEO/集客: FAQPage・HowToスキーマ・meta description・OGタグ・GTM・内部リンク・構造化データ
-P2: ユーザー継続: 機能追加（計算・保存・履歴・シェア）・使い方説明充実・再訪導線
-P3: コード品質: バグ修正・console.log削除・alt属性・パフォーマンス
-P4（最低優先）見た目のみ: 色変更・デザイン微調整 → P0〜P2の改善がある場合は実施しない
+【20施策チェックリスト（ユーザー価値×収益 優先度順）- 必ずM1から順に検討・実施すること】
 
-⚠️ 色変更・テーマカラー変更など「見た目だけ」の修正は絶対に行わない。
-⚠️ 必ずP0→P1→P2の順で改善を優先し、収益・集客・ユーザー継続に直結する改善を実施する。
-⚠️ 改善対象がP3・P4しか残っていない場合のみ、コード品質・見た目の修正を行う。
-⚠️ 絶対禁止: px.a8.net を含むアフィリエイトリンク・ビーコンimgは削除・変更しないこと。収益源のため必須保持。
-⚠️ 絶対禁止: 外部ツール・外部API連携を新規追加しないこと。Firebase・Supabase・外部マップAPI・天気API・決済API・ソーシャルログイン等、アカウント管理・APIキー・運用コストが発生するものは一切追加禁止。既存のGA4/GTMは維持してよい。全機能はブラウザ内（localStorage・純粋なJS計算）のみで実装すること。"""
+M1【収益×満足】診断/計算後の文脈CTAボタン設置
+  → ユーザーが価値を感じた瞬間（計算結果・診断完了直後）に、その結果に関連するアフィリエイトCTAを自然な流れで配置
+
+M2【満足】コア機能のUX改善（入力UI・バリデーション）
+  → 入力フォームへのplaceholder/ラベル追加・入力バリデーション・エラーメッセージ・数値スライダー等の入力補助
+
+M3【満足×再訪】データ保存・履歴機能（localStorage）
+  → 入力値・計算結果の自動保存・履歴一覧表示・前回データ復元でリピート利用を促進
+
+M4【満足】グラフ・スコア・ゲージで結果を可視化（Chart.js）
+  → 数値結果をChart.jsでグラフ化・スコア表示・プログレスバー・比較チャートで直感的に可視化（外部APIは使わない）
+
+M5【収益×満足】結果に連動したアフィリエイト商品推薦
+  → 計算/診断結果に基づいて「あなたにおすすめ」の関連アフィリエイト商品をJSで動的に表示
+
+M6【再訪×満足】目標設定・達成度トラッキング
+  → 目標値のlocalStorage保存・達成率計算・前回との比較表示で継続利用を促進
+
+M7【満足】比較・シミュレーション機能
+  → 複数パターンの入力値を並べて比較・「もし〜だったら」シミュレーション・条件変更による即時再計算
+
+M8【満足】ツールチップ・入力ガイダンス・ヘルプテキスト充実
+  → 各入力欄への説明テキスト追加・?アイコン+ツールチップ・入力例・単位の明示でユーザーの迷いを解消
+
+M9【拡散×満足】結果シェア機能（Twitter/LINE/クリップボードコピー）
+  → 計算・診断結果をSNSシェア・navigator.share API・クリップボードコピーボタン実装
+
+M10【満足】印刷・結果エクスポート機能
+  → window.print()ボタン・結果テキストのクリップボードコピー・CSVダウンロード実装
+
+M11【満足×集客】使い方・活用例・FAQ充実（オンボーディング）
+  → 初回ガイド・具体的な活用例3件以上・FAQ5問以上でユーザーが迷わず使いこなせる状態に整備
+
+M12【満足×集客】関連コンテンツ・解説記事セクション
+  → サービスに関連する豆知識・アドバイス・解説コンテンツ追加（深掘り情報→SEO＆滞在時間向上）
+
+M13【集客×満足】内部リンク・他サービス誘導
+  → appadaycreator.comの関連サービスへの誘導リンク・フッター送客・「こんなツールも」セクション追加
+
+M14【集客】SEO構造化データ（FAQPage/HowToスキーマ）
+  → FAQPageスキーマ・HowToスキーマをapplication/ld+jsonで実装・検索リッチスニペット獲得
+
+M15【集客】meta description・OGタグ最適化
+  → 120〜160文字のmeta description・og:title/description/image/url設定・SNSシェア見栄え改善
+
+M16【集客×再訪】PWA化（ホーム画面追加・オフライン対応）
+  → manifest.json設定・beforeinstallpromptでインストール促進・Service Workerでオフライン基本動作
+
+M17【収益】収益導線の最適化（CTAデザイン・AdSense配置）
+  → 既存アフィリエイトリンクのCTAボタンデザイン化・AdSenseスロット追加・収益CTAの視認性改善
+
+M18【品質】モバイル最適化・レスポンシブ改善
+  → viewportメタタグ確認・タップターゲットサイズ44px以上・モバイルでの入力しやすさ改善
+
+M19【品質】パフォーマンス・不要コード除去
+  → FontAwesome等不要ライブラリ除去・console.log削除・画像遅延読み込み（loading="lazy"）追加
+
+M20【品質】アクセシビリティ（alt属性・aria属性）
+  → img alt属性追加・button/input aria-label・フォームlabel・キーボード操作対応
+
+⚠️ M1〜M20の番号順（ユーザー価値×収益の優先度順）に実装すること。⬜未実施の施策を上位から実装する。
+⚠️ 見た目だけの修正（色変更・テーマカラー・デザイン微調整）は施策外のため実施しない。
+⚠️ 外部API・外部サービス新規連携は禁止。全機能はブラウザ内（localStorage・Chart.js・純粋なJS計算）のみ。
+⚠️ 絶対禁止: px.a8.net を含むアフィリエイトリンク・ビーコンimgは削除・変更しないこと。収益源のため必須保持。"""
 
 
 def _extract_a8_pairs(html: str) -> list[dict]:
@@ -877,17 +996,54 @@ def run_improve(service: dict, pre_issues: list[str]) -> tuple[bool, str]:
         saved_af = _extract_a8_pairs(idx.read_text(encoding="utf-8", errors="ignore"))
 
     cmd = f"/improve_auto {no} {repo}{_PRIORITY_GUIDE}"
+
+    # 20施策チェックリスト: スキャン結果をM1〜M20にマッピングして実装状況を表示
+    _ALL_MEASURES = [
+        ("M1",  "診断/計算後の文脈CTAボタン設置"),
+        ("M2",  "コア機能のUX改善（入力UI・バリデーション）"),
+        ("M3",  "データ保存・履歴機能（localStorage）"),
+        ("M4",  "グラフ・スコア・ゲージで結果可視化（Chart.js）"),
+        ("M5",  "結果に連動したアフィリエイト商品推薦"),
+        ("M6",  "目標設定・達成度トラッキング"),
+        ("M7",  "比較・シミュレーション機能"),
+        ("M8",  "ツールチップ・入力ガイダンス充実"),
+        ("M9",  "結果シェア機能（Twitter/LINE/クリップボード）"),
+        ("M10", "印刷・結果エクスポート機能"),
+        ("M11", "使い方・活用例・FAQ充実"),
+        ("M12", "関連コンテンツ・解説記事セクション"),
+        ("M13", "内部リンク・他サービス誘導"),
+        ("M14", "SEOスキーマ（FAQPage/HowTo）"),
+        ("M15", "meta description・OGタグ最適化"),
+        ("M16", "PWA化（manifest・インストール促進）"),
+        ("M17", "収益導線最適化（CTAボタン化・AdSense）"),
+        ("M18", "モバイル最適化・レスポンシブ改善"),
+        ("M19", "パフォーマンス・不要コード除去"),
+        ("M20", "アクセシビリティ（alt属性・aria属性）"),
+    ]
+    import re as _re2
+    pending_ids = set()
+    for issue in pre_issues:
+        m = _re2.match(r'\[(M\d+)\]', issue)
+        if m:
+            pending_ids.add(m.group(1))
+    checklist_lines = []
+    for mid, desc in _ALL_MEASURES:
+        status = "⬜ 未実施（実装してください）" if mid in pending_ids else "✅ 実装済み/該当なし"
+        checklist_lines.append(f"  {mid}: {desc} … {status}")
+    cmd += "\n\n【20施策 実装状況チェックリスト（M番号順=ユーザー価値×収益の優先度順）】\n"
+    cmd += "\n".join(checklist_lines)
+    cmd += "\n\n↑ ⬜未実施の施策をM番号順（上位優先）に実装してください。✅は変更不要。"
+
     if pre_issues:
-        # P4（見た目のみ）を末尾に追いやって優先度順に並べる
-        sorted_issues = sorted(pre_issues, key=lambda x: x[:2] if x.startswith("[P") else "[P9")
+        sorted_issues = sorted(pre_issues, key=lambda x: int(_re2.search(r'M(\d+)', x).group(1)) if _re2.search(r'M(\d+)', x) else 99)
         cmd += f"\n\n事前スキャン済み問題（優先度順）: {', '.join(sorted_issues)}"
     if saved_af:
         cmd += (
             f"\n\n⚠️ このページには{len(saved_af)}件のA8.netアフィリエイトリンク（px.a8.net）が"
             f"設置済みです。HTMLを編集する際は必ずこれらをそのまま保持すること。削除禁止。"
         )
-    high = [i for i in pre_issues if i.startswith(("[P0", "[P1", "[P2"))]
-    log(f"実行: /improve_auto {no} {repo} (高優先: {high or 'なし'}, 全:{len(pre_issues)}件, AF保護:{len(saved_af)}件)")
+    pending_high = [i for i in pre_issues if _re2.match(r'\[M(1[0-3]|[1-9])\]', i)]
+    log(f"実行: /improve_auto {no} {repo} (未実施高優先: {pending_high or 'なし'}, 全:{len(pre_issues)}件, AF保護:{len(saved_af)}件)")
 
     try:
         env = os.environ.copy()
