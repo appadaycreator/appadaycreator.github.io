@@ -244,6 +244,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <style>
 @media(max-width:480px){button,[class*=btn]{min-height:48px!important;font-size:15px!important;}input,select,textarea{font-size:16px!important;min-height:44px!important;}[class*=card],[class*=max-w]{padding:16px!important;}}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
 </head>
 <body class="bg-slate-50 min-h-screen">
 <div style="background:#4338ca;padding:5px 12px;text-align:right;font-size:.78rem"><a href="/blog/" style="color:#c7d2fe;text-decoration:none;font-weight:600">📖 コラム</a>&nbsp;｜&nbsp;<a href="/" style="color:#c7d2fe;text-decoration:none">ホーム</a></div>
@@ -532,6 +533,47 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <div class="bg-white rounded-2xl shadow p-5 mb-4 result-card">
         <h3 class="font-extrabold text-slate-800 text-base mb-3">📋 あなたへのアドバイス</h3>
         <div id="advice-content" class="space-y-3 text-sm text-slate-700"></div>
+      </div>
+
+      <!-- M4: グラフ可視化 -->
+      <div class="bg-white rounded-2xl shadow p-5 mb-4">
+        <h3 class="font-extrabold text-slate-800 text-base mb-3">📊 あなたの医療費を可視化</h3>
+        <div class="grid grid-cols-1 gap-4">
+          <div>
+            <p class="text-xs text-slate-500 mb-2">推移チャート（前回との比較）</p>
+            <canvas id="chart-comparison" style="max-height:200px;"></canvas>
+          </div>
+          <div>
+            <p class="text-xs text-slate-500 mb-2">リスク段階</p>
+            <canvas id="chart-gauge" style="max-height:120px;"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- M6: 目標設定・達成度トラッキング -->
+      <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl shadow p-5 mb-4 border-l-4 border-green-500">
+        <h3 class="font-extrabold text-slate-800 text-base mb-3">🎯 医療費削減目標を設定</h3>
+        <div class="space-y-3">
+          <div>
+            <label class="text-sm font-bold text-slate-700 block mb-1">今年の目標医療費（万円）</label>
+            <input type="number" id="target-amount" placeholder="例：30" min="0" max="9999" class="w-full border-2 border-green-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-green-600">
+            <p class="text-xs text-slate-500 mt-1">診断結果より低い金額を設定すれば、削減目標になります</p>
+          </div>
+          <button onclick="saveTarget()" class="w-full bg-green-600 text-white font-bold py-2 px-4 rounded-lg text-sm hover:bg-green-700">
+            ✅ 目標を保存
+          </button>
+          <div id="target-info" style="display:none;" class="bg-white rounded-lg p-3">
+            <p class="text-xs font-bold text-green-700 mb-1">📈 削減目標の進捗</p>
+            <div id="target-progress-text" class="text-sm text-slate-700"></div>
+            <div class="mt-2 bg-slate-200 rounded-full h-3 overflow-hidden">
+              <div id="target-progress-bar" class="bg-green-500 h-3 transition-all" style="width:0%"></div>
+            </div>
+          </div>
+          <div id="previous-target-info" style="display:none;" class="bg-blue-50 rounded-lg p-3 border-l-2 border-blue-400">
+            <p class="text-xs font-bold text-blue-700 mb-1">💭 前回の目標</p>
+            <p id="previous-target-text" class="text-sm text-slate-700"></p>
+          </div>
+        </div>
       </div>
 
       <!-- データ保存 -->
@@ -1085,7 +1127,138 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       ).join('');
 
       gtag('event', 'quiz_complete', { service: 'medical-expense-advisor', risk_level: risk });
+
+      // M4: Chart.js でグラフ描画
+      drawComparisonChart(low, mid, high);
+      drawRiskGauge(risk, riskColor);
+
+      // M6: 目標設定の前回データを表示
+      displayTargetInfo(mid);
+
       window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // M4: 推移チャート（前回との比較）
+    function drawComparisonChart(low, mid, high) {
+      const prev = JSON.parse(localStorage.getItem('mea_previous_result') || '{}');
+      const prevMid = prev.mid || null;
+
+      const ctx = document.getElementById('chart-comparison');
+      if (!ctx) return;
+
+      const labels = prevMid ? ['前回診断', '今回診断'] : ['今回診断'];
+      const dataValues = prevMid ? [prevMid / 10000, mid / 10000] : [mid / 10000];
+      const colors = ['#93c5fd', '#0ea5e9'];
+
+      if (window.comparisonChartInstance) window.comparisonChartInstance.destroy();
+      window.comparisonChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '推定医療費（万円）',
+            data: dataValues,
+            backgroundColor: colors,
+            borderRadius: 6,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => `${ctx.parsed.y.toFixed(1)}万円` } } },
+          scales: { y: { beginAtZero: true, max: Math.max(...dataValues) * 1.3, ticks: { callback: (v) => v.toFixed(0) + '万' } } }
+        }
+      });
+
+      localStorage.setItem('mea_previous_result', JSON.stringify({ mid, timestamp: Date.now() }));
+    }
+
+    // M4: リスク段階ゲージ
+    function drawRiskGauge(risk, riskColor) {
+      const ctx = document.getElementById('chart-gauge');
+      if (!ctx) return;
+
+      const riskMap = { '低リスク': 0, '中リスク': 50, '高リスク': 100 };
+      const riskValue = riskMap[risk] || 0;
+      const colorMap = { 'bg-green-500': '#10b981', 'bg-yellow-400': '#facc15', 'bg-red-500': '#ef4444' };
+
+      if (window.gaugeChartInstance) window.gaugeChartInstance.destroy();
+      window.gaugeChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: [risk, ''],
+          datasets: [{
+            data: [riskValue, 100 - riskValue],
+            backgroundColor: [colorMap[riskColor] || '#0ea5e9', '#e5e7eb']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: { enabled: false }
+          }
+        }
+      });
+    }
+
+    // M6: 目標情報の表示
+    function displayTargetInfo(currentMid) {
+      const targetData = JSON.parse(localStorage.getItem('mea_target_data') || '{}');
+      const targetEl = document.getElementById('target-info');
+      const targetAmountEl = document.getElementById('target-amount');
+      const prevTargetEl = document.getElementById('previous-target-info');
+
+      if (!targetEl || !targetAmountEl) return;
+
+      if (targetData.targetAmount && targetData.targetAmount > 0) {
+        const targetAmount = targetData.targetAmount * 10000;
+        const reduction = currentMid - targetAmount;
+        const reductionPercent = Math.max(0, Math.round((reduction / currentMid) * 100));
+
+        targetEl.style.display = 'block';
+        const progressText = reduction <= 0
+          ? `目標達成！💯 あと ${(Math.abs(reduction)/10000).toFixed(1)}万円で目標医療費 ${targetData.targetAmount}万円に到達です`
+          : `削減目標: 月額${(currentMid / 120000).toFixed(0)}千円 → ${(targetAmount / 120000).toFixed(0)}千円へ (削減率 ${reductionPercent}%)`;
+
+        document.getElementById('target-progress-text').textContent = progressText;
+        document.getElementById('target-progress-bar').style.width = Math.min(100, Math.round((targetAmount / currentMid) * 100)) + '%';
+        targetAmountEl.value = targetData.targetAmount;
+      }
+
+      if (targetData.previousMid && targetData.previousMid > 0) {
+        const prevAmount = targetData.previousMid / 10000;
+        const currentAmount = currentMid / 10000;
+        const change = currentAmount - prevAmount;
+        const changeText = change > 0 ? `+${change.toFixed(1)}万円増加` : `${Math.abs(change).toFixed(1)}万円削減`;
+
+        prevTargetEl.style.display = 'block';
+        document.getElementById('previous-target-text').textContent = `前回の推定額: ${prevAmount.toFixed(1)}万円 → 今回: ${currentAmount.toFixed(1)}万円 (${changeText})`;
+      }
+    }
+
+    // M6: 目標を保存
+    function saveTarget() {
+      const targetAmountEl = document.getElementById('target-amount');
+      if (!targetAmountEl) return;
+
+      const targetAmount = parseFloat(targetAmountEl.value) || 0;
+      if (targetAmount <= 0) {
+        alert('0より大きい目標医療費を入力してください');
+        return;
+      }
+
+      const result = calcResult();
+      localStorage.setItem('mea_target_data', JSON.stringify({
+        targetAmount: targetAmount,
+        previousMid: result.mid,
+        timestamp: Date.now()
+      }));
+
+      alert(`✅ 目標医療費を ${targetAmount}万円 に設定しました。次回訪問時に進捗を確認できます。`);
+      displayTargetInfo(result.mid);
     }
 
     function exportAsCSV() {

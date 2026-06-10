@@ -30,6 +30,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
 <script>(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"このサービスは無料ですか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要でご利用いただけます。"}},{"@type":"Question","name":"入力データはどこに保存されますか？","acceptedAnswer":{"@type":"Answer","text":"お使いのデバイス内にのみ保存されます。外部送信は行いません。"}},{"@type":"Question","name":"結果はどのくらい正確ですか？","acceptedAnswer":{"@type":"Answer","text":"あくまで参考情報です。重要な判断の際は専門家にご相談ください。"}},{"@type":"Question","name":"どのような人が使っていますか？","acceptedAnswer":{"@type":"Answer","text":"初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}},{"@type":"Question","name":"結果をシェアできますか？","acceptedAnswer":{"@type":"Answer","text":"はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}},{"@type":"Question","name":"有料プランはありますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、すべての機能を完全無料でご利用いただけます。"}}]}</script>
 
 <script type="application/ld+json">
@@ -162,6 +163,32 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
       </div>
 
       <div id="totalSummary" class="bg-gradient-to-r from-purple-600 to-purple-800 text-white rounded-xl p-4 mb-4 text-center"></div>
+
+      <!-- M4: 可視化グラフセクション -->
+      <div id="chartsSection" class="mb-6 space-y-4">
+        <div class="bg-gray-50 rounded-xl p-4">
+          <h3 class="font-bold text-gray-800 mb-3">📊 給付金の内訳（円グラフ）</h3>
+          <div style="max-width:300px;margin:0 auto;">
+            <canvas id="pieChart"></canvas>
+          </div>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4">
+          <h3 class="font-bold text-gray-800 mb-3">📈 給付金の比較（棒グラフ）</h3>
+          <canvas id="barChart" style="max-height:300px;"></canvas>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4">
+          <h3 class="font-bold text-gray-800 mb-3">⭐ 受給可能な制度数</h3>
+          <div class="flex items-center gap-3">
+            <div style="flex:1;">
+              <div class="w-full bg-gray-300 rounded-full h-3">
+                <div id="scoreBar" class="bg-purple-500 h-3 rounded-full transition-all duration-500" style="width:0%"></div>
+              </div>
+            </div>
+            <span id="scoreText" class="text-xl font-bold text-purple-600">0/15</span>
+          </div>
+        </div>
+      </div>
+
       <div id="benefitsList" class="space-y-3 mb-4"></div>
 
       <div class="bg-purple-50 rounded-xl p-4 mb-4">
@@ -221,7 +248,22 @@ const QUESTIONS = [
   {id:'lessons', q:'Q8. 習い事・塾を利用していますか？', opts:['していない','月1〜2万円程度','月3〜5万円','月5万円以上']},
 ];
 
-let answers = {}, currentQ = 0;
+let answers = {}, currentQ = 0, charts = {};
+
+// M3: localStorage への保存
+function saveAnswers() {
+  localStorage.setItem('childcare_answers', JSON.stringify(answers));
+}
+
+// M3: localStorage からの復元
+function loadAnswers() {
+  const saved = localStorage.getItem('childcare_answers');
+  if (saved) {
+    answers = JSON.parse(saved);
+    return true;
+  }
+  return false;
+}
 
 function renderQ() {
   const q = QUESTIONS[currentQ];
@@ -245,6 +287,7 @@ function renderQ() {
 function selectOpt(i) {
   answers[QUESTIONS[currentQ].id] = i;
   document.getElementById('errorMsg').classList.add('hidden');
+  saveAnswers(); // M3: 入力値を保存
   renderQ();
 }
 function prevQ() { if (currentQ > 0) { currentQ--; renderQ(); } }
@@ -397,6 +440,14 @@ function showResult() {
 
   lastBenefits = benefits;
 
+  // M3: 結果を localStorage に保存
+  const resultData = {
+    answers: answers,
+    benefits: benefits,
+    timestamp: new Date().toISOString()
+  };
+  localStorage.setItem('childcare_results', JSON.stringify(resultData));
+
   // 年間合計金額サマリー
   const totalYearly = benefits.filter(b => b.status === 'eligible').reduce((s, b) => s + (b.yearlyAmount || 0), 0);
   const totalEl = document.getElementById('totalSummary');
@@ -410,6 +461,14 @@ function showResult() {
   } else {
     totalEl.classList.add('hidden');
   }
+
+  // M4: スコア表示（受給可能な給付金の種類数）
+  const eligibleCount = benefits.filter(b => b.status === 'eligible').length;
+  document.getElementById('scoreText').textContent = `${eligibleCount}/15`;
+  document.getElementById('scoreBar').style.width = `${(eligibleCount / 15) * 100}%`;
+
+  // M4: グラフ生成
+  generateCharts(benefits, totalYearly);
 
   const bl = document.getElementById('benefitsList');
   bl.innerHTML = benefits.map(b => `
@@ -433,6 +492,82 @@ function showResult() {
   document.getElementById('windowList').innerHTML = windows.map(w => `<p>• ${w}</p>`).join('');
 }
 
+// M4: グラフ生成関数
+function generateCharts(benefits, totalYearly) {
+  const eligible = benefits.filter(b => b.status === 'eligible');
+
+  // 既存チャートを破棄
+  Object.values(charts).forEach(c => c.destroy?.());
+  charts = {};
+
+  // 1. 円グラフ（給付金の内訳）
+  const pieCtx = document.getElementById('pieChart');
+  if (pieCtx && eligible.length > 0) {
+    const pieLabels = eligible.map(b => b.name);
+    const pieData = eligible.map(b => b.yearlyAmount || 0);
+    const colors = [
+      '#f87171', '#fb923c', '#fbbf24', '#34d399', '#60a5fa',
+      '#a78bfa', '#f472b6', '#ec4899', '#8b5cf6', '#6366f1',
+      '#0ea5e9', '#06b6d4', '#14b8a6', '#eab308', '#d97706'
+    ];
+
+    charts.pie = new Chart(pieCtx, {
+      type: 'doughnut',
+      data: {
+        labels: pieLabels,
+        datasets: [{
+          data: pieData,
+          backgroundColor: colors.slice(0, pieLabels.length),
+          borderColor: '#fff',
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 12 } },
+          tooltip: { callbacks: { label: ctx => `${ctx.label}: ¥${ctx.parsed.toLocaleString()}` } }
+        }
+      }
+    });
+  }
+
+  // 2. 棒グラフ（給付金の金額比較）
+  const barCtx = document.getElementById('barChart');
+  if (barCtx && eligible.length > 0) {
+    const barLabels = eligible.map(b => b.name.replace(/（.*？）/, ''));
+    const barData = eligible.map(b => b.yearlyAmount || 0);
+
+    charts.bar = new Chart(barCtx, {
+      type: 'bar',
+      data: {
+        labels: barLabels,
+        datasets: [{
+          label: '年間給付金（円）',
+          data: barData,
+          backgroundColor: '#a78bfa',
+          borderColor: '#7c3aed',
+          borderWidth: 1,
+          borderRadius: 6
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => `¥${ctx.parsed.x.toLocaleString()}` } }
+        },
+        scales: {
+          x: { beginAtZero: true, ticks: { callback: v => `¥${(v/10000).toFixed(0)}万` } }
+        }
+      }
+    });
+  }
+}
+
 function copyResult() {
   const eligible = lastBenefits.filter(b => b.status === 'eligible');
   const totalYearly = eligible.reduce((s, b) => s + (b.yearlyAmount || 0), 0);
@@ -451,10 +586,63 @@ function copyResult() {
 
 function restart() {
   answers = {}; currentQ = 0;
+  localStorage.removeItem('childcare_answers'); // M3: 診断データをクリア
   document.getElementById('resultArea').classList.add('hidden');
   document.getElementById('quizArea').classList.remove('hidden');
   document.getElementById('errorMsg').classList.add('hidden');
   renderQ();
+}
+
+// M3: 前回のデータを復元し、結果画面を表示するか判定
+function restorePreviousResult() {
+  const saved = localStorage.getItem('childcare_results');
+  if (!saved) return false;
+
+  const resultData = JSON.parse(saved);
+  const lastResult = new Date(resultData.timestamp);
+  const now = new Date();
+  const diffHours = (now - lastResult) / (1000 * 60 * 60);
+
+  // 24時間以内の前回データがあれば、前回結果を表示するオプションを追加
+  if (diffHours < 24) {
+    const savedDate = lastResult.toLocaleDateString('ja-JP');
+    const msg = document.createElement('div');
+    msg.className = 'bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 text-sm';
+    msg.innerHTML = `
+      <p class="text-blue-800 mb-2">💾 ${savedDate}の診断結果が保存されています</p>
+      <div class="flex gap-2">
+        <button onclick="loadPreviousResult()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg text-sm">前回の結果を表示</button>
+        <button onclick="restartNew()" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium py-2 rounded-lg text-sm">新規診断</button>
+      </div>`;
+    document.getElementById('quizArea').insertAdjacentElement('beforebegin', msg);
+    return true;
+  }
+  return false;
+}
+
+// M3: 前回結果を復元して表示
+function loadPreviousResult() {
+  const saved = localStorage.getItem('childcare_results');
+  if (!saved) return;
+
+  const resultData = JSON.parse(saved);
+  answers = resultData.answers;
+  lastBenefits = resultData.benefits;
+  showResult();
+  document.querySelector('[onclick="loadPreviousResult()"]')?.closest('div').remove();
+}
+
+// M3: 新規診断開始（前回データをクリア）
+function restartNew() {
+  localStorage.removeItem('childcare_answers');
+  localStorage.removeItem('childcare_results');
+  location.reload();
+}
+
+// M3: ページ初期化時に前回データを復元
+if (loadAnswers() && currentQ === 0) {
+  // 前回データがあれば復元オプションを表示
+  restorePreviousResult();
 }
 
 renderQ();

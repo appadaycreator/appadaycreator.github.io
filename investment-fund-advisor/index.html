@@ -261,6 +261,25 @@ details[open] summary{background:#f0f9ff;border-bottom:1px solid #bae6fd;}
         <h3 class="font-bold text-gray-800 mb-3">🎯 おすすめファンド</h3>
         <div id="fund-list" class="space-y-3 mb-4"></div>
 
+        <!-- グラフ・可視化セクション -->
+        <div class="bg-gray-50 rounded-xl p-4 mb-5">
+          <h3 class="font-bold text-gray-800 mb-3">📊 リスク・リターン分析</h3>
+          <canvas id="riskChart" style="max-height: 300px; margin-bottom: 1rem;"></canvas>
+          <canvas id="simulationChart" style="max-height: 300px; margin-bottom: 1rem;"></canvas>
+          <div id="gaugeContainer" style="text-align: center; margin-top: 1rem;">
+            <canvas id="gaugeChart" style="max-width: 200px; margin: 0 auto;"></canvas>
+          </div>
+        </div>
+
+        <!-- 診断履歴セクション -->
+        <div class="bg-blue-50 rounded-xl p-4 mb-5 border border-blue-200">
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="font-bold text-blue-800">📋 過去の診断履歴</h3>
+            <button onclick="clearDiagnosisHistory()" class="text-xs bg-blue-200 hover:bg-blue-300 text-blue-800 px-2 py-1 rounded" aria-label="履歴をクリア">履歴クリア</button>
+          </div>
+          <div id="historyList" class="space-y-2 text-sm"></div>
+        </div>
+
         <!-- NISA info -->
         <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-5">
           <h3 class="font-bold text-emerald-800 mb-1">🏦 新NISA活用のポイント</h3>
@@ -866,6 +885,12 @@ details[open] summary{background:#f0f9ff;border-bottom:1px solid #bae6fd;}
         const budgetTip = getBudgetAdvice(answers.budget, key);
         simDiv.innerHTML += `<div style="margin-top:8px;padding:8px 12px;background:#f5f3ff;border-left:3px solid #7c3aed;font-size:12px;color:#4b5563;">${budgetTip}</div>`;
       }
+
+      // M3: localStorage に診断結果を保存
+      saveDiagnosisToHistory();
+
+      // M4: グラフ・可視化を生成
+      initCharts(key);
     }
 
     function resetQuiz() {
@@ -877,6 +902,267 @@ details[open] summary{background:#f0f9ff;border-bottom:1px solid #bae6fd;}
       if (location.search) {
         history.replaceState(null, '', location.pathname);
       }
+      // 既存のチャートをクリア（重複描画を防ぐ）
+      if (window.chartInstances) {
+        Object.values(window.chartInstances).forEach(chart => {
+          if (chart && typeof chart.destroy === 'function') {
+            chart.destroy();
+          }
+        });
+        window.chartInstances = {};
+      }
+    }
+
+    // localStorage 履歴保存機能
+    function saveDiagnosisToHistory() {
+      const timestamp = new Date().toISOString();
+      const key = 'diagHistory_' + timestamp;
+      const historyData = {
+        ...answers,
+        timestamp: timestamp,
+        resultKey: getResultKey(answers)
+      };
+      localStorage.setItem(key, JSON.stringify(historyData));
+      // 古い履歴を削除（最大10件まで保持）
+      const allKeys = Object.keys(localStorage).filter(k => k.startsWith('diagHistory_')).sort().reverse();
+      if (allKeys.length > 10) {
+        for (let i = 10; i < allKeys.length; i++) {
+          localStorage.removeItem(allKeys[i]);
+        }
+      }
+      displayDiagnosisHistory();
+    }
+
+    function displayDiagnosisHistory() {
+      const allKeys = Object.keys(localStorage).filter(k => k.startsWith('diagHistory_')).sort().reverse();
+      const historyList = document.getElementById('historyList');
+      if (!historyList) return;
+
+      if (allKeys.length === 0) {
+        historyList.innerHTML = '<p class="text-gray-500">診断履歴がまだありません</p>';
+        return;
+      }
+
+      historyList.innerHTML = allKeys.slice(0, 5).map((key, idx) => {
+        const data = JSON.parse(localStorage.getItem(key));
+        const date = new Date(data.timestamp).toLocaleDateString('ja-JP', {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'});
+        const goalLabel = {retirement: '老後', fire: 'FIRE', education: '教育', asset: '資産形成'}[data.goal] || data.goal;
+        const riskLabel = {low: '安全', mid: 'バランス', high: '積極'}[data.risk] || data.risk;
+        const icon = fundResults[data.resultKey]?.icon || '📊';
+        return `
+          <div onclick="restoreDiagnosis('${key}')" style="cursor:pointer;padding:10px;background:#fff;border:1px solid #93c5fd;border-radius:6px;hover:background:#f0f9ff;transition:.2s;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div>
+                <span style="font-size:1.2rem;margin-right:6px;">${icon}</span>
+                <span style="font-weight:600;color:#1e40af;">${goalLabel}</span>
+                <span style="color:#6b7280;margin-left:8px;">リスク：${riskLabel}</span>
+              </div>
+              <span style="font-size:0.8rem;color:#9ca3af;">${date}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function restoreDiagnosis(key) {
+      const data = JSON.parse(localStorage.getItem(key));
+      answers = {
+        goal: data.goal,
+        risk: data.risk,
+        period: data.period,
+        budget: data.budget,
+        exp: data.exp
+      };
+      current = 0;
+      document.getElementById('intro').classList.add('hidden');
+      document.getElementById('quiz').classList.add('hidden');
+      document.getElementById('result').classList.remove('hidden');
+      showResult();
+    }
+
+    function clearDiagnosisHistory() {
+      if (confirm('すべての診断履歴を削除してもよろしいですか？')) {
+        Object.keys(localStorage).filter(k => k.startsWith('diagHistory_')).forEach(k => localStorage.removeItem(k));
+        displayDiagnosisHistory();
+      }
+    }
+
+    // Chart.js グラフ生成関数
+    function initCharts(resultKey) {
+      // キャンバス要素が存在するか確認
+      const riskChartEl = document.getElementById('riskChart');
+      const simChartEl = document.getElementById('simulationChart');
+      const gaugeChartEl = document.getElementById('gaugeChart');
+
+      if (!riskChartEl || !simChartEl || !gaugeChartEl) return;
+      if (typeof Chart === 'undefined') return; // Chart.js が読み込まれていない場合はスキップ
+
+      // グローバル チャート保管用オブジェクト
+      window.chartInstances = window.chartInstances || {};
+
+      // 既存のチャートをクリア
+      Object.values(window.chartInstances).forEach(chart => {
+        if (chart && typeof chart.destroy === 'function') {
+          chart.destroy();
+        }
+      });
+      window.chartInstances = {};
+
+      // グローバル Chart オプション設定
+      Chart.defaults.font.family = '"Segoe UI", sans-serif';
+
+      // 1. リスク・リターン分析（レーダーチャート）
+      const riskScores = {
+        conservative: [90, 20, 80, 70, 95],  // 安全性, リターン, 分散, 流動性, コスト効率
+        balanced: [70, 55, 85, 85, 90],
+        aggressive: [40, 90, 70, 85, 85],
+        fire: [50, 85, 75, 80, 85]
+      };
+      const scores = riskScores[resultKey] || [60, 60, 70, 80, 85];
+
+      const riskCtx = riskChartEl.getContext('2d');
+      window.chartInstances.risk = new Chart(riskCtx, {
+        type: 'radar',
+        data: {
+          labels: ['安全性', 'リターン', '分散度', '流動性', 'コスト'],
+          datasets: [{
+            label: '診断結果スコア',
+            data: scores,
+            borderColor: '#10b981',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            borderWidth: 2,
+            pointRadius: 5,
+            pointBackgroundColor: '#10b981',
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          scales: {
+            r: {
+              beginAtZero: true,
+              max: 100,
+              ticks: {stepSize: 20}
+            }
+          },
+          plugins: {
+            legend: {position: 'bottom'}
+          }
+        }
+      });
+
+      // 2. 30年積立シミュレーション（折れ線グラフ）
+      const months = [];
+      const conservativeData = [];
+      const balancedData = [];
+      const aggressiveData = [];
+
+      const monthlyAmount = {low: 5000, mid: 30000, high: 70000}[answers.budget] || 30000;
+      const yearsMap = {short: 5, mid: 10, long: 20};
+      const years = yearsMap[answers.period] || 10;
+
+      for (let y = 0; y <= Math.min(30, years); y++) {
+        months.push(y + '年目');
+        [0.02, 0.05, 0.08].forEach((rate, idx) => {
+          const months_count = y * 12;
+          const monthRate = rate / 12;
+          const fv = monthlyAmount * ((Math.pow(1 + monthRate, months_count) - 1) / monthRate) * (1 + monthRate);
+          [conservativeData, balancedData, aggressiveData][idx].push(Math.round(fv / 10000));
+        });
+      }
+
+      const simCtx = simChartEl.getContext('2d');
+      window.chartInstances.simulation = new Chart(simCtx, {
+        type: 'line',
+        data: {
+          labels: months,
+          datasets: [
+            {
+              label: '保守的（年2%）',
+              data: conservativeData,
+              borderColor: '#3b82f6',
+              backgroundColor: 'rgba(59, 130, 246, 0.05)',
+              borderWidth: 2,
+              tension: 0.3,
+              fill: true
+            },
+            {
+              label: 'バランス（年5%）',
+              data: balancedData,
+              borderColor: '#f59e0b',
+              backgroundColor: 'rgba(245, 158, 11, 0.05)',
+              borderWidth: 2,
+              tension: 0.3,
+              fill: true
+            },
+            {
+              label: '積極（年8%）',
+              data: aggressiveData,
+              borderColor: '#ef4444',
+              backgroundColor: 'rgba(239, 68, 68, 0.05)',
+              borderWidth: 2,
+              tension: 0.3,
+              fill: true
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {position: 'bottom'},
+            title: {display: true, text: '月' + (monthlyAmount/10000).toFixed(1) + '万円×' + years + '年の積立シミュレーション'}
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {display: true, text: '資産額（万円）'}
+            }
+          }
+        }
+      });
+
+      // 3. 期待リターンゲージ
+      const returnMap = {conservative: 2, balanced: 5, aggressive: 8, fire: 8};
+      const returnValue = returnMap[resultKey] || 5;
+
+      const gaugeCtx = gaugeChartEl.getContext('2d');
+      window.chartInstances.gauge = new Chart(gaugeCtx, {
+        type: 'doughnut',
+        data: {
+          datasets: [{
+            data: [returnValue, 15 - returnValue],
+            backgroundColor: [
+              returnValue <= 3 ? '#3b82f6' : returnValue <= 6 ? '#f59e0b' : '#ef4444',
+              '#e5e7eb'
+            ],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {display: false},
+            tooltip: {enabled: false}
+          }
+        }
+      });
+
+      // ゲージの中央にテキスト表示
+      const canvas = gaugeChartEl;
+      const ctx = canvas.getContext('2d');
+      setTimeout(() => {
+        ctx.fillStyle = '#1e293b';
+        ctx.font = 'bold 24px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(returnValue + '%', canvas.width / 2, canvas.height / 2);
+        ctx.font = '12px sans-serif';
+        ctx.fillStyle = '#6b7280';
+        ctx.fillText('年利回り（想定）', canvas.width / 2, canvas.height / 2 + 20);
+      }, 100);
     }
   </script>
 <!-- phase10-rakuten-updated -->

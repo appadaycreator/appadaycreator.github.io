@@ -429,6 +429,32 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     const totalQ = 8;
     let currentQ = 1;
 
+    // localStorage でデータ保存・復元
+    function saveAnswers() {
+      localStorage.setItem('blog_income_answers', JSON.stringify(answers));
+    }
+
+    function loadAnswers() {
+      const saved = localStorage.getItem('blog_income_answers');
+      if (saved) {
+        try {
+          const loaded = JSON.parse(saved);
+          Object.assign(answers, loaded);
+          // UI に反映
+          Object.keys(loaded).forEach(q => {
+            if (loaded[q]) {
+              document.querySelectorAll(`[data-q="${q}"]`).forEach(b => {
+                if (b.dataset.v === loaded[q]) { b.classList.add('border-purple-500','bg-purple-100'); }
+              });
+            }
+          });
+        } catch (e) { console.warn('Failed to load answers:', e); }
+      }
+    }
+
+    // ページ読み込み時に復元
+    loadAnswers();
+
     function updateProgress(q) {
       document.getElementById('progress-bar').style.width = ((q-1)/totalQ*100)+'%';
       document.getElementById('progress-text').textContent = `質問 ${q} / ${totalQ}`;
@@ -457,6 +483,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         const q = parseInt(this.dataset.q);
         const v = this.dataset.v;
         answers[q] = v;
+        saveAnswers();
         document.querySelectorAll(`[data-q="${q}"]`).forEach(b => b.classList.remove('border-purple-500','bg-purple-100'));
         this.classList.add('border-purple-500','bg-purple-100');
         if (q < totalQ) {
@@ -581,13 +608,27 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </ul>
         </div>
 
-        <div class="grid grid-cols-3 gap-2 mb-4">
+        <div class="grid grid-cols-2 gap-2 mb-2">
           <button onclick="copyResult('${top3[0].name}', '${top3[0].desc}')" class="bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition text-xs">📋 コピー</button>
-          <a href="https://line.me/R/share?text=${encodeURIComponent('ブログ・SNS収益化適性診断の結果：' + top3[0].name.replace(/^[^\s]+ /, '') + ' が最適\nhttps://appadaycreator.com/blog-income-advisor/')}" target="_blank" rel="noopener" class="bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 transition text-center text-xs flex items-center justify-center">💚 LINE</a>
+          <button onclick="downloadCSV()" class="bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 transition text-xs">📥 CSV</button>
+        </div>
+        <div class="grid grid-cols-2 gap-2 mb-4">
+          <button onclick="printResult()" class="bg-yellow-600 text-white font-bold py-3 rounded-xl hover:bg-yellow-700 transition text-xs">🖨 印刷</button>
+          <a href="https://line.me/R/share?text=${encodeURIComponent('ブログ・SNS収益化適性診断の結果：' + top3[0].name.replace(/^[^\s]+ /, '') + ' が最適\nhttps://appadaycreator.com/blog-income-advisor/')}" target="_blank" rel="noopener" class="bg-green-400 text-white font-bold py-3 rounded-xl hover:bg-green-500 transition text-center text-xs flex items-center justify-center">💬 LINE</a>
+        </div>
+        <div class="grid grid-cols-1 gap-2 mb-4">
           <a href="https://twitter.com/intent/tweet?text=${encodeURIComponent('ブログ・SNS収益化診断結果：「' + top3[0].name.replace(/^[^\s]+ /, '') + '」が最適でした！')}&url=${encodeURIComponent('https://appadaycreator.com/blog-income-advisor/')}&via=appadaycreator" target="_blank" rel="noopener" class="bg-black text-white font-bold py-3 rounded-xl hover:bg-gray-800 transition text-center text-xs flex items-center justify-center">𝕏 シェア</a>
         </div>`;
 
       document.getElementById('result-content').innerHTML = html;
+
+      // 結果を localStorage に保存
+      localStorage.setItem('blog_income_results', JSON.stringify({
+        timestamp: new Date().toISOString(),
+        top3: top3.map(m => ({ name: m.name, score: m.score, desc: m.desc, start: m.start, income: m.income, merit: m.merit, steps: m.steps })),
+        maxScore: maxScore,
+        answers: answers
+      }));
 
       window.copyResult = function(title, desc) {
         const text = `ブログ・SNS収益化適性診断\n\n推奨: ${title}\n\n${desc}\n\nあなたに最適な収益化手段を診断：\nhttps://appadaycreator.com/blog-income-advisor/`;
@@ -602,6 +643,30 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           document.body.removeChild(ta);
           alert('結果をコピーしました！');
         });
+      };
+
+      window.downloadCSV = function() {
+        const saved = localStorage.getItem('blog_income_results');
+        if (!saved) return alert('結果が保存されていません');
+        const results = JSON.parse(saved);
+        const top3 = results.top3;
+        let csv = 'ランク,方法,スコア,マッチ度(%),説明,初期投資,収益化開始,強み,最初のステップ\n';
+        const maxScore = results.maxScore;
+        top3.forEach((m, i) => {
+          const matchPct = Math.round((m.score / maxScore) * 100);
+          const steps = (m.steps || []).join(' → ');
+          csv += `${i+1},"${m.name}",${m.score},${matchPct},"${m.desc}","${m.start}","${m.income}","${m.merit}","${steps}"\n`;
+        });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `blog_income_diagnosis_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+        alert('CSV をダウンロードしました！');
+      };
+
+      window.printResult = function() {
+        window.print();
       };
     }
   </script>

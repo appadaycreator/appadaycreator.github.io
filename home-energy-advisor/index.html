@@ -30,6 +30,7 @@
   <!-- Microsoft Clarity -->
   <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","s3t9vl8h3v");</script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"このサービスは無料ですか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要でご利用いただけます。"}},{"@type":"Question","name":"入力データはどこに保存されますか？","acceptedAnswer":{"@type":"Answer","text":"お使いのデバイス内にのみ保存されます。外部送信は行いません。"}},{"@type":"Question","name":"結果はどのくらい正確ですか？","acceptedAnswer":{"@type":"Answer","text":"あくまで参考情報です。重要な判断の際は専門家にご相談ください。"}},{"@type":"Question","name":"どのような人が使っていますか？","acceptedAnswer":{"@type":"Answer","text":"初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}},{"@type":"Question","name":"結果をシェアできますか？","acceptedAnswer":{"@type":"Answer","text":"はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}},{"@type":"Question","name":"有料プランはありますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、すべての機能を完全無料でご利用いただけます。"}}]}</script>
 
 <meta property="og:type" content="website">
@@ -163,6 +164,47 @@ label.flex.items-center span {
     <div class="bg-white rounded-2xl shadow p-6 mb-6">
       <h2 class="text-xl font-bold text-teal-700 mb-4">省エネ診断結果</h2>
       <div id="result-content"></div>
+    </div>
+
+    <!-- M4: グラフ表示セクション -->
+    <div class="bg-white rounded-2xl shadow p-6 mb-6" id="charts-section">
+      <h3 class="font-bold text-gray-700 mb-4">📊 スコア・節約効果の可視化</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div class="bg-gradient-to-br from-teal-50 to-white rounded-xl p-4">
+          <h4 class="font-semibold text-gray-700 mb-3 text-sm">省エネスコア（ゲージ）</h4>
+          <canvas id="scoreGaugeChart" height="200"></canvas>
+        </div>
+        <div class="bg-gradient-to-br from-green-50 to-white rounded-xl p-4">
+          <h4 class="font-semibold text-gray-700 mb-3 text-sm">節約効果（改善前 vs 改善後）</h4>
+          <canvas id="savingsComparisonChart" height="200"></canvas>
+        </div>
+      </div>
+      <div class="bg-gradient-to-br from-orange-50 to-white rounded-xl p-4">
+        <h4 class="font-semibold text-gray-700 mb-3 text-sm">月間・年間節約効果の推移</h4>
+        <canvas id="savingsTimelineChart" height="150"></canvas>
+      </div>
+    </div>
+
+    <!-- M6: 目標設定セクション -->
+    <div class="bg-white rounded-2xl shadow p-6 mb-6" id="goal-section">
+      <h3 class="font-bold text-gray-700 mb-4">🎯 目標スコア設定</h3>
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+        <p class="text-sm text-gray-700 mb-3">目標スコアを設定すると、達成度をトラッキングできます。定期的に診断を繰り返して進捗を確認しましょう。</p>
+        <div class="flex gap-2 mb-3">
+          <input type="number" id="goal-score" min="0" max="100" placeholder="目標スコア（0〜100）" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          <button onclick="setGoalScore()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition">設定</button>
+        </div>
+        <div id="goal-display" class="bg-white rounded-lg p-3 hidden">
+          <p class="text-sm text-gray-700 mb-2"><strong>現在のスコア:</strong> <span id="current-score-display" class="text-teal-600 font-bold">-</span> 点</p>
+          <p class="text-sm text-gray-700 mb-2"><strong>目標スコア:</strong> <span id="goal-score-display" class="text-blue-600 font-bold">-</span> 点</p>
+          <p class="text-sm text-gray-700 mb-3"><strong>達成度:</strong> <span id="achievement-rate" class="text-green-600 font-bold">-</span> %</p>
+          <div class="w-full bg-gray-200 rounded-full h-3 mb-2">
+            <div id="achievement-progress" class="bg-gradient-to-r from-blue-400 to-green-500 h-3 rounded-full transition-all duration-300" style="width:0%"></div>
+          </div>
+          <p class="text-xs text-gray-500">あと <span id="remaining-points">-</span> 点で目標達成！</p>
+        </div>
+      </div>
+      <div id="goal-history" class="space-y-2"></div>
     </div>
 
     <!-- P2.3: タブ型アフィリエイト統合 -->
@@ -756,6 +798,12 @@ label.flex.items-center span {
 
     document.getElementById('result-content').innerHTML = html;
 
+    // M4: グラフ描画
+    drawCharts(score, monthlySaving, annualSaving);
+
+    // M6: 目標設定表示の初期化
+    initializeGoalTracking(score);
+
     // P1.2: 診断結果を履歴に保存
     saveDiagnosisHistory(score, monthlySaving);
 
@@ -782,6 +830,182 @@ label.flex.items-center span {
     document.getElementById('quiz-section').classList.remove('hidden');
     document.getElementById('result-section').classList.add('hidden');
     renderQuestion();
+  }
+
+  // M4: グラフ描画関数
+  function drawCharts(score, monthlySaving, annualSaving) {
+    const chartsSection = document.getElementById('charts-section');
+    if (!chartsSection) return;
+
+    // スコアゲージ
+    const scoreGaugeCtx = document.getElementById('scoreGaugeChart')?.getContext('2d');
+    if (scoreGaugeCtx) {
+      new Chart(scoreGaugeCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['スコア', '残り'],
+          datasets: [{
+            data: [score, 100 - score],
+            backgroundColor: ['#0d9488', '#e5e7eb'],
+            borderColor: ['#0d9488', '#e5e7eb'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            tooltip: { enabled: false },
+            legend: { display: false },
+            centerText: {
+              display: true,
+              text: `${score}点`
+            }
+          }
+        },
+        plugins: [{
+          id: 'centerText',
+          beforeDatasetsDraw(chart) {
+            const { width, height, ctx } = chart;
+            ctx.restore();
+            const fontSize = (height / 114).toFixed(2);
+            ctx.font = `bold ${fontSize}em sans-serif`;
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#0d9488';
+            const text = `${score}点`;
+            const textX = Math.round((width - ctx.measureText(text).width) / 2);
+            const textY = height / 2;
+            ctx.fillText(text, textX, textY);
+            ctx.save();
+          }
+        }]
+      });
+    }
+
+    // 節約効果比較チャート
+    const savingsComparisonCtx = document.getElementById('savingsComparisonChart')?.getContext('2d');
+    if (savingsComparisonCtx) {
+      new Chart(savingsComparisonCtx, {
+        type: 'bar',
+        data: {
+          labels: ['現在の節約額', '改善後の期待額'],
+          datasets: [{
+            label: '月間節約額（円）',
+            data: [Math.round(monthlySaving * 0.5), monthlySaving],
+            backgroundColor: ['#fbbf24', '#10b981'],
+            borderColor: ['#f59e0b', '#059669'],
+            borderWidth: 1
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: true, position: 'top' },
+            tooltip: { callbacks: { label: ctx => `¥${ctx.parsed.x.toLocaleString()}` } }
+          },
+          scales: {
+            x: { beginAtZero: true, ticks: { callback: v => `¥${v.toLocaleString()}` } }
+          }
+        }
+      });
+    }
+
+    // 月間・年間節約効果の推移
+    const savingsTimelineCtx = document.getElementById('savingsTimelineChart')?.getContext('2d');
+    if (savingsTimelineCtx) {
+      const months = ['1ヶ月', '3ヶ月', '6ヶ月', '1年', '3年', '5年'];
+      const monthlyData = months.map((_, i) => {
+        const val = [1, 3, 6, 12, 36, 60][i];
+        return monthlySaving * val;
+      });
+
+      new Chart(savingsTimelineCtx, {
+        type: 'line',
+        data: {
+          labels: months,
+          datasets: [{
+            label: '累計節約額（円）',
+            data: monthlyData,
+            borderColor: '#f59e0b',
+            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4,
+            pointBackgroundColor: '#f59e0b',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 5
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: true, position: 'top' },
+            tooltip: { callbacks: { label: ctx => `¥${ctx.parsed.y.toLocaleString()}` } }
+          },
+          scales: {
+            y: { beginAtZero: true, ticks: { callback: v => `¥${(v/1000).toFixed(0)}k` } }
+          }
+        }
+      });
+    }
+  }
+
+  // M6: 目標トラッキング初期化
+  function initializeGoalTracking(currentScore) {
+    const goalData = JSON.parse(localStorage.getItem('goalTracking') || '{}');
+    const goalDisplay = document.getElementById('goal-display');
+    const goalHistory = document.getElementById('goal-history');
+
+    if (goalData.goalScore) {
+      document.getElementById('current-score-display').textContent = currentScore;
+      document.getElementById('goal-score-display').textContent = goalData.goalScore;
+
+      const achievementRate = Math.min(100, Math.round((currentScore / goalData.goalScore) * 100));
+      document.getElementById('achievement-rate').textContent = achievementRate;
+      document.getElementById('achievement-progress').style.width = `${achievementRate}%`;
+      document.getElementById('remaining-points').textContent = Math.max(0, goalData.goalScore - currentScore);
+
+      goalDisplay.classList.remove('hidden');
+
+      // 過去の診断履歴を表示
+      const history = getDiagnosisHistory();
+      if (history.length > 1) {
+        const prevScore = history[history.length - 2]?.score || 0;
+        const scoreDiff = currentScore - prevScore;
+        const diffText = scoreDiff > 0 ? `📈 前回比 +${scoreDiff}点` : scoreDiff < 0 ? `📉 前回比 ${scoreDiff}点` : '➡️ 前回と同じ';
+
+        goalHistory.innerHTML = `
+          <div class="bg-white rounded-lg p-3 border border-gray-200">
+            <p class="text-xs text-gray-700"><strong>前回診断との変化:</strong> ${diffText}</p>
+            <p class="text-xs text-gray-500">前回: ${prevScore}点 → 今回: ${currentScore}点</p>
+          </div>
+        `;
+      }
+    } else {
+      goalDisplay.classList.add('hidden');
+    }
+  }
+
+  // M6: 目標スコア設定関数
+  function setGoalScore() {
+    const goalScoreInput = document.getElementById('goal-score');
+    const goalScore = parseInt(goalScoreInput.value);
+
+    if (isNaN(goalScore) || goalScore < 0 || goalScore > 100) {
+      alert('目標スコアは0〜100の範囲で入力してください');
+      return;
+    }
+
+    const goalData = { goalScore, timestamp: new Date().toISOString() };
+    localStorage.setItem('goalTracking', JSON.stringify(goalData));
+
+    initializeGoalTracking(currentScore);
+    goalScoreInput.value = '';
+    alert(`目標スコア ${goalScore}点に設定しました！`);
   }
 
   // P2.3: タブ切り替え機能

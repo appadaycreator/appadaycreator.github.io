@@ -48,6 +48,7 @@
   <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","s3t9vl8h3v");</script>
 
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
 
   <script>
     window.onerror = function(msg, src, line, col, err) {
@@ -201,6 +202,35 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       </div>
     </div>
 
+    <!-- Goal Setting Section -->
+    <div id="goal-section" class="hidden">
+      <div class="bg-white rounded-2xl shadow p-6 mb-6">
+        <h2 class="text-xl font-bold text-purple-600 mb-4">🎯 目標設定・進捗追跡</h2>
+        <p class="text-sm text-gray-600 mb-4">このDIYプロジェクトの目標を設定し、進捗を記録できます。</p>
+        <div class="space-y-3">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">プロジェクト名</label>
+            <input type="text" id="goal-name" placeholder="例: 壁紙張り替え（リビング）" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">目標完了日</label>
+            <input type="date" id="goal-deadline" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">進捗率 (%)</label>
+            <div class="flex gap-2">
+              <input type="range" id="goal-progress" min="0" max="100" value="0" class="flex-1" />
+              <span id="goal-progress-display" class="text-sm font-bold text-purple-600 w-10">0%</span>
+            </div>
+          </div>
+          <button onclick="saveGoal()" class="w-full py-2 bg-purple-500 text-white rounded-lg font-semibold hover:bg-purple-600 transition text-sm">
+            💾 目標を保存
+          </button>
+        </div>
+        <div id="goal-history" class="mt-4 pt-4 border-t border-gray-200"></div>
+      </div>
+    </div>
+
     <!-- Result -->
     <div id="result-section" class="hidden">
       <div class="bg-white rounded-2xl shadow p-6 mb-6">
@@ -225,6 +255,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </a>
       </div>
 
+      <div class="flex gap-2 mb-4">
+        <button onclick="window.print()" class="flex-1 py-2 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition text-sm">
+          🖨️ 印刷する
+        </button>
+        <button id="export-csv-btn" onclick="exportAsCSV()" class="flex-1 py-2 bg-teal-500 text-white rounded-lg font-semibold hover:bg-teal-600 transition text-sm">
+          📥 CSVダウンロード
+        </button>
+      </div>
       <button onclick="resetQuiz()" class="w-full py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition mb-6">別のDIYを診断する</button>
     </div>
 
@@ -457,6 +495,83 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     let currentStep = 0;
     let answers = {};
+    let diagnosisHistory = [];
+    let chart = null;
+
+    // localStorage管理関数
+    function loadHistory() {
+      const saved = localStorage.getItem('diy-advisor-history');
+      diagnosisHistory = saved ? JSON.parse(saved) : [];
+      return diagnosisHistory;
+    }
+
+    function saveDiagnosis(diagnosis) {
+      diagnosisHistory.unshift(diagnosis);
+      if (diagnosisHistory.length > 20) diagnosisHistory.pop();
+      localStorage.setItem('diy-advisor-history', JSON.stringify(diagnosisHistory));
+    }
+
+    function loadPreviousAnswers() {
+      const saved = localStorage.getItem('diy-advisor-answers');
+      return saved ? JSON.parse(saved) : null;
+    }
+
+    function savePreviousAnswers(ans) {
+      localStorage.setItem('diy-advisor-answers', JSON.stringify(ans));
+    }
+
+    function loadGoals() {
+      const saved = localStorage.getItem('diy-advisor-goals');
+      return saved ? JSON.parse(saved) : [];
+    }
+
+    function saveGoal() {
+      const name = document.getElementById('goal-name').value;
+      const deadline = document.getElementById('goal-deadline').value;
+      const progress = parseInt(document.getElementById('goal-progress').value);
+      if (!name || !deadline) { alert('プロジェクト名と目標日を入力してください'); return; }
+      const goals = loadGoals();
+      const goal = { id: Date.now(), name, deadline, progress, created: new Date().toLocaleString('ja-JP') };
+      goals.unshift(goal);
+      if (goals.length > 10) goals.pop();
+      localStorage.setItem('diy-advisor-goals', JSON.stringify(goals));
+      document.getElementById('goal-name').value = '';
+      document.getElementById('goal-deadline').value = '';
+      document.getElementById('goal-progress').value = 0;
+      document.getElementById('goal-progress-display').textContent = '0%';
+      displayGoals();
+    }
+
+    function deleteGoal(id) {
+      const goals = loadGoals().filter(g => g.id !== id);
+      localStorage.setItem('diy-advisor-goals', JSON.stringify(goals));
+      displayGoals();
+    }
+
+    function displayGoals() {
+      const goals = loadGoals();
+      const container = document.getElementById('goal-history');
+      if (goals.length === 0) {
+        container.innerHTML = '<p class="text-xs text-gray-500">保存された目標はまだありません</p>';
+        return;
+      }
+      container.innerHTML = goals.map(g => {
+        const daysLeft = Math.ceil((new Date(g.deadline) - new Date()) / (1000 * 60 * 60 * 24));
+        return \`<div class="bg-gray-50 p-3 rounded-lg mb-2 text-sm">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="font-semibold text-gray-700">\${g.name}</p>
+              <p class="text-xs text-gray-500">作成: \${g.created} | 残り: \${daysLeft}日</p>
+            </div>
+            <button onclick="deleteGoal(\${g.id})" class="text-red-500 text-xs hover:text-red-700">削除</button>
+          </div>
+          <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
+            <div class="bg-green-500 h-2 rounded-full" style="width: \${g.progress}%"></div>
+          </div>
+          <p class="text-xs text-gray-600 mt-1">\${g.progress}% 完了</p>
+        </div>\`;
+      }).join('');
+    }
 
     function renderQuestion() {
       const q = questions[currentStep];
@@ -485,6 +600,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const el = document.querySelector(`input[name="${questions[currentStep].id}"]:checked`);
       if (!el) return false;
       answers[questions[currentStep].id] = el.value;
+      savePreviousAnswers(answers);
       return true;
     }
 
@@ -506,14 +622,30 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function showResult() {
       document.getElementById('quiz-section').classList.add('hidden');
       const resultSection = document.getElementById('result-section');
+      const goalSection = document.getElementById('goal-section');
       resultSection.classList.remove('hidden');
       resultSection.classList.add('fade-in');
+      goalSection.classList.remove('hidden');
+      goalSection.classList.add('fade-in');
+      document.getElementById('goal-name').value = answers.task || '';
+      displayGoals();
       window.scrollTo(0, 0);
 
       const data = taskData[answers.task] || taskData['棚・家具の製作'];
       const expBonus = { '全くない（初めて）': 0, '少しある（小物製作程度）': 1, 'そこそこある（木工・塗装経験）': 2, '得意（工具を日常的に使う）': 3 };
       const exp = expBonus[answers.experience] || 0;
       const adjustedDiff = Math.max(1, data.difficulty - Math.floor(exp / 2));
+
+      // 診断結果をhistoryに保存
+      const diagnosis = {
+        timestamp: new Date().toLocaleString('ja-JP'),
+        task: answers.task,
+        difficulty: adjustedDiff,
+        experience: answers.experience,
+        tools: answers.tools,
+        budget: answers.budget
+      };
+      saveDiagnosis(diagnosis);
 
       const bgMap = { green: 'bg-green-50 border-green-400 text-green-800', yellow: 'bg-yellow-50 border-yellow-400 text-yellow-800', red: 'bg-red-50 border-red-400 text-red-800' };
 
@@ -612,6 +744,56 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         toolsBlock.style.display = 'none';
       }
 
+      // グラフ表示エリアHTMLを準備
+      const chartHtml = \`
+        <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-4 fade-in">
+          <h3 class="font-bold text-indigo-800 mb-3">📊 難易度・予算分析</h3>
+          <canvas id="diy-difficulty-chart" style="max-height: 300px;"></canvas>
+          <p class="text-xs text-gray-600 mt-3">💡 あなたの経験レベルに基づいて調整された難易度を表示しています</p>
+        </div>
+      \`;
+
+      // グラフ描画関数
+      function renderChart() {
+        setTimeout(() => {
+          const ctx = document.getElementById('diy-difficulty-chart');
+          if (ctx && typeof Chart !== 'undefined') {
+            if (chart) chart.destroy();
+            const estimatedCost = data.estimatedMaterialCost || '情報なし';
+            const maxCost = adjustedDiff >= 4 ? 30 : adjustedDiff >= 3 ? 20 : 15;
+
+            chart = new Chart(ctx, {
+              type: 'bar',
+              data: {
+                labels: ['基本難易度', 'あなたの\n難易度'],
+                datasets: [{
+                  label: '難易度スコア (5段階)',
+                  data: [data.difficulty, adjustedDiff],
+                  backgroundColor: [
+                    data.color === 'green' ? '#10b981' : data.color === 'yellow' ? '#eab308' : '#ef4444',
+                    data.color === 'green' ? '#6ee7b7' : data.color === 'yellow' ? '#fcd34d' : '#fca5a5'
+                  ],
+                  borderRadius: 6,
+                  borderSkipped: false
+                }]
+              },
+              options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: true,
+                scales: {
+                  x: { min: 0, max: 5, ticks: { callback: v => v } },
+                  y: { ticks: { font: { size: 12 } } }
+                },
+                plugins: {
+                  legend: { display: false }
+                }
+              }
+            });
+          }
+        }, 100);
+      }
+
       // 電気・水回りの場合は専用レイアウト
       if (answers.task === '電気・水回りの修理') {
         document.getElementById('result-content').innerHTML = \`
@@ -654,6 +836,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <p class="text-sm \${colorTextClass} font-semibold mt-2">レベル \${diffLevelDisplay}</p>
           \${scoreExplanation}
         </div>
+        \${chartHtml}
         \${budgetInfo}
         <h3 class="font-bold \${colorTextClass} mb-2 fade-in fade-in-d1">必要な工具リスト</h3>
         <ul class="space-y-1 mb-4 fade-in fade-in-d1">
@@ -685,13 +868,53 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             WhatsAppで共有
           </a>
         </div>\`;
+
+      // グラフを描画
+      renderChart();
+    }
+
+    function exportAsCSV() {
+      const diag = diagnosisHistory[0];
+      if (!diag) return;
+      const data = taskData[diag.task] || {};
+      const csv = [
+        '診断日時,作業内容,難易度,経験レベル,工具,予算',
+        `"${diag.timestamp}","${diag.task}",${diag.difficulty},"${diag.experience}","${diag.tools}","${diag.budget}"`
+      ].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `diy-diagnosis-${new Date().getTime()}.csv`;
+      link.click();
     }
 
     function resetQuiz() {
       currentStep = 0; answers = {};
+      savePreviousAnswers({});
       document.getElementById('quiz-section').classList.remove('hidden');
       document.getElementById('result-section').classList.add('hidden');
+      document.getElementById('goal-section').classList.add('hidden');
       renderQuestion();
+    }
+
+    // ページ読み込み時にhistoryをロード
+    loadHistory();
+
+    // 進捗スライダーのイベントリスナー
+    document.addEventListener('input', (e) => {
+      if (e.target.id === 'goal-progress') {
+        document.getElementById('goal-progress-display').textContent = e.target.value + '%';
+      }
+    });
+
+    // 前回のデータがあれば復元
+    const prevAnswers = loadPreviousAnswers();
+    if (prevAnswers && Object.keys(prevAnswers).length > 0) {
+      answers = prevAnswers;
+      currentStep = Object.keys(prevAnswers).length - 1;
+      if (currentStep >= questions.length - 1) {
+        currentStep = questions.length - 1;
+      }
     }
 
     renderQuestion();

@@ -70,7 +70,7 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
   [id*="affiliate"],[id*="banner"],
   script,noscript{display:none!important}
   body{background:#fff!important;color:#000!important;font-size:12pt}
-  [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
+  [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"],[id*="goal"]{display:block!important}
   a[href]::after{content:none!important}
 }
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;}
@@ -234,7 +234,36 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <button onclick="copyResults()" style="flex:1;background:#10b981;color:white;border:none;padding:0.75rem;border-radius:0.5rem;font-weight:600;cursor:pointer;">📋 結果をコピー</button>
       <button onclick="saveScenario()" style="flex:1;background:#3b82f6;color:white;border:none;padding:0.75rem;border-radius:0.5rem;font-weight:600;cursor:pointer;">💾 このシナリオを保存</button>
     </div>
+    <div class="flex gap-2 mb-4">
+      <button onclick="downloadCSV()" style="flex:1;background:#8b5cf6;color:white;border:none;padding:0.75rem;border-radius:0.5rem;font-weight:600;cursor:pointer;">📥 CSVエクスポート</button>
+      <button onclick="window.print()" style="flex:1;background:#ef6f3c;color:white;border:none;padding:0.75rem;border-radius:0.5rem;font-weight:600;cursor:pointer;">🖨️ 印刷</button>
+    </div>
     <div id="toast" style="position:fixed;bottom:20px;right:20px;background:#10b981;color:white;padding:12px 16px;border-radius:0.5rem;display:none;z-index:1000;"></div>
+  </div>
+
+  <div id="goal-section" class="card p-6 mb-4" style="display:none;">
+    <h3 class="font-bold text-gray-800 mb-4">🎯 目標設定・達成度トラッキング</h3>
+    <div class="space-y-4">
+      <div class="grid grid-cols-2 gap-3 mb-3">
+        <div>
+          <label style="display:block;font-size:0.875rem;font-weight:600;color:#374151;margin-bottom:0.25rem;">目標年間節約額（万円）</label>
+          <input type="number" id="goal-annual-save" class="input-field" min="0" max="500" step="1" placeholder="20" style="width:100%;">
+        </div>
+        <div>
+          <label style="display:block;font-size:0.875rem;font-weight:600;color:#374151;margin-bottom:0.25rem;">目標回収期間（年）</label>
+          <input type="number" id="goal-payback" class="input-field" min="1" max="50" step="0.5" placeholder="10" style="width:100%;">
+        </div>
+      </div>
+      <button onclick="setGoal()" style="width:100%;background:#7c3aed;color:white;border:none;padding:0.75rem;border-radius:0.5rem;font-weight:600;cursor:pointer;">✅ 目標を設定</button>
+    </div>
+    <div id="goal-results" style="display:none;margin-top:1rem;padding:1rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:0.5rem;">
+      <div class="text-sm font-bold text-green-800 mb-2">達成度レポート</div>
+      <div style="font-size:0.875rem;color:#374151;line-height:1.8;">
+        <div><strong>年間節約額：</strong> <span id="goal-save-progress"></span></div>
+        <div><strong>回収期間：</strong> <span id="goal-payback-progress"></span></div>
+        <div id="goal-comparison" style="margin-top:0.5rem;color:#4b5563;font-size:0.8rem;"></div>
+      </div>
+    </div>
   </div>
 
   <div id="scenarios-section" style="display:none;">
@@ -343,6 +372,7 @@ function calculate(){
   displayCalculationDetails();
   drawPaybackChart(totalCost,annualBenefit,Math.ceil(payback));
   loadScenarios();
+  loadGoalTracking();
 
   document.getElementById('results').style.display='block';
   document.getElementById('affiliate-section').style.display='block';
@@ -444,6 +474,133 @@ function showToast(msg){
   toast.textContent=msg;
   toast.style.display='block';
   setTimeout(function(){toast.style.display='none';},1500);
+}
+
+// M6: Goal tracking functions
+function setGoal(){
+  var goalSave=parseFloat(document.getElementById('goal-annual-save').value)||null;
+  var goalPayback=parseFloat(document.getElementById('goal-payback').value)||null;
+
+  if(!goalSave&&!goalPayback){
+    alert('目標年間節約額または目標回収期間を入力してください');
+    return;
+  }
+
+  var goal={goalSave,goalPayback,setDate:new Date().toISOString()};
+  localStorage.setItem('solar_goal',JSON.stringify(goal));
+  loadGoalTracking();
+  showToast('🎯 目標を設定しました');
+}
+
+function loadGoalTracking(){
+  var goal=JSON.parse(localStorage.getItem('solar_goal')||'null');
+  if(!goal||!currentCalc||!lastValidCalc){
+    document.getElementById('goal-section').style.display='none';
+    return;
+  }
+
+  var calc=lastValidCalc;
+  var goalSection=document.getElementById('goal-section');
+  var goalResults=document.getElementById('goal-results');
+
+  if(goal.goalSave){
+    document.getElementById('goal-annual-save').value=goal.goalSave;
+  }
+  if(goal.goalPayback){
+    document.getElementById('goal-payback').value=goal.goalPayback;
+  }
+
+  var currentSave=Math.round(calc.annualBenefit/10000*10)/10;
+  var currentPayback=Math.round(calc.payback*10)/10;
+  var hasSaveGoal=goal.goalSave>0;
+  var hasPaybackGoal=goal.goalPayback>0;
+
+  if(hasSaveGoal||hasPaybackGoal){
+    goalResults.style.display='block';
+
+    var saveProgress='',paybackProgress='',comparison='';
+    if(hasSaveGoal){
+      var savePercent=Math.min(100,Math.round((currentSave/goal.goalSave)*100));
+      saveProgress=currentSave+'万円 / 目標：'+goal.goalSave+'万円 ('+savePercent+'%)';
+    }
+    if(hasPaybackGoal){
+      var paybackPercent=Math.max(0,Math.min(100,Math.round((1-(currentPayback/goal.goalPayback))*100)));
+      paybackProgress=currentPayback+'年 / 目標：'+goal.goalPayback+'年 (達成度 '+paybackPercent+'%)';
+    }
+
+    if(hasSaveGoal&&hasPaybackGoal){
+      var saveDone=currentSave>=goal.goalSave?'✅ 達成！':'⏳ 継続中';
+      var paybackDone=currentPayback<=goal.goalPayback?'✅ 達成！':'⏳ 継続中';
+      comparison='<div style="margin-top:0.5rem;"><strong>【進捗状況】</strong></div><div>節約額: '+saveDone+'</div><div>回収期間: '+paybackDone+'</div>';
+    }else if(hasSaveGoal){
+      var saveDone=currentSave>=goal.goalSave?'✅ 達成！':'あと '+Math.max(0,(goal.goalSave-currentSave)).toFixed(1)+'万円';
+      comparison='<div style="margin-top:0.5rem;"><strong>【進捗】</strong> '+saveDone+'</div>';
+    }else if(hasPaybackGoal){
+      var paybackDone=currentPayback<=goal.goalPayback?'✅ 達成！':'あと '+Math.max(0,(currentPayback-goal.goalPayback)).toFixed(1)+'年';
+      comparison='<div style="margin-top:0.5rem;"><strong>【進捗】</strong> '+paybackDone+'</div>';
+    }
+
+    document.getElementById('goal-save-progress').textContent=saveProgress;
+    document.getElementById('goal-payback-progress').textContent=paybackProgress;
+    document.getElementById('goal-comparison').innerHTML=comparison;
+  }
+
+  goalSection.style.display='block';
+}
+
+// M10: CSV export function
+function downloadCSV(){
+  if(!lastValidCalc){
+    alert('計算結果がありません');
+    return;
+  }
+
+  var c=lastValidCalc;
+  var regionLabel={sunny:'日照時間が長い',normal:'平均的',cloudy:'日照が少ない'};
+  var roofLabel={small:'小さい',medium:'普通',large:'大きい'};
+  var batteryLabel={no:'太陽光のみ',5:'5kWh',10:'10kWh',15:'15kWh'};
+
+  var date=new Date();
+  var dateStr=date.getFullYear()+'-'+(date.getMonth()+1).toString().padStart(2,'0')+'-'+date.getDate().toString().padStart(2,'0');
+
+  var csv='太陽光発電診断 シミュレーション結果\n';
+  csv+=dateStr+'\n\n';
+  csv+='【入力条件】\n';
+  csv+='地域,'+regionLabel[c.region]+'\n';
+  csv+='屋根面積,'+roofLabel[c.roofSize]+'\n';
+  csv+='月間電気代,'+c.bill+'円\n';
+  csv+='電力単価,'+c.electricityUnitPrice+'円/kWh\n';
+  csv+='蓄電池,'+batteryLabel[c.batteryOption]+'\n\n';
+  csv+='【計算結果】\n';
+  csv+='設置費用,'+Math.round(c.totalCost)+'円（'+Math.round(c.totalCost/10000)+'万円）\n';
+  csv+='年間発電量,'+Math.round(c.annualKwh)+'kWh\n';
+  csv+='年間節約額,'+Math.round(c.annualBenefit)+'円（'+Math.round(c.annualBenefit/10000*10)/10+'万円）\n';
+  csv+='自家消費率,'+(c.batteryCapacity===0?'40%':c.batteryCapacity<10?'55%':c.batteryCapacity<15?'65%':'72%')+'\n';
+  csv+='投資回収期間,'+Math.round(c.payback*10)/10+'年\n';
+  csv+='CO2削減量,'+Math.round(c.co2*10)/10+'t/年\n';
+  csv+='設置容量,'+c.kw+'kW\n\n';
+
+  var goal=JSON.parse(localStorage.getItem('solar_goal')||'null');
+  if(goal){
+    csv+='【目標設定】\n';
+    if(goal.goalSave)csv+='目標年間節約額,'+goal.goalSave+'万円\n';
+    if(goal.goalPayback)csv+='目標回収期間,'+goal.goalPayback+'年\n';
+    csv+='\n';
+  }
+
+  csv+='📊 https://appadaycreator.com/solar-panel-advisor/';
+
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  var link=document.createElement('a');
+  var url=URL.createObjectURL(blob);
+  link.setAttribute('href',url);
+  link.setAttribute('download','solar-panel-diagnosis-'+dateStr+'.csv');
+  link.style.visibility='hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  showToast('📥 CSVをダウンロードしました');
 }
 
 function drawScenarioChart(scenarios){

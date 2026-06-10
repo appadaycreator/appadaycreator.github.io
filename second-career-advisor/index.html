@@ -35,6 +35,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
 <script>window.onerror=function(m,s,l,c,e){console.warn('Error:',m);return true;};window.addEventListener('unhandledrejection',function(e){console.warn('Rejection:',e.reason);});</script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   body{background: #f8fafc;min-height:100vh;}
   .card{background:white;border-radius:1rem;box-shadow:0 4px 24px rgba(0,0,0,0.15);}
@@ -190,12 +191,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     </div>
     <div class="card p-6 mb-4">
       <h3 class="font-bold text-gray-800 mb-3">📊 診断スコア</h3>
-      <div class="space-y-3">
-        <div><div style="font-size:0.85rem;color:#6b7280;margin-bottom:4px;">リスク許容度</div><div style="background:#e5e7eb;border-radius:4px;height:12px;overflow:hidden;"><div id="score-risk" style="background:#1d4ed8;height:100%;width:50%;transition:width 0.3s;"></div></div><span id="score-risk-val" style="font-size:0.75rem;color:#6b7280;">50/100</span></div>
-        <div><div style="font-size:0.85rem;color:#6b7280;margin-bottom:4px;">安定志向</div><div style="background:#e5e7eb;border-radius:4px;height:12px;overflow:hidden;"><div id="score-stable" style="background:#1d4ed8;height:100%;width:50%;transition:width 0.3s;"></div></div><span id="score-stable-val" style="font-size:0.75rem;color:#6b7280;">50/100</span></div>
-        <div><div style="font-size:0.85rem;color:#6b7280;margin-bottom:4px;">自由・やりがい志向</div><div style="background:#e5e7eb;border-radius:4px;height:12px;overflow:hidden;"><div id="score-freedom" style="background:#1d4ed8;height:100%;width:50%;transition:width 0.3s;"></div></div><span id="score-freedom-val" style="font-size:0.75rem;color:#6b7280;">50/100</span></div>
-        <div><div style="font-size:0.85rem;color:#6b7280;margin-bottom:4px;">資産充実度</div><div style="background:#e5e7eb;border-radius:4px;height:12px;overflow:hidden;"><div id="score-asset" style="background:#1d4ed8;height:100%;width:50%;transition:width 0.3s;"></div></div><span id="score-asset-val" style="font-size:0.75rem;color:#6b7280;">50/100</span></div>
+      <div style="max-width:300px;margin:0 auto;padding:20px;">
+        <canvas id="scoreChart"></canvas>
       </div>
+    </div>
+    <div class="card p-6 mb-4" id="history-section" style="display:none;">
+      <h3 class="font-bold text-gray-800 mb-3">📜 診断履歴</h3>
+      <div id="history-list" style="space-y:2;"></div>
+      <button onclick="clearHistory()" style="margin-top:8px;width:100%;padding:8px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;font-size:12px;">🗑️ 履歴をクリア</button>
     </div>
     <div class="card p-6 mb-4">
       <h3 class="font-bold text-gray-800 mb-3">💼 キャリア相談・資格取得</h3>
@@ -208,7 +211,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <div><a href="/job-change-advisor/" class="text-blue-600 underline">転職アドバイザー →</a></div>
     </div>
     <button class="btn-primary" style="background:#0f766e;margin-bottom:.75rem;" onclick="copyResults()" id="copy-btn" aria-label="診断結果をコピー">📋 診断結果をコピー</button>
-    <button class="btn-primary" style="background:#6b7280;" onclick="restart()" aria-label="もう一度診断する">もう一度診断する</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:.75rem;">
+      <button class="btn-primary" style="background:#059669;font-size:0.95rem;padding:0.75rem 1rem;" onclick="downloadCSV()" aria-label="CSVダウンロード">📊 CSV</button>
+      <button class="btn-primary" style="background:#0891b2;font-size:0.95rem;padding:0.75rem 1rem;" onclick="downloadJSON()" aria-label="JSONダウンロード">📄 JSON</button>
+    </div>
+    <button class="btn-primary" style="background:#6b7280;margin-bottom:.75rem;" onclick="window.print()" aria-label="印刷する">🖨️ 印刷する</button>
+    <button class="btn-primary" style="background:#64748b;" onclick="restart()" aria-label="もう一度診断する">もう一度診断する</button>
   </div>
 
 </div>
@@ -246,22 +254,15 @@ function pick(i,val,key){
   document.querySelectorAll('.option-btn').forEach(function(b,j){b.classList.toggle('selected',j===i);});
   setTimeout(function(){cur++;if(cur<Qs.length){renderQ();}else{show('loading');setTimeout(showResults,1600);}},300);
 }
-function showResults(){
+function showResults(fromHistory){
   var riskIdx=ans.risk?ans.risk.i:1;
   var priorityIdx=ans.priority?ans.priority.i:0;
   var assetIdx=ans.asset?ans.asset.i:1;
-  var riskScore=(riskIdx/3)*100;
-  var stableScore=((3-priorityIdx)/3)*100;
-  var freedomScore=(priorityIdx/3)*100;
-  var assetScore=(assetIdx/3)*100;
-  document.getElementById('score-risk').style.width=riskScore+'%';
-  document.getElementById('score-risk-val').textContent=Math.round(riskScore)+'/100';
-  document.getElementById('score-stable').style.width=stableScore+'%';
-  document.getElementById('score-stable-val').textContent=Math.round(stableScore)+'/100';
-  document.getElementById('score-freedom').style.width=freedomScore+'%';
-  document.getElementById('score-freedom-val').textContent=Math.round(freedomScore)+'/100';
-  document.getElementById('score-asset').style.width=assetScore+'%';
-  document.getElementById('score-asset-val').textContent=Math.round(assetScore)+'/100';
+  var riskScore=Math.round((riskIdx/3)*100);
+  var stableScore=Math.round(((3-priorityIdx)/3)*100);
+  var freedomScore=Math.round((priorityIdx/3)*100);
+  var assetScore=Math.round((assetIdx/3)*100);
+  var scores={risk:riskScore,stable:stableScore,freedom:freedomScore,asset:assetScore};
   var key;
   if(riskIdx>=3||(riskIdx>=2&&assetIdx>=2)){key='startup';}
   else if(riskIdx>=2){key='independent';}
@@ -274,9 +275,87 @@ function showResults(){
   document.getElementById('res-desc').textContent=r.desc;
   var actEl=document.getElementById('res-actions');actEl.innerHTML='';
   r.actions.forEach(function(a){var li=document.createElement('li');li.textContent='• '+a;actEl.appendChild(li);});
+  renderRadarChart(scores);
+  if(!fromHistory){saveDiagnosis(ans,r,scores);}
   var aff='<div class="space-y-3"><div class="bg-blue-50 border border-blue-200 rounded-xl p-4"><div class="font-bold text-blue-800 text-sm mb-2">CxO直結の非公開求人で年収を最大化</div><div class="text-center mb-3"><a href="https://px.a8.net/svt/ejp?a8mat=4B3UZ4+EMXMN6+4SXU+NUES1" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-flex;align-items:center;padding:10px 18px;background:#f1f5f9;border:1px solid #94a3b8;border-radius:8px;font-size:14px;font-weight:600;color:#1e293b;text-decoration:none;">→ Groovement Agent</a><img border="0" width="1" height="1" src="https://www18.a8.net/0.gif?a8mat=4B3UZ4+EMXMN6+4SXU+NUES1" alt="" loading="lazy"></div><a href="https://px.a8.net/svt/ejp?a8mat=4B3UZ4+EMXMN6+4SXU+NTJWY" rel="nofollow noopener noreferrer" target="_blank" class="block text-center bg-blue-600 text-white font-bold py-3 rounded-lg text-sm hover:bg-blue-700 transition">コンサル・DX・スタートアップへ転職する →</a><img border="0" width="1" height="1" src="https://www13.a8.net/0.gif?a8mat=4B3UZ4+EMXMN6+4SXU+NTJWY" alt="" loading="lazy"></div><a href="https://px.a8.net/svt/ejp?a8mat=4B3WJA+6M7PBE+4K3S+5YJRM" rel="nofollow" target="_blank" rel="noopener sponsored" class="block text-center bg-indigo-500 text-white font-bold py-3 rounded-lg text-sm hover:bg-indigo-600 transition">セカンドキャリアに役立つ資格を探す →</a></div>';
   document.getElementById('aff-area').innerHTML=aff;
   show('results');
+}
+window.addEventListener('load',function(){renderHistory();});
+function saveDiagnosis(answers, result, scores){
+  var history=JSON.parse(localStorage.getItem('diagnosisHistory')||'[]');
+  var entry={
+    date:new Date().toLocaleString('ja-JP'),
+    answers:answers,
+    type:result.type,
+    scores:scores
+  };
+  history.push(entry);
+  if(history.length>20){history=history.slice(-20);}
+  localStorage.setItem('diagnosisHistory',JSON.stringify(history));
+  renderHistory();
+}
+function loadHistory(){
+  return JSON.parse(localStorage.getItem('diagnosisHistory')||'[]');
+}
+function renderHistory(){
+  var history=loadHistory();
+  var section=document.getElementById('history-section');
+  var list=document.getElementById('history-list');
+  if(history.length>0){
+    section.style.display='block';
+    list.innerHTML='';
+    history.slice(-5).reverse().forEach(function(entry,i){
+      var div=document.createElement('div');
+      div.style.cssText='padding:8px;background:#f9fafb;border-radius:6px;margin-bottom:6px;font-size:12px;cursor:pointer;border:1px solid #e5e7eb;';
+      div.textContent=entry.date+' / '+entry.type;
+      div.onclick=function(){loadPreviousDiagnosis(history.length-1-i);};
+      list.appendChild(div);
+    });
+  }else{section.style.display='none';}
+}
+function loadPreviousDiagnosis(idx){
+  var history=loadHistory();
+  var entry=history[idx];
+  ans=entry.answers;
+  cur=Qs.length;
+  show('loading');
+  setTimeout(function(){showResults(true);},600);
+}
+function clearHistory(){
+  if(confirm('診断履歴をすべて削除しますか？')){
+    localStorage.removeItem('diagnosisHistory');
+    renderHistory();
+  }
+}
+function renderRadarChart(scores){
+  var ctx=document.getElementById('scoreChart');
+  if(!ctx){return;}
+  if(window.scoreChartInstance){window.scoreChartInstance.destroy();}
+  window.scoreChartInstance=new Chart(ctx,{
+    type:'radar',
+    data:{
+      labels:['リスク許容度','安定志向','自由・やりがい','資産充実度'],
+      datasets:[{
+        label:'診断スコア',
+        data:[scores.risk,scores.stable,scores.freedom,scores.asset],
+        borderColor:'#1d4ed8',
+        backgroundColor:'rgba(29,78,216,0.1)',
+        pointBackgroundColor:'#1d4ed8',
+        pointBorderColor:'#fff',
+        pointBorderWidth:2,
+        pointRadius:5,
+        fill:true
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:true,
+      scales:{r:{min:0,max:100,ticks:{stepSize:25},grid:{color:'rgba(0,0,0,0.05)'}}},
+      plugins:{legend:{display:false}},
+      elements:{line:{borderWidth:2}}
+    }
+  });
 }
 function copyResults(){
   var type=document.getElementById('res-type').textContent;
@@ -293,6 +372,60 @@ function copyResults(){
     var btn=document.getElementById('copy-btn');btn.textContent='✅ コピーしました';
     setTimeout(function(){btn.textContent='📋 診断結果をコピー';},2000);
   });
+}
+function downloadCSV(){
+  var type=document.getElementById('res-type').textContent;
+  var subtitle=document.getElementById('res-subtitle').textContent;
+  var riskIdx=ans.risk?ans.risk.i:1;
+  var priorityIdx=ans.priority?ans.priority.i:0;
+  var assetIdx=ans.asset?ans.asset.i:1;
+  var riskScore=Math.round((riskIdx/3)*100);
+  var stableScore=Math.round(((3-priorityIdx)/3)*100);
+  var freedomScore=Math.round((priorityIdx/3)*100);
+  var assetScore=Math.round((assetIdx/3)*100);
+  var date=new Date().toLocaleString('ja-JP');
+  var csv='診断項目,回答\n';
+  Qs.forEach(function(q,i){
+    var a=ans[q.key];
+    csv+='"'+q.text+'","'+(a?a.val:'')+'"\\n';
+  });
+  csv+='\\n診断結果,\n';
+  csv+='"診断タイプ","'+type+'"\n';
+  csv+='"説明文","'+subtitle+'"\n';
+  csv+='\\nスコア,\n';
+  csv+='"リスク許容度",'+riskScore+'\n';
+  csv+='"安定志向",'+stableScore+'\n';
+  csv+='"自由・やりがい",'+freedomScore+'\n';
+  csv+='"資産充実度",'+assetScore+'\n';
+  csv+='"診断日時","'+date+'"\n';
+  var blob=new Blob([csv.replace(/\\n/g,'\\n')],{type:'text/csv;charset=utf-8;'});
+  var link=document.createElement('a');
+  link.href=URL.createObjectURL(blob);
+  link.download='career-diagnosis-'+new Date().getTime()+'.csv';
+  link.click();
+}
+function downloadJSON(){
+  var type=document.getElementById('res-type').textContent;
+  var subtitle=document.getElementById('res-subtitle').textContent;
+  var desc=document.getElementById('res-desc').textContent;
+  var riskIdx=ans.risk?ans.risk.i:1;
+  var priorityIdx=ans.priority?ans.priority.i:0;
+  var assetIdx=ans.asset?ans.asset.i:1;
+  var riskScore=Math.round((riskIdx/3)*100);
+  var stableScore=Math.round(((3-priorityIdx)/3)*100);
+  var freedomScore=Math.round((priorityIdx/3)*100);
+  var assetScore=Math.round((assetIdx/3)*100);
+  var data={
+    timestamp:new Date().toISOString(),
+    answers:ans,
+    result:{type:type,subtitle:subtitle,description:desc},
+    scores:{risk:riskScore,stable:stableScore,freedom:freedomScore,asset:assetScore}
+  };
+  var blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  var link=document.createElement('a');
+  link.href=URL.createObjectURL(blob);
+  link.download='career-diagnosis-'+new Date().getTime()+'.json';
+  link.click();
 }
 function restart(){cur=0;ans={};show('intro');}
 </script>

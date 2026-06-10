@@ -42,6 +42,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
 
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 <style>
   body { background: #f8fafc; min-height: 100vh; }
   .card { background: white; border-radius: 1rem; box-shadow: 0 4px 24px rgba(0,0,0,0.09); }
@@ -220,6 +221,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div><div class="font-bold text-gray-800 text-sm">食材宅配サービスを紹介</div><div class="text-gray-600 text-sm">Oisix・コープなど育児に嬉しいサービスも</div></div>
       </div>
     </div>
+    <!-- M3: 診断履歴セクション -->
+    <div class="card p-6 mb-6" id="diagnosis-history" style="display:none;background:#f0f9ff;border:1px solid #bae6fd;">
+    </div>
+
     <button class="btn-primary" onclick="startDiagnosis()" aria-label="診断スタート →">診断スタート →</button>
     <p class="text-center text-xs text-gray-500 mt-3">※医師・栄養士の指導の代替ではありません</p>
   </div>
@@ -258,6 +263,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="text-center mb-6">
       <div class="text-5xl mb-3">🎉</div>
       <h2 class="text-xl font-bold text-gray-800">診断結果</h2>
+    </div>
+
+    <!-- M4: グラフセクション -->
+    <div class="card p-6 mb-4">
+      <h3 class="font-bold text-gray-800 mb-3">📊 離乳食進捗度</h3>
+      <div style="position:relative;height:200px;margin-bottom:12px;">
+        <canvas id="progress-chart"></canvas>
+      </div>
+      <div class="text-center">
+        <div class="text-2xl font-bold text-pink-600" id="progress-score">0%</div>
+        <p class="text-xs text-gray-500">ステージ進捗度</p>
+      </div>
     </div>
 
     <!-- 月齢ステージ -->
@@ -503,6 +520,56 @@ var troubleAdvice = {
 
 var cur = 0, ans = {};
 
+// M3: localStorage 関数
+function saveAnswers() {
+  var history = JSON.parse(localStorage.getItem('baby-food-history') || '[]');
+  var entry = {
+    date: new Date().toLocaleString('ja-JP'),
+    age: ans.age ? ans.age.val : '',
+    progress: ans.progress ? ans.progress.val : '',
+    allergy: ans.allergy ? ans.allergy.val : '',
+    effort: ans.effort ? ans.effort.val : '',
+    trouble: ans.trouble ? ans.trouble.val : '',
+    purchase: ans.purchase ? ans.purchase.val : ''
+  };
+  history.unshift(entry);
+  if (history.length > 5) history.pop();
+  localStorage.setItem('baby-food-history', JSON.stringify(history));
+}
+
+function loadLastAnswers() {
+  var history = JSON.parse(localStorage.getItem('baby-food-history') || '[]');
+  if (!history.length) return null;
+  return history[0];
+}
+
+function displayHistory() {
+  var history = JSON.parse(localStorage.getItem('baby-food-history') || '[]');
+  var historyDiv = document.getElementById('diagnosis-history');
+  if (!historyDiv) return;
+
+  if (!history.length) {
+    historyDiv.style.display = 'none';
+    return;
+  }
+
+  historyDiv.style.display = 'block';
+  var html = '<h3 style="font-bold text-gray-800 mb-3 text-sm">📋 診断履歴（最近3回）</h3><div class="space-y-2">';
+  for (var i = 0; i < Math.min(3, history.length); i++) {
+    var h = history[i];
+    html += '<div class="bg-gray-50 rounded-lg p-3 text-sm cursor-pointer hover:bg-gray-100" onclick="loadFromHistory(' + i + ')" style="border-left:4px solid #db2777;"><div class="font-bold text-gray-800">' + h.date + '</div><div class="text-gray-600 text-xs">月齢: ' + h.age + ' | アレルギー: ' + (h.allergy || 'なし') + '</div></div>';
+  }
+  html += '</div>';
+  historyDiv.innerHTML = html;
+}
+
+function loadFromHistory(index) {
+  var history = JSON.parse(localStorage.getItem('baby-food-history') || '[]');
+  if (!history[index]) return;
+  alert('前回のデータで診断を開始します。');
+  startDiagnosis();
+}
+
 function startDiagnosis() {
   gtag('event', 'quiz_start', { event_category: 'engagement' });
   show('questions');
@@ -578,9 +645,14 @@ function launchConfetti(){var colors=['#db2777','#fbbf24','#34d399','#60a5fa','#
 
 function showResults() {
   try { launchConfetti(); } catch(e) {}
+  saveAnswers();
   var ageIdx = ans.age ? ans.age.i : 0;
   var stageKey = ['early','middle','late','finish'][ageIdx] || 'early';
   var data = stageData[stageKey];
+
+  // M4: 進捗度スコア計算（月齢が進むほどスコア上昇）
+  var progressScore = Math.round(((ageIdx + 1) / 4) * 100);
+  document.getElementById('progress-score').textContent = progressScore + '%';
 
   document.getElementById('res-emoji').textContent = data.emoji;
   document.getElementById('res-stage').textContent = data.stage;
@@ -653,6 +725,7 @@ function showResults() {
   }
 
   show('results');
+  drawProgressChart(progressScore, stageKey);
   gtag('event', 'result_view', { event_category: 'conversion', stage: stageKey });
   // P19: 結果URLを更新してシェアリンクに反映
   try {
@@ -685,9 +758,43 @@ function showResults() {
   } catch(e){}
 }
 
+function drawProgressChart(score, stageKey) {
+  var stageColors = { early: '#22c55e', middle: '#16a34a', late: '#eab308', finish: '#db2777' };
+  var stageLabels = { early: '初期', middle: '中期', late: '後期', finish: '完了期' };
+
+  var ctx = document.getElementById('progress-chart');
+  if (!ctx) return;
+
+  // 既存のチャートを破棄
+  if (window.progressChartInstance) window.progressChartInstance.destroy();
+
+  // ゲージチャート（ドーナツグラフ）
+  window.progressChartInstance = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['現在のステージ進捗', '残り'],
+      datasets: [{
+        data: [score, 100 - score],
+        backgroundColor: [stageColors[stageKey], '#e5e7eb'],
+        borderColor: ['white', 'white'],
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: true }
+      }
+    }
+  });
+}
+
 function restart() {
   cur = 0;
   ans = {};
+  displayHistory();
   show('intro');
 }
 
@@ -716,6 +823,9 @@ function copyShareUrl() {
     }
   }
 }
+
+// M3: ページ初期化時に履歴を表示
+displayHistory();
 
 // P19: URLパラメータから診断結果を復元
 (function(){

@@ -45,6 +45,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js for M4 visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <!-- Error Handler -->
   <script>window.onerror=function(m,s,l,c,e){console.warn('Error:',m);return true;};window.addEventListener('unhandledrejection',function(e){console.warn('Rejection:',e.reason);});</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"このサービスは無料ですか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料でご利用いただけます。登録不要です。"}},{"@type":"Question","name":"入力データはどこに保存されますか？","acceptedAnswer":{"@type":"Answer","text":"お使いのデバイス内にのみ保存されます。外部送信は行いません。"}},{"@type":"Question","name":"計算結果はどのくらい正確ですか？","acceptedAnswer":{"@type":"Answer","text":"あくまで参考情報です。重要な判断の際は専門家にご相談ください。"}},{"@type":"Question","name":"このツールは医療診断ですか？","acceptedAnswer":{"@type":"Answer","text":"本ツールは医療診断ではありません。健康状態に不安がある場合は、医師・専門家にご相談ください。"}},{"@type":"Question","name":"毎日使っても大丈夫ですか？","acceptedAnswer":{"@type":"Answer","text":"はい、継続的な健康管理にご活用ください。ただし本ツールの結果は参考値です。"}}]}</script>
@@ -120,6 +122,13 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
+
+/* M8: ツールチップスタイル */
+.tooltip-icon{position:relative;display:inline-block;width:18px;height:18px;margin-left:4px;background:#4f46e5;color:white;border-radius:50%;font-size:12px;font-weight:bold;line-height:18px;text-align:center;cursor:help;vertical-align:text-top;}
+.tooltip-icon:hover::after{content:attr(data-tooltip);position:absolute;bottom:125%;left:50%;transform:translateX(-50%);background:#1f2937;color:white;padding:8px 12px;border-radius:6px;font-size:12px;font-weight:normal;white-space:normal;max-width:200px;z-index:1000;box-shadow:0 2px 8px rgba(0,0,0,0.2);}
+.tooltip-icon:hover::before{content:'';position:absolute;bottom:120%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#1f2937;z-index:1000;}
+.input-info{font-size:12px;color:#6b7280;margin-top:4px;font-style:italic;}
+.validation-error{color:#dc2626;font-size:12px;margin-top:4px;display:none;}
 </style>
 
 <style>
@@ -170,56 +179,76 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <form id="health-form" class="space-y-5">
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-1">収縮期血圧（上） <span class="text-gray-400 font-normal">正常: 90-129 mmHg</span></label>
-              <input type="number" id="sbp" inputmode="numeric" placeholder="例: 120" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="収縮期血圧、単位mmHg">
+              <label class="block text-sm font-semibold text-gray-700 mb-1">収縮期血圧（上） <span class="text-gray-400 font-normal">正常: 90-129 mmHg</span><span class="tooltip-icon" data-tooltip="心臓が血液を押し出すときの血圧。朝起床直後の測定をおすすめします。">?</span></label>
+              <input type="number" id="sbp" inputmode="numeric" placeholder="例) 120 mmHg" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="収縮期血圧、単位mmHg" min="30" max="250" onchange="validateInput(this)">
+              <div class="input-info">通常は朝測定の値を入力してください</div>
+              <div class="validation-error" id="sbp-error"></div>
             </div>
             <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-1">拡張期血圧（下） <span class="text-gray-400 font-normal">正常: 60-84 mmHg</span></label>
-              <input type="number" id="dbp" inputmode="numeric" placeholder="例: 80" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="拡張期血圧、単位mmHg">
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-1">空腹時血糖 <span class="text-gray-400 font-normal">正常: 70-99 mg/dL</span></label>
-              <input type="number" id="glucose" inputmode="numeric" placeholder="例: 95" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="空腹時血糖、単位mg/dL">
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-1">HbA1c <span class="text-gray-400 font-normal">正常: 5.5% 以下</span></label>
-              <input type="number" step="0.1" id="hba1c" inputmode="decimal" placeholder="例: 5.6" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="HbA1c、単位%">
+              <label class="block text-sm font-semibold text-gray-700 mb-1">拡張期血圧（下） <span class="text-gray-400 font-normal">正常: 60-84 mmHg</span><span class="tooltip-icon" data-tooltip="心臓が休息するときの血圧。収縮期血圧より低い値になります。">?</span></label>
+              <input type="number" id="dbp" inputmode="numeric" placeholder="例) 80 mmHg" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="拡張期血圧、単位mmHg" min="20" max="150" onchange="validateInput(this)">
+              <div class="input-info">収縮期より低い値が正常です</div>
+              <div class="validation-error" id="dbp-error"></div>
             </div>
           </div>
 
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-1">LDLコレステロール <span class="text-gray-400 font-normal">正常: 60-139 mg/dL</span></label>
-              <input type="number" id="ldl" inputmode="numeric" placeholder="例: 120" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="LDLコレステロール、単位mg/dL">
+              <label class="block text-sm font-semibold text-gray-700 mb-1">空腹時血糖 <span class="text-gray-400 font-normal">正常: 70-99 mg/dL</span><span class="tooltip-icon" data-tooltip="測定前8時間以上食べていない状態での血糖値。毎年同じ時間に測定するのが目安。">?</span></label>
+              <input type="number" id="glucose" inputmode="numeric" placeholder="例) 95 mg/dL" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="空腹時血糖、単位mg/dL" min="20" max="500" onchange="validateInput(this)">
+              <div class="input-info">健診の朝一番の測定値が目安</div>
+              <div class="validation-error" id="glucose-error"></div>
             </div>
             <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-1">HDLコレステロール <span class="text-gray-400 font-normal">正常: 40-80 mg/dL</span></label>
-              <input type="number" id="hdl" inputmode="numeric" placeholder="例: 60" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="HDLコレステロール、単位mg/dL">
-            </div>
-          </div>
-
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-1">ALT(GPT) <span class="text-gray-400 font-normal">正常: 5-30 U/L</span></label>
-              <input type="number" id="alt" inputmode="numeric" placeholder="例: 25" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="ALT(GPT)、単位U/L">
-            </div>
-            <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-1">BMI <span class="text-gray-400 font-normal">正常: 18.5-24.9</span></label>
-              <input type="number" step="0.1" id="bmi" inputmode="decimal" placeholder="例: 22.5" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="BMI">
+              <label class="block text-sm font-semibold text-gray-700 mb-1">HbA1c <span class="text-gray-400 font-normal">正常: 5.5% 以下</span><span class="tooltip-icon" data-tooltip="過去2〜3ヶ月の平均血糖値を反映する指標。診断後の治療効果判定に最も重要な指標です。">?</span></label>
+              <input type="number" step="0.1" id="hba1c" inputmode="decimal" placeholder="例) 5.6 %" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="HbA1c、単位%" min="3" max="15" onchange="validateInput(this)">
+              <div class="input-info">血糖コントロールの長期指標</div>
+              <div class="validation-error" id="hba1c-error"></div>
             </div>
           </div>
 
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-1">中性脂肪（TG） <span class="text-gray-400 font-normal">正常: 50-149 mg/dL</span></label>
-              <input type="number" id="tg" inputmode="numeric" placeholder="例: 120" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="中性脂肪(TG)、単位mg/dL">
+              <label class="block text-sm font-semibold text-gray-700 mb-1">LDLコレステロール <span class="text-gray-400 font-normal">正常: 60-139 mg/dL</span><span class="tooltip-icon" data-tooltip="悪玉コレステロール。高いと動脈硬化リスクが上昇。食事や薬物療法で改善可能。">?</span></label>
+              <input type="number" id="ldl" inputmode="numeric" placeholder="例) 120 mg/dL" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="LDLコレステロール、単位mg/dL" min="10" max="300" onchange="validateInput(this)">
+              <div class="input-info">低いほど良い。160以上は高LDル血症</div>
+              <div class="validation-error" id="ldl-error"></div>
             </div>
             <div>
-              <label class="block text-sm font-semibold text-gray-700 mb-1">γ-GTP <span class="text-gray-400 font-normal">正常: 10-50 U/L</span></label>
-              <input type="number" id="ggt" inputmode="numeric" placeholder="例: 30" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="γ-GTP、単位U/L">
+              <label class="block text-sm font-semibold text-gray-700 mb-1">HDLコレステロール <span class="text-gray-400 font-normal">正常: 40-80 mg/dL</span><span class="tooltip-icon" data-tooltip="善玉コレステロール。高いほど動脈硬化が予防される。運動と禁煙で増加。">?</span></label>
+              <input type="number" id="hdl" inputmode="numeric" placeholder="例) 60 mg/dL" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="HDLコレステロール、単位mg/dL" min="10" max="150" onchange="validateInput(this)">
+              <div class="input-info">高いほど良い。40未満は要注意</div>
+              <div class="validation-error" id="hdl-error"></div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">ALT(GPT) <span class="text-gray-400 font-normal">正常: 5-30 U/L</span><span class="tooltip-icon" data-tooltip="肝機能の指標。高いと肝臓に脂肪がたまっている（脂肪肝）可能性。禁酒・運動で改善。">?</span></label>
+              <input type="number" id="alt" inputmode="numeric" placeholder="例) 25 U/L" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="ALT(GPT)、単位U/L" min="0" max="200" onchange="validateInput(this)">
+              <div class="input-info">肝臓の健康状態を示す指標</div>
+              <div class="validation-error" id="alt-error"></div>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">BMI <span class="text-gray-400 font-normal">正常: 18.5-24.9</span><span class="tooltip-icon" data-tooltip="体重(kg)を身長(m)の二乗で割った値。日本では25以上で肥満と判定されます。">?</span></label>
+              <input type="number" step="0.1" id="bmi" inputmode="decimal" placeholder="例) 22.5" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="BMI" min="10" max="50" onchange="validateInput(this)">
+              <div class="input-info">25以上は肥満に分類されます</div>
+              <div class="validation-error" id="bmi-error"></div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">中性脂肪（TG） <span class="text-gray-400 font-normal">正常: 50-149 mg/dL</span><span class="tooltip-icon" data-tooltip="血中の脂肪量。高いと動脈硬化・脂肪肝のリスク。夜間の軽い食事で測定。">?</span></label>
+              <input type="number" id="tg" inputmode="numeric" placeholder="例) 120 mg/dL" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="中性脂肪(TG)、単位mg/dL" min="10" max="800" onchange="validateInput(this)">
+              <div class="input-info">空腹時測定が目安。高いと要注意</div>
+              <div class="validation-error" id="tg-error"></div>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-gray-700 mb-1">γ-GTP <span class="text-gray-400 font-normal">正常: 10-50 U/L</span><span class="tooltip-icon" data-tooltip="肝機能の指標。アルコール・脂肪肝で上昇。男性は高めの傾向。">?</span></label>
+              <input type="number" id="ggt" inputmode="numeric" placeholder="例) 30 U/L" class="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 focus:outline-none transition" aria-label="γ-GTP、単位U/L" min="0" max="300" onchange="validateInput(this)">
+              <div class="input-info">アルコール・脂肪肝で上昇します</div>
+              <div class="validation-error" id="ggt-error"></div>
             </div>
           </div>
 
@@ -414,6 +443,95 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin:10px 0;"><h2 style="font-size:14px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">健康診断の各数値について、基準値・意味・生活改善のヒントをわかりやすく解説します。</p><p style="font-size:11px;color:#9ca3af;margin-top:4px;">※ 本ツールの結果はあくまで参考情報です。重要な判断の際は専門家にご相談ください。</p></div>
 
         <script>
+    // M8: 入力値バリデーション + エラーメッセージ表示
+    function validateInput(input) {
+      const id = input.id;
+      const val = parseFloat(input.value);
+      const min = parseFloat(input.min);
+      const max = parseFloat(input.max);
+      const errorEl = document.getElementById(id + '-error');
+
+      if (!errorEl) return;
+
+      if (isNaN(val) || val === '') {
+        errorEl.style.display = 'none';
+        return;
+      }
+
+      if (val < min) {
+        errorEl.textContent = `⚠️ 低い値です（${min}未満）`;
+        errorEl.style.display = 'block';
+      } else if (val > max) {
+        errorEl.textContent = `⚠️ 高い値です（${max}を超過）。数値を確認ください`;
+        errorEl.style.display = 'block';
+      } else {
+        errorEl.style.display = 'none';
+      }
+    }
+
+    // M4: 健康スコア計算（0-100）
+    function calculateHealthScore(results) {
+      if (!results || results.length === 0) return 0;
+      let score = 100;
+      results.forEach(r => {
+        if (!r || !r.status) return;
+        if (r.status === '要改善' || r.status === '低値') score -= 20;
+        else if (r.status === '要注意') score -= 10;
+      });
+      return Math.max(0, score);
+    }
+
+    // M4: Chart.js を使用した比較チャート生成
+    function createComparisonChart(results, containerId) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+
+      const chartDiv = document.createElement('div');
+      chartDiv.style.position = 'relative';
+      chartDiv.style.height = '250px';
+      chartDiv.style.marginTop = '16px';
+
+      const canvas = document.createElement('canvas');
+      chartDiv.appendChild(canvas);
+      container.appendChild(chartDiv);
+
+      // 数値を正規化（0-100スケール）して比較しやすくする
+      const labels = results.map(r => r.name.replace('（', '\n（'));
+      const data = results.map(r => Math.min(100, Math.max(0, (r.gauge.pct))));
+      const colors = results.map(r => {
+        if (r.color.includes('red')) return '#ef4444';
+        if (r.color.includes('yellow')) return '#eab308';
+        if (r.color.includes('green')) return '#22c55e';
+        return '#3b82f6';
+      });
+
+      new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '相対値（正常値をベースに計算）',
+            data: data,
+            backgroundColor: colors,
+            borderColor: colors,
+            borderWidth: 1,
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          indexAxis: 'y',
+          scales: {
+            x: { max: 100, ticks: { callback: (v) => v + '%' } }
+          },
+          plugins: {
+            legend: { display: false }
+          }
+        }
+      });
+    }
+
     // ゲージ用の表示範囲を計算してステータス・色・ゲージ位置を返す
     function evaluate(val, low, highNormal, highCaution, unit, name, dispMin, dispMax) {
       if (val === null || isNaN(val)) return null;
@@ -551,12 +669,31 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       let summaryIcon = abnormal.length > 0 ? '🚨' : caution.length > 0 ? '⚠️' : '✅';
       let summaryText = abnormal.length > 0 ? `${abnormal.length}項目に要改善・異常値があります` : caution.length > 0 ? `${caution.length}項目が要注意レベルです` : '入力された数値はすべて正常範囲内です';
 
+      const healthScore = calculateHealthScore(results);
+      const scoreColor = healthScore >= 70 ? 'text-green-600' : healthScore >= 50 ? 'text-yellow-600' : 'text-red-600';
+      const scoreGauge = healthScore / 100 * 360;
+
       let html = `
         <div class="border-2 ${summaryColor} rounded-xl p-4 mb-6 text-center">
           <div class="text-3xl mb-1">${summaryIcon}</div>
           <p class="font-bold text-lg">${summaryText}</p>
           <p class="text-sm text-gray-600 mt-1">入力値: ${results.length}項目 / 正常: ${normal.length} / 要注意: ${caution.length} / 要改善: ${abnormal.length}</p>
         </div>
+
+        <!-- M4: 健康スコア表示 -->
+        <div class="bg-blue-50 border border-blue-300 rounded-xl p-4 mb-6">
+          <div class="text-center">
+            <div style="position:relative;width:120px;height:120px;margin:0 auto 16px;border-radius:50%;background:conic-gradient(#3b82f6 0deg ${scoreGauge}deg,#e5e7eb ${scoreGauge}deg 360deg);display:flex;align-items:center;justify-content:center;">
+              <div style="width:110px;height:110px;border-radius:50%;background:white;display:flex;align-items:center;justify-content:center;flex-direction:column;">
+                <p style="font-size:28px;font-weight:bold;color:#3b82f6;margin:0;">${healthScore}</p>
+                <p style="font-size:12px;color:#6b7280;margin:4px 0 0;">/ 100</p>
+              </div>
+            </div>
+            <p class="font-bold ${scoreColor} text-lg">健康スコア: ${healthScore}/100</p>
+            <p class="text-sm text-gray-600 mt-2">${healthScore >= 70 ? '健康状態は良好です' : healthScore >= 50 ? '要注意な項目があります' : '要改善な項目があります。医師への相談をおすすめします'}</p>
+          </div>
+        </div>
+
         <div class="space-y-3 mb-4">`;
 
       results.forEach(r => {
@@ -584,6 +721,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       });
 
       html += `</div>`;
+
+      // M4: 比較チャート用のコンテナ追加
+      html += `<div id="chart-container" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-bottom:16px;">
+        <p class="font-bold text-sm text-gray-700 mb-3">📊 検査項目の相対比較</p>
+        <div id="comparison-chart"></div>
+      </div>`;
 
       if (abnormal.length > 0 || caution.length > 0) {
         html += `
@@ -629,6 +772,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>`;
 
       document.getElementById('result-content').innerHTML = html + html2;
+
+      // M4: チャート生成（非同期で実行）
+      setTimeout(() => {
+        createComparisonChart(results, 'comparison-chart');
+      }, 100);
     }
 
     function copyResultText() {

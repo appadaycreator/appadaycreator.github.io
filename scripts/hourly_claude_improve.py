@@ -822,7 +822,8 @@ def update_spreadsheet(sheets, row: int, s_val: int, asset_value: int,
         ).execute()
 
 
-def _send_improve_notify(svc: dict, stdout: str, worker_id: int):
+def _send_improve_notify(svc: dict, stdout: str, worker_id: int,
+                         verify_detail: str = "", marker_results: str = ""):
     """改善完了通知を @tokunaga_dev_bot へ送信する。"""
     # stdoutから📋〜の通知ブロックを抽出（improve_auto.md が出力している場合）
     notify_text = ""
@@ -852,6 +853,12 @@ def _send_improve_notify(svc: dict, stdout: str, worker_id: int):
     url = f"https://appadaycreator.com/{svc['repo']}/"
     if url not in notify_text:
         notify_text += f"\n\n🔗 {url}"
+
+    # URL確認 + 改善マーカー確認結果を追記
+    if verify_detail:
+        notify_text += f"\n🌐 {verify_detail}"
+    if marker_results:
+        notify_text += f"\n{marker_results}"
 
     send_telegram(notify_text)
     log(f"[W{worker_id}]   通知送信完了")
@@ -1169,9 +1176,63 @@ def _compute_sleep_between() -> int:
         return SLEEP_BETWEEN
 
 
+# 各M番号の検証ルール: (種別, 正規表現, 表示ラベル)
+# 種別: "pos"=存在確認(あればOK) / "neg"=除去確認(なければOK)
+_VERIFY_RULES: dict = {
+    "M1":  ("pos", r'(?:px\.a8\.net|affiliate-card|data-platform=)', "CTA"),
+    "M2":  ("pos", r'placeholder\s*=\s*["\'][^"\']{3,}', "placeholder"),
+    "M3":  ("pos", r'localStorage\.(setItem|getItem)', "localStorage"),
+    "M4":  ("pos", r'(?:chart\.js|new\s+Chart\s*\(|<canvas\b)', "Chart.js"),
+    "M5":  ("pos", r'(?:data-platform=|affiliate.*result|result.*affiliate)', "動的CTA"),
+    "M6":  ("pos", r'(?:goal|target|progress-bar|達成|トラッキング)', "目標機能"),
+    "M7":  ("pos", r'(?:compare|pattern|シミュレーション|scenario)', "比較機能"),
+    "M8":  ("pos", r'(?:title\s*=\s*["\'][^"\']{5,}|tooltip|aria-label\s*=)', "tooltip"),
+    "M9":  ("pos", r'(?:twitter\.com/intent/tweet|line\.me/R/share)', "SNSシェア"),
+    "M10": ("pos", r'(?:window\.print\s*\(\s*\)|onclick=["\'][^"\']*print)', "印刷"),
+    "M11": ("pos", r'(?:<details\b|よくある質問|使い方|HowTo)', "FAQ/使い方"),
+    "M12": ("pos", r'(?:関連コンテンツ|関連サービス|解説記事|コラム)', "関連コンテンツ"),
+    "M13": ("pos", r'href=["\']https://appadaycreator\.com/', "内部リンク"),
+    "M14": ("pos", r'application/ld\+json', "スキーマ"),
+    "M15": ("pos", r'(?:property=["\']og:title["\']|name=["\']description["\'])', "OGP/meta"),
+    "M16": ("pos", r'rel=["\']manifest["\']', "PWA"),
+    "M17": ("pos", r'(?:affiliate|data-platform=)', "アフィリエイトCTA"),
+    "M18": ("pos", r'name=["\']viewport["\']', "viewport"),
+    "M19_log": ("neg", r'console\.log\s*\(', "console.log除去"),
+    "M20": ("pos", r'<img\b[^>]*\balt\s*=\s*["\']', "img alt"),
+}
+
+
+def check_improvement_markers(pre_issues: list, html: str) -> str:
+    """pre_issuesのM番号に対応するマーカーをHTMLで確認し、1行サマリを返す。"""
+    import re as _re
+    checked, passed, failed = [], [], []
+    for issue in pre_issues:
+        m = _re.match(r'\[M(\d+)\]', issue)
+        if not m:
+            continue
+        code = f"M{m.group(1)}"
+        rule = _VERIFY_RULES.get(code)
+        if not rule:
+            continue
+        rtype, pattern, label = rule
+        found = bool(_re.search(pattern, html, _re.IGNORECASE))
+        ok = found if rtype == "pos" else not found
+        checked.append(label)
+        (passed if ok else failed).append(label)
+
+    if not checked:
+        return ""
+    parts = []
+    if passed:
+        parts.append("✅" + "/".join(passed))
+    if failed:
+        parts.append("❌" + "/".join(failed))
+    return "🔍 " + " ".join(parts)
+
+
 def verify_deployed_url(repo: str, timeout: int = 20) -> tuple:
     """改善後のデプロイURLに実際にHTTPリクエストして正常表示を確認する。
-    Returns (ok: bool, detail: str)
+    Returns (ok: bool, detail: str, html: str)
     """
     import urllib.request, urllib.error as _ue
     url = f"https://appadaycreator.com/{repo}/"
@@ -1185,23 +1246,23 @@ def verify_deployed_url(repo: str, timeout: int = 20) -> tuple:
             status = resp.status
             content = resp.read(131072).decode("utf-8", errors="ignore")
         if status != 200:
-            return False, f"HTTP {status}"
+            return False, f"HTTP {status}", ""
         if len(content) < 3000:
-            return False, f"ページ内容が少なすぎます ({len(content):,}文字)"
+            return False, f"ページ内容が少なすぎます ({len(content):,}文字)", ""
         if "<html" not in content.lower():
-            return False, "HTMLコンテンツが検出されません"
+            return False, "HTMLコンテンツが検出されません", ""
         for marker in ["500 Internal Server Error", "404 Not Found",
                        "502 Bad Gateway", "503 Service Unavailable",
                        "Whoops, looks like something went wrong"]:
             if marker in content:
-                return False, f"エラーページ検出: {marker}"
-        return True, f"HTTP {status}, {len(content):,}文字"
+                return False, f"エラーページ検出: {marker}", ""
+        return True, f"HTTP {status}, {len(content):,}文字", content
     except _ue.HTTPError as e:
-        return False, f"HTTP {e.code}: {e.reason}"
+        return False, f"HTTP {e.code}: {e.reason}", ""
     except _ue.URLError as e:
-        return False, f"URLエラー: {e.reason}"
+        return False, f"URLエラー: {e.reason}", ""
     except Exception as e:
-        return False, f"例外: {e}"
+        return False, f"例外: {e}", ""
 
 
 def _worker(worker_id: int, stop_event, sheets_factory):
@@ -1256,12 +1317,15 @@ def _worker(worker_id: int, stop_event, sheets_factory):
             ok, stdout = run_improve(svc, pre_issues)
             elapsed = int(time.time() - t_start)
 
-            # デプロイ後URLを実際にフェッチして正常表示を確認
+            # デプロイ後URLを実際にフェッチして正常表示 + 改善内容を確認
+            v_detail = ""
+            v_markers = ""
             if ok:
                 time.sleep(3)  # ファイル反映の待機
-                v_ok, v_detail = verify_deployed_url(svc["repo"])
+                v_ok, v_detail, v_html = verify_deployed_url(svc["repo"])
                 if v_ok:
-                    log(f"[W{worker_id}]   ✅ URL確認OK: {v_detail}")
+                    v_markers = check_improvement_markers(pre_issues, v_html)
+                    log(f"[W{worker_id}]   ✅ URL確認OK: {v_detail}  {v_markers}")
                 else:
                     log(f"[W{worker_id}]   ⚠️ URL確認失敗: {v_detail}")
                     send_telegram(
@@ -1284,7 +1348,7 @@ def _worker(worker_id: int, stop_event, sheets_factory):
                     log(f"[W{worker_id}]   シート更新失敗: {e}")
                 write_update_log(sheets, svc, pre_issues, stdout, elapsed)
                 notify_indexnow(svc["repo"])
-                _send_improve_notify(svc, stdout, worker_id)
+                _send_improve_notify(svc, stdout, worker_id, verify_detail=v_detail, marker_results=v_markers)
             else:
                 try:
                     update_spreadsheet(sheets, svc["row"], svc["s_val"], 0, cooldown_expiry, update_progress=False)

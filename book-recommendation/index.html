@@ -39,6 +39,9 @@
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
 
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
   <!-- Error Handlers -->
   <script>
     window.onerror = function(msg, src, line, col, err) {
@@ -120,13 +123,15 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 }
 
 @media print{
-  header,footer,nav,button,.no-print,
-  [class*="share"],[class*="affiliate"],[id*="share"],
-  [id*="affiliate"],[id*="banner"],
+  header,footer,nav,.no-print,
+  [class*="affiliate"],[id*="affiliate"],[id*="banner"],
   script,noscript{display:none!important}
+  button,[class*="button"]{display:none!important}
   body{background:#fff!important;color:#000!important;font-size:12pt}
   [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
+  [id*="score"]{display:block!important}
   a[href]::after{content:none!important}
+  .space-y-3 > a{display:none!important}
 }
 
 .card{background:#fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.08);overflow:hidden;}
@@ -171,6 +176,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     <!-- Intro -->
     <div id="intro" class="bg-white rounded-2xl shadow-md p-6 mb-6">
+      <div id="previous-result" class="mb-4"></div>
       <p class="text-gray-700 text-base leading-relaxed">「何を読めばいいかわからない」「本が続かない」そんな方のために、読書目的・悩み・好みを分析して最適な本を3冊ご提案。Kindle Unlimitedで読める本も紹介します。</p>
       <div class="flex gap-3 mt-4 flex-wrap">
         <span class="bg-amber-50 text-amber-700 text-sm px-3 py-1 rounded-full font-medium">📖 無料診断</span>
@@ -212,6 +218,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div id="answer-summary" class="mt-3 flex flex-wrap justify-center gap-1"></div>
         </div>
 
+        <!-- Score Display -->
+        <div id="result-score-section" class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5">
+          <h3 class="font-bold text-amber-900 mb-3">📊 診断スコア</h3>
+          <div id="score-bars" class="space-y-3 mb-4"></div>
+          <canvas id="scoreChart" width="300" height="200" style="max-width:100%;margin:0 auto;display:block;"></canvas>
+        </div>
+
         <!-- Book cards -->
         <h3 class="font-bold text-gray-800 mb-3">🎯 おすすめの3冊</h3>
         <div id="book-list" class="space-y-4 mb-5"></div>
@@ -233,6 +246,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             🎧 audiobook.jp で耳で読む本を試す
           </a>
           <img border="0" width="1" height="1" src="https://www15.a8.net/0.gif?a8mat=4B3VR6+GFT1HM+3CJQ+64C3M" alt="" loading="lazy">
+        </div>
+
+        <!-- Export Buttons -->
+        <div class="mt-5 grid grid-cols-2 gap-3">
+          <button onclick="printResult()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 rounded-xl transition-colors" aria-label="診断結果を印刷">
+            🖨️ 印刷
+          </button>
+          <button onclick="copyResultText()" class="bg-blue-100 hover:bg-blue-200 text-blue-700 font-medium py-2 rounded-xl transition-colors" aria-label="診断結果をコピー">
+            📋 結果をコピー
+          </button>
         </div>
 
         <button onclick="resetQuiz()" class="mt-4 w-full border border-amber-300 text-amber-600 font-medium py-2 rounded-xl hover:bg-amber-50 transition-colors" aria-label="もう一度診断する">
@@ -631,6 +654,29 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }
     }
 
+    function calculateScores() {
+      const scores = { business: 0, selfhelp: 0, hobby: 0, money: 0, time: 0, knowledge: 0, study: 0, relationship: 0 };
+      if (answers.purpose === 'business') { scores.business += 30; scores.knowledge += 10; }
+      if (answers.purpose === 'hobby') { scores.hobby += 30; scores.selfhelp += 10; }
+      if (answers.purpose === 'study') { scores.study += 30; scores.knowledge += 20; }
+      if (answers.purpose === 'knowledge') { scores.knowledge += 25; scores.business += 15; }
+      if (answers.purpose === 'selfhelp') { scores.selfhelp += 30; scores.knowledge += 15; }
+      if (answers.worry === 'money') { scores.money += 25; scores.selfhelp += 10; }
+      if (answers.worry === 'time') { scores.time += 25; scores.selfhelp += 10; }
+      if (answers.worry === 'relationship') { scores.relationship += 25; scores.knowledge += 10; }
+      if (answers.worry === 'concentration') { scores.knowledge += 20; scores.study += 15; }
+      if (answers.worry === 'motivation') { scores.selfhelp += 25; scores.business += 10; }
+      if (answers.genre === 'fiction') { scores.hobby += 20; }
+      if (answers.genre === 'nonfiction') { scores.business += 15; scores.knowledge += 15; }
+      if (answers.genre === 'biography') { scores.knowledge += 20; scores.relationship += 10; }
+      if (answers.readingTime === 'slow') { scores.study += 10; scores.knowledge += 10; }
+      if (answers.readingTime === 'medium') { scores.business += 10; scores.hobby += 10; }
+      if (answers.readingTime === 'fast') { scores.hobby += 15; scores.business += 10; }
+      const total = Object.values(scores).reduce((a, b) => a + b, 0);
+      for (const key in scores) scores[key] = Math.round((scores[key] / total) * 100);
+      return scores;
+    }
+
     function showResult() {
       document.getElementById('quiz').classList.add('hidden');
       document.getElementById('result').classList.remove('hidden');
@@ -644,6 +690,23 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       summaryDiv.innerHTML = Object.values(answerLabels).map(lbl =>
         `<span style="display:inline-block;background:#fef3c7;color:#92400e;font-size:11px;padding:2px 8px;border-radius:12px;border:1px solid #fde68a;">${lbl}</span>`
       ).join('');
+
+      // スコア表示
+      const scores = calculateScores();
+      const scoreBarsDiv = document.getElementById('score-bars');
+      const scoreEntries = Object.entries(scores).slice(0, 5);
+      scoreBarsDiv.innerHTML = scoreEntries.map(([cat, score]) => `
+        <div>
+          <div class="flex justify-between text-xs mb-1">
+            <span style="color:#92400e;font-weight:600;">${cat === 'business' ? 'ビジネス' : cat === 'selfhelp' ? '自己啓発' : cat === 'hobby' ? '趣味' : cat === 'money' ? 'お金' : '他'}</span>
+            <span style="color:#92400e;font-weight:600;">${score}%</span>
+          </div>
+          <div style="background:#fef3c7;height:6px;border-radius:3px;overflow:hidden;"><div style="background:#f59e0b;height:100%;width:${score}%;"></div></div>
+        </div>
+      `).join('');
+
+      // チャート描画
+      setTimeout(() => drawScoreChart(scores), 100);
 
       const bookList = document.getElementById('book-list');
       bookList.innerHTML = r.books.map((b, i) => {
@@ -664,6 +727,53 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
       const amazonBooksLink = document.getElementById('amazon-books-link');
       amazonBooksLink.href = `https://www.amazon.co.jp/s?k=${encodeURIComponent(r.books[0].kw)}&tag=appadaycrea0f-22`;
+
+      // localStorage に保存
+      saveResult(key, r, scores);
+    }
+
+    function drawScoreChart(scores) {
+      const canvas = document.getElementById('scoreChart');
+      if (!canvas || typeof Chart === 'undefined') return;
+      const ctx = canvas.getContext('2d');
+      if (window.scoreChartInstance) window.scoreChartInstance.destroy();
+      window.scoreChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['ビジネス', '自己啓発', '趣味', 'お金', '時間'],
+          datasets: [{
+            data: [scores.business, scores.selfhelp, scores.hobby, scores.money, scores.time],
+            backgroundColor: ['#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981']
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } } }
+      });
+    }
+
+    function saveResult(key, result, scores) {
+      const resultData = { timestamp: new Date().toISOString(), key: key, title: result.title, books: result.books, scores: scores, answers: answers };
+      localStorage.setItem('bookRecResult', JSON.stringify(resultData));
+    }
+
+    function printResult() {
+      window.print();
+    }
+
+    function copyResultText() {
+      const resultDiv = document.getElementById('result');
+      const title = document.getElementById('result-title').textContent;
+      const bookText = Array.from(document.querySelectorAll('#book-list > div')).map(div => {
+        const bookTitle = div.querySelector('.font-bold').textContent;
+        const author = div.querySelectorAll('.text-gray-500')[0]?.textContent || '';
+        return `${bookTitle} ${author}`;
+      }).join('\n');
+      const text = `診断結果: ${title}\n\nおすすめの本:\n${bookText}\n\nhttps://appadaycreator.com/book-recommendation/`;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('診断結果をコピーしました！');
+      }).catch(err => {
+        console.error('コピーに失敗:', err);
+        alert('コピーに失敗しました');
+      });
     }
 
     function resetQuiz() {
@@ -672,6 +782,71 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       answerLabels = {};
       document.getElementById('result').classList.add('hidden');
       document.getElementById('intro').classList.remove('hidden');
+      loadPreviousResult();
+    }
+
+    function loadPreviousResult() {
+      const saved = localStorage.getItem('bookRecResult');
+      if (!saved) return;
+      const resultData = JSON.parse(saved);
+      const prevDiv = document.getElementById('previous-result');
+      if (!prevDiv) return;
+      const dateStr = new Date(resultData.timestamp).toLocaleString('ja-JP');
+      prevDiv.innerHTML = `
+        <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:12px;">
+          <p style="font-size:12px;font-weight:600;color:#3730a3;margin:0 0 8px;">💾 前回の診断結果</p>
+          <p style="font-size:12px;color:#4f46e5;margin:0;">${resultData.title}</p>
+          <p style="font-size:11px;color:#9ca3af;margin:4px 0 8px;"><small>${dateStr}</small></p>
+          <button onclick="loadSavedResult()" style="padding:6px 12px;background:#4f46e5;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">結果を見る</button>
+          <button onclick="clearSavedResult()" style="padding:6px 12px;background:#e5e7eb;color:#6b7280;border:none;border-radius:6px;cursor:pointer;font-size:12px;margin-left:4px;">削除</button>
+        </div>`;
+    }
+
+    function loadSavedResult() {
+      const saved = localStorage.getItem('bookRecResult');
+      if (!saved) return;
+      const resultData = JSON.parse(saved);
+      answers = resultData.answers;
+      const key = resultData.key;
+      const r = bookData[key];
+      document.getElementById('intro').classList.add('hidden');
+      document.getElementById('quiz').classList.add('hidden');
+      document.getElementById('result').classList.remove('hidden');
+      document.getElementById('result-title').textContent = r.title;
+      document.getElementById('result-desc').textContent = r.desc;
+      const scoreBarsDiv = document.getElementById('score-bars');
+      const scoreEntries = Object.entries(resultData.scores).slice(0, 5);
+      scoreBarsDiv.innerHTML = scoreEntries.map(([cat, score]) => `
+        <div>
+          <div class="flex justify-between text-xs mb-1">
+            <span style="color:#92400e;font-weight:600;">${cat === 'business' ? 'ビジネス' : cat === 'selfhelp' ? '自己啓発' : cat === 'hobby' ? '趣味' : cat === 'money' ? 'お金' : '他'}</span>
+            <span style="color:#92400e;font-weight:600;">${score}%</span>
+          </div>
+          <div style="background:#fef3c7;height:6px;border-radius:3px;overflow:hidden;"><div style="background:#f59e0b;height:100%;width:${score}%;"></div></div>
+        </div>
+      `).join('');
+      setTimeout(() => drawScoreChart(resultData.scores), 100);
+      const bookList = document.getElementById('book-list');
+      bookList.innerHTML = r.books.map((b, i) => {
+        const amazonUrl = `https://www.amazon.co.jp/s?k=${encodeURIComponent(b.kw)}&tag=appadaycrea0f-22`;
+        return `
+          <div class="border border-amber-100 rounded-xl p-4 bg-amber-50">
+            <div class="flex items-start gap-3">
+              <div class="bg-amber-500 text-white text-sm font-bold w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0">${i + 1}</div>
+              <div class="flex-1">
+                <div class="font-bold text-gray-900 text-sm">『${b.title}』</div>
+                <div class="text-gray-500 text-xs mb-1">著：${b.author}</div>
+                <div class="text-gray-700 text-xs mb-2">${b.desc}</div>
+                <a href="${amazonUrl}" target="_blank" rel="noopener" class="inline-block bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1 rounded-lg transition-colors">Amazonで見る →</a>
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function clearSavedResult() {
+      localStorage.removeItem('bookRecResult');
+      loadPreviousResult();
     }
   </script>
 <!-- phase10-rakuten-updated -->
@@ -721,6 +896,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <a href="#top" id="back-to-top" aria-label="ページトップへ戻る" style="display:none;position:fixed;bottom:24px;right:20px;background:#4f46e5;color:#fff;border:none;border-radius:50%;width:48px;height:48px;font-size:1.4rem;line-height:48px;text-align:center;text-decoration:none;box-shadow:0 4px 12px rgba(79,70,229,.4);z-index:9000;cursor:pointer" title="ページトップへ">↑</a>
 <script>
 (function(){
+  // 前回の診断結果を初期化時に表示
+  loadPreviousResult();
+
   var btn = document.getElementById('back-to-top');
   if(!btn) return;
   window.addEventListener('scroll', function(){

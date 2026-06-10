@@ -33,6 +33,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
 <script>window.onerror=function(m,s,l,c,e){console.warn('Error:',m);return true;};window.addEventListener('unhandledrejection',function(e){console.warn('Rejection:',e.reason);});</script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   body{background: #f8fafc;min-height:100vh;}
   .card{background:white;border-radius:1rem;box-shadow:0 4px 24px rgba(0,0,0,0.09);}
@@ -194,7 +195,30 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     </div>
     <div class="card p-6 mb-4">
       <h3 class="font-bold text-gray-800 mb-3">📊 レベル別正答率</h3>
+      <canvas id="analysisChart" style="max-height: 250px; margin-bottom: 1rem;"></canvas>
       <div id="r-analysis" class="space-y-2"></div>
+    </div>
+    <div class="card p-6 mb-4">
+      <h3 class="font-bold text-gray-800 mb-3">🎯 スコア進捗</h3>
+      <canvas id="scoreGaugeChart" style="max-height: 120px; margin-bottom: 0.5rem;"></canvas>
+    </div>
+    <div class="card p-6 mb-4" id="historyChartContainer" style="display: none;">
+      <h3 class="font-bold text-gray-800 mb-3">📈 診断結果の推移</h3>
+      <canvas id="historyChart" style="max-height: 250px;"></canvas>
+    </div>
+    <div class="card p-6 mb-4">
+      <h3 class="font-bold text-gray-800 mb-3">💾 結果を保存・共有</h3>
+      <div class="grid grid-cols-3 gap-2">
+        <button class="btn-primary" style="background: #6366f1; padding: 0.6rem 1rem; font-size: 0.9rem;" onclick="printResults()" aria-label="結果を印刷">🖨️ 印刷</button>
+        <button class="btn-primary" style="background: #8b5cf6; padding: 0.6rem 1rem; font-size: 0.9rem;" onclick="copyResults()" aria-label="結果をコピー">📋 コピー</button>
+        <button class="btn-primary" id="csvBtn" style="background: #06b6d4; padding: 0.6rem 1rem; font-size: 0.9rem; display: none;" onclick="downloadCSV()" aria-label="CSVダウンロード">📊 CSV</button>
+      </div>
+      <div id="copyToast" style="display: none; background: #10b981; color: white; padding: 0.75rem; border-radius: 0.5rem; margin-top: 1rem; text-align: center; font-size: 0.9rem;">✅ 結果をコピーしました！</div>
+    </div>
+    <div class="card p-6 mb-4" id="historySection" style="display: none;">
+      <h3 class="font-bold text-gray-800 mb-3">📜 診断履歴（過去5回）</h3>
+      <div id="historyList" class="space-y-2"></div>
+      <button onclick="clearHistory()" style="margin-top: 1rem; background: #ef4444; color: white; padding: 0.5rem 1rem; border-radius: 0.5rem; border: none; cursor: pointer; font-size: 0.85rem;">履歴をクリア</button>
     </div>
     <div class="card p-6 mb-4">
       <h3 class="font-bold text-gray-800 mb-3">📚 おすすめ学習法</h3>
@@ -258,7 +282,197 @@ function selectQuestions(){
   return shuffle(picks);
 }
 
-var Qs=[],cur=0,correct=0,answered=false,qAnswers=[];
+var Qs=[],cur=0,correct=0,answered=false,qAnswers=[],chartInstances={};
+
+// localStorage: 診断結果の保存・読み込み
+function saveResult(score,level,correctCount,totalCount){
+  var result={timestamp:new Date().toISOString(),score:score,level:level,correct:correctCount,total:totalCount};
+  var history=JSON.parse(localStorage.getItem('englishCheckerHistory')||'[]');
+  history.unshift(result);
+  if(history.length>5)history=history.slice(0,5);
+  localStorage.setItem('englishCheckerHistory',JSON.stringify(history));
+}
+
+function loadHistory(){
+  return JSON.parse(localStorage.getItem('englishCheckerHistory')||'[]');
+}
+
+function clearHistory(){
+  if(confirm('履歴をすべて削除してもよろしいですか？')){
+    localStorage.removeItem('englishCheckerHistory');
+    loadAndDisplayHistory();
+  }
+}
+
+function loadAndDisplayHistory(){
+  var history=loadHistory();
+  var histSection=document.getElementById('historySection');
+  var historyList=document.getElementById('historyList');
+  var csvBtn=document.getElementById('csvBtn');
+
+  if(history.length===0){
+    histSection.style.display='none';
+    csvBtn.style.display='none';
+    return;
+  }
+
+  histSection.style.display='block';
+  csvBtn.style.display='block';
+  historyList.innerHTML='';
+
+  history.forEach(function(item,idx){
+    var d=new Date(item.timestamp);
+    var dateStr=d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0')+' '
+      +d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+
+    var prevScore=history[idx+1]?parseInt(history[idx+1].score.split('〜')[0]):null;
+    var currScore=parseInt(item.score.split('〜')[0]);
+    var trend='';
+    if(prevScore){
+      if(currScore>prevScore)trend='<span style="color:#10b981;font-weight:bold;margin-left:.5rem;">↑ UP</span>';
+      else if(currScore<prevScore)trend='<span style="color:#ef4444;font-weight:bold;margin-left:.5rem;">↓ DOWN</span>';
+    }
+
+    var div=document.createElement('div');
+    div.className='p-3 bg-sky-50 rounded-lg border-l-4 border-sky-400';
+    div.innerHTML='<div style="font-size:0.85rem;color:#64748b">'+dateStr+'</div><div style="font-weight:bold;color:#0369a1;margin-top:0.25rem;">'+item.score+' / '+item.level+' ('+item.correct+'/'+item.total+'問)'+trend+'</div>';
+    historyList.appendChild(div);
+  });
+
+  if(history.length>1)drawHistoryChart(history);
+}
+
+function drawAnalysisChart(data){
+  var ctx=document.getElementById('analysisChart');
+  if(!ctx)return;
+  if(chartInstances.analysis)chartInstances.analysis.destroy();
+
+  var labels=[],correctCounts=[],colors=['#0ea5e9','#06b6d4','#8b5cf6','#d946ef'];
+  var levelMap={'初級':'#0ea5e9','中級':'#06b6d4','中上級':'#8b5cf6','上級':'#d946ef'};
+
+  data.forEach(function(item){
+    labels.push(item.name);
+    correctCounts.push(item.correctCount);
+  });
+
+  chartInstances.analysis=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:labels,
+      datasets:[{
+        label:'正答数',
+        data:correctCounts,
+        backgroundColor:data.map(function(i){return levelMap[i.name]+'CC';}),
+        borderColor:data.map(function(i){return levelMap[i.name];}),
+        borderWidth:2,
+        borderRadius:4
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:true,
+      indexAxis:'y',
+      plugins:{legend:{display:false}},
+      scales:{x:{beginAtZero:true,max:Math.max.apply(null,correctCounts)+1}}
+    }
+  });
+}
+
+function drawScoreGaugeChart(currScore,maxScore){
+  var ctx=document.getElementById('scoreGaugeChart');
+  if(!ctx)return;
+  if(chartInstances.gauge)chartInstances.gauge.destroy();
+
+  var pct=Math.round(currScore/maxScore*100);
+  chartInstances.gauge=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:['スコア'],
+      datasets:[{
+        label:'進捗',
+        data:[pct],
+        backgroundColor:['#0369a1'],
+        borderRadius:4
+      }]
+    },
+    options:{
+      indexAxis:'y',
+      responsive:true,
+      maintainAspectRatio:true,
+      plugins:{legend:{display:false}},
+      scales:{x:{beginAtZero:true,max:100,ticks:{callback:function(v){return v+'%';}}}}
+    }
+  });
+}
+
+function drawHistoryChart(history){
+  var container=document.getElementById('historyChartContainer');
+  var ctx=document.getElementById('historyChart');
+  if(!ctx||history.length<2){
+    container.style.display='none';
+    return;
+  }
+
+  container.style.display='block';
+  if(chartInstances.history)chartInstances.history.destroy();
+
+  var labels=[],scores=[];
+  for(var i=history.length-1;i>=0;i--){
+    var d=new Date(history[i].timestamp);
+    labels.push((d.getMonth()+1)+'/'+d.getDate());
+    scores.push(parseInt(history[i].score.split('〜')[0]));
+  }
+
+  chartInstances.history=new Chart(ctx,{
+    type:'line',
+    data:{
+      labels:labels,
+      datasets:[{
+        label:'推定TOEICスコア',
+        data:scores,
+        borderColor:'#0369a1',
+        backgroundColor:'#0369a122',
+        borderWidth:2,
+        fill:true,
+        tension:0.3
+      }]
+    },
+    options:{responsive:true,plugins:{legend:{display:true}}}
+  });
+}
+
+function printResults(){
+  window.print();
+}
+
+function copyResults(){
+  var score=document.getElementById('r-score').textContent;
+  var level=document.getElementById('r-level').textContent;
+  var correct=document.getElementById('r-correct').textContent;
+  var text='【英語力・TOEIC診断結果】\n\nスコア: '+score+'\nレベル: '+level+'\n'+correct+'\n\n詳細は以下URLで確認: https://appadaycreator.com/english-level-checker/';
+  navigator.clipboard.writeText(text).then(function(){
+    var toast=document.getElementById('copyToast');
+    toast.style.display='block';
+    setTimeout(function(){toast.style.display='none';},2000);
+  });
+}
+
+function downloadCSV(){
+  var history=loadHistory();
+  if(history.length===0){alert('ダウンロード対象の履歴がありません');return;}
+  var csv='日時,推定スコア,レベル,正答数/総問数\n';
+  history.forEach(function(item){
+    var d=new Date(item.timestamp);
+    var dateStr=d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0')+' '+d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+    csv+=dateStr+','+item.score.split('〜')[0]+','+item.level+','+item.correct+'/'+item.total+'\n';
+  });
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  var link=document.createElement('a');
+  link.href=URL.createObjectURL(blob);
+  link.download='english-level-checker-history.csv';
+  link.click();
+}
+
 function startDiagnosis(){Qs=selectQuestions();qAnswers=[];cur=0;correct=0;answered=false;show('questions');renderQ();}
 function show(name){document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});document.getElementById('screen-'+name).classList.add('active');}
 function renderQ(){
@@ -289,6 +503,10 @@ function nextQuestion(){cur++;if(cur<Qs.length){renderQ();}else{show('loading');
 function showResults(){
   var levels=[{min:9,score:'860〜990',level:'上級（ビジネス英語レベル）',desc:'英語でほぼ不自由なくコミュニケーションできるレベルです。グローバルなポジション・海外勤務も十分対応可能。',study:['英語でのプレゼン・ライティング強化','最新ビジネスニュースを英語で読む','TOEICスピーキングへの挑戦']},{min:7,score:'600〜860',level:'中上級（日常ビジネス会話レベル）',desc:'英語の基礎〜応用は理解できています。実践的な会話力の強化でさらなるレベルアップが期待できます。',study:['オンライン英会話で毎日10分スピーキング練習','ビジネス英語専門の参考書','TOEIC700点突破を目標に']},{min:4,score:'350〜600',level:'中級（基礎文法理解レベル）',desc:'基礎的な文法は理解できています。語彙力と読解力を伸ばすことで実用的な英語力を身に付けられます。',study:['単語帳で毎日30語の積み上げ','NHKラジオ英会話・基礎英語','TOEIC500点を目標に']},{min:0,score:'〜350',level:'初級（英語学習スタート段階）',desc:'英語学習の出発点です。基礎的な文法・単語から着実に積み上げましょう。急がず継続が大切です。',study:['中学英語の教科書を再学習','英語アプリ（Duolingo等）で毎日5分','英単語500語を最初の目標に']}];
   var lvl=levels.find(function(l){return correct>=l.min;})||levels[levels.length-1];
+
+  // スコア保存
+  saveResult(lvl.score,lvl.level,correct,Qs.length);
+
   document.getElementById('r-score').textContent=lvl.score+'点';
   document.getElementById('r-level').textContent=lvl.level;
   document.getElementById('r-correct').textContent=correct+' / '+Qs.length+'問正解';
@@ -296,18 +514,29 @@ function showResults(){
 
   var analysisEl=document.getElementById('r-analysis');analysisEl.innerHTML='';
   var levels2=[{name:'初級',color:'#0ea5e9'},{name:'中級',color:'#06b6d4'},{name:'中上級',color:'#8b5cf6'},{name:'上級',color:'#d946ef'}];
+  var analysisData=[];
   levels2.forEach(function(lv){
     var count=Qs.filter(function(q){return q.level===lv.name;}).length;
     if(!count)return;
     var correct_for_level=0;
     for(var i=0;i<Qs.length;i++){if(Qs[i].level===lv.name&&qAnswers[i]===Qs[i].correct){correct_for_level++;}}
     var pct=Math.round(correct_for_level/count*100);
+    analysisData.push({name:lv.name,correctCount:correct_for_level,totalCount:count,percentage:pct,color:lv.color});
     var d=document.createElement('div');
     d.className='text-sm p-3 rounded-lg';
     d.style.background=lv.color+'22';
     d.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;"><span>'+lv.name+'</span><strong style="color:'+lv.color+';">'+correct_for_level+'/'+count+'（'+pct+'%）</strong></div>';
     analysisEl.appendChild(d);
   });
+
+  // グラフを描画
+  setTimeout(function(){
+    drawAnalysisChart(analysisData);
+    var maxScore=parseInt(lvl.score.split('〜')[1]||990);
+    var currScore=parseInt(lvl.score.split('〜')[0]);
+    drawScoreGaugeChart(currScore,maxScore);
+    loadAndDisplayHistory();
+  },100);
 
   var studyEl=document.getElementById('r-study');studyEl.innerHTML='';
   lvl.study.forEach(function(s){var d=document.createElement('div');d.className='flex items-start gap-2 text-sm bg-sky-50 rounded-lg p-2';d.innerHTML='<span class="text-sky-500 mt-0.5">✓</span><span>'+s+'</span>';studyEl.appendChild(d);});
@@ -335,7 +564,14 @@ function showResults(){
   document.getElementById('aff-area').innerHTML='<div class="space-y-2"><a href="https://www.amazon.co.jp/s?k=TOEIC+参考書+英語&tag=appadaycrea0f-22" target="_blank" rel="noopener" class="block text-center bg-yellow-400 text-gray-900 font-bold py-3 rounded-lg text-sm hover:bg-yellow-500 transition js-track-affiliate" data-platform="Amazon" data-item-name="TOEIC参考書英語" data-link-type="affiliate_link">Amazonで英語参考書を探す →</a><a href="https://px.a8.net/svt/ejp?a8mat=4B3VR8+DDPZQI+E0Q+1NO28Y" target="_blank" rel="nofollow sponsored noopener noreferrer" class="block text-center bg-sky-600 text-white font-bold py-3 rounded-lg text-sm hover:bg-sky-700 transition">Z会Adaptie｜AIが最適レベルで出題するTOEIC対策 →</a><img border="0" width="1" height="1" src="https://www10.a8.net/0.gif?a8mat=4B3VR8+DDPZQI+E0Q+1NO28Y" alt="" loading="lazy"><p class="text-xs text-gray-400 text-center">Amazonアソシエイトプログラム参加中</p></div>';
   show('results');
 }
-function restart(){Qs=[];cur=0;correct=0;answered=false;show('intro');}
+function restart(){
+  // チャートインスタンスをクリア
+  Object.keys(chartInstances).forEach(function(key){
+    if(chartInstances[key])chartInstances[key].destroy();
+    delete chartInstances[key];
+  });
+  Qs=[];cur=0;correct=0;answered=false;show('intro');
+}
 </script>
 <section style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 16px;margin-top:16px;max-width:720px;margin-left:auto;margin-right:auto;">
   <h2 style="font-size:16px;font-weight:700;color:#1e293b;margin:0 0 16px;text-align:center;">❓ よくある質問（FAQ）</h2>

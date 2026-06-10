@@ -35,6 +35,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
 <script>window.onerror=function(m,s,l,c,e){console.warn('Error:',m);return true;};window.addEventListener('unhandledrejection',function(e){console.warn('Rejection:',e.reason);});</script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   body { background: #f8fafc; min-height: 100vh; }
   .site-header { background: linear-gradient(135deg, #3730a3 0%, #7c3aed 100%); }
@@ -292,13 +293,48 @@ function goBack(){
   cur--;
   renderQ();
 }
+/* localStorage管理 */
+function saveToHistory(score,levelText){
+  var history=JSON.parse(localStorage.getItem('sleep_history')||'[]');
+  var now=new Date();
+  var dateStr=now.getFullYear()+'-'+(now.getMonth()+1).toString().padStart(2,'0')+'-'+now.getDate().toString().padStart(2,'0');
+  history.unshift({date:dateStr,score:score,level:levelText,time:now.getTime()});
+  if(history.length>10)history.pop();
+  localStorage.setItem('sleep_history',JSON.stringify(history));
+}
+function getHistory(){
+  return JSON.parse(localStorage.getItem('sleep_history')||'[]');
+}
+function clearHistory(){
+  if(confirm('診断履歴をすべて削除します。\n※この操作は取り消せません。')){
+    localStorage.removeItem('sleep_history');
+    location.reload();
+  }
+}
+
 function showResults(){
   /* 健康度バー: 低スコアほど良好なので (30-total)/30 で「健康度」を表現 */
   var healthPct=Math.round((30-total)/30*100);
   var level=levels[0];for(var i=0;i<levels.length;i++){if(total<=levels[i].max){level=levels[i];break;}}
   document.getElementById('res-emoji').textContent=level.emoji;
   document.getElementById('res-level').textContent=level.text;document.getElementById('res-level').style.color=level.color;
-  document.getElementById('res-score').textContent='スコア: '+total+'/30点（低いほど良好）';
+
+  /* 履歴に保存してから処理 */
+  saveToHistory(total,level.text);
+
+  /* 前回比較を表示：保存後の履歴から前回のスコアを取得 */
+  var history=getHistory();
+  var prevScore=history.length>1?history[1].score:null;
+  var scoreText='スコア: '+total+'/30点（低いほど良好）';
+  if(prevScore!==null){
+    var diff=prevScore-total;
+    scoreText+=' | 前回: '+prevScore+'点 → ';
+    if(diff>0)scoreText+='<span style="color:#16a34a;font-weight:700;">▼ '+diff+'点改善 ✨</span>';
+    else if(diff<0)scoreText+='<span style="color:#dc2626;font-weight:700;">▲ '+Math.abs(diff)+'点悪化</span>';
+    else scoreText+='<span style="color:#6b7280;">変わらず</span>';
+  }
+  document.getElementById('res-score').innerHTML=scoreText;
+
   document.getElementById('res-meter').style.width=healthPct+'%';document.getElementById('res-meter').style.background=level.color;
   document.getElementById('res-desc').textContent=level.desc;
   var tipsEl=document.getElementById('res-tips');tipsEl.innerHTML='';
@@ -310,7 +346,7 @@ function showResults(){
   var bdEl=document.getElementById('res-breakdown');
   if(breakdownItems.length>0){
     var starColor=['#16a34a','#f59e0b','#f97316','#dc2626'];
-    var html='<div style="background:#fafafa;border:1px solid #e5e7eb;border-radius:10px;padding:12px;">';
+    var html='<div style="background:#fafafa;border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin-bottom:12px;">';
     html+='<div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:8px;">📊 項目別スコア（改善ポイント）</div>';
     breakdownItems.forEach(function(x){
       var isMax=(x.score===maxScore);
@@ -326,6 +362,36 @@ function showResults(){
     bdEl.innerHTML=html;
   } else {
     bdEl.innerHTML='';
+  }
+
+  /* スコア推移グラフ（2回以上の履歴があれば表示） */
+  if(history.length>=2){
+    var graphData=history.slice().reverse();
+    var graphHtml='<div style="background:#fafafa;border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin-bottom:12px;">';
+    graphHtml+='<div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:10px;">📈 スコア推移（最新10回）</div>';
+    graphHtml+='<canvas id="trend-chart" style="max-width:100%;"></canvas>';
+    graphHtml+='</div>';
+    bdEl.innerHTML+=graphHtml;
+  }
+
+  /* 履歴一覧を表示 */
+  if(history.length>0){
+    var histHtml='<div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px;margin-bottom:12px;">';
+    histHtml+='<details style="cursor:pointer;">';
+    histHtml+='<summary style="font-weight:600;color:#1e3a8a;display:flex;justify-content:space-between;align-items:center;"><span>📋 診断履歴（'+history.length+'件）</span><span>▼</span></summary>';
+    histHtml+='<div style="margin-top:10px;padding-top:10px;border-top:1px solid #bfdbfe;">';
+    history.forEach(function(h,i){
+      histHtml+='<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:12px;">';
+      histHtml+='<span style="color:#4b5563;">'+h.date+'</span>';
+      histHtml+='<span style="font-weight:700;color:#3730a3;">'+h.score+'点</span>';
+      histHtml+='<span style="color:#6b7280;">'+h.level+'</span>';
+      histHtml+='</div>';
+    });
+    histHtml+='<button class="btn-back" onclick="clearHistory()" style="width:100%;margin-top:10px;background:#fee2e2;border-color:#fecaca;color:#991b1b;">🗑️ 履歴を削除</button>';
+    histHtml+='</div>';
+    histHtml+='</details>';
+    histHtml+='</div>';
+    bdEl.innerHTML+=histHtml;
   }
 
   /* 結果画面のシェアボタン（スコア・判定を含む） */
@@ -344,6 +410,49 @@ function showResults(){
   if(total>=17)affHtml+='<a href="https://px.a8.net/svt/ejp?a8mat=4AVCO8+3ORU2Y+5JTC+5YRHE" target="_blank" rel="noopener sponsored" class="block bg-indigo-600 text-white font-bold py-3 px-4 rounded-xl text-center text-sm hover:bg-indigo-700 transition">ヨンデミーで睡眠・健康の読書習慣を作る →</a><img border="0" width="1" height="1" src="https://www11.a8.net/0.gif?a8mat=4AVCO8+3ORU2Y+5JTC+5YRHE" alt="" loading="lazy">';
   affHtml+='<p class="text-xs text-gray-400 text-center mt-1">Amazonアソシエイトプログラム参加中</p>';
   document.getElementById('aff-area').innerHTML=affHtml;
+
+  /* グラフを描画（履歴保存済み）*/
+  setTimeout(function(){
+    var updatedHistory=getHistory();
+    if(updatedHistory.length>=2){
+      var canvas=document.getElementById('trend-chart');
+      if(canvas){
+        var graphData=updatedHistory.slice().reverse();
+        try {
+          new Chart(canvas,{
+            type:'line',
+            data:{
+              labels:graphData.map(function(h){return h.date;}),
+              datasets:[{
+                label:'睡眠スコア',
+                data:graphData.map(function(h){return h.score;}),
+                borderColor:'#7c3aed',
+                backgroundColor:'rgba(124,58,237,0.1)',
+                borderWidth:2,
+                fill:true,
+                tension:0.3,
+                pointRadius:4,
+                pointBackgroundColor:'#7c3aed'
+              }]
+            },
+            options:{
+              responsive:true,
+              maintainAspectRatio:true,
+              plugins:{legend:{display:false}},
+              scales:{
+                y:{
+                  beginAtZero:true,
+                  max:30,
+                  ticks:{callback:function(v){return v;}}
+                }
+              }
+            }
+          });
+        } catch(e) {}
+      }
+    }
+  },200);
+
   show('results');
 }
 function restart(){cur=0;total=0;answers=[];show('intro');}

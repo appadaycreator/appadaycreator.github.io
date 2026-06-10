@@ -40,6 +40,7 @@
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <script>
     window.onerror = function(msg, src, line, col, err) {
@@ -756,6 +757,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if (currentStep > 0) { currentStep--; renderQuestion('left'); }
     }
 
+    let tasteProfileChart = null;
+
     function showResult() {
       document.getElementById('quiz-section').classList.add('hidden');
       document.getElementById('result-section').classList.remove('hidden');
@@ -772,22 +775,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
                          answers.budget === '1,000〜3,000円' ? '中価格帯はコスパと品質のバランスが最高の激戦区です。' :
                          answers.budget === '3,000〜10,000円' ? '専門店やオンラインショップで個性豊かな一本を探しましょう。' :
                          '百貨店や酒専門店でソムリエ・蔵人に相談するのがおすすめです。';
-
-      // 味わいプロフィールバー生成
-      const profileLabels = [
-        { key: 'sweet',  label: '甘さ',     color: '#ec4899' },
-        { key: 'body',   label: 'コク',     color: '#9f1239' },
-        { key: 'fruity', label: 'フルーティ', color: '#f97316' }
-      ];
-      const profileBars = profileLabels.map(p => {
-        const pct = ((rec.profile?.[p.key] || 1) / 5) * 100;
-        return `<div class="flex items-center gap-2 mb-1">
-          <span class="text-xs text-gray-500 w-16">${p.label}</span>
-          <div class="taste-bar-track flex-1">
-            <div class="taste-bar-fill" style="width:${pct}%;background:${p.color};"></div>
-          </div>
-        </div>`;
-      }).join('');
 
       // タグバッジ生成
       const tagBadges = (rec.tags || []).map(t =>
@@ -812,7 +799,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
         <div class="bg-gray-50 rounded-xl p-4 mb-3">
           <p class="text-sm font-semibold text-gray-700 mb-2">味わいプロフィール</p>
-          ${profileBars}
+          <div style="position:relative;width:100%;height:300px;max-width:100%;">
+            <canvas id="tasteProfileChart" style="max-width:100%;"></canvas>
+          </div>
         </div>
         <div class="bg-gray-50 rounded-xl p-4 mb-3">
           <p class="text-sm font-semibold text-gray-700 mb-1">代表的な銘柄・種類</p>
@@ -832,8 +821,80 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <p class="text-xs text-gray-600 mt-1">${budgetNote}</p>
         </div>`;
 
+      // レーダーチャート生成（次フレームで実行）
+      setTimeout(() => createTasteProfileChart(rec.profile), 0);
+
       displayRecommendedBrands(rec);
       saveToHistory(rec.category);
+    }
+
+    function createTasteProfileChart(profile) {
+      const ctx = document.getElementById('tasteProfileChart');
+      if (!ctx) return;
+
+      // 前のチャートがあれば破棄
+      if (tasteProfileChart) tasteProfileChart.destroy();
+
+      const chartData = {
+        labels: ['甘さ', 'コク', 'フルーティ'],
+        datasets: [{
+          label: '味わい',
+          data: [profile?.sweet || 1, profile?.body || 1, profile?.fruity || 1],
+          borderColor: '#9f1239',
+          backgroundColor: 'rgba(159, 18, 57, 0.15)',
+          borderWidth: 2.5,
+          fill: true,
+          pointRadius: 5,
+          pointBackgroundColor: '#9f1239',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          tension: 0.4
+        }];
+      };
+
+      tasteProfileChart = new Chart(ctx, {
+        type: 'radar',
+        data: chartData,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return context.raw + '/5';
+                }
+              }
+            }
+          },
+          scales: {
+            r: {
+              beginAtZero: true,
+              max: 5,
+              min: 0,
+              ticks: {
+                stepSize: 1,
+                font: { size: 11 },
+                color: '#9ca3af'
+              },
+              grid: {
+                color: '#e5e7eb',
+                drawBorder: false
+              },
+              angleLines: {
+                color: '#d1d5db'
+              },
+              pointLabels: {
+                font: { size: 13, weight: 600 },
+                color: '#374151'
+              }
+            }
+          }
+        }
+      });
     }
 
     function displayRecommendedBrands(rec) {
@@ -889,6 +950,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     function resetQuiz() {
       currentStep = 0; answers = {};
+      if (tasteProfileChart) {
+        tasteProfileChart.destroy();
+        tasteProfileChart = null;
+      }
       document.getElementById('quiz-section').classList.remove('hidden');
       document.getElementById('result-section').classList.add('hidden');
       renderQuestion('right');

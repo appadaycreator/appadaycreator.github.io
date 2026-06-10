@@ -30,6 +30,7 @@
   <!-- Microsoft Clarity -->
   <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","s3t9vl8h3v");</script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"このサービスは無料ですか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要でご利用いただけます。"}},{"@type":"Question","name":"入力データはどこに保存されますか？","acceptedAnswer":{"@type":"Answer","text":"お使いのデバイス内にのみ保存されます。外部送信は行いません。"}},{"@type":"Question","name":"結果はどのくらい正確ですか？","acceptedAnswer":{"@type":"Answer","text":"あくまで参考情報です。重要な判断の際は専門家にご相談ください。"}},{"@type":"Question","name":"どのような人が使っていますか？","acceptedAnswer":{"@type":"Answer","text":"初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}},{"@type":"Question","name":"結果をシェアできますか？","acceptedAnswer":{"@type":"Answer","text":"はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}},{"@type":"Question","name":"有料プランはありますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、すべての機能を完全無料でご利用いただけます。"}}]}</script>
 
 <meta property="og:type" content="website">
@@ -171,6 +172,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="flex gap-2 mb-6">
       <button onclick="resetQuiz()" class="flex-1 py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition" aria-label="診断をリセット">もう一度診断する</button>
       <button onclick="shareResult()" class="flex-1 py-3 bg-blue-500 text-white rounded-xl font-semibold hover:bg-blue-600 transition" aria-label="結果をシェア">📢 シェア</button>
+    </div>
+
+    <div class="flex gap-2 mb-6 flex-wrap">
+      <button onclick="copyResultToClipboard()" class="flex-1 py-3 bg-purple-500 text-white rounded-xl font-semibold hover:bg-purple-600 transition" aria-label="結果をコピー">📋 コピー</button>
+      <button onclick="downloadResultAsCSV()" class="flex-1 py-3 bg-green-500 text-white rounded-xl font-semibold hover:bg-green-600 transition" aria-label="結果をダウンロード">📊 CSV</button>
+      <button onclick="window.print()" class="flex-1 py-3 bg-indigo-500 text-white rounded-xl font-semibold hover:bg-indigo-600 transition" aria-label="印刷">🖨️ 印刷</button>
     </div>
   </div>
 
@@ -355,6 +362,169 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   let currentStep = 0;
   let answers = {};
 
+  function calculateMatchScores(a) {
+    // 園タイプ別マッチスコア計算（0-100）
+    a = a || answers;
+    const scores = {
+      '認可保育所': 50,
+      '認定こども園': 50,
+      '公立幼稚園': 50,
+      '私立幼稚園': 50
+    };
+
+    // 年齢スコア調整
+    if (['0歳（産休・育休明け）', '1歳', '2歳'].includes(a.age)) {
+      scores['認可保育所'] += 20;
+      scores['認定こども園'] += 15;
+    } else {
+      scores['公立幼稚園'] += 10;
+      scores['私立幼稚園'] += 15;
+    }
+
+    // 就労状況スコア調整
+    const isFulltime = a.work === '両親ともフルタイム勤務' || a.work === '片方がフルタイム・片方がパート';
+    if (isFulltime) {
+      scores['認可保育所'] += 15;
+      scores['認定こども園'] += 20;
+    } else {
+      scores['公立幼稚園'] += 15;
+      scores['私立幼稚園'] += 10;
+    }
+
+    // 保育時間スコア調整
+    const needsLongHours = a.hours !== '9:00〜17:00（標準的な幼稚園時間）';
+    if (needsLongHours) {
+      scores['認可保育所'] += 15;
+      scores['認定こども園'] += 15;
+    } else {
+      scores['公立幼稚園'] += 10;
+    }
+
+    // 優先順位スコア調整
+    if (a.priority === '保育料の安さ') {
+      scores['公立幼稚園'] += 15;
+      scores['認可保育所'] += 10;
+    } else if (a.priority === '教育方針・カリキュラム') {
+      scores['私立幼稚園'] += 20;
+      scores['認定こども園'] += 10;
+    } else if (a.priority === '給食・食事の質') {
+      scores['認可保育所'] += 15;
+      scores['認定こども園'] += 15;
+    }
+
+    // 教育方針スコア調整
+    if (['英語・音楽・体操など習い事系', '小学校受験を視野に入れた教育'].includes(a.education)) {
+      scores['私立幼稚園'] += 15;
+      scores['認定こども園'] += 10;
+    } else if (a.education === 'のびのびと自由に遊ぶ保育') {
+      scores['認可保育所'] += 10;
+      scores['認定こども園'] += 10;
+    }
+
+    // 正規化
+    Object.keys(scores).forEach(k => scores[k] = Math.min(100, Math.max(0, scores[k])));
+    return scores;
+  }
+
+  function renderMatchChart() {
+    const scores = calculateMatchScores();
+    const types = Object.keys(scores);
+    const values = Object.values(scores);
+    const rec = getRecommendation();
+    const colors = types.map(t => t === rec.type ? '#ec4899' : '#cbd5e1');
+
+    const canvas = document.createElement('canvas');
+    canvas.id = 'matchChart';
+    canvas.style.maxWidth = '100%';
+    canvas.style.marginBottom = '20px';
+
+    const chartContainer = document.createElement('div');
+    chartContainer.style.position = 'relative';
+    chartContainer.style.height = '250px';
+    chartContainer.appendChild(canvas);
+
+    // Chart.js グラフ生成
+    new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: types,
+        datasets: [{
+          label: 'マッチスコア',
+          data: values,
+          backgroundColor: colors,
+          borderRadius: 8,
+          borderSkipped: false
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            max: 100,
+            ticks: { stepSize: 20 }
+          }
+        }
+      }
+    });
+
+    return chartContainer;
+  }
+
+  function copyResultToClipboard() {
+    const rec = getRecommendation();
+    const scores = calculateMatchScores();
+    const text = `【保育園・幼稚園選び診断結果】
+おすすめの園の種類: ${rec.type}
+理由: ${rec.reason}
+保育料目安: ${rec.fee}
+
+園タイプ別マッチスコア:
+${Object.entries(scores).map(([k, v]) => `• ${k}: ${v}点`).join('\n')}
+
+診断日時: ${new Date().toLocaleString('ja-JP')}
+`;
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('✅ 結果をコピーしました');
+    }).catch(() => {
+      alert('クリップボードへのコピーに失敗しました');
+    });
+  }
+
+  function downloadResultAsCSV() {
+    const rec = getRecommendation();
+    const scores = calculateMatchScores();
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `nursery-finder-${timestamp}.csv`;
+
+    let csv = '項目,回答値\n';
+    questions.forEach(q => csv += `${q.text},${answers[q.id] || ''}\n`);
+    csv += '\n診断結果\n';
+    csv += `おすすめの園,${rec.type}\n`;
+    csv += `保育料目安,${rec.fee}\n`;
+    csv += '\nマッチスコア\n';
+    Object.entries(scores).forEach(([k, v]) => csv += `${k},${v}\n`);
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+  }
+
+  function showToast(msg) {
+    const toast = document.createElement('div');
+    toast.textContent = msg;
+    toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#10b981;color:white;padding:12px 20px;border-radius:8px;font-size:14px;z-index:9999;';
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2000);
+  }
+
   function renderQuestion() {
     const q = questions[currentStep];
     document.getElementById('step-label').textContent = `質問 ${currentStep + 1} / ${questions.length}`;
@@ -462,6 +632,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <p class="text-sm font-semibold text-gray-700 mt-2">保育料の目安: <span class="text-pink-600">${rec.fee}</span></p>
       </div>
 
+      <h3 class="font-bold text-gray-700 mb-3">園タイプ別マッチスコア</h3>
+      <div id="chart-container-wrap" style="position:relative;height:250px;margin-bottom:20px;"></div>
+
       <h3 class="font-bold text-gray-700 mb-3">園タイプ別比較表</h3>
       ${renderComparisonTable(rec.type)}
 
@@ -485,6 +658,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       ${renderHistorySection()}`;
 
     document.getElementById('result-content').innerHTML = html;
+
+    // グラフをレンダリング
+    setTimeout(() => {
+      const chartContainer = document.getElementById('chart-container-wrap');
+      if (chartContainer) {
+        chartContainer.innerHTML = '';
+        chartContainer.appendChild(renderMatchChart());
+      }
+    }, 100);
   }
 
   function renderHistorySection() {
