@@ -695,6 +695,59 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       });
     }
 
+    // ── M3: localStorage 機能（診断履歴保存・復元） ──
+    function saveToLocalStorage(answers, premium) {
+      try {
+        let history = JSON.parse(localStorage.getItem('insurance_history') || '[]');
+        const entry = {
+          timestamp: new Date().toISOString(),
+          answers,
+          premium
+        };
+        history.unshift(entry);
+        if (history.length > 10) history = history.slice(0, 10);
+        localStorage.setItem('insurance_history', JSON.stringify(history));
+        updateHistoryUI();
+      } catch (e) {}
+    }
+
+    function loadFromHistory(index) {
+      try {
+        const history = JSON.parse(localStorage.getItem('insurance_history') || '[]');
+        if (history[index]) {
+          answers = { ...history[index].answers };
+          diagnose();
+        }
+      } catch (e) {}
+    }
+
+    function updateHistoryUI() {
+      try {
+        const history = JSON.parse(localStorage.getItem('insurance_history') || '[]');
+        const list = document.getElementById('history-list');
+        if (history.length === 0) {
+          list.innerHTML = '<p style="font-size:12px;color:#6366f1;margin:0;">まだ履歴がありません</p>';
+          return;
+        }
+        const typeLabels = {
+          own_house:'持ち家（一戸建て）', own_apt:'持ち家（マンション）',
+          rent_house:'賃貸（一戸建て）', rent_apt:'賃貸（アパート・マンション）'
+        };
+        list.innerHTML = history.map((h, i) => {
+          const d = new Date(h.timestamp);
+          const dStr = d.toLocaleString('ja-JP', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+          return `<button onclick="loadFromHistory(${i})" style="padding:8px 10px;background:#fff;border:1px solid #c7d2fe;border-radius:8px;text-align:left;cursor:pointer;font-size:12px;color:#3730a3;font-weight:500;transition:all 0.2s;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='#fff'">📌 ${typeLabels[h.answers.type]} - ${h.premium.min}〜${h.premium.max}万円 (${dStr})</button>`;
+        }).join('');
+      } catch (e) {}
+    }
+
+    function clearAllHistory() {
+      if (confirm('全ての履歴を削除しますか？')) {
+        localStorage.removeItem('insurance_history');
+        updateHistoryUI();
+      }
+    }
+
     // ── 保険料計算 ──
     function calcPremium(type, flood, quake, goods, age) {
       const base = BASE_PREMIUM[type] || { min: 1, max: 3 };
@@ -710,6 +763,133 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const minP = Math.round(((base.min + effFa + effQa + ga) * effAm) * 10) / 10;
       const maxP = Math.round(((base.max + effFa + effQa + ga) * effAm) * 10) / 10;
       return { min: minP, max: maxP };
+    }
+
+    // ── M4: Chart.js でグラフ描画 ──
+    let premiumChart = null;
+    function drawPremiumChart(minVal, maxVal) {
+      const ctx = document.getElementById('premium-chart');
+      if (!ctx) return;
+      if (premiumChart) premiumChart.destroy();
+      premiumChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['最小料金', '最大料金'],
+          datasets: [{
+            label: '年間保険料（万円）',
+            data: [minVal, maxVal],
+            backgroundColor: ['#3b82f6', '#f59e0b'],
+            borderColor: ['#1e40af', '#d97706'],
+            borderWidth: 2,
+            borderRadius: 6,
+            barPercentage: 0.7
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: true, position: 'bottom' },
+            tooltip: {
+              backgroundColor: '#374151',
+              titleFont: { size: 12 },
+              bodyFont: { size: 12 },
+              padding: 8,
+              callbacks: {
+                label: function(context) {
+                  return context.parsed.y + '万円';
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: '保険料（万円）' },
+              ticks: { callback: function(v) { return v + '万'; } }
+            }
+          }
+        }
+      });
+    }
+
+    // ── M6: 目標保険料設定・進捗表示 ──
+    function setTargetPremium() {
+      const target = parseFloat(document.getElementById('target-premium').value);
+      if (isNaN(target) || target <= 0) {
+        alert('正の数値を入力してください');
+        return;
+      }
+      localStorage.setItem('target_premium', target.toString());
+      updateTargetProgress();
+    }
+
+    function updateTargetProgress() {
+      const targetStr = localStorage.getItem('target_premium');
+      if (!targetStr) {
+        document.getElementById('target-progress').style.display = 'none';
+        return;
+      }
+      const target = parseFloat(targetStr);
+      const result = parseFloat(document.getElementById('r-premium').textContent.replace('約 ', '').split('〜')[0]);
+      if (isNaN(result)) return;
+      document.getElementById('target-progress').style.display = 'block';
+      document.getElementById('target-premium').value = target;
+      document.getElementById('target-value').textContent = target;
+      document.getElementById('result-value').textContent = result;
+      const percentage = Math.min(100, Math.round((result / target) * 100));
+      const bar = document.getElementById('target-progress-bar');
+      bar.style.width = percentage + '%';
+      bar.textContent = percentage + '%';
+    }
+
+    // ── M10: 印刷機能 ──
+    function printResult() {
+      const printWin = window.open('', '', 'height=600,width=800');
+      const { type, flood, quake, family, goods, age } = answers;
+      const premium = calcPremium(type, flood, quake, goods, age);
+      const typeLabels = { own_house:'持ち家（一戸建て）', own_apt:'持ち家（マンション）', rent_house:'賃貸（一戸建て）', rent_apt:'賃貸（アパート・マンション）' };
+      const content = `
+        <html><head><meta charset="utf-8"><title>火災保険診断結果</title>
+        <style>body{font-family:'Noto Sans JP',sans-serif;max-width:600px;margin:20px auto;padding:20px;color:#333;}
+        h1{color:#EA580C;border-bottom:2px solid #EA580C;padding-bottom:10px;}
+        .box{background:#f8fafc;padding:15px;border-radius:8px;margin:15px 0;border-left:4px solid #EA580C;}
+        strong{color:#EA580C;}
+        table{width:100%;border-collapse:collapse;margin:10px 0;}
+        th,td{padding:8px;border-bottom:1px solid #e2e8f0;text-align:left;}
+        th{background:#EA580C;color:white;}
+        .premium{font-size:24px;font-weight:bold;color:#EA580C;margin:10px 0;}
+        </style></head><body>
+        <h1>🏠 火災保険診断結果</h1>
+        <div class="box">
+          <p><strong>住宅タイプ:</strong> ${typeLabels[type]}</p>
+          <p><strong>診断日時:</strong> ${new Date().toLocaleString('ja-JP')}</p>
+        </div>
+        <div class="box">
+          <p style="margin:0;">年間保険料目安</p>
+          <p class="premium">約 ${premium.min}〜${premium.max} 万円</p>
+          <p style="margin:5px 0;font-size:12px;color:#666;">※条件・補償内容・保険会社により異なります</p>
+        </div>
+        <div class="box">
+          <h3 style="margin-top:0;color:#374151;">診断条件</h3>
+          <table>
+            <tr><th>項目</th><th>回答</th></tr>
+            <tr><td>住宅の種類</td><td>${typeLabels[type]}</td></tr>
+            <tr><td>水害リスク</td><td>${{high:'川沿い・低地',mid:'普通',low:'高台'}[flood]}</td></tr>
+            <tr><td>地震保険</td><td>${{yes:'加入希望',no:'不要',check:'診断希望'}[quake]}</td></tr>
+            <tr><td>家族構成</td><td>${{single:'単身',couple:'夫婦',kids:'子ども同居',senior:'高齢者同居'}[family]}</td></tr>
+            <tr><td>家財総額</td><td>${{low:'200万円未満',mid:'200〜500万円',high:'500万円以上'}[goods]}</td></tr>
+            <tr><td>築年数</td><td>${{new:'築5年未満',mid_age:'5〜20年',old:'20年以上',unknown:'不明'}[age]}</td></tr>
+          </table>
+        </div>
+        <div class="box">
+          <p style="font-size:12px;color:#666;margin:0;">本結果は参考情報です。実際の加入時は保険会社・代理店にご相談ください。</p>
+        </div>
+        </body></html>
+      `;
+      printWin.document.write(content);
+      printWin.document.close();
+      setTimeout(() => printWin.print(), 250);
     }
 
     // ── 地震保険の自動判定 ──
@@ -848,6 +1028,19 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('result').classList.add('show');
       document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
 
+      // M3: 履歴に保存
+      saveToLocalStorage(answers, premium);
+
+      // M4: グラフを描画
+      const chartSection = document.getElementById('m4-chart-section');
+      if (chartSection) {
+        chartSection.style.display = '';
+        setTimeout(() => drawPremiumChart(premium.min, premium.max), 100);
+      }
+
+      // M6: 目標進捗を更新
+      setTimeout(updateTargetProgress, 100);
+
       // URLパラメータを更新
       const params = new URLSearchParams({ type, flood, quake, family, goods, age });
       history.pushState({}, '', '?' + params.toString());
@@ -926,6 +1119,8 @@ https://appadaycreator.com/home-insurance-advisor/`;
     initDots();
     updateProgress(1);
     restoreFromUrl();
+    updateHistoryUI();
+    updateTargetProgress();
     </script>
 <!-- A8アフィリエイト: スツーレ -->
 <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px;margin:10px 0;">

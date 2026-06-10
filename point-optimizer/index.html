@@ -28,6 +28,7 @@
   <!-- Google AdSense -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script>
     window.onerror = function(msg, src, line, col, err) { console.error('Global error:', msg, src, line, col, err); return false; };
     window.addEventListener('unhandledrejection', function(e) { console.error('Unhandled rejection:', e.reason); });
@@ -283,6 +284,28 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div id="annualPoints" class="text-4xl font-bold point-counter mb-1">0</div>
           <div class="text-sm opacity-90">ポイント（約<span id="annualYen">0</span>円相当）</div>
           <div id="calcBasis" class="text-xs opacity-80 mt-2" style="font-size:11px;"></div>
+        </div>
+
+        <!-- Visualization Section -->
+        <div class="bg-white rounded-xl p-4 mb-4 border-2 border-amber-100">
+          <h3 class="font-bold text-amber-700 mb-3">📊 ポイント獲得の可視化</h3>
+          <div class="grid gap-4">
+            <!-- Monthly Points Chart -->
+            <div class="bg-gray-50 rounded-lg p-3">
+              <p class="text-xs font-bold text-gray-600 mb-2">月別獲得ポイント推移</p>
+              <canvas id="monthlyPointsChart" style="max-height:200px;"></canvas>
+            </div>
+            <!-- Annual Score Gauge -->
+            <div class="bg-gray-50 rounded-lg p-3">
+              <p class="text-xs font-bold text-gray-600 mb-2">年間ポイント獲得スコア</p>
+              <canvas id="scoreGaugeChart" style="max-height:200px;"></canvas>
+            </div>
+            <!-- Card Comparison Chart -->
+            <div class="bg-gray-50 rounded-lg p-3">
+              <p class="text-xs font-bold text-gray-600 mb-2">おすすめカード別ポイント試算</p>
+              <canvas id="cardComparisonChart" style="max-height:200px;"></canvas>
+            </div>
+          </div>
         </div>
 
         <!-- Best Combo -->
@@ -680,6 +703,136 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('affiliateLink').innerHTML = affiliateLinks.map(l=>
         `<a href="${l.href}" target="_blank" rel="noopener" class="block ${l.color} font-bold py-3 px-4 rounded-lg text-center text-sm transition">${l.text}</a>`
       ).join('');
+
+      // グラフ描画
+      drawVisualizationCharts(annual, spend, top3);
+    }
+
+    function drawVisualizationCharts(annual, spend, top3) {
+      // 既存のチャートを破棄
+      if (window.monthlyPointsInstance) window.monthlyPointsInstance.destroy();
+      if (window.scoreGaugeInstance) window.scoreGaugeInstance.destroy();
+      if (window.cardComparisonInstance) window.cardComparisonInstance.destroy();
+
+      // 月別ポイント推移（折れ線グラフ）
+      const monthlyPoints = Array.from({length: 12}, (_, i) => Math.floor(annual / 12));
+      const monthlyCtx = document.getElementById('monthlyPointsChart').getContext('2d');
+      window.monthlyPointsInstance = new Chart(monthlyCtx, {
+        type: 'line',
+        data: {
+          labels: Array.from({length: 12}, (_, i) => `${i+1}月`),
+          datasets: [{
+            label: '月間獲得ポイント',
+            data: monthlyPoints,
+            borderColor: '#f59e0b',
+            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 4,
+            pointBackgroundColor: '#f59e0b',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {display: false}
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {font: {size: 11}},
+              grid: {drawBorder: false}
+            },
+            x: {
+              ticks: {font: {size: 11}}
+            }
+          }
+        }
+      });
+
+      // 年間スコアゲージ（ドーナツチャート）
+      const maxPossiblePoints = spend * 12 * 0.03; // 3%が最大想定
+      const scorePercentage = Math.min((annual / maxPossiblePoints) * 100, 100);
+      const scoreCtx = document.getElementById('scoreGaugeChart').getContext('2d');
+      window.scoreGaugeInstance = new Chart(scoreCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['獲得ポイント', '未獲得分'],
+          datasets: [{
+            data: [scorePercentage, 100 - scorePercentage],
+            backgroundColor: ['#f59e0b', '#e5e7eb'],
+            borderColor: '#fff',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {display: false},
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  if (ctx.dataIndex === 0) {
+                    return `年間スコア: ${scorePercentage.toFixed(0)}%`;
+                  }
+                  return '';
+                }
+              }
+            }
+          }
+        }
+      });
+
+      // おすすめカード別ポイント試算（棒グラフ）
+      const cardNames = top3.map(({idx}) => cardCombinations[idx].name.substring(0, 10) + '...');
+      const cardPoints = top3.map(({idx}) => {
+        const c = cardCombinations[idx];
+        return Math.floor(spend * 12 * c.baseMultiplier * 0.01);
+      });
+      const cardCtx = document.getElementById('cardComparisonChart').getContext('2d');
+      window.cardComparisonInstance = new Chart(cardCtx, {
+        type: 'bar',
+        data: {
+          labels: ['🥇 1位', '🥈 2位', '🥉 3位'],
+          datasets: [{
+            label: '年間獲得ポイント',
+            data: cardPoints,
+            backgroundColor: ['#fbbf24', '#c084fc', '#60a5fa'],
+            borderRadius: 6,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {display: false},
+            tooltip: {
+              callbacks: {
+                label: (ctx) => `${ctx.parsed.x.toLocaleString()} pt`
+              }
+            }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              ticks: {
+                font: {size: 11},
+                callback: (v) => v.toLocaleString()
+              }
+            },
+            y: {
+              ticks: {font: {size: 11}}
+            }
+          }
+        }
+      });
     }
 
     function restart() {

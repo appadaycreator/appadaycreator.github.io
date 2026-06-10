@@ -11,6 +11,12 @@
 
 ## 変更履歴
 
+### v1.8.8 (2026-06-10)
+- feature: プレイ履歴テーブル表示（直近10プレイを「プレイ履歴・ベストスコア」パネルに追加、リピート利用促進）
+- feature: 結果シェア機能の拡張（X/LINE/クリップボードコピーを個別対応、X→Twitter Intent URL、LINE→LINE Share URL）
+- feature: OGタグ完全実装（og:title/description/url/image、twitter:card、SNSシェア時の見栄え向上）
+- improve: updateHistoryDisplay()関数で履歴を日時順・スコア順でソート表示（ローカルストレージ自動復元）
+
 ### v1.8.7 (2026-06-08)
 - feature: HowToスキーマ追加（「漢字タワーディフェンスの遊び方」で5ステップの構造化データ表示、SEO向上）
 - feature: 初回プレイヤー向けオンボーディングモーダル追加（4ステップのウェルカムガイド、ユーザー継続向上）

@@ -1524,6 +1524,7 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
 </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"サブスク断捨離計算機","url":"https://appadaycreator.com/subscription-calculator/","description":"毎月のサブスクリプション費用を可視化。無駄なサービスを見直して節約。","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"applicationCategory":"FinanceApplication"}</script>
     <meta property="og:type" content="website">
         <meta property="og:image" content="https://appadaycreator.com/subscription-calculator/ogp.png">
@@ -1724,7 +1725,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
 
                         <div class="input-group">
                             <label for="billingCycle" class="input-label">支払いサイクル</label>
-                            <select id="billingCycle" class="input-field">
+                            <select id="billingCycle" class="input-field" aria-label="支払いサイクル（月払い/年払い）">
                                 <option value="monthly">月払い</option>
                                 <option value="yearly">年払い</option>
                             </select>
@@ -1732,7 +1733,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
 
                         <div class="input-group">
                             <label for="category" class="input-label">カテゴリ</label>
-                            <select id="category" class="input-field">
+                            <select id="category" class="input-field" aria-label="サービスのカテゴリを選択">
                                 <option value="動画配信">🎬 動画配信</option>
                                 <option value="音楽">🎵 音楽</option>
                                 <option value="本・雑誌">📚 本・雑誌</option>
@@ -1835,6 +1836,24 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                 <div class="summary-label">1日あたり</div>
                                 <div class="summary-value" id="dailyCost">¥0</div>
                                 <div class="summary-change" style="color:var(--gray-500);">月額÷30日</div>
+                            </div>
+                        </div>
+
+                        <!-- 📊 グラフセクション（M4可視化） -->
+                        <div id="chartsSection" style="margin-top: var(--space-8); display: none;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-6); margin-bottom: var(--space-8);">
+                                <div style="background: rgba(255, 255, 255, 0.95); padding: var(--space-6); border-radius: var(--radius-xl); border: 1px solid rgba(255, 255, 255, 0.3);">
+                                    <h3 style="font-size: var(--text-lg); font-weight: 700; margin-bottom: var(--space-4); color: var(--gray-800);">📂 カテゴリ別費用</h3>
+                                    <canvas id="categoryChart" style="max-height: 300px;"></canvas>
+                                </div>
+                                <div style="background: rgba(255, 255, 255, 0.95); padding: var(--space-6); border-radius: var(--radius-xl); border: 1px solid rgba(255, 255, 255, 0.3);">
+                                    <h3 style="font-size: var(--text-lg); font-weight: 700; margin-bottom: var(--space-4); color: var(--gray-800);">📈 コスト効率分析</h3>
+                                    <canvas id="efficiencyChart" style="max-height: 300px;"></canvas>
+                                </div>
+                            </div>
+                            <div style="background: rgba(255, 255, 255, 0.95); padding: var(--space-6); border-radius: var(--radius-xl); border: 1px solid rgba(255, 255, 255, 0.3); margin-bottom: var(--space-8);">
+                                <h3 style="font-size: var(--text-lg); font-weight: 700; margin-bottom: var(--space-4); color: var(--gray-800);">💰 満足度スコア</h3>
+                                <canvas id="satisfactionChart" style="max-height: 300px;"></canvas>
                             </div>
                         </div>
 
@@ -2541,12 +2560,210 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 this.displaySubscriptions();
                 this.updateBudgetStatus(totalMonthly);
                 this.updateCategoryBreakdown();
+                this.updateCharts();
 
                 const resultsSection = document.getElementById('resultsSection');
                 if (resultsSection.style.display === 'none') {
                     resultsSection.style.display = 'block';
                     resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
+            }
+
+            updateCharts() {
+                // グラフセクションを表示
+                const chartsSection = document.getElementById('chartsSection');
+                if (this.subscriptions.length === 0) {
+                    chartsSection.style.display = 'none';
+                    return;
+                }
+                chartsSection.style.display = 'block';
+
+                // カテゴリ別費用（円グラフ）
+                this.updateCategoryChart();
+
+                // コスト効率分析（棒グラフ）
+                this.updateEfficiencyChart();
+
+                // 満足度スコア（棒グラフ）
+                this.updateSatisfactionChart();
+            }
+
+            updateCategoryChart() {
+                const categoryData = {};
+                this.subscriptions.forEach(s => {
+                    const cat = s.category || 'その他';
+                    categoryData[cat] = (categoryData[cat] || 0) + s.monthlyFee;
+                });
+
+                const labels = Object.keys(categoryData);
+                const data = Object.values(categoryData);
+                const colors = [
+                    '#0ea5e9', '#d946ef', '#10b981', '#f59e0b', '#ef4444',
+                    '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#6366f1'
+                ];
+
+                const ctx = document.getElementById('categoryChart').getContext('2d');
+                if (window.categoryChartInstance) {
+                    window.categoryChartInstance.destroy();
+                }
+
+                window.categoryChartInstance = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: data,
+                            backgroundColor: colors.slice(0, labels.length),
+                            borderColor: 'rgba(255, 255, 255, 0.95)',
+                            borderWidth: 2,
+                            hoverBorderWidth: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    font: { family: "'Inter', sans-serif", size: 12 },
+                                    color: '#374151',
+                                    padding: 15,
+                                    usePointStyle: true
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const value = context.parsed;
+                                        const percentage = ((value / total) * 100).toFixed(1);
+                                        return `¥${value.toLocaleString()} (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            updateEfficiencyChart() {
+                const labels = this.subscriptions
+                    .sort((a, b) => b.monthlyFee - a.monthlyFee)
+                    .slice(0, 8)
+                    .map(s => s.serviceName.length > 10 ? s.serviceName.slice(0, 10) + '...' : s.serviceName);
+
+                const fees = this.subscriptions
+                    .sort((a, b) => b.monthlyFee - a.monthlyFee)
+                    .slice(0, 8)
+                    .map(s => s.monthlyFee);
+
+                const ctx = document.getElementById('efficiencyChart').getContext('2d');
+                if (window.efficiencyChartInstance) {
+                    window.efficiencyChartInstance.destroy();
+                }
+
+                window.efficiencyChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '月額料金',
+                            data: fees,
+                            backgroundColor: '#0284c7',
+                            borderRadius: 8,
+                            borderSkipped: false,
+                            hoverBackgroundColor: '#075985'
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                labels: {
+                                    font: { family: "'Inter', sans-serif", size: 12 },
+                                    color: '#374151'
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return '¥' + context.parsed.x.toLocaleString();
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: {
+                                    callback: function(value) {
+                                        return '¥' + value.toLocaleString();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            updateSatisfactionChart() {
+                const labels = this.subscriptions
+                    .sort((a, b) => b.satisfaction - a.satisfaction)
+                    .map(s => s.serviceName.length > 12 ? s.serviceName.slice(0, 12) + '...' : s.serviceName);
+
+                const satisfaction = this.subscriptions
+                    .sort((a, b) => b.satisfaction - a.satisfaction)
+                    .map(s => s.satisfaction);
+
+                const ctx = document.getElementById('satisfactionChart').getContext('2d');
+                if (window.satisfactionChartInstance) {
+                    window.satisfactionChartInstance.destroy();
+                }
+
+                window.satisfactionChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '満足度スコア（5段階）',
+                            data: satisfaction,
+                            backgroundColor: satisfaction.map(s => {
+                                if (s >= 4) return '#10b981';
+                                if (s >= 3) return '#f59e0b';
+                                return '#ef4444';
+                            }),
+                            borderRadius: 8,
+                            borderSkipped: false,
+                            max: 5
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'x',
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                labels: {
+                                    font: { family: "'Inter', sans-serif", size: 12 },
+                                    color: '#374151'
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                min: 0,
+                                max: 5,
+                                ticks: {
+                                    stepSize: 1
+                                }
+                            }
+                        }
+                    }
+                });
             }
 
             updateBudgetStatus(totalMonthly) {

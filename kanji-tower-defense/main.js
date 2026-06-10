@@ -121,6 +121,7 @@ function init() {
     const unlockAudio = () => { initAudio(); document.removeEventListener('click', unlockAudio); };
     document.addEventListener('click', unlockAudio);
     loadSettings();
+    updateHistoryDisplay();
     gameLoop = setInterval(update, 1000/60);
     drawGame();
     initOnboarding();
@@ -1052,6 +1053,40 @@ function saveGameRecord() {
     records.sort((a, b) => b.score - a.score);
     records = records.slice(0, 10);
     localStorage.setItem('kanjiTowerDefenseRecords', JSON.stringify(records));
+    updateHistoryDisplay();
+}
+
+function updateHistoryDisplay() {
+    const records = JSON.parse(localStorage.getItem('kanjiTowerDefenseRecords') || '[]');
+    const container = document.getElementById('playHistoryContainer');
+    if (!container) return;
+
+    if (records.length === 0) {
+        container.innerHTML = '<div style="padding:12px;text-align:center;color:#9ca3af">プレイ履歴がありません</div>';
+        return;
+    }
+
+    const levelLabels = {
+        grade1: '小1', grade2: '小2', grade3: '小3', grade4: '小4', grade5: '小5', grade6: '小6',
+        middle: '中学', common: '常用', nando: '難読'
+    };
+
+    const rows = records.map(r => {
+        const date = new Date(r.date);
+        const dateStr = date.toLocaleDateString('ja-JP', {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'});
+        const levelLabel = levelLabels[r.level] || r.level;
+        return `<div style="display:grid;grid-template-columns:auto 1fr auto auto auto;gap:8px;padding:8px 12px;border-bottom:1px solid #f1f5f9;align-items:center;font-size:.75rem">
+          <span style="font-weight:700;color:#667eea">${r.score.toLocaleString()}</span>
+          <span style="color:#64748b">${dateStr}</span>
+          <span style="background:#f0f4f8;padding:2px 6px;border-radius:4px;color:#4b5563;font-weight:600">${levelLabel}</span>
+          <span style="color:#64748b">W${r.wave}</span>
+          <span style="color:#64748b">${r.accuracy}%</span>
+        </div>`;
+    }).join('');
+
+    container.innerHTML = `<div style="display:grid;grid-template-columns:auto 1fr auto auto auto;gap:8px;padding:8px 12px;border-bottom:1px solid #d1d5db;font-weight:700;font-size:.7rem;color:#9ca3af;background:#f9fafb">
+      <span>スコア</span><span>日時</span><span>難易度</span><span>W</span><span>正答率</span>
+    </div>${rows}`;
 }
 
 function loadSettings() {
@@ -1124,7 +1159,7 @@ function showHint() {
     }
 }
 
-function shareResult() {
+function shareResult(platform = 'copy') {
     const levelLabels = {
         grade1: '小学1年', grade2: '小学2年', grade3: '小学3年',
         grade4: '小学4年', grade5: '小学5年', grade6: '小学6年',
@@ -1139,12 +1174,14 @@ function shareResult() {
                  `撃破数: ${gameState.kills}体\n\n` +
                  `#漢字タワーディフェンス #漢字学習 #漢字ゲーム\n` +
                  `https://appadaycreator.com/kanji-tower-defense/`;
-    if (navigator.share) {
-        navigator.share({
-            title: '漢字タワーディフェンス「文字城防衛」',
-            text: text,
-            url: 'https://appadaycreator.com/kanji-tower-defense/'
-        });
+    const url = 'https://appadaycreator.com/kanji-tower-defense/';
+
+    if (platform === 'x') {
+        const twitterUrl = `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`;
+        window.open(twitterUrl, '_blank', 'width=550,height=420');
+    } else if (platform === 'line') {
+        const lineUrl = `https://social-plugins.line.me/web/add_to_line?url=${encodeURIComponent(url)}&text=${encodeURIComponent('🏯 漢字タワーディフェンス「文字城防衛」')}`;
+        window.open(lineUrl, '_blank');
     } else {
         navigator.clipboard.writeText(text).then(() => {
             showMessage('結果をクリップボードにコピーしました！', 'success');
