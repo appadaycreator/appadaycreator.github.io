@@ -1202,10 +1202,14 @@ _VERIFY_RULES: dict = {
 }
 
 
-def check_improvement_markers(pre_issues: list, html: str) -> str:
-    """pre_issuesのM番号に対応するマーカーをHTMLで確認し、1行サマリを返す。"""
+def check_improvement_markers(pre_issues: list, html: str) -> tuple:
+    """pre_issuesのM番号に対応するマーカーをHTMLで確認する。
+    Returns (summary_str, failed_issues_list)
+      summary_str      : "🔍 ✅A/B ❌C" 形式の1行サマリ
+      failed_issues_list: 未反映だったpre_issuesのオリジナル文字列リスト
+    """
     import re as _re
-    checked, passed, failed = [], [], []
+    passed_labels, failed_labels, failed_issues = [], [], []
     for issue in pre_issues:
         m = _re.match(r'\[M(\d+)\]', issue)
         if not m:
@@ -1217,17 +1221,20 @@ def check_improvement_markers(pre_issues: list, html: str) -> str:
         rtype, pattern, label = rule
         found = bool(_re.search(pattern, html, _re.IGNORECASE))
         ok = found if rtype == "pos" else not found
-        checked.append(label)
-        (passed if ok else failed).append(label)
+        if ok:
+            passed_labels.append(label)
+        else:
+            failed_labels.append(label)
+            failed_issues.append(issue)
 
-    if not checked:
-        return ""
+    if not passed_labels and not failed_labels:
+        return "", []
     parts = []
-    if passed:
-        parts.append("✅" + "/".join(passed))
-    if failed:
-        parts.append("❌" + "/".join(failed))
-    return "🔍 " + " ".join(parts)
+    if passed_labels:
+        parts.append("✅" + "/".join(passed_labels))
+    if failed_labels:
+        parts.append("❌" + "/".join(failed_labels))
+    return "🔍 " + " ".join(parts), failed_issues
 
 
 def verify_deployed_url(repo: str, timeout: int = 20) -> tuple:

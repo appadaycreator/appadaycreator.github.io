@@ -27,6 +27,7 @@
   <!-- Google AdSense -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
     window.onerror = function(msg, src, line, col, err) { console.error('Global error:', msg, src, line, col, err); return false; };
     window.addEventListener('unhandledrejection', function(e) { console.error('Unhandled rejection:', e.reason); });
@@ -181,6 +182,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <button onclick="startDiagnosis()" class="w-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-400 hover:to-rose-400 text-white font-bold py-3 rounded-xl text-lg transition shadow-md" aria-label="💇 診断スタート！">
         💇 診断スタート！
       </button>
+      <button id="historyBtn" onclick="showHistory()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 rounded-xl text-sm transition mt-3" aria-label="📋 過去の診断結果を見る" style="display:none;">
+        📋 過去の診断結果を見る
+      </button>
     </div>
 
     <!-- Quiz -->
@@ -200,6 +204,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <button onclick="prevQ()" id="prevBtn" class="hidden w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded-xl text-sm transition mb-4" aria-label="← 前の質問に戻る">← 前の質問に戻る</button>
     </div>
 
+    <!-- History -->
+    <div id="historyScreen" class="hidden">
+      <div class="bg-white rounded-2xl shadow-lg p-6 mb-4">
+        <h2 class="text-xl font-bold text-center text-pink-700 mb-4">📋 診断履歴</h2>
+        <div id="historyList" class="grid gap-3 mb-4"></div>
+        <button onclick="restart()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 rounded-xl text-sm transition">← トップに戻る</button>
+      </div>
+    </div>
+
     <!-- Result -->
     <div id="resultScreen" class="hidden">
       <div class="bg-white rounded-2xl shadow-lg p-6 mb-4 result-card">
@@ -209,6 +222,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div id="resultEmoji" class="text-4xl mb-2"></div>
           <div id="resultSalonType" class="text-xl font-bold mb-1"></div>
           <div id="resultSalonSub" class="text-sm opacity-90"></div>
+        </div>
+
+        <!-- レーダーチャート -->
+        <div class="bg-gray-50 rounded-xl p-4 mb-4">
+          <h3 class="font-bold text-gray-700 mb-3 text-sm">📈 診断スコアレーダー</h3>
+          <canvas id="radarChart" style="max-width:100%;height:250px;"></canvas>
         </div>
 
         <!-- スコア内訳グラフ -->
@@ -247,6 +266,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
 
         <div class="mb-3">
+          <p class="text-xs text-gray-500 text-center mb-2">結果の保存・シェア</p>
+          <div class="flex gap-2 mb-2">
+            <button onclick="saveResult()" class="flex-1 bg-purple-500 hover:bg-purple-400 text-white font-bold py-2 rounded-lg text-sm transition">💾 保存</button>
+            <button onclick="exportText()" class="flex-1 bg-orange-500 hover:bg-orange-400 text-white font-bold py-2 rounded-lg text-sm transition">📄 テキスト</button>
+          </div>
           <p class="text-xs text-gray-500 text-center mb-2">この結果をシェア</p>
           <div class="flex gap-2">
             <button onclick="shareLine()" class="flex-1 bg-green-500 hover:bg-green-400 text-white font-bold py-2 rounded-lg text-sm transition">📱 LINE</button>
@@ -356,6 +380,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     let current = 0;
     let answers = {};
     const TOTAL = 8;
+
+    // 初期化：履歴ボタン表示判定
+    document.addEventListener('DOMContentLoaded', updateHistoryBtn);
 
     function startDiagnosis() {
       current = 0; answers = {};
@@ -491,11 +518,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       } else {
         secEl.classList.add('hidden');
       }
+
+      // レーダーチャート描画
+      requestAnimationFrame(() => drawRadarChart(scores));
     }
 
     function restart() {
       document.getElementById('resultScreen').classList.add('hidden');
+      document.getElementById('historyScreen').classList.add('hidden');
       document.getElementById('topScreen').classList.remove('hidden');
+      updateHistoryBtn();
     }
 
     // 現在の診断結果を取得
@@ -520,6 +552,166 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const text = getResultText();
       navigator.clipboard.writeText(text).then(() => {
         alert('結果をコピーしました！');
+      });
+    }
+
+    // localStorage 履歴機能
+    function loadHistory() {
+      const stored = localStorage.getItem('salonDiagHistory');
+      return stored ? JSON.parse(stored) : [];
+    }
+
+    function saveHistory(newEntry) {
+      let history = loadHistory();
+      history.unshift(newEntry);
+      if(history.length > 10) history = history.slice(0, 10);
+      localStorage.setItem('salonDiagHistory', JSON.stringify(history));
+    }
+
+    function saveResult() {
+      const salonType = document.getElementById('resultSalonType').textContent;
+      const scores = {damage:0, curly:0, volume:0, gray:0};
+      for(let i=0; i<TOTAL; i++) {
+        const choiceIdx = answers[i] !== undefined ? answers[i] : 0;
+        const scoreRow = questionScores[i][choiceIdx];
+        scores.damage += scoreRow.damage;
+        scores.curly += scoreRow.curly;
+        scores.volume += scoreRow.volume;
+        scores.gray += scoreRow.gray;
+      }
+      const entry = {
+        id: Date.now(),
+        date: new Date().toLocaleString('ja-JP'),
+        salonType: salonType,
+        scores: scores,
+        answers: answers
+      };
+      saveHistory(entry);
+      alert('診断結果を保存しました！\n📋 トップの「過去の診断結果」から確認できます。');
+      updateHistoryBtn();
+    }
+
+    function showHistory() {
+      const history = loadHistory();
+      if(history.length === 0) {
+        alert('保存された診断結果がありません');
+        return;
+      }
+      document.getElementById('topScreen').classList.add('hidden');
+      document.getElementById('historyScreen').classList.remove('hidden');
+      const listEl = document.getElementById('historyList');
+      listEl.innerHTML = history.map((entry, idx) => {
+        const labels = {damage:'ダメージケア', curly:'くせ毛・矯正', volume:'ボリュームアップ', gray:'白髪ケア'};
+        const keys = ['damage','curly','volume','gray'];
+        const sorted = keys.slice().sort((a,b) => entry.scores[b] - entry.scores[a]);
+        const topKey = sorted[0];
+        const topLabel = labels[topKey];
+        return `<div class="bg-pink-50 rounded-lg p-3 border border-pink-200">
+          <div class="flex justify-between items-start">
+            <div class="flex-1">
+              <p class="font-bold text-gray-700 text-sm">${entry.salonType}</p>
+              <p class="text-xs text-gray-500 mt-1">${entry.date}</p>
+              <p class="text-xs text-pink-600 mt-1">トップ: ${topLabel}</p>
+            </div>
+            <button onclick="deleteHistory(${entry.id})" class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded hover:bg-red-200">削除</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function deleteHistory(id) {
+      if(!confirm('この結果を削除してもよろしいですか？')) return;
+      let history = loadHistory();
+      history = history.filter(h => h.id !== id);
+      localStorage.setItem('salonDiagHistory', JSON.stringify(history));
+      showHistory();
+      updateHistoryBtn();
+    }
+
+    function updateHistoryBtn() {
+      const history = loadHistory();
+      document.getElementById('historyBtn').style.display = history.length > 0 ? 'block' : 'none';
+    }
+
+    function exportText() {
+      const salonType = document.getElementById('resultSalonType').textContent;
+      const salonSub = document.getElementById('resultSalonSub').textContent;
+      const desc = document.getElementById('salonDesc').textContent;
+      const reasonsEl = document.getElementById('reasons');
+      const reasons = Array.from(reasonsEl.querySelectorAll('div')).map(d => d.textContent).join('\n');
+
+      const text = `美容院・ヘアサロン選び診断 - 結果
+実施日: ${new Date().toLocaleString('ja-JP')}
+
+【診断結果】
+${salonType}
+${salonSub}
+
+【説明】
+${desc}
+
+【このサロンをおすすめする理由】
+${reasons}
+
+【出典】
+https://appadaycreator.com/hair-salon-advisor/`;
+
+      const blob = new Blob([text], {type:'text/plain;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `hair-salon-result-${Date.now()}.txt`;
+      a.click();
+    }
+
+    // レーダーチャート描画
+    function drawRadarChart(scores) {
+      const keys = ['damage','curly','volume','gray'];
+      const labels = {damage:'ダメージケア', curly:'くせ毛・矯正', volume:'ボリュームアップ', gray:'白髪ケア'};
+      const colors = {damage:'#ec4899', curly:'#8b5cf6', volume:'#3b82f6', gray:'#f59e0b'};
+
+      const ctx = document.getElementById('radarChart');
+      if(!ctx) return;
+
+      if(window.radarChartInstance) {
+        window.radarChartInstance.destroy();
+      }
+
+      window.radarChartInstance = new Chart(ctx, {
+        type: 'radar',
+        data: {
+          labels: keys.map(k => labels[k]),
+          datasets: [{
+            label: 'スコア',
+            data: keys.map(k => scores[k]),
+            borderColor: '#ec4899',
+            backgroundColor: 'rgba(236,72,153,0.1)',
+            borderWidth: 2,
+            pointBackgroundColor: '#ec4899',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            r: {
+              beginAtZero: true,
+              max: 24,
+              ticks: {
+                stepSize: 6,
+                color: '#9ca3af',
+                font: { size: 11 }
+              },
+              grid: { color: '#e5e7eb' }
+            }
+          },
+          plugins: {
+            legend: {
+              display: false
+            }
+          }
+        }
       });
     }
   </script>

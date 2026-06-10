@@ -27,6 +27,7 @@
   <!-- Google AdSense -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
   <script>
     window.onerror = function(msg, src, line, col, err) { console.error('Global error:', msg, src, line, col, err); return false; };
     window.addEventListener('unhandledrejection', function(e) { console.error('Unhandled rejection:', e.reason); });
@@ -168,6 +169,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <button onclick="startDiagnosis()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3 rounded-xl text-lg transition shadow-md" aria-label="📈 診断スタート！">
         📈 診断スタート！
       </button>
+
+      <!-- 履歴セクション -->
+      <div id="historySection" class="mt-6 hidden">
+        <h3 class="font-bold text-blue-700 mb-3">📜 過去の診断履歴</h3>
+        <div id="historyList" class="grid gap-2"></div>
+      </div>
     </div>
 
     <!-- Quiz Screen -->
@@ -191,6 +198,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div id="resultScreen" class="hidden fade-in">
       <div class="bg-white rounded-2xl shadow-lg p-5 mb-4">
         <h2 class="text-xl font-bold text-center text-blue-700 mb-4">📊 診断結果</h2>
+
+        <!-- グラフセクション -->
+        <div id="chartSection" class="mb-6 p-4 bg-blue-50 rounded-xl">
+          <h3 class="font-bold text-blue-700 mb-3">📈 証券会社スコア比較</h3>
+          <div style="position:relative;height:250px;width:100%;margin-bottom:16px;">
+            <canvas id="brokerChart"></canvas>
+          </div>
+        </div>
+
         <div id="top3" class="grid gap-3 mb-5"></div>
 
         <!-- Compare Table -->
@@ -229,6 +245,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <a id="lineShareBtn" href="#" target="_blank" rel="noopener" class="flex-1 min-w-[100px] text-center font-bold py-3 rounded-xl transition text-sm text-white" style="background:#06C755;">LINE</a>
           <a id="xShareBtn" href="#" target="_blank" rel="noopener" class="flex-1 min-w-[100px] text-center font-bold py-3 rounded-xl transition text-sm text-white" style="background:#000;">𝕏 シェア</a>
           <button onclick="restart()" class="flex-1 min-w-[100px] bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3 rounded-xl transition hover:from-blue-500 hover:to-indigo-500 text-sm">🔄 もう一度</button>
+        </div>
+
+        <!-- M10: 印刷・エクスポート機能 -->
+        <div class="flex gap-2 mb-2 flex-wrap">
+          <button onclick="printResult()" class="flex-1 min-w-[100px] bg-purple-100 hover:bg-purple-200 text-purple-700 font-bold py-2 rounded-xl transition text-sm">🖨️ 印刷</button>
+          <button onclick="exportToCSV()" class="flex-1 min-w-[100px] bg-orange-100 hover:bg-orange-200 text-orange-700 font-bold py-2 rounded-xl transition text-sm">📥 CSV</button>
         </div>
       </div>
 
@@ -296,6 +318,114 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     let current = 0;
     let answers = {};
     const TOTAL = 8;
+    let brokerChart = null;
+
+    // localStorage 機能
+    function saveResultToLocalStorage(results) {
+      const history = JSON.parse(localStorage.getItem('diagnosisHistory') || '[]');
+      const newEntry = {
+        date: new Date().toLocaleString('ja-JP'),
+        timestamp: Date.now(),
+        answers: answers,
+        results: results.map(([name, score]) => ({name, score}))
+      };
+      history.unshift(newEntry);
+      // 最新20件のみ保持
+      if(history.length > 20) history.pop();
+      localStorage.setItem('diagnosisHistory', JSON.stringify(history));
+      updateHistoryDisplay();
+    }
+
+    function updateHistoryDisplay() {
+      const history = JSON.parse(localStorage.getItem('diagnosisHistory') || '[]');
+      const historySection = document.getElementById('historySection');
+      const historyList = document.getElementById('historyList');
+
+      if(history.length === 0) {
+        historySection.classList.add('hidden');
+        return;
+      }
+
+      historySection.classList.remove('hidden');
+      historyList.innerHTML = history.slice(0, 5).map((entry, idx) => {
+        const encoded = entry.answers ? Object.keys(entry.answers).map(k => entry.answers[k]).join(',') : '';
+        const topBroker = entry.results[0];
+        return `
+          <div onclick="loadHistoryEntry('${encoded}')" class="bg-blue-50 hover:bg-blue-100 rounded-lg p-3 text-sm cursor-pointer transition">
+            <div class="font-bold text-blue-700">📊 ${entry.date.split(' ')[0]}</div>
+            <div class="text-xs text-gray-600">→ ${topBroker?.name || '結果'} がトップ</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function loadHistoryEntry(encoded) {
+      const newAnswers = decodeURLToAnswers(encoded);
+      answers = newAnswers;
+      current = 0;
+      startDiagnosis();
+      setTimeout(() => {
+        current = TOTAL;
+        showResult();
+      }, 100);
+    }
+
+    function initializeChart(brokerScores) {
+      const ctx = document.getElementById('brokerChart');
+      if(!ctx) return;
+
+      if(brokerChart) brokerChart.destroy();
+
+      const labels = brokerScores.map(([name]) => name);
+      const scores = brokerScores.map(([_, score]) => score);
+      const colors = ['#fbbf24', '#a3a3a3', '#d97706', '#7c3aed', '#06b6d4'];
+
+      brokerChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'マッチスコア',
+            data: scores,
+            backgroundColor: colors.slice(0, scores.length),
+            borderRadius: 8,
+            borderSkipped: false,
+            borderColor: 'rgba(0,0,0,0.1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: 'rgba(0,0,0,0.8)',
+              padding: 12,
+              cornerRadius: 8,
+              titleFont: { size: 14, weight: 'bold' },
+              bodyFont: { size: 12 },
+              callbacks: {
+                label: function(ctx) { return 'スコア: ' + ctx.parsed.x; }
+              }
+            }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              max: Math.max(...scores) + 2,
+              grid: { drawBorder: false, color: 'rgba(0,0,0,0.05)' },
+              ticks: { font: { size: 11 } }
+            },
+            y: {
+              grid: { display: false },
+              ticks: { font: { size: 12, weight: 'bold' } }
+            }
+          }
+        }
+      });
+    }
 
     function encodeAnswersToURL() {
       const answerArray = Array.from({length: TOTAL}, (_, i) => answers[i] !== undefined ? answers[i] : '');
@@ -508,6 +638,29 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('quizScreen').classList.add('hidden');
       document.getElementById('resultScreen').classList.remove('hidden');
       const top3 = calcScores();
+
+      // localStorage へ保存＆チャート初期化
+      saveResultToLocalStorage(top3);
+
+      // 全証券会社のスコアを取得（チャート用）
+      const allScores = Object.entries(
+        Object.assign(
+          {},
+          ...brokers.map(b => ({[b.name]: 0}))
+        )
+      );
+      brokers.forEach(b => {
+        const score = top3.find(([name]) => name === b.name)?.[1] || 0;
+        allScores[brokers.findIndex(br => br.name === b.name)] = [b.name, score];
+      });
+      const sortedAllScores = brokers.map(b => {
+        const score = top3.find(([name]) => name === b.name)?.[1] || 0;
+        return [b.name, score];
+      });
+
+      // チャート表示
+      setTimeout(() => initializeChart(sortedAllScores), 100);
+
       const rankColors = ['from-yellow-400 to-orange-400','from-gray-300 to-gray-400','from-amber-600 to-amber-700'];
       const rankLabels = ['1位','2位','3位'];
       const brokerLinks = {
@@ -577,8 +730,47 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('topScreen').classList.remove('hidden');
     }
 
+    // M10: 印刷機能
+    function printResult() {
+      window.print();
+    }
+
+    // M10: CSV エクスポート機能
+    function exportToCSV() {
+      const top3 = calcScores();
+      const date = new Date().toLocaleString('ja-JP');
+
+      let csv = '証券会社・投資口座選び診断 結果\n';
+      csv += '診断日時,' + date + '\n\n';
+      csv += 'ランク,証券会社名,スコア,主なメリット\n';
+
+      top3.forEach(([name, score], idx) => {
+        const reasons = getRecommendationReasons(name);
+        csv += `${idx + 1}位,"${name}",${score},"${reasons}"\n`;
+      });
+
+      csv += '\n質問への回答\n';
+      questions.forEach((q, idx) => {
+        if(answers[idx] !== undefined) {
+          csv += `Q${idx + 1}: ${q.q},${q.choices[answers[idx]]}\n`;
+        }
+      });
+
+      // CSV ダウンロード実行
+      const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', '証券会社診断結果_' + Date.now() + '.csv');
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
     // URL共有パラメータからの自動復元
     window.addEventListener('DOMContentLoaded', () => {
+      updateHistoryDisplay();
       if(loadAnswersFromURL()) {
         // 結果画面が自動表示される
       }

@@ -27,6 +27,7 @@
   <!-- Google AdSense -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
     window.onerror = function(msg, src, line, col, err) { console.error('Global error:', msg, src, line, col, err); return false; };
     window.addEventListener('unhandledrejection', function(e) { console.error('Unhandled rejection:', e.reason); });
@@ -172,10 +173,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
       <!-- Frequency -->
       <div class="mb-4">
-        <label class="block text-sm font-bold text-gray-700 mb-2">活動頻度</label>
-        <select id="frequency" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2 text-sm focus:border-indigo-400">
-          <option value="weekly">週1〜2回</option>
-          <option value="biweekly">2週間に1回</option>
+        <label class="block text-sm font-bold text-gray-700 mb-2">活動頻度 <span class="help-text" style="font-size:0.75rem;color:#999;margin-left:4px;">💡 月あたりの参加回数</span></label>
+        <select id="frequency" class="w-full border-2 border-gray-200 rounded-xl px-4 py-2 text-sm focus:border-indigo-400" onchange="updateFrequencyHint()">
+          <option value="weekly">週1〜2回（月4回）</option>
+          <option value="biweekly">2週間に1回（月2回）</option>
           <option value="monthly">月1〜2回</option>
           <option value="occasional">たまに（月1回以下）</option>
         </select>
@@ -183,28 +184,28 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
       <!-- Participation style -->
       <div class="mb-4">
-        <label class="block text-sm font-bold text-gray-700 mb-2">参加スタイル</label>
+        <label class="block text-sm font-bold text-gray-700 mb-2">参加スタイル <span class="help-text" style="font-size:0.75rem;color:#999;margin-left:4px;">💡 費用が変わります</span></label>
         <div class="grid grid-cols-3 gap-2">
-          <button onclick="setStyle('solo')" id="style-solo" class="style-btn bg-indigo-500 text-white rounded-xl py-2 text-xs font-bold transition">👤 個人</button>
-          <button onclick="setStyle('class')" id="style-class" class="style-btn bg-gray-100 text-gray-600 rounded-xl py-2 text-xs font-bold transition hover:bg-gray-200">🏫 教室</button>
-          <button onclick="setStyle('club')" id="style-club" class="style-btn bg-gray-100 text-gray-600 rounded-xl py-2 text-xs font-bold transition hover:bg-gray-200">👥 クラブ</button>
+          <button onclick="setStyle('solo')" id="style-solo" class="style-btn bg-indigo-500 text-white rounded-xl py-2 text-xs font-bold transition" title="1人で自由に活動">👤 個人</button>
+          <button onclick="setStyle('class')" id="style-class" class="style-btn bg-gray-100 text-gray-600 rounded-xl py-2 text-xs font-bold transition hover:bg-gray-200" title="講師から指導を受ける">🏫 教室</button>
+          <button onclick="setStyle('club')" id="style-club" class="style-btn bg-gray-100 text-gray-600 rounded-xl py-2 text-xs font-bold transition hover:bg-gray-200" title="仲間とシェア">👥 クラブ</button>
         </div>
       </div>
 
       <!-- Experience -->
       <div class="mb-4">
-        <label class="block text-sm font-bold text-gray-700 mb-2">経験レベル</label>
+        <label class="block text-sm font-bold text-gray-700 mb-2">経験レベル <span class="help-text" style="font-size:0.75rem;color:#999;margin-left:4px;">💡 初期費用に反映</span></label>
         <div class="grid grid-cols-2 gap-2">
-          <button onclick="setExp('beginner')" id="exp-beginner" class="exp-btn bg-indigo-500 text-white rounded-xl py-2 text-xs font-bold transition">🆕 初心者</button>
-          <button onclick="setExp('experienced')" id="exp-experienced" class="exp-btn bg-gray-100 text-gray-600 rounded-xl py-2 text-xs font-bold transition hover:bg-gray-200">💪 経験者</button>
+          <button onclick="setExp('beginner')" id="exp-beginner" class="exp-btn bg-indigo-500 text-white rounded-xl py-2 text-xs font-bold transition" title="これから始める方">🆕 初心者</button>
+          <button onclick="setExp('experienced')" id="exp-experienced" class="exp-btn bg-gray-100 text-gray-600 rounded-xl py-2 text-xs font-bold transition hover:bg-gray-200" title="既に経験がある方">💪 経験者</button>
         </div>
       </div>
 
       <!-- Monthly Budget -->
       <div class="mb-5">
-        <label class="block text-sm font-bold text-gray-700 mb-2">月の趣味予算</label>
+        <label class="block text-sm font-bold text-gray-700 mb-2">月の趣味予算 <span class="help-text" style="font-size:0.75rem;color:#999;margin-left:4px;">💡 継続的にかかる費用</span></label>
         <div class="flex items-center gap-3">
-          <input type="range" id="budgetSlider" min="1000" max="100000" step="1000" value="10000" class="flex-1" oninput="updateBudget()" aria-label="入力フォーム">
+          <input type="range" id="budgetSlider" min="1000" max="100000" step="1000" value="10000" class="flex-1" oninput="updateBudget()" aria-label="月の予算スライダー">
           <div class="bg-indigo-50 rounded-lg px-3 py-1 text-indigo-700 font-bold text-sm w-28 text-center" id="budgetDisplay">10,000円</div>
         </div>
       </div>
@@ -244,6 +245,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="text-2xl font-bold result-number" id="budgetDiff">-</div>
         </div>
 
+        <!-- Charts -->
+        <div class="mb-4">
+          <h3 class="font-bold text-gray-700 mb-2 text-sm">📊 費用の内訳グラフ</h3>
+          <canvas id="pieChart" style="max-height:200px;"></canvas>
+        </div>
+
+        <!-- Budget Gauge -->
+        <div class="mb-4">
+          <h3 class="font-bold text-gray-700 mb-2 text-sm">🎯 予算達成率</h3>
+          <canvas id="gaugeChart" style="max-height:150px;"></canvas>
+        </div>
+
         <!-- Cost Breakdown Bar -->
         <div class="mb-4">
           <h3 class="font-bold text-gray-700 mb-2 text-sm">費用の内訳イメージ</h3>
@@ -263,6 +276,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
 
         <button onclick="copyResult()" id="copyBtn" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 rounded-xl transition text-sm mb-2">📋 結果をコピー</button>
+        <button onclick="downloadCSV()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 rounded-xl transition text-sm mb-2">📥 CSV ダウンロード</button>
+        <button onclick="window.print()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 rounded-xl transition text-sm mb-2">🖨 印刷する</button>
         <button onclick="resetCalc()" class="w-full bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-bold py-3 rounded-xl transition hover:from-indigo-400 hover:to-violet-500 mb-2">🔄 別の趣味を計算する</button>
       </div>
 
@@ -475,6 +490,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
       `).join('') || '<div class="text-sm text-gray-500">コスパ最高の趣味を選んでいます！</div>';
 
+      // 円グラフ描画
+      drawPieChart(initial, monthly * 12);
+      // ゲージチャート描画
+      drawGaugeChart(ongoingAnnual, budgetAnnual);
+      // localStorage 保存
+      saveToHistory(selectedHobby.name, initial, monthly, yearOneTotal, new Date().toLocaleString());
+
       document.getElementById('resultScreen').scrollIntoView({behavior:'smooth'});
     }
 
@@ -500,6 +522,109 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       });
     }
 
+    // M4: グラフ描画
+    let pieChartInstance = null;
+    let gaugeChartInstance = null;
+
+    function drawPieChart(initial, monthlyTotal) {
+      const ctx = document.getElementById('pieChart').getContext('2d');
+      if (pieChartInstance) pieChartInstance.destroy();
+      pieChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['初期費用', '月額×12'],
+          datasets: [{
+            data: [initial, monthlyTotal],
+            backgroundColor: ['#818cf8', '#c084fc'],
+            borderColor: '#fff',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { position: 'bottom', labels: { font: { size: 12 } } } }
+        }
+      });
+    }
+
+    function drawGaugeChart(ongoing, budget) {
+      const percentUsed = Math.min(100, Math.round(ongoing / budget * 100));
+      const ctx = document.getElementById('gaugeChart').getContext('2d');
+      if (gaugeChartInstance) gaugeChartInstance.destroy();
+      gaugeChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          datasets: [{
+            data: [percentUsed, 100 - percentUsed],
+            backgroundColor: [percentUsed > 100 ? '#ef4444' : '#10b981', '#e5e7eb'],
+            borderColor: '#fff',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: { enabled: false }
+          }
+        }
+      });
+      document.getElementById('gaugeChart').parentElement.insertAdjacentHTML('afterend', `<p style="text-align:center;font-size:0.875rem;color:#666;">予算使用率: ${percentUsed}%</p>`);
+    }
+
+    // M10: CSV ダウンロード
+    function downloadCSV() {
+      if (!selectedHobby) return;
+      const initial = document.getElementById('initialCost').textContent.replace('円', '');
+      const monthly = document.getElementById('monthlyCost').textContent.replace('円/月', '');
+      const yearOne = document.getElementById('annualCost').textContent.replace('円', '');
+      const ongoing = document.getElementById('ongoingCost').textContent.replace('円/年', '');
+      const diff = document.getElementById('budgetDiff').textContent;
+
+      const csv = `趣味コスト試算,値\n趣味名,${selectedHobby.name}\n初期費用,${initial}\n月間費用,${monthly}\n初年度合計,${yearOne}\n2年目以降/年,${ongoing}\n予算との差,${diff}`;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${selectedHobby.name}_試算.csv`;
+      link.click();
+    }
+
+    // M3: localStorage 保存
+    function saveToHistory(hobbyName, initial, monthly, yearOne, date) {
+      let history = JSON.parse(localStorage.getItem('hobbyHistory') || '[]');
+      history.unshift({ hobbyName, initial, monthly, yearOne, date });
+      history = history.slice(0, 10);
+      localStorage.setItem('hobbyHistory', JSON.stringify(history));
+      localStorage.setItem('lastInput', JSON.stringify({
+        hobby: selectedHobby.name,
+        frequency: document.getElementById('frequency').value,
+        style: participationStyle,
+        exp: experience,
+        budget: document.getElementById('budgetSlider').value
+      }));
+    }
+
+    // M3: データ復元
+    function restoreData() {
+      const lastInput = JSON.parse(localStorage.getItem('lastInput') || 'null');
+      if (lastInput) {
+        document.getElementById('budgetSlider').value = lastInput.budget;
+        document.getElementById('frequency').value = lastInput.frequency;
+        participationStyle = lastInput.style;
+        experience = lastInput.exp;
+        updateBudget();
+        setStyle(lastInput.style);
+        setExp(lastInput.exp);
+      }
+    }
+
+    // M8: ツールチップ更新
+    function updateFrequencyHint() {
+      // 頻度オプション選択時の hint 更新（オプション）
+    }
+
     document.getElementById('hobbySearch').addEventListener('input', function() {
       currentTextFilter = this.value;
       buildHobbyGrid(currentTextFilter, currentCatFilter);
@@ -507,6 +632,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     // Init
     buildHobbyGrid('', '');
+    document.addEventListener('DOMContentLoaded', restoreData);
   </script>
 <div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px auto;max-width:680px;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">入力された値を計算式やスコアリングロジックで処理し、あなたに合った結果を算出します。本ツールの結果はあくまで参考情報です。重要な判断の際は専門家にご相談ください。</p></div>
 <section style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 16px;margin-top:16px;max-width:720px;margin-left:auto;margin-right:auto;">

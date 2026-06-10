@@ -243,6 +243,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <!-- Score Bars -->
         <div class="bg-white/10 rounded-xl p-4 mb-4">
           <h3 class="font-bold mb-3 text-center text-purple-200 text-sm">📊 あなたのスコア詳細</h3>
+          <div class="mb-4" style="position: relative; height: 250px;">
+            <canvas id="radarChart"></canvas>
+          </div>
+          <div class="mb-3" style="position: relative; height: 200px;">
+            <canvas id="barChart"></canvas>
+          </div>
           <div id="scoreBars" class="space-y-3"></div>
         </div>
 
@@ -265,7 +271,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="bg-white/10 rounded-xl p-3 mb-4">
           <h3 class="font-bold mb-2 text-sm">📱 結果をシェア</h3>
           <button onclick="shareResult()" class="w-full bg-blue-500 hover:bg-blue-400 font-bold py-2 rounded-lg text-sm transition mb-2" aria-label="診断結果をXでシェア">🐦 Xでシェア</button>
-          <button onclick="copyResult()" class="w-full bg-white/20 hover:bg-white/30 font-bold py-2 rounded-lg text-sm transition" aria-label="診断結果をテキストでコピー">📋 テキストをコピー</button>
+          <button onclick="copyResult()" class="w-full bg-white/20 hover:bg-white/30 font-bold py-2 rounded-lg text-sm transition mb-2" aria-label="診断結果をテキストでコピー">📋 テキストをコピー</button>
+          <button onclick="printResult()" class="w-full bg-purple-500 hover:bg-purple-400 font-bold py-2 rounded-lg text-sm transition mb-2" aria-label="診断結果を印刷">📄 結果を印刷</button>
+          <button onclick="downloadResultCSV()" class="w-full bg-green-600 hover:bg-green-500 font-bold py-2 rounded-lg text-sm transition" aria-label="診断結果をCSV形式でダウンロード">📥 結果をCSVダウンロード</button>
         </div>
 
         <button onclick="restartQuiz()" class="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 font-bold py-3 rounded-xl transition mb-2" aria-label="診断をもう一度やり直す">🔄 もう一度診断する</button>
@@ -550,12 +558,21 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       startQuiz();
     }
 
+    let radarChartInstance = null;
+    let barChartInstance = null;
+
     function renderScoreBars(scores) {
+      // Chart.js レーダーチャートを描画
+      renderRadarChart(scores);
+      // Chart.js 棒グラフを描画
+      renderBarChart(scores);
+
+      // テキスト表示も残す（シンプル版）
       const axes = [
-        {a:'E', b:'I', labelA:'外向 E', labelB:'I 内向', color:'from-purple-400 to-pink-400'},
-        {a:'N', b:'S', labelA:'直感 N', labelB:'S 感覚', color:'from-blue-400 to-cyan-400'},
-        {a:'T', b:'F', labelA:'思考 T', labelB:'F 感情', color:'from-green-400 to-teal-400'},
-        {a:'J', b:'P', labelA:'計画 J', labelB:'P 柔軟', color:'from-orange-400 to-yellow-400'},
+        {a:'E', b:'I', labelA:'外向 E', labelB:'I 内向'},
+        {a:'N', b:'S', labelA:'直感 N', labelB:'S 感覚'},
+        {a:'T', b:'F', labelA:'思考 T', labelB:'F 感情'},
+        {a:'J', b:'P', labelA:'計画 J', labelB:'P 柔軟'},
       ];
       const el = document.getElementById('scoreBars');
       if (!el) return;
@@ -564,16 +581,268 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         const sB = scores[ax.b] || 0;
         const total = sA + sB || 1;
         const pctA = Math.round(sA / total * 100);
-        return `<div>
-          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;">
-            <span style="font-weight:bold;">${ax.labelA} (${sA})</span>
-            <span style="opacity:0.7;">(${sB}) ${ax.labelB}</span>
-          </div>
-          <div style="background:rgba(255,255,255,0.2);border-radius:9999px;height:14px;overflow:hidden;">
-            <div class="bg-gradient-to-r ${ax.color} score-bar-fill" style="height:14px;width:${pctA}%;border-radius:9999px;"></div>
+        return `<div style="font-size:11px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+            <span style="font-weight:bold;">${ax.labelA}: ${sA}</span>
+            <span style="font-weight:bold;">${ax.labelB}: ${sB}</span>
           </div>
         </div>`;
       }).join('');
+    }
+
+    function renderRadarChart(scores) {
+      const ctx = document.getElementById('radarChart');
+      if (!ctx) return;
+
+      if (radarChartInstance) {
+        radarChartInstance.destroy();
+      }
+
+      const labels = ['外向(E)', '内向(I)', '直感(N)', '感覚(S)', '思考(T)', '感情(F)', '計画(J)', '柔軟(P)'];
+      const data = [
+        scores.E || 0, scores.I || 0,
+        scores.N || 0, scores.S || 0,
+        scores.T || 0, scores.F || 0,
+        scores.J || 0, scores.P || 0
+      ];
+
+      radarChartInstance = new Chart(ctx, {
+        type: 'radar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'スコア',
+            data: data,
+            borderColor: '#a855f7',
+            backgroundColor: 'rgba(168, 85, 247, 0.2)',
+            borderWidth: 2,
+            pointBackgroundColor: '#ec4899',
+            pointBorderColor: '#fff',
+            pointRadius: 4,
+            pointHoverRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: {
+                color: '#d1d5db',
+                font: { size: 12 }
+              }
+            }
+          },
+          scales: {
+            r: {
+              beginAtZero: true,
+              grid: {
+                color: 'rgba(255, 255, 255, 0.1)'
+              },
+              ticks: {
+                color: 'rgba(209, 213, 219, 0.6)',
+                font: { size: 10 }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function renderBarChart(scores) {
+      const ctx = document.getElementById('barChart');
+      if (!ctx) return;
+
+      if (barChartInstance) {
+        barChartInstance.destroy();
+      }
+
+      const axes = [
+        {label: 'E/I', e: scores.E || 0, i: scores.I || 0},
+        {label: 'N/S', e: scores.N || 0, i: scores.S || 0},
+        {label: 'T/F', e: scores.T || 0, i: scores.F || 0},
+        {label: 'J/P', e: scores.J || 0, i: scores.P || 0}
+      ];
+
+      barChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: axes.map(a => a.label),
+          datasets: [
+            {
+              label: axes[0].label.split('/')[0],
+              data: [axes[0].e, axes[1].e, axes[2].e, axes[3].e],
+              backgroundColor: 'rgba(168, 85, 247, 0.7)',
+              borderColor: '#a855f7',
+              borderWidth: 1
+            },
+            {
+              label: axes[0].label.split('/')[1],
+              data: [axes[0].i, axes[1].i, axes[2].i, axes[3].i],
+              backgroundColor: 'rgba(236, 72, 153, 0.7)',
+              borderColor: '#ec4899',
+              borderWidth: 1
+            }
+          ]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: {
+                color: '#d1d5db',
+                font: { size: 11 }
+              }
+            }
+          },
+          scales: {
+            x: {
+              stacked: false,
+              grid: {
+                color: 'rgba(255, 255, 255, 0.1)'
+              },
+              ticks: {
+                color: 'rgba(209, 213, 219, 0.7)',
+                font: { size: 10 }
+              }
+            },
+            y: {
+              ticks: {
+                color: 'rgba(209, 213, 219, 0.7)',
+                font: { size: 11 }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function printResult() {
+      const code = localStorage.getItem('personality_result') || '';
+      const type = types.find(t => t.code === code);
+      if (!type) return;
+
+      const printWindow = window.open('', '_blank');
+      const scoreText = lastScores ? `外向(E):${lastScores.E} vs 内向(I):${lastScores.I} | 直感(N):${lastScores.N} vs 感覚(S):${lastScores.S} | 思考(T):${lastScores.T} vs 感情(F):${lastScores.F} | 計画(J):${lastScores.J} vs 柔軟(P):${lastScores.P}` : '';
+
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>性格診断結果</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #333; padding: 20px; background: #f9f9f9; }
+            .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            h1 { text-align: center; color: #7c3aed; margin-bottom: 10px; }
+            .emoji { font-size: 48px; text-align: center; margin: 20px 0; }
+            .type-info { text-align: center; margin: 20px 0; }
+            .code { font-family: monospace; background: #f0f0f0; padding: 5px 10px; border-radius: 4px; display: inline-block; }
+            .desc { font-size: 14px; line-height: 1.6; margin: 20px 0; padding: 15px; background: #f8f8f8; border-left: 4px solid #7c3aed; }
+            .traits { display: flex; flex-wrap: wrap; gap: 8px; margin: 15px 0; }
+            .trait { background: #7c3aed; color: white; padding: 5px 12px; border-radius: 20px; font-size: 12px; }
+            .section { margin: 25px 0; }
+            .section-title { font-weight: bold; color: #7c3aed; margin-bottom: 10px; border-bottom: 2px solid #7c3aed; padding-bottom: 5px; }
+            .compat { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 15px 0; }
+            .compat-box { padding: 10px; background: #f8f8f8; border-radius: 4px; }
+            .score-info { font-size: 12px; color: #666; margin-top: 15px; padding: 10px; background: #f0f0f0; border-radius: 4px; }
+            @media print {
+              body { padding: 0; }
+              .container { box-shadow: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>🔮 あなたの性格診断結果</h1>
+            <div class="emoji">${type.emoji}</div>
+            <div class="type-info">
+              <div style="font-size: 24px; font-weight: bold; color: #7c3aed;">${type.name}</div>
+              <div class="code">${type.code} - ${type.animal}タイプ</div>
+              <div style="color: ${type.color}; font-weight: bold; margin-top: 10px;">■ ${type.colorName}</div>
+            </div>
+
+            <div class="section">
+              <div class="section-title">説明</div>
+              <div class="desc">${type.desc}</div>
+            </div>
+
+            <div class="section">
+              <div class="section-title">特徴</div>
+              <div class="traits">${type.traits.map(t => `<span class="trait">${t}</span>`).join('')}</div>
+            </div>
+
+            <div class="section">
+              <div class="section-title">相性</div>
+              <div class="compat">
+                <div class="compat-box">
+                  <strong>✅ 相性が良い</strong>
+                  <div>${type.good.split(',').join(', ')}</div>
+                </div>
+                <div class="compat-box">
+                  <strong>⚠️ 苦手な</strong>
+                  <div>${type.bad.split(',').join(', ')}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="score-info">
+              <strong>スコア詳細:</strong><br>${scoreText}
+            </div>
+
+            <p style="text-align: center; font-size: 12px; color: #999; margin-top: 30px;">
+              本当の自分がわかる性格診断ゲーム<br>
+              https://appadaycreator.com/personality-quiz-game/
+            </p>
+          </div>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
+    }
+
+    function downloadResultCSV() {
+      const code = localStorage.getItem('personality_result') || '';
+      const type = types.find(t => t.code === code);
+      if (!type) return;
+
+      const headers = ['項目', '内容'];
+      const rows = [
+        ['性格タイプ', type.name],
+        ['コード', type.code],
+        ['動物タイプ', type.animal + 'タイプ'],
+        ['色', type.colorName],
+        ['説明', type.desc],
+        ['特徴', type.traits.join(', ')],
+        ['相性が良い', type.good],
+        ['苦手な', type.bad],
+        ['外向(E)', lastScores?.E || 0],
+        ['内向(I)', lastScores?.I || 0],
+        ['直感(N)', lastScores?.N || 0],
+        ['感覚(S)', lastScores?.S || 0],
+        ['思考(T)', lastScores?.T || 0],
+        ['感情(F)', lastScores?.F || 0],
+        ['計画(J)', lastScores?.J || 0],
+        ['柔軟(P)', lastScores?.P || 0]
+      ];
+
+      const csvContent = [headers, ...rows]
+        .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+        .join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `personality-result-${code}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
   </script>
 <section style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 16px;margin-top:16px;max-width:720px;margin-left:auto;margin-right:auto;">
