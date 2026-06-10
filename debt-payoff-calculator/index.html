@@ -28,6 +28,7 @@
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"借金・ローン返済シミュレーター","description":"ローン残高・金利・月々の返済額を入力して完済時期・総支払利息を計算。繰り上げ返済効果も比較。登録不要・完全無料でご利用いただけます。","url":"https://appadaycreator.com/debt-payoff-calculator/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"author":{"@type":"Organization","name":"AppADayCreator","url":"https://appadaycreator.com/"}}</script>
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "借金・ローン返済シミュレーターは無料で使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、完全無料・登録不要でご利用いただけます。"}}, {"@type": "Question", "name": "計算結果は正確ですか？", "acceptedAnswer": {"@type": "Answer", "text": "参考値としてご活用ください。重要な判断の際は専門家・公式機関にご確認ください。"}}, {"@type": "Question", "name": "何回でも計算できますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、回数制限なく何度でもご利用いただけます。条件を変えて比較にお使いください。"}}, {"@type": "Question", "name": "入力したデータはどこかに保存されますか？", "acceptedAnswer": {"@type": "Answer", "text": "いいえ。すべての計算はブラウザ内で処理され、データのサーバー送信は行いません。"}}, {"@type": "Question", "name": "スマートフォンで利用できますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、PC・スマートフォン・タブレットすべてに対応しています。"}}]}</script>
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "HowTo", "name": "借金・ローン返済シミュレーターの使い方", "description": "借金・ローン返済シミュレーターを使う手順", "step": [{"@type": "HowToStep", "position": 1, "name": "ステップ1", "text": "入力フォームの各項目を確認する"}, {"@type": "HowToStep", "position": 2, "name": "ステップ2", "text": "必要な数値・条件をすべて入力する"}, {"@type": "HowToStep", "position": 3, "name": "ステップ3", "text": "計算ボタンをクリックして結果を取得する"}, {"@type": "HowToStep", "position": 4, "name": "ステップ4", "text": "計算結果と詳細な内訳を確認する"}, {"@type": "HowToStep", "position": 5, "name": "ステップ5", "text": "条件を変えて複数パターンを比較する"}]}</script>
@@ -163,6 +164,10 @@
           <label style="margin-top:12px;">繰り上げ返済額（円/月）※任意</label>
           <input type="number" id="extra" placeholder="例: 10000" min="0">
           <button class="btn" style="margin-top:20px;" onclick="calculate()" aria-label="完済シミュレーション">完済シミュレーション</button>
+          <div style="display:flex;gap:8px;margin-top:12px;">
+            <button style="background:#f3f4f6;color:#374151;border:1px solid #d1d5db;padding:12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex:1;" onclick="loadSavedState()" aria-label="前回の計算を復元">💾 前回を復元</button>
+            <button style="background:#f3f4f6;color:#374151;border:1px solid #d1d5db;padding:12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex:1;" onclick="clearSavedState()" aria-label="保存データをクリア">🗑️ 履歴削除</button>
+          </div>
           
     <div class="card p-6 mb-4">
       <h2 class="font-bold text-gray-800 mb-3">💡 使用例</h2>
@@ -176,6 +181,10 @@
     <div class="result" id="result" style="margin-top:20px;display:none;">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;" id="kpiCards"></div>
             <div style="display:flex;gap:8px;flex-direction:column;" id="extraInfo"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;" id="chartsContainer">
+              <div style="background:#f8fafc;border-radius:12px;padding:16px;"><canvas id="debtChart" style="max-height:300px;"></canvas></div>
+              <div style="background:#f8fafc;border-radius:12px;padding:16px;"><canvas id="interestChart" style="max-height:300px;"></canvas></div>
+            </div>
             <button style="background:#f3f4f6;color:#374151;border:1px solid #d1d5db;padding:12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-top:12px;width:100%;" onclick="toggleSchedule()" id="scheduleToggle">📋 返済スケジュール表を表示</button>
             <div id="scheduleContainer" style="display:none;margin-top:12px;">
               <table style="width:100%;border-collapse:collapse;font-size:13px;">
@@ -283,6 +292,30 @@
     <dd style="margin-left:16px;color:#374151;">はい、PC・スマートフォン・タブレットすべてに対応しています。ブラウザから登録不要・完全無料でご利用いただけます。</dd>
   </dl>
 </section>
+<!-- r28-tool-expand -->
+<section style="margin:2rem 0;padding:1.5rem;background:#f8fafc;border-radius:.75rem;border:1px solid #e2e8f0">
+<h2 style="font-size:1.1rem;font-weight:700;color:#1e293b;margin:0 0 .75rem">借金・ローン返済シミュレーターの詳しい使い方</h2>
+<p style="font-size:.9rem;line-height:1.8;color:#374151">複数の借金・ローン（カードローン・住宅ローン・車ローン・学生ローン）の返済計画を一元管理・シミュレーションできる無料ツールです。アバランチ法（高金利優先返済）とスノーボール法（少額優先返済）を比較し、総利息節約額と完済日の違いを視覚化します。繰り上げ返済の効果試算にも対応しています。</p>
+<h3 style="font-size:.95rem;font-weight:700;color:#1e293b;margin:1rem 0 .5rem">このツールでできること</h3>
+<ul style="font-size:.88rem;line-height:2;color:#374151;padding-left:1.2rem">
+<li>複数ローンの残高・金利・月額返済を一括入力して総返済計画を作成</li>
+<li>アバランチ法・スノーボール法の総利息・完済年月比較表示</li>
+<li>毎月の繰り上げ返済額を変えた場合の節約シミュレーション</li>
+<li>返済進捗グラフと完済までのカウントダウン表示</li>
+</ul>
+<h3 style="font-size:.95rem;font-weight:700;color:#1e293b;margin:1rem 0 .5rem">活用シーン</h3>
+<ul style="font-size:.88rem;line-height:2;color:#374151;padding-left:1.2rem">
+<li>複数のカードローンを抱えていてどこから返すか判断したいとき</li>
+<li>住宅ローンの繰り上げ返済が何年短縮できるか確認したいとき</li>
+<li>借金完済後の生活費・貯蓄計画を立て直したいとき</li>
+</ul>
+<h3 style="font-size:.95rem;font-weight:700;color:#1e293b;margin:1rem 0 .5rem">よくある質問</h3>
+<div style="display:grid;gap:.75rem">
+<div style="padding:.75rem;background:#fff;border-radius:.5rem;border:1px solid #e2e8f0"><p style="font-size:.85rem;font-weight:700;color:#1e293b;margin:0 0 .25rem">Q. アバランチ法とスノーボール法のどちらがおすすめですか？</p><p style="font-size:.83rem;color:#6b7280;margin:0">A. 総利息節約額ではアバランチ法（高金利優先）が優れています。ただし心理的な達成感を重視する方にはスノーボール法（少額完済優先）が続けやすいという利点があります。本ツールで両方の結果を比較してください。</p></div>
+<div style="padding:.75rem;background:#fff;border-radius:.5rem;border:1px solid #e2e8f0"><p style="font-size:.85rem;font-weight:700;color:#1e293b;margin:0 0 .25rem">Q. 毎月1万円多く返済するとどのくらい早く完済できますか？</p><p style="font-size:.83rem;color:#6b7280;margin:0">A. 金利・残高・返済期間によって効果は大きく異なります。本ツールの繰り上げ返済シミュレーションで月額を変えながら完済日の変化を確認できます。</p></div>
+<div style="padding:.75rem;background:#fff;border-radius:.5rem;border:1px solid #e2e8f0"><p style="font-size:.85rem;font-weight:700;color:#1e293b;margin:0 0 .25rem">Q. 債務整理と繰り上げ返済ではどちらが有利ですか？</p><p style="font-size:.83rem;color:#6b7280;margin:0">A. 返済可能な範囲であれば通常返済が信用情報への影響を避けられます。返済が困難な場合は専門家（弁護士・司法書士）への相談をおすすめします。</p></div>
+</div>
+</section>
 </main>
 
     <footer style="text-align:center;padding:20px;color:white;font-size:12px;opacity:0.75;margin-top:8px;">
@@ -298,7 +331,53 @@
     const CFG = {
       inputs: ['balance','rate','monthly','extra'],
       error: 'ローン残高・年利・月返済額を入力してください',
+      storageKey: 'debtCalcState',
     };
+    function saveState() {
+      const state = {};
+      CFG.inputs.forEach(id => {
+        const val = document.getElementById(id)?.value;
+        if (val) state[id] = val;
+      });
+      try {
+        localStorage.setItem(CFG.storageKey, JSON.stringify(state));
+      } catch (e) {
+        console.warn('localStorage save error:', e);
+      }
+    }
+    function loadState() {
+      try {
+        const saved = localStorage.getItem(CFG.storageKey);
+        if (saved) {
+          const state = JSON.parse(saved);
+          CFG.inputs.forEach(id => {
+            if (state[id]) document.getElementById(id).value = state[id];
+          });
+          return true;
+        }
+      } catch (e) {
+        console.warn('localStorage load error:', e);
+      }
+      return false;
+    }
+    function loadSavedState() {
+      if (loadState()) {
+        alert('前回のデータを復元しました');
+        validateMonthly();
+      } else {
+        alert('保存されたデータがありません');
+      }
+    }
+    function clearSavedState() {
+      if (confirm('保存されたデータをすべて削除しますか？')) {
+        try {
+          localStorage.removeItem(CFG.storageKey);
+          alert('履歴を削除しました');
+        } catch (e) {
+          console.warn('localStorage clear error:', e);
+        }
+      }
+    }
     function calcLogic(vals) {
       const [balance, rate, monthly, extra] = vals;
       const principal = balance * 10000;
@@ -365,6 +444,57 @@
         </div>
       </div>`;
     }
+    let debtChartInstance = null, interestChartInstance = null;
+    function renderCharts(data) {
+      const { schedule, totalInt, totalPaid, extra, months, months2 } = data;
+      const ctx1 = document.getElementById('debtChart')?.getContext('2d');
+      const ctx2 = document.getElementById('interestChart')?.getContext('2d');
+      if (!ctx1 || !ctx2) return;
+      if (debtChartInstance) debtChartInstance.destroy();
+      if (interestChartInstance) interestChartInstance.destroy();
+      const debtLabels = schedule.map(s => `${Math.floor(s.month/12)}年${s.month%12}月`);
+      const debtData = schedule.map(s => s.rem / 10000);
+      debtChartInstance = new Chart(ctx1, {
+        type: 'line',
+        data: {
+          labels: debtLabels,
+          datasets: [{
+            label: '残高推移',
+            data: debtData,
+            borderColor: '#6366f1',
+            backgroundColor: '#6366f122',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 0,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { display: false }, title: { display: true, text: '残高推移' } },
+          scales: { y: { beginAtZero: true, title: { display: true, text: '万円' } }, x: { title: { display: true, text: '返済進捗' } } }
+        }
+      });
+      const principal = totalPaid - totalInt;
+      interestChartInstance = new Chart(ctx2, {
+        type: 'doughnut',
+        data: {
+          labels: ['利息', '元本'],
+          datasets: [{
+            data: [totalInt, principal],
+            backgroundColor: ['#ec4899', '#6366f1'],
+            borderWidth: 2,
+            borderColor: '#fff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { position: 'bottom' }, title: { display: true, text: '利息 vs 元本' } }
+        }
+      });
+    }
     function validateMonthly() {
       const balance = parseFloat(document.getElementById('balance')?.value) || 0;
       const rate = parseFloat(document.getElementById('rate')?.value) || 0;
@@ -394,15 +524,21 @@
     }
     document.addEventListener('DOMContentLoaded',()=>{
       updateThemeColor();
+      loadState();
       window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateThemeColor);
       CFG.inputs.forEach(id=>{ const el=document.getElementById(id); if(el) { el.addEventListener('keydown',e=>{ if(e.key==='Enter') calculate(); }); el.addEventListener('change', validateMonthly); el.addEventListener('input', validateMonthly); } });
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/debt-payoff-calculator/sw.js').catch(() => {});
+      }
     });
     function calculate(){
       const vals=CFG.inputs.map(id=>parseFloat(document.getElementById(id)?.value)||0);
       if(!vals[0]||!vals[2]){ alert(CFG.error); return; }
+      saveState();
       const data=calcLogic(vals);
       document.getElementById('kpiCards').innerHTML=renderKPI(data);
       document.getElementById('extraInfo').innerHTML=renderExtra(data);
+      renderCharts(data);
       document.getElementById('result').style.display='block';
       const tbody = document.getElementById('scheduleBody');
       tbody.innerHTML = '';
@@ -457,6 +593,42 @@
 <li><a href="/blog/investment-risk-management/" style="color:#4f46e5">投資のリスク管理入門</a></li>
 </ul>
 </div>
+<!-- r28-tool-expand-2 -->
+<section style="margin:2rem 0;padding:1.5rem;background:#f0fdf4;border-radius:.75rem;border:1px solid #bbf7d0">
+<h2 style="font-size:1.05rem;font-weight:700;color:#14532d;margin:0 0 .75rem">借金返済を加速させる具体的な戦略と行動計画</h2>
+<p style="font-size:.9rem;line-height:1.8;color:#374151">借金返済を加速させるためには「支出の見直し（コスト削減）」と「収入増加（副収入）」の2方向から同時にアプローチすることが最も効果的です。支出削減では「固定費の見直し」から始めるのが鉄則で、スマホプラン・サブスク・保険料の見直しは一度やれば毎月の節約効果が継続します。副収入については「返済が完了するまでの期間限定の集中モード」として副業（クラウドワークス・ランサーズ・フリマアプリ）に取り組み、得た収入を全額繰り上げ返済に充てる方法が最速です。心理的には「完済ビジュアライゼーション（完済後に何をするか・どんな生活になるかを具体的に想像する）」が返済継続のモチベーションを高めます。また借金返済中は「新たな消費者ローン・クレジットカードの新規発行を停止」することが返済進捗を守る重要なルールです。</p>
+<h3 style="font-size:.9rem;font-weight:700;color:#14532d;margin:1rem 0 .5rem">実践のコツ・ポイント</h3>
+<ul style="font-size:.87rem;line-height:2;color:#374151;padding-left:1.2rem">
+<li>固定費（スマホ・保険・サブスク）の見直しから始めると毎月の節約額が確定する</li>
+<li>副業収入は全額を繰り上げ返済に充てる「完済最優先モード」で取り組む</li>
+<li>クレジットカードは1枚のみ残し、他は全て解約して使いすぎを防ぐ</li>
+<li>繰り上げ返済は元金が減り「利息の利息」を防ぐため早期実行が効果的</li>
+<li>債務整理（任意整理・個人再生）は弁護士・司法書士への相談が必要</li>
+</ul>
+</section>
+<!-- r28-tool-expand-3 -->
+<section style="margin:2rem 0;padding:1.5rem;background:#fff7ed;border-radius:.75rem;border:1px solid #fed7aa">
+<h2 style="font-size:1.05rem;font-weight:700;color:#7c2d12;margin:0 0 .75rem">家計再建と借金完済後の資産形成への移行プラン</h2>
+<p style="font-size:.9rem;line-height:1.8;color:#374151">借金完済という目標を達成した後、「完済後の余剰資金をどう活用するか」の計画を持つことで、完済後の充実感と将来への安心感が生まれます。完済後の毎月の余剰資金は以下の優先順位で活用することが一般的に推奨されます。①緊急資金の積み立て（生活費3〜6ヶ月分）②職場の確定拠出年金・iDeCoへの上限拠出③NISAを活用した長期・分散投資④住宅購入・教育資金などの目的別貯蓄です。借金生活から抜け出した後に「ご褒美消費」で再びカードローンに頼るパターンを防ぐためには、自動積み立て設定で「使えないお金」を先に確保することが重要です。</p>
+</section>
+<!-- r28-tool-expand-4 -->
+<section style="margin:2rem 0;padding:1.5rem;background:#f8fafc;border-radius:.75rem;border:1px solid #e2e8f0">
+<h2 style="font-size:1.0rem;font-weight:700;color:#1e293b;margin:0 0 .75rem">あわせて使いたい関連ツール</h2>
+<p style="font-size:.88rem;line-height:1.7;color:#374151;margin:0 0 1rem">借金返済と並行して家計全体を最適化することが最速の完済につながります。返済可能な余剰資金の把握・副収入の活用・完済後の資産形成計画を以下のツールで一括管理してください。</p>
+<div style="display:grid;gap:.6rem">
+<a href="/household-budget-analyzer/" style="display:flex;align-items:center;gap:.75rem;padding:.75rem;background:#fff;border-radius:.5rem;border:1px solid #e2e8f0;text-decoration:none">
+<div><p style="font-size:.85rem;font-weight:700;color:#1e293b;margin:0">家計予算分析ツール</p><p style="font-size:.8rem;color:#6b7280;margin:0">返済原資となる月次余剰資金を把握</p></div></a>
+<a href="/side-hustle-income-tracker/" style="display:flex;align-items:center;gap:.75rem;padding:.75rem;background:#fff;border-radius:.5rem;border:1px solid #e2e8f0;text-decoration:none">
+<div><p style="font-size:.85rem;font-weight:700;color:#1e293b;margin:0">副業収入トラッカー</p><p style="font-size:.8rem;color:#6b7280;margin:0">返済加速のための副収入を管理</p></div></a>
+<a href="/asset-allocation-advisor/" style="display:flex;align-items:center;gap:.75rem;padding:.75rem;background:#fff;border-radius:.5rem;border:1px solid #e2e8f0;text-decoration:none">
+<div><p style="font-size:.85rem;font-weight:700;color:#1e293b;margin:0">資産配分アドバイザー</p><p style="font-size:.8rem;color:#6b7280;margin:0">完済後の資産形成プランを作成</p></div></a>
+</div>
+</section>
+<!-- r28-tool-expand-5 -->
+<section style="margin:2rem 0;padding:1.25rem 1.5rem;background:#f8fafc;border-radius:.75rem;border:1px solid #e2e8f0">
+<h2 style="font-size:.95rem;font-weight:700;color:#1e293b;margin:0 0 .5rem">ご利用にあたって</h2>
+<p style="font-size:.88rem;line-height:1.8;color:#374151;margin:0">本ツールの計算結果はあくまで参考値であり、実際の返済計画は金融機関の条件・金利変動・生活状況の変化によって調整が必要です。多重債務や返済が困難な状況にある方は、法律の専門家（弁護士・司法書士）や公的機関（日本貸金業協会・消費生活センター・法テラス）への無料相談を利用することを強くおすすめします。借金の返済は精神的にも大きな負担を伴います。一人で抱え込まず、信頼できる人や専門家に相談しながら着実に前進してください。本ツールが皆様の完済への道のりをサポートできれば幸いです。</p>
+</section>
 <!-- r17-mobile-ux -->
 <a href="#top" id="back-to-top" aria-label="ページトップへ戻る" style="display:none;position:fixed;bottom:24px;right:20px;background:#4f46e5;color:#fff;border:none;border-radius:50%;width:48px;height:48px;font-size:1.4rem;line-height:48px;text-align:center;text-decoration:none;box-shadow:0 4px 12px rgba(79,70,229,.4);z-index:9000;cursor:pointer" title="ページトップへ">↑</a>
 <script>

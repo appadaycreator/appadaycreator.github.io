@@ -196,12 +196,34 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <button onclick="clearInputs()" style="margin-top:8px;width:100%;padding:10px;background:transparent;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;color:#888;cursor:pointer;">クリア</button>
         </div>
 
+        <!-- 目標設定セクション -->
+        <div class="card" style="background:#f0f7ff;border:1px solid #bfdbfe;margin-top:8px;">
+          <h3 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#1e40af;cursor:pointer;display:flex;align-items:center;gap:8px;" onclick="toggleGoalSection()">
+            <span id="goal-toggle-icon">▼</span> 🎯 成長目標を設定する（オプション）
+          </h3>
+          <div id="goal-section" style="display:none;">
+            <p style="font-size:12px;color:#1e3a8a;margin-bottom:12px;">目標身長・体重を設定すると、達成度を追跡できます。</p>
+            <label style="font-size:13px;font-weight:600;color:#1e40af;display:block;margin-bottom:4px;">目標身長（cm）</label>
+            <input type="number" id="goal_height" placeholder="例: 100.0" min="30" max="200" step="0.1" inputmode="decimal" style="margin-top:4px;">
+            <label style="font-size:13px;font-weight:600;color:#1e40af;display:block;margin-bottom:4px;margin-top:12px;">目標体重（kg）</label>
+            <input type="number" id="goal_weight" placeholder="例: 15.0" min="1" max="150" step="0.1" inputmode="decimal" style="margin-top:4px;">
+            <button onclick="saveGoals()" style="width:100%;padding:10px;background:#3b82f6;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-top:12px;">目標を保存</button>
+            <div id="goal-status" style="margin-top:8px;font-size:12px;color:#1e40af;"></div>
+          </div>
+        </div>
+
         <!-- 結果エリア -->
         <div class="result" id="result">
 
           <!-- パーセンタイル結果 -->
           <div class="card">
-            <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#374151;">📊 パーセンタイル結果</h3>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+              <h3 style="font-size:15px;font-weight:700;color:#374151;margin:0;">📊 パーセンタイル結果</h3>
+              <div style="display:flex;gap:6px;">
+                <button onclick="printResults()" style="padding:6px 12px;background:#7c3aed;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;min-width:60px;">🖨️ 印刷</button>
+                <button onclick="exportToCSV()" style="padding:6px 12px;background:#10b981;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;min-width:80px;">📥 CSV</button>
+              </div>
+            </div>
             <div class="result-grid">
               <div class="result-item">
                 <div class="ri-label">身長</div>
@@ -263,6 +285,30 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <p id="advice_text" style="font-size:14px;line-height:1.8;color:#374151;"></p>
             </div>
             <p style="font-size:12px;color:#9ca3af;margin-top:8px;">※本ツールは簡易的な目安です。正確な評価はかかりつけ医にご相談ください。</p>
+          </div>
+
+          <!-- 目標達成度 -->
+          <div class="card" id="goal-achievement" style="display:none;">
+            <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#374151;">🎯 目標達成度</h3>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+              <div style="background:#f8fafc;border-radius:12px;padding:14px;">
+                <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;margin-bottom:6px;">身長の達成度</div>
+                <div style="font-size:24px;font-weight:700;color:#7c3aed;margin-bottom:4px;" id="height-achievement">-</div>
+                <div style="width:100%;height:10px;background:#e5e7eb;border-radius:5px;overflow:hidden;">
+                  <div id="height-progress-bar" style="height:100%;background:#7c3aed;width:0%;transition:width 0.4s ease;"></div>
+                </div>
+                <div style="font-size:11px;color:#888;margin-top:4px;" id="height-goal-text">目標: - cm</div>
+              </div>
+              <div style="background:#f8fafc;border-radius:12px;padding:14px;">
+                <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;margin-bottom:6px;">体重の達成度</div>
+                <div style="font-size:24px;font-weight:700;color:#10b981;margin-bottom:4px;" id="weight-achievement">-</div>
+                <div style="width:100%;height:10px;background:#e5e7eb;border-radius:5px;overflow:hidden;">
+                  <div id="weight-progress-bar" style="height:100%;background:#10b981;width:0%;transition:width 0.4s ease;"></div>
+                </div>
+                <div style="font-size:11px;color:#888;margin-top:4px;" id="weight-goal-text">目標: - kg</div>
+              </div>
+            </div>
+            <div id="goal-comparison" style="background:#f0f7ff;border-left:4px solid #3b82f6;padding:10px 12px;border-radius:0 6px 6px 0;font-size:12px;color:#1e40af;"></div>
           </div>
 
         </div><!-- /result -->
@@ -698,6 +744,130 @@ function handleTabKeydown(e) {
   }
 }
 
+// ─── 目標設定・達成度 ───
+function toggleGoalSection() {
+  const section = document.getElementById('goal-section');
+  const icon = document.getElementById('goal-toggle-icon');
+  const isHidden = section.style.display === 'none';
+  section.style.display = isHidden ? 'block' : 'none';
+  icon.textContent = isHidden ? '▲' : '▼';
+}
+
+function saveGoals() {
+  const gh = parseFloat(document.getElementById('goal_height').value);
+  const gw = parseFloat(document.getElementById('goal_weight').value);
+  const statusEl = document.getElementById('goal-status');
+
+  if ((gh && gh > 0) || (gw && gw > 0)) {
+    if (gh && gh <= 0) {
+      statusEl.textContent = '❌ 身長は正の数値を入力してください';
+      return;
+    }
+    if (gw && gw <= 0) {
+      statusEl.textContent = '❌ 体重は正の数値を入力してください';
+      return;
+    }
+    try {
+      if (gh > 0) localStorage.setItem('cgc_goal_h', gh);
+      if (gw > 0) localStorage.setItem('cgc_goal_w', gw);
+    } catch(e) {}
+    statusEl.textContent = '✅ 目標を保存しました';
+    statusEl.style.color = '#10b981';
+    setTimeout(() => { statusEl.textContent = ''; }, 3000);
+  } else {
+    statusEl.textContent = '❌ 目標身長または目標体重を入力してください';
+  }
+}
+
+function displayGoalAchievement(height, weight) {
+  const goalH = parseFloat(localStorage.getItem('cgc_goal_h'));
+  const goalW = parseFloat(localStorage.getItem('cgc_goal_w'));
+
+  if (!goalH && !goalW) return;
+
+  const goalDiv = document.getElementById('goal-achievement');
+  goalDiv.style.display = 'block';
+
+  if (goalH) {
+    const achieveH = Math.min(99.9, Math.max(0.1, (height / goalH) * 100));
+    document.getElementById('height-achievement').textContent = achieveH.toFixed(1) + '%';
+    document.getElementById('height-progress-bar').style.width = Math.min(100, achieveH) + '%';
+    document.getElementById('height-goal-text').textContent = `現在: ${height}cm / 目標: ${goalH}cm`;
+  }
+
+  if (goalW) {
+    const achieveW = Math.min(99.9, Math.max(0.1, (weight / goalW) * 100));
+    document.getElementById('weight-achievement').textContent = achieveW.toFixed(1) + '%';
+    document.getElementById('weight-progress-bar').style.width = Math.min(100, achieveW) + '%';
+    document.getElementById('weight-goal-text').textContent = `現在: ${weight}kg / 目標: ${goalW}kg`;
+  }
+
+  // 前回測定値との比較
+  try {
+    const lastH = localStorage.getItem('cgc_h_prev');
+    const lastW = localStorage.getItem('cgc_w_prev');
+    let compText = '';
+    if (lastH) {
+      const hDiff = (height - parseFloat(lastH)).toFixed(1);
+      compText += `身長: ${hDiff > 0 ? '+' : ''}${hDiff}cm（前回${lastH}cm）`;
+    }
+    if (lastW) {
+      const wDiff = (weight - parseFloat(lastW)).toFixed(1);
+      compText += (compText ? ' / ' : '') + `体重: ${wDiff > 0 ? '+' : ''}${wDiff}kg（前回${lastW}kg）`;
+    }
+    if (compText) {
+      document.getElementById('goal-comparison').textContent = '📊 前回との比較: ' + compText;
+    }
+  } catch(e) {}
+}
+
+function printResults() {
+  window.print();
+}
+
+function exportToCSV() {
+  const yr = parseInt(document.getElementById('age_year').value) || 0;
+  const mo = parseInt(document.getElementById('age_month').value) || 0;
+  const gender = document.getElementById('gender').value === 'm' ? '男' : '女';
+  const height = document.getElementById('height').value;
+  const weight = document.getElementById('weight').value;
+  const hPct = document.getElementById('h_pct_num').textContent.replace('約', '').replace('パーセンタイル', '').trim();
+  const wPct = document.getElementById('w_pct_num').textContent.replace('約', '').replace('パーセンタイル', '').trim();
+  const kaup = document.getElementById('kaup_val').textContent;
+  const kaupLabel = document.getElementById('kaup_badge').textContent;
+
+  const now = new Date();
+  const date = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+  const time = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+
+  const csv = [
+    '子どもの成長曲線チェッカー - 測定結果',
+    '',
+    '測定日時,' + date + ' ' + time,
+    '年齢,' + yr + '歳' + mo + 'ヶ月',
+    '性別,' + gender,
+    '',
+    '測定値',
+    '身長(cm),' + height,
+    '体重(kg),' + weight,
+    '',
+    'パーセンタイル',
+    '身長パーセンタイル,' + hPct,
+    '体重パーセンタイル,' + wPct,
+    '',
+    'カウプ指数',
+    'カウプ指数,' + kaup,
+    '評価,' + kaupLabel
+  ].join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'growth_checker_' + date + '.csv';
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 // ─── エラー表示 ───
 function clearErrors() {
   document.getElementById('height').classList.remove('input-error');
@@ -790,14 +960,21 @@ function calculate() {
   // スクロール
   document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-  // localStorage保存
+  // localStorage保存（前回値を別途保持）
   try {
+    const prevH = localStorage.getItem('cgc_h');
+    const prevW = localStorage.getItem('cgc_w');
+    if (prevH) localStorage.setItem('cgc_h_prev', prevH);
+    if (prevW) localStorage.setItem('cgc_w_prev', prevW);
     localStorage.setItem('cgc_yr', yr);
     localStorage.setItem('cgc_mo', mo);
     localStorage.setItem('cgc_gender', gender);
     localStorage.setItem('cgc_h', height);
     localStorage.setItem('cgc_w', weight);
   } catch(e) {}
+
+  // 目標達成度表示
+  displayGoalAchievement(height, weight);
 }
 
 function clearInputs() {
@@ -805,9 +982,12 @@ function clearInputs() {
   document.getElementById('age_month').value = 0;
   document.getElementById('height').value = '';
   document.getElementById('weight').value = '';
+  document.getElementById('goal_height').value = '';
+  document.getElementById('goal_weight').value = '';
   document.getElementById('result').classList.remove('show');
+  document.getElementById('goal-achievement').style.display = 'none';
   updateAgeDisplay();
-  try { ['cgc_yr','cgc_mo','cgc_gender','cgc_h','cgc_w'].forEach(k => localStorage.removeItem(k)); } catch(e) {}
+  try { ['cgc_yr','cgc_mo','cgc_gender','cgc_h','cgc_w','cgc_h_prev','cgc_w_prev'].forEach(k => localStorage.removeItem(k)); } catch(e) {}
 }
 
 function updateAgeDisplay() {
@@ -879,6 +1059,11 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       yearSel.value = 2;
     }
+    // 目標値復元
+    const goalH = localStorage.getItem('cgc_goal_h');
+    if (goalH) document.getElementById('goal_height').value = goalH;
+    const goalW = localStorage.getItem('cgc_goal_w');
+    if (goalW) document.getElementById('goal_weight').value = goalW;
   } catch(e) { yearSel.value = 2; }
 
   updateAgeDisplay();

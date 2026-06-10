@@ -39,6 +39,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
+    <!-- Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"プレゼンタイマー","description":"プレゼンテーションの時間管理をサポートするシンプルなタイマー。スライド枚数から1枚あたりの目安時間を計算、残り時間をビジュアル表示。","url":"https://appadaycreator.com/presentation-timer/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"author":{"@type":"Organization","name":"AppADayCreator","url":"https://appadaycreator.com/"}}</script>
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "プレゼンタイマーは無料で使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、完全無料・登録不要でご利用いただけます。"}}, {"@type": "Question", "name": "スライド枚数から時間を計算できますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、スライド枚数を入力すると1枚あたりの目安時間（分・秒）を自動計算して表示します。"}}, {"@type": "Question", "name": "時間終了時に音が鳴りますか？", "acceptedAnswer": {"@type": "Answer", "text": "画面上でアラート表示します。音声通知はブラウザのポリシー上、ユーザー操作なしでは再生できない場合があります。"}}, {"@type": "Question", "name": "プレゼン中に画面が暗くなりますか？", "acceptedAnswer": {"@type": "Answer", "text": "ブラウザのタブをアクティブな状態にしておくことで、タイマーはバックグラウンドでも動作します。ただし画面ロックはブラウザ設定に依存します。"}}, {"@type": "Question", "name": "カスタムの時間（例：7分）も設定できますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、プリセット（3/5/10/15/20分）以外に、任意の分数・秒数を直接入力して設定できます。"}}]}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"プレゼンタイマー【無料】発表時間・スライド時間管理の使い方","step":[{"@type":"HowToStep","position":1,"name":"発表時間を選択する","text":"プリセットボタン（3/5/10/15/20分）から発表時間を選ぶか、任意の分・秒を入力して「設定」ボタンを押す"},{"@type":"HowToStep","position":2,"name":"スライド枚数を入力する（任意）","text":"スライド枚数を入力すると、1枚あたりの目安時間が自動計算されて表示される"},{"@type":"HowToStep","position":3,"name":"タイマーをスタートする","text":"「タイマースタート」ボタンを押すと円形プログレスバーとカウントダウンが始まる"},{"@type":"HowToStep","position":4,"name":"フェーズラベルでペースを確認する","text":"前半・後半・終盤のフェーズラベルと色変化でペース配分を直感的に把握する"},{"@type":"HowToStep","position":5,"name":"一時停止・リセットで時間を管理する","text":"一時停止ボタンやキーボードのSpaceキーで一時停止、Rキーでリセット可能"}]}</script>
@@ -189,7 +191,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <button onclick="resetTimer()" style="background:#e2e8f0;color:#333;border:none;padding:12px 24px;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;min-height:48px;">リセット 🔄</button>
               <button id="restart-btn" onclick="restartTimer()" style="display:none;background:#10b981;color:white;border:none;padding:12px 24px;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;min-height:48px;">もう一度実行 ▶</button>
             </div>
+            <div id="result-graph" style="margin-top:20px;"></div>
           </div>
+        </div>
+
+        <div class="card" id="history-section" style="display:none;margin-top:8px;">
+          <h2 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#374151;">📊 実行履歴</h2>
+          <div id="history-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+          <button onclick="clearHistory()" style="background:#ef4444;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-top:12px;width:100%;min-height:44px;">履歴をクリア</button>
         </div>
 
         <!-- 関連サービス -->
@@ -349,7 +358,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     
 <script>
-    let total=180,remaining=180,timer=null,paused=false,wakeLock=null;
+    let total=180,remaining=180,timer=null,paused=false,wakeLock=null,history=[],currentConfig={min:3,sec:0,slides:0},chartInstance=null;function loadConfig(){const saved=JSON.parse(localStorage.getItem('timerConfig')||'null');if(saved){currentConfig=saved;document.getElementById('custom-min').value=saved.min;document.getElementById('custom-sec').value=saved.sec;document.getElementById('slides').value=saved.slides||'';total=remaining=saved.min*60+saved.sec;}const savedHistory=JSON.parse(localStorage.getItem('timerHistory')||'[]');history=savedHistory;renderHistory();}function saveConfig(){const m=parseInt(document.getElementById('custom-min').value)||0;const s=parseInt(document.getElementById('custom-sec').value)||0;const sl=parseInt(document.getElementById('slides').value)||0;currentConfig={min:m,sec:s,slides:sl};localStorage.setItem('timerConfig',JSON.stringify(currentConfig));}function saveHistory(entry){history.unshift(entry);if(history.length>20)history.pop();localStorage.setItem('timerHistory',JSON.stringify(history));renderHistory();}function renderHistory(){const histList=document.getElementById('history-list');const sec=document.getElementById('history-section');histList.innerHTML='';if(history.length===0){sec.style.display='none';return;}sec.style.display='block';history.forEach((entry,idx)=>{const div=document.createElement('div');div.style.cssText='background:#f1f5f9;border-radius:8px;padding:8px 12px;font-size:12px;color:#475569;cursor:pointer;border:1px solid #e2e8f0;transition:all .2s';div.textContent=`${entry.date} | ${entry.mins}分${entry.secs}秒 (${entry.slides>0?entry.slides+'枚':'フリー'})`;div.onmouseover=()=>div.style.backgroundColor='#e0e7ff';div.onmouseout=()=>div.style.backgroundColor='#f1f5f9';div.onclick=()=>restoreHistory(entry);histList.appendChild(div);});}function restoreHistory(entry){document.getElementById('custom-min').value=entry.mins;document.getElementById('custom-sec').value=entry.secs;document.getElementById('slides').value=entry.slides||'';const m=entry.mins,s=entry.secs;total=remaining=m*60+s;currentConfig={min:m,sec:s,slides:entry.slides||0};document.querySelectorAll('.time-btn').forEach(b=>b.classList.remove('active'));}function clearHistory(){if(confirm('履歴をクリアしますか？')){history=[];localStorage.removeItem('timerHistory');renderHistory();}}
 
     /* Web Audio API によるビープ音 */
     function beep(freq, duration) {
@@ -384,6 +393,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     function setTime(min, btn) {
       total = remaining = min * 60;
+      currentConfig={min:min,sec:0,slides:parseInt(document.getElementById('slides').value)||0};
+      document.getElementById('custom-min').value=min;
+      document.getElementById('custom-sec').value=0;
       document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
     }
@@ -393,11 +405,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const v = m * 60 + s;
       if (v < 1) { alert('1秒以上の時間を入力してください'); return; }
       total = remaining = v;
+      currentConfig={min:m,sec:s,slides:parseInt(document.getElementById('slides').value)||0};
+      saveConfig();
       document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
     }
     function startTimer() {
       if (timer) clearInterval(timer);
       paused = false;
+      saveConfig();
       const slides = parseInt(document.getElementById('slides').value) || 0;
       const si = document.getElementById('slide-info');
       if (slides > 0) {
@@ -438,8 +453,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         beep(880, 0.2);
         setTimeout(() => beep(880, 0.2), 300);
         setTimeout(() => beep(880, 0.4), 600);
+        const m=currentConfig.min,s=currentConfig.sec;const now=new Date();const dateStr=`${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;saveHistory({date:dateStr,mins:m,secs:s,slides:currentConfig.slides||0});renderChart();
       }
     }
+    function renderChart(){if(history.length===0)return;const canvas=document.createElement('canvas');document.getElementById('result-graph').innerHTML='';document.getElementById('result-graph').appendChild(canvas);const ctx=canvas.getContext('2d');const labels=history.slice().reverse().map((h,i)=>`${i+1}回目`);const timeData=history.slice().reverse().map(h=>h.mins*60+h.secs);if(chartInstance)chartInstance.destroy();chartInstance=new Chart(ctx,{type:'line',data:{labels:labels,datasets:[{label:'実行時間（秒）',data:timeData,borderColor:'#0284C7',backgroundColor:'rgba(2,132,199,0.1)',borderWidth:2,tension:0.4,fill:true,pointRadius:4,pointBackgroundColor:'#0284C7',pointBorderColor:'#fff',pointBorderWidth:2}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:true,position:'top'}},scales:{y:{beginAtZero:true,ticks:{callback:v=>`${v}秒`}}}}});}
     function updateDisplay() {
       const m = Math.floor(remaining / 60), s = remaining % 60;
       document.getElementById('timer-display').textContent = String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
@@ -472,6 +489,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('pause-btn').textContent = '一時停止 ⏸';
       document.getElementById('pause-btn').style.display = 'block';
       document.getElementById('restart-btn').style.display = 'none';
+      document.getElementById('result-graph').innerHTML='';
       updateDisplay();
     }
     function restartTimer() {
@@ -483,6 +501,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('pause-btn').style.display = 'block';
       document.getElementById('restart-btn').style.display = 'none';
       document.getElementById('pause-btn').textContent = '一時停止 ⏸';
+      document.getElementById('result-graph').innerHTML='';
       updateDisplay();
       acquireWakeLock();
       timer = setInterval(tick, 1000);
@@ -495,6 +514,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if (e.code === 'Space') { e.preventDefault(); if (timer || document.getElementById('result').classList.contains('show')) togglePause(); }
       if (e.code === 'KeyR') { if (document.getElementById('result').classList.contains('show')) resetTimer(); }
     });
+    document.addEventListener('DOMContentLoaded',loadConfig);
     </script>
     <!-- rakuten-affiliate-block -->
     <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">

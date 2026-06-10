@@ -35,6 +35,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <!-- Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -173,6 +175,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <script>try{try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}}catch(e){}</script>
 
         <div class="card" id="quiz-start">
+          <div id="history-restore-section" style="display:none;background:#e0f2fe;border-left:4px solid #0284c7;padding:14px;margin-bottom:16px;border-radius:6px;">
+            <p style="font-size:13px;font-weight:600;color:#0c4a6e;margin:0 0 10px;">📋 前回の診断結果が保存されています</p>
+            <div id="history-list" style="margin-bottom:10px;"></div>
+            <button onclick="restoreLatestResult()" style="width:100%;padding:10px;background:#0284c7;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">前回結果を復元</button>
+          </div>
           <div id="tool-desc-box" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:1.5rem 1.75rem;margin:1.5rem 0">
   <p style="color:#374151;margin:0 0 .75rem;line-height:1.75;font-size:.92rem">ホテルvsAirbnb比較診断【無料】無料診断・アドバイスは、AppADayCreatorが提供する完全無料の診断・アドバイスツールです。登録・ログイン不要で、すぐにご利用いただけます。</p>
   <p style="color:#374151;margin:0 0 .75rem;line-height:1.75;font-size:.92rem">【使い方】①いくつかの質問に答える → ②「診断する」ボタンをクリック → ③あなたに合ったアドバイスを表示します。</p>
@@ -272,6 +279,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
                 <div class="score-bar-wrap">
                   <div class="score-bar-bg"><div class="score-bar-fill" id="airbnb-bar" style="background:#db2777;width:0%;"></div></div>
                 </div>
+              </div>
+            </div>
+            <div id="chart-container" style="margin:20px 0;display:none;position:relative;height:300px;">
+              <canvas id="comparisonChart"></canvas>
+            </div>
+            <div id="history-container" style="margin:20px 0;display:none;">
+              <h4 style="font-size:14px;font-weight:600;margin-bottom:10px;">📊 診断履歴の推移</h4>
+              <div id="history-chart-wrapper" style="position:relative;height:250px;">
+                <canvas id="historyChart"></canvas>
               </div>
             </div>
             <div class="verdict-box" id="verdict-box"></div>
@@ -401,10 +417,50 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     ];
     const scores = {};
     let currentQ = 0;
+    let comparisonChartInstance = null;
+    let historyChartInstance = null;
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('q-total').textContent = QUESTIONS.length;
+      loadHistoryUI();
     });
+
+    function loadHistoryUI() {
+      const history = getHistory();
+      if (history.length > 0) {
+        document.getElementById('history-restore-section').style.display = 'block';
+        const historyList = document.getElementById('history-list');
+        historyList.innerHTML = history.slice(-3).reverse().map((result, idx) =>
+          `<div style="font-size:12px;color:#0c4a6e;margin-bottom:6px;">
+            ${idx + 1}. ${result.title} (${new Date(result.timestamp).toLocaleDateString('ja-JP')})
+           </div>`
+        ).join('');
+      }
+    }
+
+    function getHistory() {
+      const stored = localStorage.getItem('hotelVsAirbnbHistory');
+      return stored ? JSON.parse(stored) : [];
+    }
+
+    function saveResult(hotelPct, airbnbPct, title) {
+      const history = getHistory();
+      history.push({
+        hotelPct,
+        airbnbPct,
+        title,
+        timestamp: new Date().toISOString()
+      });
+      if (history.length > 10) history.shift();
+      localStorage.setItem('hotelVsAirbnbHistory', JSON.stringify(history));
+    }
+
+    function restoreLatestResult() {
+      const history = getHistory();
+      if (history.length === 0) return;
+      const latest = history[history.length - 1];
+      displayResult(latest.hotelPct, latest.airbnbPct, latest.title);
+    }
 
     function startQuiz() {
       currentQ = 0; Object.keys(scores).forEach(k => delete scores[k]);
@@ -437,24 +493,38 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function showResult() {
       document.getElementById('quiz-area').style.display = 'none';
 
-      // Airbnbスコアを集計（高いほどAirbnb向き）
       const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
       const maxScore = QUESTIONS.reduce((a, q) => a + Math.max(...q.scores), 0);
       const airbnbPct = Math.round(totalScore / maxScore * 100);
       const hotelPct = 100 - airbnbPct;
 
-      let title, desc, verdictClass;
+      let title, desc;
 
       if (airbnbPct >= 65) {
         title = '🏠 Airbnbがおすすめ！';
         desc = 'グループ旅行・長期滞在・コスパ重視の旅には Airbnb が向いています。キッチンや洗濯機を活用して生活感ある旅を楽しめます。';
-        verdictClass = 'verdict-airbnb';
       } else if (hotelPct >= 65) {
         title = '🏨 ホテルがおすすめ！';
         desc = 'ビジネス・短期滞在・快適さを重視するならホテルが最適です。フロントサービスや朝食、安定した品質が強みです。';
-        verdictClass = 'verdict-hotel';
       } else {
         title = '🤝 どちらも◎ ケースバイケース！';
+        desc = 'あなたの旅行スタイルはホテル・Airbnb両方に対応できます。価格・立地・同行者で柔軟に選びましょう。';
+      }
+
+      displayResult(hotelPct, airbnbPct, title);
+      saveResult(hotelPct, airbnbPct, title);
+    }
+
+    function displayResult(hotelPct, airbnbPct, title) {
+      let desc, verdictClass;
+
+      if (airbnbPct >= 65) {
+        desc = 'グループ旅行・長期滞在・コスパ重視の旅には Airbnb が向いています。キッチンや洗濯機を活用して生活感ある旅を楽しめます。';
+        verdictClass = 'verdict-airbnb';
+      } else if (hotelPct >= 65) {
+        desc = 'ビジネス・短期滞在・快適さを重視するならホテルが最適です。フロントサービスや朝食、安定した品質が強みです。';
+        verdictClass = 'verdict-hotel';
+      } else {
         desc = 'あなたの旅行スタイルはホテル・Airbnb両方に対応できます。価格・立地・同行者で柔軟に選びましょう。';
         verdictClass = 'verdict-either';
       }
@@ -467,6 +537,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       setTimeout(() => {
         document.getElementById('hotel-bar').style.width = hotelPct + '%';
         document.getElementById('airbnb-bar').style.width = airbnbPct + '%';
+        drawComparisonChart(hotelPct, airbnbPct);
+        drawHistoryChart();
       }, 200);
 
       const verdictBox = document.getElementById('verdict-box');
@@ -478,6 +550,94 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         : '短期は価格でホテル、長期・グループは Airbnb を比較してみましょう。両サイトで同条件の料金を確認するのがコツです。';
 
       document.getElementById('result').classList.add('show');
+    }
+
+    function drawComparisonChart(hotelPct, airbnbPct) {
+      const ctx = document.getElementById('comparisonChart');
+      if (!ctx) return;
+
+      document.getElementById('chart-container').style.display = 'block';
+
+      if (comparisonChartInstance) comparisonChartInstance.destroy();
+
+      comparisonChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['ホテル', 'Airbnb'],
+          datasets: [{
+            label: '適合度',
+            data: [hotelPct, airbnbPct],
+            backgroundColor: ['#2563EB', '#db2777'],
+            borderRadius: 8
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              max: 100,
+              ticks: { callback: v => v + '%' }
+            }
+          }
+        }
+      });
+    }
+
+    function drawHistoryChart() {
+      const history = getHistory();
+      if (history.length < 2) return;
+
+      const ctx = document.getElementById('historyChart');
+      if (!ctx) return;
+
+      document.getElementById('history-container').style.display = 'block';
+
+      if (historyChartInstance) historyChartInstance.destroy();
+
+      historyChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: history.map((r, i) => `診断${i + 1}`),
+          datasets: [
+            {
+              label: 'ホテル',
+              data: history.map(r => r.hotelPct),
+              borderColor: '#2563EB',
+              backgroundColor: '#2563EB22',
+              fill: true,
+              tension: 0.3
+            },
+            {
+              label: 'Airbnb',
+              data: history.map(r => r.airbnbPct),
+              borderColor: '#db2777',
+              backgroundColor: '#db277722',
+              fill: true,
+              tension: 0.3
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'top' }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              ticks: { callback: v => v + '%' }
+            }
+          }
+        }
+      });
     }
     </script>
 

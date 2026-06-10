@@ -414,7 +414,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
     </div>
     <div class="form-group">
       <label class="form-label">生年月日</label>
-      <input type="date" id="input-child-birth" class="form-input" required aria-label="入力フォーム">
+      <input type="date" id="input-child-birth" class="form-input" required aria-label="生年月日を選択">
     </div>
     <div class="form-group">
       <label class="form-label">性別</label>
@@ -442,7 +442,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
     </div>
     <div class="form-group">
       <label class="form-label">生年月日</label>
-      <input type="date" id="edit-child-birth" class="form-input" required>
+      <input type="date" id="edit-child-birth" class="form-input" required aria-label="生年月日を選択">
     </div>
     <div class="form-group">
       <label class="form-label">性別</label>
@@ -479,7 +479,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
     <input type="hidden" id="edit-record-id">
     <div class="form-group">
       <label class="form-label">日付</label>
-      <input type="date" id="edit-rec-date" class="form-input" required>
+      <input type="date" id="edit-rec-date" class="form-input" required aria-label="記録日を選択">
     </div>
     <div class="form-group">
       <label class="form-label">身長（cm）</label>
@@ -491,7 +491,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
     </div>
     <div class="form-group">
       <label class="form-label">メモ（任意）</label>
-      <input type="text" id="edit-rec-memo" class="form-input" maxlength="60">
+      <input type="text" id="edit-rec-memo" class="form-input" placeholder="例: 離乳食開始" maxlength="60">
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-edit-record')" aria-label="編集をキャンセル">キャンセル</button>
@@ -507,7 +507,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
     <input type="hidden" id="edit-mem-id">
     <div class="form-group">
       <label class="form-label">記録日</label>
-      <input type="date" id="edit-mem-date" class="form-input" style="max-width:200px">
+      <input type="date" id="edit-mem-date" class="form-input" aria-label="記録日を選択" style="max-width:200px">
     </div>
     <div class="form-group">
       <label class="form-label">絵文字</label>
@@ -563,7 +563,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
     <div class="modal-title" id="ms-modal-title">⭐ マイルストーン達成日</div>
     <div class="form-group">
       <label class="form-label">達成した日付</label>
-      <input type="date" id="input-ms-date" class="form-input">
+      <input type="date" id="input-ms-date" class="form-input" aria-label="達成した日付を選択">
     </div>
     <div class="form-group">
       <label class="form-label">メモ（任意）</label>
@@ -657,7 +657,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             <div class="form-row">
               <div class="form-group" style="margin:0">
                 <label class="form-label">日付</label>
-                <input type="date" id="r-date" class="form-input" required>
+                <input type="date" id="r-date" class="form-input" required aria-label="記録日を選択">
               </div>
               <div class="form-group" style="margin:0">
                 <label class="form-label">身長（cm）</label>
@@ -689,6 +689,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
               </svg>
               <div class="chart-tooltip" id="chart-tooltip"></div>
             </div>
+            <div id="growth-stats" style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);font-size:.8125rem;color:var(--muted)"></div>
           </div>
 
           <div class="card">
@@ -726,7 +727,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             <div class="card-title" style="margin-bottom:1rem">📔 思い出を記録</div>
             <div class="form-group" style="margin-bottom:.875rem">
               <label class="form-label">記録日</label>
-              <input type="date" id="mem-date" class="form-input" style="max-width:200px">
+              <input type="date" id="mem-date" class="form-input" aria-label="記録日を選択" style="max-width:200px">
             </div>
             <div class="emoji-row" id="emoji-row">
               <span class="emoji-btn" onclick="pickEmoji(this,'🎉')">🎉 初めて</span>
@@ -1716,13 +1717,27 @@ function renderGrowth() {
   if (!child || child.records.length === 0) {
     el.innerHTML = `<div class="empty"><div class="empty-icon">📏</div><div class="empty-title">まだ記録がありません</div><div class="empty-desc">上のフォームから身長・体重を記録しましょう</div></div>`;
   } else {
-    const rows = [...child.records].reverse().map(r => {
+    const recs = [...child.records].reverse();
+    const rows = recs.map((r, idx) => {
       const ageLabel = calcAgeAtDate(child.birth, r.date);
+      const prevRec = idx > 0 ? recs[idx - 1] : null;
+      let hDisplay = r.h !== null ? r.h + ' cm' : '—';
+      let wDisplay = r.w !== null ? r.w + ' kg' : '—';
+      if (prevRec && r.h !== null && prevRec.h !== null) {
+        const hDiff = r.h - prevRec.h;
+        const hSymbol = hDiff > 0 ? '▲' : hDiff < 0 ? '▼' : '→';
+        hDisplay += ` <span style="color:${hDiff > 0 ? '#10b981' : hDiff < 0 ? '#ef4444' : '#6b7280'};font-size:.75rem">${hSymbol}${Math.abs(hDiff).toFixed(1)}</span>`;
+      }
+      if (prevRec && r.w !== null && prevRec.w !== null) {
+        const wDiff = r.w - prevRec.w;
+        const wSymbol = wDiff > 0 ? '▲' : wDiff < 0 ? '▼' : '→';
+        wDisplay += ` <span style="color:${wDiff > 0 ? '#ef4444' : wDiff < 0 ? '#10b981' : '#6b7280'};font-size:.75rem">${wSymbol}${Math.abs(wDiff).toFixed(2)}</span>`;
+      }
       return `
       <tr>
         <td data-label="日付">${r.date}${ageLabel ? `<br><small style="color:var(--muted);font-size:.75rem">${ageLabel}</small>` : ''}</td>
-        <td data-label="身長">${r.h !== null ? r.h + ' cm' : '—'}</td>
-        <td data-label="体重">${r.w !== null ? r.w + ' kg' : '—'}</td>
+        <td data-label="身長">${hDisplay}</td>
+        <td data-label="体重">${wDisplay}</td>
         <td data-label="メモ" style="color:var(--muted);font-size:.8125rem">${r.memo || ''}</td>
         <td data-label="" style="display:flex;gap:.375rem;flex-wrap:wrap">
           <button class="btn btn-secondary btn-sm" onclick="editRecord('${r.id}')" aria-label="この記録を編集">編集</button>

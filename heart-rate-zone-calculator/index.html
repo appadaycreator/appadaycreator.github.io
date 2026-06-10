@@ -76,6 +76,23 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         }
         /* ── サービス固有CSS ── */
         .zone-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:10px;border-radius:8px;font-size:13px;}.zone-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+        /* ツールチップ */
+        .tooltip-icon{cursor:help;display:inline-block;width:16px;height:16px;line-height:16px;text-align:center;background:#7c3aed;color:white;border-radius:50%;font-size:11px;font-weight:700;margin-left:4px;position:relative;}
+        .tooltip-icon:hover::after{content:attr(data-tooltip);position:absolute;bottom:100%;left:-80px;width:160px;background:#333;color:white;padding:6px 8px;border-radius:4px;font-size:11px;white-space:normal;z-index:1000;margin-bottom:4px;font-weight:400;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
+        .tooltip-icon:hover::before{content:'';position:absolute;bottom:calc(100% - 6px);left:calc(50% + 80px - 6px);width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:6px solid #333;z-index:1000;}
+        /* グラフバー */
+        .zone-bar-container{background:#f3f4f6;border-radius:8px;padding:12px;margin:12px 0;}
+        .zone-bar{display:flex;gap:1px;height:48px;border-radius:4px;overflow:hidden;margin-bottom:8px;}
+        .zone-segment{flex-grow:1;display:flex;align-items:flex-end;justify-content:center;color:white;font-size:10px;font-weight:700;padding-bottom:4px;transition:opacity .3s;}
+        .zone-segment:hover{opacity:0.8;}
+        .zone-info{font-size:11px;color:#4b5563;text-align:center;padding:4px 0;border-top:1px solid #e5e7eb;}
+        /* ボタングループ */
+        .btn-group{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+        .btn-secondary{background:#e5e7eb;color:#374151;border:none;padding:10px 16px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;min-height:44px;transition:opacity .2s;}
+        .btn-secondary:hover{opacity:0.85;}
+        .btn-secondary:active{transform:scale(0.98);}
+        .copy-success{position:fixed;top:20px;right:20px;background:#10b981;color:white;padding:12px 16px;border-radius:8px;font-size:14px;z-index:10000;animation:slideIn .3s ease;}
+        @keyframes slideIn{from{transform:translateX(400px);opacity:0;}to{transform:translateX(0);opacity:1;}}
     
 @media print{
   header,footer,nav,button,.no-print,
@@ -188,17 +205,27 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   <ul style="margin:0;padding-left:1.25rem;color:#4b5563;line-height:1.9"><li><a href="https://www.caa.go.jp/" target="_blank" rel="noopener noreferrer" style="color:#4f46e5;font-size:.85rem">消費者庁「くらしの安心ガイド」</a></li></ul>
 </div>
 <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;">❤️ 心拍ゾーン計算ツール</h2>
-          <label style="font-weight:600;">年齢（歳）</label>
+          <label style="font-weight:600;">年齢（歳）<span class="tooltip-icon" data-tooltip="10〜90歳の範囲で入力してください。例：30">?</span></label>
           <input type="number" id="age" placeholder="30" min="10" max="90" style="margin-top:6px;">
           <div class="err-msg" id="age-err">年齢を正しく入力してください（10〜90歳）</div>
-          <label style="font-weight:600;margin-top:12px;display:block;">安静時心拍数（bpm）</label>
+          <label style="font-weight:600;margin-top:12px;display:block;">安静時心拍数（bpm）<span class="tooltip-icon" data-tooltip="朝起きた直後、動く前に測定した心拍数を入力してください。例：65">?</span></label>
           <input type="number" id="rest" placeholder="65" min="30" max="120" style="margin-top:6px;">
-          <p style="font-size:12px;color:#94a3b8;margin-top:4px;">※朝起きた直後、動く前に測定</p>
+          <label style="font-weight:600;margin-top:12px;display:flex;align-items:center;gap:6px;">
+            <input type="checkbox" id="max-hr-toggle" style="width:auto;margin:0;">
+            最大心拍数を手動入力する
+          </label>
+          <input type="number" id="max-hr" placeholder="190" min="100" max="220" style="margin-top:6px;display:none;">
+          <p style="font-size:12px;color:#94a3b8;margin-top:4px;" id="max-hr-info">デフォルト: 220 - 年齢で自動計算</p>
           <button class="btn" style="margin-top:20px;" onclick="calculate()">心拍ゾーンを計算する</button>
           <div class="result" id="result" style="margin-top:16px;">
             <div class="card">
               <div id="output" style="font-size:1.3rem;font-weight:700;color:#7c3aed;text-align:center;padding:8px 0 12px;"></div>
+              <div id="graph-container" style="margin:16px 0;"></div>
               <div id="detail"></div>
+              <div class="btn-group">
+                <button class="btn-secondary" onclick="printResult()" title="計算結果を印刷">🖨️ 印刷</button>
+                <button class="btn-secondary" onclick="copyToClipboard()" title="結果をコピー">📋 コピー</button>
+              </div>
             </div>
           </div>
         </div>
@@ -306,6 +333,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     }
     document.addEventListener('DOMContentLoaded',()=>{
       restoreInputs();
+      const toggleEl = document.getElementById('max-hr-toggle');
+      if(toggleEl) toggleEl.addEventListener('change', ()=>{
+        const maxHrInput = document.getElementById('max-hr');
+        const maxHrInfo = document.getElementById('max-hr-info');
+        if(toggleEl.checked) {
+          maxHrInput.style.display = 'block';
+          maxHrInfo.style.display = 'none';
+          const age = parseFloat(document.getElementById('age')?.value) || 30;
+          maxHrInput.value = 220 - age;
+        } else {
+          maxHrInput.style.display = 'none';
+          maxHrInfo.style.display = 'block';
+        }
+      });
       CFG.inputs.forEach(id=>{const el=document.getElementById(id);if(el)el.addEventListener('keydown',e=>{if(e.key==='Enter')calculate();});});
     });
     function calculate(){
@@ -315,7 +356,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if(!age||age<10||age>90){aEl.classList.add('err');aErr.classList.add('show');aEl.focus();return;}
       aEl.classList.remove('err');aErr.classList.remove('show');
       saveInputs();
-      const hrMax=220-age;
+      let hrMax = 220-age;
+      if(document.getElementById('max-hr-toggle').checked) {
+        hrMax = parseFloat(document.getElementById('max-hr')?.value) || hrMax;
+      }
       const hrr=hrMax-rest;
       document.getElementById('output').textContent='最大心拍数：'+hrMax+' bpm';
       const rows=ZONES.map(z=>{
@@ -323,8 +367,42 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         const hi=Math.round(rest+hrr*z.pct[1]/100);
         return `<div class="zone-row" style="background:${z.color}22;"><div class="zone-dot" style="background:${z.color};"></div><div style="flex:1;"><strong>${z.name}</strong><br><span style="color:#666;">${lo}〜${hi} bpm｜${z.tip}</span></div></div>`;
       }).join('');
+      const graphHtml = renderZoneGraph(age, rest, hrMax);
+      document.getElementById('graph-container').innerHTML = graphHtml;
       document.getElementById('detail').innerHTML=rows;
       document.getElementById('result').classList.add('show');
+      window.lastResultData = {age, rest, hrMax, zones: ZONES.map(z=>{const lo=Math.round(rest+hrr*z.pct[0]/100);const hi=Math.round(rest+hrr*z.pct[1]/100);return{...z,lo,hi};})};
+    }
+    function renderZoneGraph(age, rest, hrMax) {
+      const hrr = hrMax - rest;
+      let html = '<div class="zone-bar-container"><div class="zone-bar">';
+      ZONES.forEach(z=>{
+        const lo=Math.round(rest+hrr*z.pct[0]/100);
+        const hi=Math.round(rest+hrr*z.pct[1]/100);
+        html += `<div class="zone-segment" style="background:${z.color};" title="${z.name}: ${lo}〜${hi}bpm">${z.name.split(' ')[0]}</div>`;
+      });
+      html += '</div><div class="zone-info" style="font-size:11px;">各ゾーンの心拍数範囲 | 詳細は下記参照</div></div>';
+      return html;
+    }
+    function printResult() {
+      window.print();
+    }
+    function copyToClipboard() {
+      if(!window.lastResultData) return;
+      const d = window.lastResultData;
+      let text = `心拍ゾーン計算結果\n年齢: ${d.age}歳\n安静時心拍数: ${d.rest}bpm\n最大心拍数: ${d.hrMax}bpm\n\n`;
+      d.zones.forEach(z=>{
+        text += `${z.name}: ${z.lo}〜${z.hi}bpm (${z.tip})\n`;
+      });
+      navigator.clipboard.writeText(text).then(()=>{
+        const msg = document.createElement('div');
+        msg.className = 'copy-success';
+        msg.textContent = '✓ コピーしました';
+        document.body.appendChild(msg);
+        setTimeout(()=>msg.remove(), 2000);
+      }).catch(()=>{
+        alert('コピーに失敗しました。手動でコピーしてください。');
+      });
     }
     </script>
     <!-- rakuten-affiliate-block -->

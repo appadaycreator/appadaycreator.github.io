@@ -43,6 +43,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 </script>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
   body{background:linear-gradient(135deg,#f0fdf4 0%,#dcfce7 50%,#bbf7d0 100%);min-height:100vh;}
   .card{background:white;border-radius:1rem;box-shadow:0 4px 24px rgba(0,0,0,0.09);}
@@ -198,6 +199,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="card p-6 mb-4 text-center">
       <div class="text-4xl mb-3" id="result-icon"></div>
       <h2 class="text-xl font-bold text-gray-800 mb-2">診断結果</h2>
+      <div class="flex gap-2 justify-center mb-3" id="export-buttons">
+        <button class="text-xs px-3 py-2 bg-gray-100 rounded hover:bg-gray-200" onclick="printResult()">🖨️ 印刷</button>
+        <button class="text-xs px-3 py-2 bg-gray-100 rounded hover:bg-gray-200" onclick="exportToCSV()">📥 CSV保存</button>
+      </div>
       <div class="text-2xl font-bold text-green-700 mb-2" id="result-title"></div>
       <p class="text-gray-600 text-sm" id="result-desc"></p>
       <div id="result-monthly" class="mt-3"></div>
@@ -206,13 +211,21 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <!-- Cost Comparison 5 Years -->
     <div class="card p-6 mb-4">
       <h3 class="font-bold text-gray-800 mb-4">📊 総コスト比較（5年）</h3>
-      <div class="grid grid-cols-3 gap-3 mb-3" id="cost5-grid"></div>
+      <canvas id="cost5Chart" style="max-height:300px;"></canvas>
+      <div class="grid grid-cols-3 gap-3 mt-3" id="cost5-grid"></div>
     </div>
 
     <!-- Cost Comparison 10 Years -->
     <div class="card p-6 mb-4">
       <h3 class="font-bold text-gray-800 mb-4">📊 総コスト比較（10年）</h3>
-      <div class="grid grid-cols-3 gap-3 mb-3" id="cost10-grid"></div>
+      <canvas id="cost10Chart" style="max-height:300px;"></canvas>
+      <div class="grid grid-cols-3 gap-3 mt-3" id="cost10-grid"></div>
+    </div>
+
+    <!-- Monthly Cost Trend -->
+    <div class="card p-6 mb-4">
+      <h3 class="font-bold text-gray-800 mb-4">💰 月額コスト推移</h3>
+      <canvas id="monthlyTrendChart" style="max-height:300px;"></canvas>
     </div>
 
     <!-- Hidden Cost Checklist -->
@@ -335,6 +348,229 @@ const questions = [
 let currentQ = 0;
 let answers = {};
 let scores = {purchase: 0, lease: 0, share: 0};
+let currentResult = null; // 最新の診断結果を保持
+let charts = {}; // Chart.js インスタンス管理
+
+// ============ localStorage 関連 ============
+function saveData() {
+  const data = {
+    answers,
+    scores,
+    result: currentResult,
+    timestamp: new Date().toISOString()
+  };
+  localStorage.setItem('carAdvisorData', JSON.stringify(data));
+}
+
+function loadData() {
+  const data = localStorage.getItem('carAdvisorData');
+  if (!data) return null;
+  try {
+    return JSON.parse(data);
+  } catch {
+    return null;
+  }
+}
+
+function restoreSession() {
+  const data = loadData();
+  if (!data) return false;
+
+  answers = data.answers || {};
+  scores = data.scores || {purchase: 0, lease: 0, share: 0};
+  currentResult = data.result || null;
+
+  // 前回データから復元ボタンを表示
+  if (currentResult) {
+    const qSection = document.getElementById('quiz-section');
+    if (!document.getElementById('restore-banner')) {
+      const banner = document.createElement('div');
+      banner.id = 'restore-banner';
+      banner.style.cssText = 'background:#dcfce7;border:1px solid #16a34a;border-radius:8px;padding:12px;margin-bottom:12px;text-align:center;font-size:14px;';
+      banner.innerHTML = `
+        <p style="margin:0 0 8px;font-weight:600;">📊 前回の診断結果が見つかりました</p>
+        <button onclick="showRestoredResult()" class="bg-green-600 text-white px-4 py-2 rounded text-sm mr-2">復元する</button>
+        <button onclick="clearData()" class="bg-gray-300 text-gray-800 px-4 py-2 rounded text-sm">新規診断</button>
+      `;
+      qSection.parentNode.insertBefore(banner, qSection);
+    }
+  }
+  return true;
+}
+
+function showRestoredResult() {
+  document.getElementById('restore-banner').style.display = 'none';
+  displayResult();
+}
+
+function clearData() {
+  localStorage.removeItem('carAdvisorData');
+  document.getElementById('restore-banner').remove();
+  resetQuiz();
+}
+
+// ============ グラフ描画（Chart.js） ============
+function createCostChart(chartId, data, period) {
+  const ctx = document.getElementById(chartId).getContext('2d');
+
+  // 既存グラフを破棄
+  if (charts[chartId]) {
+    charts[chartId].destroy();
+  }
+
+  const best = scores.purchase >= scores.lease && scores.purchase >= scores.share ? 'purchase' :
+               scores.lease >= scores.share ? 'lease' : 'share';
+  const bestIndex = ['purchase', 'lease', 'share'].indexOf(best);
+
+  charts[chartId] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['購入', 'カーリース', 'カーシェア'],
+      datasets: [{
+        label: `${period}年総コスト（万円）`,
+        data: data,
+        backgroundColor: [
+          bestIndex === 0 ? '#16a34a' : '#dcfce7',
+          bestIndex === 1 ? '#16a34a' : '#dcfce7',
+          bestIndex === 2 ? '#16a34a' : '#dcfce7'
+        ],
+        borderColor: '#16a34a',
+        borderWidth: 2,
+        borderRadius: 8
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `¥${ctx.parsed.y.toLocaleString()}万円`
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: (v) => '¥' + v
+          }
+        }
+      }
+    }
+  });
+}
+
+function createMonthlyTrendChart(monthlyData) {
+  const ctx = document.getElementById('monthlyTrendChart').getContext('2d');
+
+  if (charts['monthlyTrendChart']) {
+    charts['monthlyTrendChart'].destroy();
+  }
+
+  const months = Array.from({length: 60}, (_, i) => i + 1);
+
+  charts['monthlyTrendChart'] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: months,
+      datasets: [
+        {
+          label: '購入',
+          data: monthlyData.purchase,
+          borderColor: '#16a34a',
+          tension: 0.3,
+          fill: false
+        },
+        {
+          label: 'リース',
+          data: monthlyData.lease,
+          borderColor: '#3b82f6',
+          tension: 0.3,
+          fill: false
+        },
+        {
+          label: 'シェア',
+          data: monthlyData.share,
+          borderColor: '#f59e0b',
+          tension: 0.3,
+          fill: false
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'top' },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.dataset.label}: ¥${ctx.parsed.y.toFixed(1)}万円/月`
+          }
+        }
+      },
+      scales: {
+        y: {
+          ticks: {
+            callback: (v) => '¥' + v.toFixed(1)
+          }
+        }
+      }
+    }
+  });
+}
+
+// ============ CSV エクスポート ============
+function exportToCSV() {
+  if (!currentResult) return;
+
+  const rows = [
+    ['マイカー購入vs維持費診断 - 診断結果レポート'],
+    ['診断日時', new Date().toLocaleString('ja-JP')],
+    [],
+    ['診断結果', currentResult.title],
+    ['アドバイス', currentResult.desc],
+    [],
+    ['入力情報'],
+    ['質問', '選択内容']
+  ];
+
+  questions.forEach(q => {
+    const idx = answers[q.id];
+    const selectedText = idx !== undefined ? q.options[idx].label : '未回答';
+    rows.push([q.text, selectedText]);
+  });
+
+  rows.push([]);
+  rows.push(['コスト比較（5年）', '金額（万円）']);
+  rows.push(['購入', currentResult.cost5.purchase]);
+  rows.push(['カーリース', currentResult.cost5.lease]);
+  rows.push(['カーシェア', currentResult.cost5.share]);
+
+  rows.push([]);
+  rows.push(['コスト比較（10年）', '金額（万円）']);
+  rows.push(['購入', currentResult.cost10.purchase]);
+  rows.push(['カーリース', currentResult.cost10.lease]);
+  rows.push(['カーシェア', currentResult.cost10.share]);
+
+  const csv = rows.map(row =>
+    row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+  ).join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', `car-diagnosis-${new Date().toISOString().split('T')[0]}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+function printResult() {
+  window.print();
+}
 
 function renderQuestion() {
   const q = questions[currentQ];
@@ -503,6 +739,24 @@ function calculateResult() {
       `タイムズカー・オリックス・エニカなどを比較し、自宅近くに24時間ステーションがあるサービスを選びましょう。`;
   }
 
+  // 結果データを保持
+  currentResult = {
+    icon: resultIcon,
+    title: resultTitle,
+    desc: resultDesc,
+    best: best,
+    cost5: {purchase: pur5, lease: lease5, share: share5},
+    cost10: {purchase: pur10, lease: lease10, share: share10},
+    monthlyData: {
+      purchase: Math.round(carPrice / 60 + annualRunCost / 120000),
+      lease: Math.round(leaseMonthly),
+      share: shareMonthly
+    }
+  };
+
+  // localStorage に保存
+  saveData();
+
   const resultMap = {
     purchase: {icon: resultIcon, title: resultTitle, desc: resultDesc},
     lease: {icon: resultIcon, title: resultTitle, desc: resultDesc},
@@ -524,14 +778,28 @@ function calculateResult() {
   document.getElementById('result-monthly').innerHTML =
     `<span style="display:inline-block;background:#dcfce7;color:#166534;border-radius:999px;padding:4px 16px;font-size:.82rem;font-weight:700;">💴 ${monthlyLabels[best]}</span>`;
 
-  // 5年コスト比較
+  // 5年・10年 Chart.js グラフ表示
+  createCostChart('cost5Chart', [pur5, lease5, share5], '5');
+  createCostChart('cost10Chart', [pur10, lease10, share10], '10');
+
+  // 月額推移グラフ
+  const monthlyPurchase = Array(60).fill(Math.round(carPrice / 60 + annualRunCost / 120000));
+  const monthlyLease = Array(60).fill(Math.round(leaseMonthly));
+  const monthlyShare = Array(60).fill(shareMonthly);
+  createMonthlyTrendChart({
+    purchase: monthlyPurchase,
+    lease: monthlyLease,
+    share: monthlyShare
+  });
+
+  // 5年コスト比較（数値表示用）
   renderCostGrid('cost5-grid', [
     {label:'購入', value:pur5, key:'purchase'},
     {label:'カーリース', value:lease5, key:'lease'},
     {label:'カーシェア', value:share5, key:'share'}
   ], best);
 
-  // 10年コスト比較
+  // 10年コスト比較（数値表示用）
   renderCostGrid('cost10-grid', [
     {label:'購入', value:pur10, key:'purchase'},
     {label:'カーリース', value:lease10, key:'lease'},
@@ -641,11 +909,62 @@ function calculateResult() {
 
   document.getElementById('next-steps-container').innerHTML = nextStepsHTML[best] || nextStepsHTML.purchase;
 
+  displayResult();
+  gtag('event', 'quiz_complete', {'event_category': 'car-purchase-advisor', 'event_label': best});
+}
+
+function displayResult() {
+  if (!currentResult) return;
+
+  const best = currentResult.best;
+
+  // すべてのチャート要素がDOMに存在することを確認
+  document.getElementById('result-icon').textContent = currentResult.icon;
+  document.getElementById('result-title').textContent = currentResult.title;
+  document.getElementById('result-desc').textContent = currentResult.desc;
+
+  const purchaseMonthly = currentResult.monthlyData.purchase;
+  const leaseMonthly = currentResult.monthlyData.lease;
+  const shareMonthly = currentResult.monthlyData.share;
+
+  const monthlyLabels = {
+    purchase: `ローン+維持費: 月額約¥${purchaseMonthly}万`,
+    lease: `月額約¥${leaseMonthly}万（税金・車検込み）`,
+    share: `月額約¥${shareMonthly}万程度`
+  };
+
+  document.getElementById('result-monthly').innerHTML =
+    `<span style="display:inline-block;background:#dcfce7;color:#166534;border-radius:999px;padding:4px 16px;font-size:.82rem;font-weight:700;">💴 ${monthlyLabels[best]}</span>`;
+
+  // Chart.js グラフ
+  createCostChart('cost5Chart', [currentResult.cost5.purchase, currentResult.cost5.lease, currentResult.cost5.share], '5');
+  createCostChart('cost10Chart', [currentResult.cost10.purchase, currentResult.cost10.lease, currentResult.cost10.share], '10');
+
+  const monthlyPurchase = Array(60).fill(purchaseMonthly);
+  const monthlyLease = Array(60).fill(leaseMonthly);
+  const monthlyShare = Array(60).fill(shareMonthly);
+  createMonthlyTrendChart({
+    purchase: monthlyPurchase,
+    lease: monthlyLease,
+    share: monthlyShare
+  });
+
+  // 数値表示
+  renderCostGrid('cost5-grid', [
+    {label:'購入', value: currentResult.cost5.purchase, key:'purchase'},
+    {label:'カーリース', value: currentResult.cost5.lease, key:'lease'},
+    {label:'カーシェア', value: currentResult.cost5.share, key:'share'}
+  ], best);
+
+  renderCostGrid('cost10-grid', [
+    {label:'購入', value: currentResult.cost10.purchase, key:'purchase'},
+    {label:'カーリース', value: currentResult.cost10.lease, key:'lease'},
+    {label:'カーシェア', value: currentResult.cost10.share, key:'share'}
+  ], best);
+
   document.getElementById('quiz-section').style.display = 'none';
   document.getElementById('result-section').style.display = 'block';
   window.scrollTo(0,0);
-
-  gtag('event', 'quiz_complete', {'event_category': 'car-purchase-advisor', 'event_label': best});
 }
 
 function renderCostGrid(gridId, items, best) {
@@ -679,7 +998,9 @@ function resetQuiz() {
 }
 
 // Init
-renderQuestion();
+if (!restoreSession()) {
+  renderQuestion();
+}
 </script>
 <div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px 0;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">入力された値を計算式やスコアリングロジックで処理し、あなたに合った結果を算出します。本ツールの結果はあくまで参考情報です。重要な判断の際は専門家にご相談ください。</p></div>
 <section style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 16px;margin-top:16px;">

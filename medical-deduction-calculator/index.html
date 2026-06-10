@@ -42,6 +42,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
+    <!-- Chart.js ビジュアライゼーション -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"AppADayCreator","url":"https://appadaycreator.com/","logo":"https://appadaycreator.com/logo.png","description":"毎日1つの無料Webサービスを開発・公開。累計399個のサービスを構築し、現在361件以上を公開・運用しています。","sameAs":["https://twitter.com/appadaycreator","https://tech-and-brace.com"],"contactPoint":{"@type":"ContactPoint","contactType":"Customer Support","url":"https://appadaycreator.com/contact.html"}}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://appadaycreator.com/"},{"@type":"ListItem","position":2,"name":"税金・控除関連ツール","item":"https://appadaycreator.com/"},{"@type":"ListItem","position":3,"name":"医療費控除計算ツール","item":"https://appadaycreator.com/medical-deduction-calculator/"}]}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"医療費控除計算ツール","description":"年間医療費・年収を入力して医療費控除額と税金の還付額を計算。確定申告の準備に。登録不要・完全無料でご利用いただけます。","url":"https://appadaycreator.com/medical-deduction-calculator/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"author":{"@type":"Organization","name":"AppADayCreator","url":"https://appadaycreator.com/"}}</script>
@@ -291,6 +293,32 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
                   <div class="bar-item">
                     <div class="bar-label">住民税還付</div>
                     <div class="bar-container"><div class="bar-fill" id="bar-resident-tax" style="width:0%"></div></div>
+                  </div>
+                </div>
+
+                <!-- Chart.js グラフセクション -->
+                <div id="charts-section" style="display:none;margin-top:20px;">
+                  <div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:16px;">📈 詳細ビジュアライズ</div>
+
+                  <!-- グラフグリッド -->
+                  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;">
+                    <!-- グラフ1: 医療費内訳（円グラフ） -->
+                    <div style="background:#f8fafc;border-radius:12px;padding:12px;border:1px solid #e2e8f0;">
+                      <div style="font-size:12px;font-weight:600;color:#374151;text-align:center;margin-bottom:10px;">医療費内訳</div>
+                      <canvas id="medical-composition-chart" style="max-height:200px;"></canvas>
+                    </div>
+
+                    <!-- グラフ2: 還付額内訳（棒グラフ） -->
+                    <div style="background:#f8fafc;border-radius:12px;padding:12px;border:1px solid #e2e8f0;">
+                      <div style="font-size:12px;font-weight:600;color:#374151;text-align:center;margin-bottom:10px;">還付額の内訳</div>
+                      <canvas id="refund-breakdown-chart" style="max-height:200px;"></canvas>
+                    </div>
+
+                    <!-- グラフ3: 還付効率スコアゲージ（ドーナッツ） -->
+                    <div style="background:#f8fafc;border-radius:12px;padding:12px;border:1px solid #e2e8f0;">
+                      <div style="font-size:12px;font-weight:600;color:#374151;text-align:center;margin-bottom:10px;">還付効率スコア</div>
+                      <canvas id="efficiency-gauge-chart" style="max-height:200px;"></canvas>
+                    </div>
                   </div>
                 </div>
 
@@ -586,6 +614,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     var scenarios = { 1: {}, 2: {}, 3: {} };
     var scenarioResults = { 1: null, 2: null, 3: null };
 
+    // Chart.js インスタンス管理（重複描画防止）
+    var chartInstances = {
+      medical: null,
+      refund: null,
+      efficiency: null
+    };
+
     // 計算履歴管理
     function getCalculationHistory() {
       var stored = localStorage.getItem('medicalDeductionHistory');
@@ -786,6 +821,115 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       residentBar.style.width = Math.min(residentPercent, 100) + '%';
       residentBar.className = 'bar-fill ' + getBarClass(residentTaxRefund);
       residentBar.textContent = residentTaxRefund > 0 ? '￥' + residentTaxRefund.toLocaleString() : '';
+    }
+
+    // Chart.js グラフ描画
+    function renderCharts(medical, insurance, deductible, incomeTaxRefund, residentTaxRefund) {
+      var chartsSection = document.getElementById('charts-section');
+      if (!chartsSection) return;
+      chartsSection.style.display = '';
+
+      var netMedical = medical - insurance;
+
+      // グラフ1: 医療費内訳（円グラフ）
+      var ctx1 = document.getElementById('medical-composition-chart');
+      if (ctx1) {
+        if (chartInstances.medical) chartInstances.medical.destroy();
+        var medicalNonDeductible = netMedical - deductible;
+        chartInstances.medical = new Chart(ctx1, {
+          type: 'pie',
+          data: {
+            labels: ['控除対象額', '控除対象外'],
+            datasets: [{
+              data: [deductible, Math.max(0, medicalNonDeductible)],
+              backgroundColor: ['#7c3aed', '#d1d5db'],
+              borderColor: ['#fff', '#fff'],
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10 } },
+              tooltip: { callbacks: { label: function(ctx) { return '￥' + parseInt(ctx.parsed).toLocaleString() + '円'; } } }
+            }
+          }
+        });
+      }
+
+      // グラフ2: 還付額内訳（横棒グラフ）
+      var ctx2 = document.getElementById('refund-breakdown-chart');
+      if (ctx2) {
+        if (chartInstances.refund) chartInstances.refund.destroy();
+        chartInstances.refund = new Chart(ctx2, {
+          type: 'bar',
+          data: {
+            labels: ['所得税', '住民税'],
+            datasets: [{
+              label: '還付額',
+              data: [incomeTaxRefund, residentTaxRefund],
+              backgroundColor: ['#3b82f6', '#10b981'],
+              borderRadius: 6,
+              borderWidth: 0
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              x: {
+                beginAtZero: true,
+                ticks: { callback: function(val) { return '￥' + parseInt(val).toLocaleString() + '円'; }, font: { size: 10 } },
+                grid: { drawBorder: false, color: '#e5e7eb' }
+              },
+              y: { grid: { display: false } }
+            }
+          }
+        });
+      }
+
+      // グラフ3: 還付効率スコアゲージ（ドーナッツ）
+      var ctx3 = document.getElementById('efficiency-gauge-chart');
+      if (ctx3) {
+        if (chartInstances.efficiency) chartInstances.efficiency.destroy();
+        var refundPercent = deductible > 0 ? Math.min(Math.round((incomeTaxRefund / deductible) * 100), 100) : 0;
+        chartInstances.efficiency = new Chart(ctx3, {
+          type: 'doughnut',
+          data: {
+            labels: ['還付効率', '未利用'],
+            datasets: [{
+              data: [refundPercent, 100 - refundPercent],
+              backgroundColor: ['#7c3aed', '#e5e7eb'],
+              borderColor: ['#fff', '#fff'],
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: { display: false },
+              tooltip: { enabled: false }
+            }
+          }
+        });
+
+        var centerText = document.createElement('div');
+        centerText.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;font-size:14px;font-weight:700;color:#7c3aed;pointer-events:none;';
+        centerText.innerHTML = refundPercent + '%';
+        var canvasParent = ctx3.parentElement;
+        if (canvasParent) {
+          var existing = canvasParent.querySelector('div[style*="position:absolute"]');
+          if (existing) existing.remove();
+          canvasParent.style.position = 'relative';
+          canvasParent.appendChild(centerText);
+        }
+      }
     }
 
     // 給与所得控除（国税庁 令和2年〜）
@@ -1019,6 +1163,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
       // ビジュアル化を表示
       renderVisualBars(incomeTaxRefund, residentTaxRefund);
+      renderCharts(medical, insurance, cappedDeductible, incomeTaxRefund, residentTaxRefund);
 
       var tbody = document.getElementById('breakdown-body');
       tbody.innerHTML = '';
@@ -1105,6 +1250,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
       // ビジュアル化を表示
       renderVisualBars(incomeTaxRefund, residentTaxRefund);
+      renderCharts(otcAmount, 0, deductible, incomeTaxRefund, residentTaxRefund);
 
       var tbody = document.getElementById('breakdown-body');
       tbody.innerHTML = '';

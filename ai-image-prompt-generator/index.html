@@ -183,7 +183,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </select>
 
           <label>被写体・メインテーマ</label>
-          <input type="text" id="subject" placeholder="例: a cat, samurai warrior, astronaut in space...">
+          <input type="text" id="subject" placeholder="例: cat, samurai, astronaut..." aria-describedby="subject-help">
+          <p id="subject-help" style="font-size:12px;color:#6b7280;margin-top:4px;margin-bottom:0;">💡 英語で入力するとAIの解釈精度が上がります</p>
 
           <label>雰囲気・ムード</label>
           <select id="mood">
@@ -247,6 +248,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div style="display:flex;gap:8px;margin-top:12px;">
               <button onclick="copyPrompt(this)" class="btn-secondary" style="flex:1;">📋 プロンプトをコピー</button>
               <button onclick="generate()" class="btn" style="flex:1;">🔄 再生成</button>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <button onclick="printPrompt()" class="btn-secondary" style="flex:1;">🖨️ 印刷</button>
+              <button onclick="exportPromptAsText()" class="btn-secondary" style="flex:1;">📄 エクスポート</button>
             </div>
             <div id="platform-hint" style="margin-top:12px;padding:12px;background:#0f0f2a;border-radius:8px;font-size:13px;color:#94a3b8;line-height:1.7;"></div>
 
@@ -539,6 +544,56 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         btn.textContent = '✅ コピーしました！';
         setTimeout(() => { btn.textContent = '📋 プロンプトをコピー'; }, 2000);
       });
+    }
+
+    // M10: 印刷機能
+    function printPrompt() {
+      const text = document.getElementById('prompt-output').value;
+      if (!text) return;
+      const printWindow = window.open('', '_blank');
+      const now = new Date().toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>AI画像プロンプト</title>
+          <style>
+            body { font-family: 'Noto Sans JP', sans-serif; max-width: 600px; margin: 40px auto; color: #333; line-height: 1.8; }
+            h1 { font-size: 20px; border-bottom: 2px solid #4f46e5; padding-bottom: 10px; margin-bottom: 20px; }
+            .prompt-box { background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 16px; margin: 20px 0; font-family: monospace; white-space: pre-wrap; word-break: break-word; }
+            .meta { font-size: 12px; color: #6b7280; margin-top: 20px; padding-top: 10px; border-top: 1px solid #e5e7eb; }
+            @media print { body { margin: 20px; } .meta { display: none; } }
+          </style>
+        </head>
+        <body>
+          <h1>🎨 AI画像プロンプト</h1>
+          <div class="prompt-box">${text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+          <div class="meta">生成日時: ${now}</div>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => { printWindow.print(); }, 250);
+    }
+
+    // M10: テキストエクスポート機能
+    function exportPromptAsText() {
+      const text = document.getElementById('prompt-output').value;
+      if (!text) return;
+      const now = new Date();
+      const timestamp = now.toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '_');
+      const filename = `prompt_${timestamp}.txt`;
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
 
     // ── localStorage 履歴管理 ──

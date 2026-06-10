@@ -72,7 +72,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
             .result-value { font-size: 28px; }
         }
         /* ── サービス固有CSS ── */
-        .quiz-opt { width:100%; padding:12px 14px; margin-bottom:8px; border:2px solid #e5e7eb; border-radius:10px; font-size:14px; cursor:pointer; background:#fff; text-align:left; transition:border-color .15s, background .15s; }
+        .quiz-opt { width:100%; padding:16px 14px; margin-bottom:8px; border:2px solid #e5e7eb; border-radius:10px; font-size:14px; cursor:pointer; background:#fff; text-align:left; transition:border-color .15s, background .15s; }
         .quiz-opt:hover { border-color:#7c3aed; background:#f5f3ff; }
         .quiz-opt:active { transform:scale(0.99); background:#ede9fe; }
         .quiz-opt:focus-visible { outline:3px solid #7c3aed; outline-offset:2px; }
@@ -154,11 +154,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
         <div class="result" id="result">
           <div class="card">
-            <!-- スコア表示 -->
+            <!-- スコア表示・ゲージ -->
             <div style="text-align:center;margin-bottom:16px;">
-              <div id="r-score-num" style="font-size:36px;font-weight:700;color:#7c3aed;"></div>
-              <div style="font-size:12px;color:#94a3b8;margin-bottom:6px;">（12点満点）</div>
-              <div class="score-bar-wrap"><div id="r-score-bar" class="score-bar-inner"></div></div>
+              <svg id="r-score-gauge" width="120" height="120" viewBox="0 0 120 120" style="margin:0 auto 12px;display:block;">
+                <circle cx="60" cy="60" r="55" fill="none" stroke="#e5e7eb" stroke-width="8"/>
+                <circle id="r-gauge-arc" cx="60" cy="60" r="55" fill="none" stroke="#7c3aed" stroke-width="8" stroke-linecap="round" style="transform:rotate(-90deg);transform-origin:50% 50%;transition:stroke .6s ease, stroke-dashoffset .6s ease;" stroke-dasharray="172.78 172.78"/>
+                <text id="r-gauge-text" x="60" y="65" text-anchor="middle" font-size="32" font-weight="700" fill="#7c3aed">0</text>
+              </svg>
+              <div id="r-score-num" style="font-size:18px;font-weight:700;color:#7c3aed;margin-bottom:4px;"></div>
+              <div style="font-size:12px;color:#94a3b8;">（12点満点）</div>
             </div>
             <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;color:#7c3aed;"></h3>
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
@@ -166,6 +170,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div id="r-issues" class="issues-box" style="display:none;">
               <h4>⚠️ 要確認・改善項目</h4>
               <ul id="r-issues-list"></ul>
+            </div>
+            <!-- 過去の診断履歴 -->
+            <div id="r-history" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;margin:12px 0;display:none;">
+              <h4 style="font-size:14px;font-weight:700;color:#1f2937;margin-bottom:8px;">📊 過去の診断履歴</h4>
+              <div id="r-history-list" style="display:flex;flex-direction:column;gap:6px;"></div>
             </div>
             <!-- 結果シェア・印刷 -->
             <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
@@ -425,13 +434,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('quiz-area').style.display = 'none';
       const r = getResult(ans);
 
-      // スコアバー
-      document.getElementById('r-score-num').textContent = r.score + ' 点';
+      // スコアゲージ＆バー
+      document.getElementById('r-score-num').textContent = r.score + '点 / 12点満点';
       const pct = Math.round(r.score / r.max * 100);
-      const barColor = r.score >= 10 ? '#10b981' : r.score >= 7 ? '#f59e0b' : r.score >= 4 ? '#f97316' : '#ef4444';
-      const bar = document.getElementById('r-score-bar');
-      bar.style.background = barColor;
-      setTimeout(() => { bar.style.width = pct + '%'; }, 80);
+      const gaugeColor = r.score >= 10 ? '#10b981' : r.score >= 7 ? '#f59e0b' : r.score >= 4 ? '#f97316' : '#ef4444';
+
+      // SVGゲージアニメーション
+      const gaugeArc = document.getElementById('r-gauge-arc');
+      const gaugeText = document.getElementById('r-gauge-text');
+      gaugeArc.style.stroke = gaugeColor;
+      gaugeText.textContent = r.score;
+      gaugeText.style.fill = gaugeColor;
+      const circumference = 2 * Math.PI * 55;
+      const offset = circumference - (pct / 100) * circumference;
+      setTimeout(() => { gaugeArc.style.strokeDashoffset = offset; }, 80);
 
       // タイトル・説明
       document.getElementById('r-title').textContent = r.title;
@@ -458,6 +474,86 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
       document.getElementById('result').classList.add('show');
       setTimeout(() => document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+
+      // localStorage に診断結果を保存
+      saveToHistory(r);
+      // 過去の履歴を表示
+      displayHistory();
+    }
+
+    function saveToHistory(result) {
+      const history = JSON.parse(localStorage.getItem('contractCheckHistory') || '[]');
+      const entry = {
+        date: new Date().toLocaleString('ja-JP'),
+        score: result.score,
+        max: result.max,
+        title: result.title,
+        answers: ans.map(a => a.idx)
+      };
+      history.unshift(entry);
+      // 最新5件までに制限
+      if (history.length > 5) history.pop();
+      localStorage.setItem('contractCheckHistory', JSON.stringify(history));
+    }
+
+    function displayHistory() {
+      const history = JSON.parse(localStorage.getItem('contractCheckHistory') || '[]');
+      const historyBox = document.getElementById('r-history');
+      const historyList = document.getElementById('r-history-list');
+
+      if (history.length > 1) {
+        // 現在の結果を除く過去の履歴を表示
+        const pastHistory = history.slice(1);
+        historyBox.style.display = 'block';
+        historyList.innerHTML = pastHistory.map((h, i) => {
+          const dateStr = h.date.split(' ')[0];
+          return `<button onclick="replayHistory(${i})" style="text-align:left;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:13px;color:#374151;transition:all .2s;display:flex;justify-content:space-between;align-items:center;" onmouseover="this.style.background='#f8fafc';this.style.borderColor='#7c3aed'" onmouseout="this.style.background='#fff';this.style.borderColor='#e2e8f0'">
+            <span>${dateStr} <strong>${h.score}/${h.max}点</strong></span>
+            <span style="font-size:11px;color:#999;">→</span>
+          </button>`;
+        }).join('');
+      } else {
+        historyBox.style.display = 'none';
+      }
+    }
+
+    function replayHistory(idx) {
+      const history = JSON.parse(localStorage.getItem('contractCheckHistory') || '[]');
+      if (idx >= 0 && idx < history.length - 1) {
+        const h = history[idx + 1];
+        ans = h.answers.map(i => ({ idx: i }));
+        const r = getResult(ans);
+        document.getElementById('quiz-area').style.display = 'none';
+        showResultDetails(r);
+      }
+    }
+
+    function showResultDetails(r) {
+      const pct = Math.round(r.score / r.max * 100);
+      const gaugeColor = r.score >= 10 ? '#10b981' : r.score >= 7 ? '#f59e0b' : r.score >= 4 ? '#f97316' : '#ef4444';
+      const gaugeArc = document.getElementById('r-gauge-arc');
+      const gaugeText = document.getElementById('r-gauge-text');
+      gaugeArc.style.stroke = gaugeColor;
+      gaugeText.textContent = r.score;
+      gaugeText.style.fill = gaugeColor;
+      const circumference = 2 * Math.PI * 55;
+      const offset = circumference - (pct / 100) * circumference;
+      gaugeArc.style.strokeDashoffset = offset;
+
+      document.getElementById('r-score-num').textContent = r.score + '点 / 12点満点';
+      document.getElementById('r-title').textContent = r.title;
+      document.getElementById('r-desc').textContent = r.desc;
+      const issues = [];
+      ans.forEach((a, i) => { if (a.idx > 0) issues.push(QUESTIONS[i].advice[a.idx - 1]); });
+      const issuesBox = document.getElementById('r-issues');
+      if (issues.length > 0) {
+        issuesBox.style.display = 'block';
+        document.getElementById('r-issues-list').innerHTML = issues.map(t => `<li>${t}</li>`).join('');
+      } else {
+        issuesBox.style.display = 'none';
+      }
+      document.getElementById('result').classList.add('show');
+      displayHistory();
     }
     </script>
     <!-- rakuten-affiliate-block -->

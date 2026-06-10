@@ -34,6 +34,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔢</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
@@ -190,7 +191,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </div>
           <div id="number-display">準備中...</div>
           <div id="input-area" style="display:none;">
-            <input type="number" id="answer-input" placeholder="覚えた数字を入力" autocomplete="off">
+            <label for="answer-input" style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;">💡 覚えた数字を入力してください</label>
+            <input type="text" id="answer-input" placeholder="0〜9の数字のみを入力" autocomplete="off" title="覚えた数字を全て入力してください。スペースは入れず、数字のみを入力します。" aria-describedby="answer-help">
+            <div id="answer-help" style="font-size:11px;color:#999;margin-top:4px;">💬 全ての数字を順番通りに入力する必要があります</div>
             <button class="btn" style="margin-top:12px;" onclick="checkAnswer()">答える</button>
             <div id="feedback-msg"></div>
           </div>
@@ -203,8 +206,29 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <p id="final-msg" style="color:#666;font-size:14px;margin-top:8px;"></p>
             <!-- 横展開#13: ランキング -->
             <div id="nm-ranking-display" style="margin-top:12px;font-size:.85rem;background:#f5f3ff;border-radius:10px;padding:.6rem .8rem;text-align:left;color:#374151;"></div>
-            <button class="btn" style="margin-top:14px;background:#1d9bf0;" onclick="shareNmResult()">🐦 Xでスコアをシェア</button>
-            <button class="btn" style="margin-top:12px;" onclick="startGame()">🔄 もう一度プレイ</button>
+            <!-- M4: スコア統計パネル -->
+            <div id="nm-stats-panel" style="margin-top:14px;font-size:.85rem;background:#eef2ff;border-radius:10px;padding:.8rem;text-align:center;color:#374151;display:none;">
+              <div style="font-weight:700;margin-bottom:6px;">📊 統計情報</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:.78rem;">
+                <div>平均スコア: <span id="nm-avg-score" style="font-weight:700;">-</span></div>
+                <div>最高スコア: <span id="nm-max-score" style="font-weight:700;">-</span></div>
+                <div>平均レベル: <span id="nm-avg-level" style="font-weight:700;">-</span></div>
+                <div>総プレイ数: <span id="nm-play-count" style="font-weight:700;">-</span></div>
+              </div>
+            </div>
+            <!-- M4: スコア推移グラフ -->
+            <div id="nm-chart-container" style="margin-top:14px;display:none;background:#f8fafc;border-radius:10px;padding:12px;border:1px solid #e2e8f0;">
+              <div style="font-size:.85rem;font-weight:700;color:#374151;margin-bottom:8px;">📈 スコア推移</div>
+              <canvas id="nm-chart" style="max-height:200px;"></canvas>
+            </div>
+            <!-- M10: エクスポート・印刷ボタン -->
+            <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px;">
+              <button class="btn" style="margin-top:0;background:#1d9bf0;" onclick="shareNmResult()">🐦 Xでスコアをシェア</button>
+              <button class="btn" style="margin-top:0;background:#10b981;" onclick="copyNmResult()">📋 結果をコピー</button>
+              <button class="btn" style="margin-top:0;background:#f59e0b;" onclick="printNmResult()">🖨️ 印刷する</button>
+              <button class="btn" style="margin-top:0;background:#6366f1;" onclick="exportNmRankingCsv()">📥 ランキングをCSV出力</button>
+              <button class="btn" style="margin-top:0;" onclick="startGame()">🔄 もう一度プレイ</button>
+            </div>
           </div>
         </div>
 
@@ -447,6 +471,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function checkAnswer() {
       const userInput = document.getElementById('answer-input').value.trim();
       if (userInput === '') { alert('数字を入力してください'); return; }
+      // テキスト入力なので、数字のみの検証
+      if (!/^\d+$/.test(userInput)) { alert('数字のみを入力してください（0〜9）'); return; }
       if (userInput === currentNumber) {
         onCorrect();
       } else {
@@ -491,12 +517,23 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       renderNmRanking();
     }
 
-    // 横展開#13: ランキング機能
+    // 横展開#13: ランキング機能 + M4, M10 拡張
     function saveNmRanking(sc) {
       const list = JSON.parse(localStorage.getItem('nm_ranking') || '[]');
-      list.push({ score: sc, lv: level, date: new Date().toLocaleDateString('ja-JP') });
+      const now = new Date();
+      list.push({
+        score: sc,
+        lv: level,
+        date: now.toLocaleDateString('ja-JP'),
+        time: now.toLocaleTimeString('ja-JP'),
+        timestamp: now.getTime()
+      });
       list.sort((a, b) => b.score - a.score);
       localStorage.setItem('nm_ranking', JSON.stringify(list.slice(0, 5)));
+      // M4: 全履歴を別途保存（統計用）
+      const history = JSON.parse(localStorage.getItem('nm_history') || '[]');
+      history.push({ score: sc, lv: level, timestamp: now.getTime() });
+      localStorage.setItem('nm_history', JSON.stringify(history.slice(-20))); // 最新20件保持
     }
     function renderNmRanking() {
       const el = document.getElementById('nm-ranking-display');
@@ -507,6 +544,87 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       el.innerHTML = '<div style="font-weight:700;margin-bottom:4px;">🏆 ランキング Top5</div>'
         + list.map((r, i) => `<div style="display:flex;justify-content:space-between;padding:1px 0;">`
           + `<span>${medals[i]} ${r.score}点</span><span style="opacity:.6;font-size:.8em;">Lv${r.lv} / ${r.date}</span></div>`).join('');
+      // M4: 統計パネルを表示
+      renderNmStats();
+      renderNmChart();
+    }
+    // M4: 統計情報の計算・表示
+    function renderNmStats() {
+      const history = JSON.parse(localStorage.getItem('nm_history') || '[]');
+      if (history.length === 0) return;
+      const statsPanel = document.getElementById('nm-stats-panel');
+      if (!statsPanel) return;
+      const avgScore = Math.round(history.reduce((sum, r) => sum + r.score, 0) / history.length);
+      const maxScore = Math.max(...history.map(r => r.score));
+      const avgLevel = (history.reduce((sum, r) => sum + r.lv, 0) / history.length).toFixed(1);
+      document.getElementById('nm-avg-score').textContent = avgScore;
+      document.getElementById('nm-max-score').textContent = maxScore;
+      document.getElementById('nm-avg-level').textContent = avgLevel;
+      document.getElementById('nm-play-count').textContent = history.length;
+      statsPanel.style.display = 'block';
+    }
+    // M4: スコア推移グラフ（Chart.js）
+    let nmChartInstance = null;
+    function renderNmChart() {
+      const history = JSON.parse(localStorage.getItem('nm_history') || '[]');
+      if (history.length < 2) return; // グラフは最低2データ必要
+      const container = document.getElementById('nm-chart-container');
+      const canvas = document.getElementById('nm-chart');
+      if (!container || !canvas) return;
+      container.style.display = 'block';
+      // 最新5件のみ表示
+      const recent = history.slice(-5);
+      const ctx = canvas.getContext('2d');
+      if (nmChartInstance) nmChartInstance.destroy();
+      nmChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: recent.map((_, i) => (recent.length - 5 + i + 1) + '回目'),
+          datasets: [{
+            label: 'スコア',
+            data: recent.map(r => r.score),
+            borderColor: '#7C3AED',
+            backgroundColor: '#F3E8FF',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.3,
+            pointRadius: 4,
+            pointBackgroundColor: '#7C3AED'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: true, max: Math.max(...recent.map(r => r.score)) + 2 }
+          }
+        }
+      });
+    }
+    // M10: 結果をコピー
+    function copyNmResult() {
+      const score = document.getElementById('final-score')?.textContent || '0点';
+      const text = `【数字記憶ゲーム】\n${score}\n到達レベル: Lv${level}\n記憶力を鍛えよう！\n${window.location.href}`;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('結果をクリップボードにコピーしました！');
+      }).catch(() => alert('コピーに失敗しました'));
+    }
+    // M10: 結果を印刷
+    function printNmResult() {
+      window.print();
+    }
+    // M10: ランキングをCSV出力
+    function exportNmRankingCsv() {
+      const list = JSON.parse(localStorage.getItem('nm_ranking') || '[]');
+      if (!list.length) { alert('ランキングデータがありません'); return; }
+      const csv = 'スコア,到達レベル,プレイ日時\n' +
+        list.map(r => `${r.score},Lv${r.lv},"${r.date} ${r.time || ''}"`).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = '数字記憶ゲーム_ランキング.csv';
+      link.click();
     }
     function shareNmResult() {
       const sc = document.getElementById('final-score')?.textContent || '0点';

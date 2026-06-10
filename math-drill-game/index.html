@@ -28,6 +28,7 @@
   <!-- Google AdSense -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
   <script>
     window.onerror = function(msg, src, line, col, err) {
       console.error('Global error:', msg, src, line, col, err);
@@ -67,6 +68,7 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
   body{background:#fff!important;color:#000!important;font-size:12pt}
   [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
   a[href]::after{content:none!important}
+  canvas{display:none!important}
 }
 
 .card{background:#fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.08);overflow:hidden;}
@@ -276,17 +278,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       </div>
       <div id="newHSMsg" class="hidden text-center font-bold text-yellow-200 text-lg mb-3 animate-bounce">🎉 新記録達成！</div>
 
-      <!-- Chart -->
+      <!-- Chart.js M4実装 -->
       <div class="bg-white/10 rounded-xl p-3 mb-4">
-        <h3 class="text-sm font-bold mb-2 text-center">正答率グラフ</h3>
-        <div class="flex items-end justify-center gap-2 h-24">
-          <div class="flex flex-col items-center">
-            <div id="chart-correct-bar" class="bg-green-400 rounded-t w-12 transition-all duration-1000" style="height:0%"></div>
-            <div class="text-xs mt-1">正解</div>
+        <h3 class="text-sm font-bold mb-2 text-center">📊 結果の詳細</h3>
+        <div style="position:relative;height:200px;margin-bottom:12px;">
+          <canvas id="resultChart"></canvas>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div class="bg-white/10 rounded p-2 text-center">
+            <div class="font-bold text-green-200">正解</div>
+            <div id="chart-stat-correct" class="text-lg">0</div>
           </div>
-          <div class="flex flex-col items-center">
-            <div id="chart-wrong-bar" class="bg-red-400 rounded-t w-12 transition-all duration-1000" style="height:0%"></div>
-            <div class="text-xs mt-1">不正解</div>
+          <div class="bg-white/10 rounded p-2 text-center">
+            <div class="font-bold text-red-200">不正解</div>
+            <div id="chart-stat-wrong" class="text-lg">0</div>
           </div>
         </div>
       </div>
@@ -297,6 +302,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <!-- M4横展開: 結果画面にXシェアボタン追加 -->
       <button onclick="shareMathResult()" class="w-full bg-sky-400 hover:bg-sky-500 text-white font-bold py-2 rounded-xl transition mb-2">🐦 Xでスコアをシェア</button>
       <button onclick="shareChallengeMathResult()" class="w-full text-white font-bold py-2 rounded-xl transition mb-2" style="background:#f97316;" title="このスコアを超えろ！">🏆 チャレンジシェア（超えろ！）</button>
+
+      <!-- M10実装: 印刷・エクスポート機能 -->
+      <div class="grid grid-cols-3 gap-2 mb-2">
+        <button onclick="printResult()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded-xl transition text-sm">🖨️ 印刷</button>
+        <button onclick="exportCSV()" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 rounded-xl transition text-sm">📥 CSV</button>
+        <button onclick="copyResultToClipboard()" class="bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 rounded-xl transition text-sm">📋 コピー</button>
+      </div>
+
       <button onclick="restartGame()" class="w-full bg-white text-orange-600 font-bold py-3 rounded-xl text-lg hover:bg-orange-50 transition mb-2">🔄 もう一度</button>
       <button onclick="showStart()" class="w-full bg-white/20 font-bold py-3 rounded-xl hover:bg-white/30 transition">⚙️ 設定に戻る</button>
     </div>
@@ -600,13 +613,78 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       else { document.getElementById('newHSMsg').classList.add('hidden'); }
       saveMdrRanking(score, acc);
       renderMdrRanking();
-      // Chart
+      // M4: Chart.js rendering
       setTimeout(() => {
-        const maxH = Math.max(correct,wrong,1);
-        document.getElementById('chart-correct-bar').style.height = (correct/maxH*80)+'px';
-        document.getElementById('chart-wrong-bar').style.height = (wrong/maxH*80)+'px';
+        renderResultChart();
+        document.getElementById('chart-stat-correct').textContent = correct;
+        document.getElementById('chart-stat-wrong').textContent = wrong;
       }, 100);
       loadHighScores();
+    }
+
+    // M4: Chart.js chart rendering
+    let resultChartInstance = null;
+    function renderResultChart() {
+      const ctx = document.getElementById('resultChart');
+      if (!ctx) return;
+
+      if (resultChartInstance) {
+        resultChartInstance.destroy();
+      }
+
+      const total = correct + wrong;
+      const data = {
+        labels: ['正解', '不正解'],
+        datasets: [
+          {
+            label: '問題数',
+            data: [correct, wrong],
+            backgroundColor: ['#4ade80', '#f87171'],
+            borderColor: ['#22c55e', '#ef4444'],
+            borderWidth: 2
+          }
+        ]
+      };
+
+      const options = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            labels: {
+              color: '#fff',
+              font: { size: 12 }
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            max: Math.max(correct, wrong) + 2,
+            ticks: {
+              color: '#fff',
+              stepSize: 1
+            },
+            grid: {
+              color: 'rgba(255,255,255,0.1)'
+            }
+          },
+          x: {
+            ticks: {
+              color: '#fff'
+            },
+            grid: {
+              color: 'rgba(255,255,255,0.1)'
+            }
+          }
+        }
+      };
+
+      resultChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: data,
+        options: options
+      });
     }
 
     function loadHighScores() {
@@ -679,6 +757,120 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         const text = encodeURIComponent(`【マスドリル】${lvName}でスコア${sc}！超えられる？ 🧮 #マスドリル #算数ゲーム`);
         const url = encodeURIComponent('https://appadaycreator.com/math-drill-game/');
         window.open('https://twitter.com/intent/tweet?text=' + text + '&url=' + url, '_blank');
+    }
+
+    // M10: 印刷機能
+    function printResult() {
+      const printContent = `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>マスドリル - 結果</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 20px auto; }
+    h1 { text-align: center; color: #333; }
+    .result-card { border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin: 10px 0; }
+    .stat-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+    .stat-label { font-weight: bold; }
+    .stat-value { text-align: right; }
+  </style>
+</head>
+<body>
+  <h1>🧮 マスドリル - 結果レポート</h1>
+  <div class="result-card">
+    <div class="stat-row">
+      <span class="stat-label">難易度</span>
+      <span class="stat-value">${level === 'elem' ? '小学生' : level === 'mid' ? '中学生' : '高校生'}</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">モード</span>
+      <span class="stat-value">${mode === 'time' ? 'タイムアタック' : 'じっくりモード'}</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">スコア</span>
+      <span class="stat-value">${document.getElementById('r-score')?.textContent || '0点'}</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">正解数</span>
+      <span class="stat-value">${correct}問</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">不正解数</span>
+      <span class="stat-value">${wrong}問</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">正答率</span>
+      <span class="stat-value">${document.getElementById('r-accuracy')?.textContent || '0%'}</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">最大ストリーク</span>
+      <span class="stat-value">${maxStreak}連続</span>
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">日時</span>
+      <span class="stat-value">${new Date().toLocaleString('ja-JP')}</span>
+    </div>
+  </div>
+  <p style="text-align: center; color: #999; font-size: 12px; margin-top: 30px;">
+    マスドリル - https://appadaycreator.com/math-drill-game/
+  </p>
+</body>
+</html>
+      `;
+      const printWindow = window.open('', '', 'width=800,height=600');
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      setTimeout(() => { printWindow.print(); }, 250);
+    }
+
+    // M10: CSV エクスポート機能
+    function exportCSV() {
+      const lvNames = {elem:'小学生', mid:'中学生', high:'高校生'};
+      const modeNames = {time:'タイムアタック', relax:'じっくりモード'};
+      const now = new Date();
+      const timestamp = now.toLocaleString('ja-JP');
+
+      const csvContent = [
+        ['マスドリル - 結果エクスポート'],
+        [''],
+        ['難易度', lvNames[level] || level],
+        ['モード', modeNames[mode] || mode],
+        ['スコア', document.getElementById('r-score')?.textContent || '0点'],
+        ['正解数', correct + '問'],
+        ['不正解数', wrong + '問'],
+        ['正答率', document.getElementById('r-accuracy')?.textContent || '0%'],
+        ['最大ストリーク', maxStreak + '連続'],
+        ['日時', timestamp],
+        ['']
+      ].map(row => row.join(',')).join('\n');
+
+      const blob = new Blob(['﻿' + csvContent], {type: 'text/csv;charset=utf-8;'});
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `マスドリル_結果_${now.toISOString().slice(0,10)}.csv`);
+      link.click();
+    }
+
+    // M10: クリップボードコピー機能
+    function copyResultToClipboard() {
+      const lvNames = {elem:'小学生', mid:'中学生', high:'高校生'};
+      const modeNames = {time:'タイムアタック', relax:'じっくりモード'};
+      const resultText = `【マスドリル - 結果】\n難易度: ${lvNames[level]}\nモード: ${modeNames[mode]}\nスコア: ${document.getElementById('r-score')?.textContent || '0点'}\n正解数: ${correct}問\n不正解数: ${wrong}問\n正答率: ${document.getElementById('r-accuracy')?.textContent || '0%'}\n最大ストリーク: ${maxStreak}連続\n\nhttps://appadaycreator.com/math-drill-game/`;
+
+      navigator.clipboard.writeText(resultText).then(() => {
+        alert('結果をコピーしました！SNSやメールに貼り付けられます。');
+      }).catch(() => {
+        // Fallback for older browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = resultText;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        alert('結果をコピーしました！');
+      });
     }
 
     // Init

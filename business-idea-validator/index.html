@@ -33,6 +33,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -178,6 +179,17 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <button class="btn" style="flex:0 0 auto;background:#999;padding:14px 16px;" title="フォームをリセット" onclick="resetForm()" aria-label="リセットボタン">🔄</button>
             <button class="btn" style="flex:0 0 auto;background:#7c3aed;padding:14px 16px;" title="現在の入力を含む共有URLをコピー" onclick="generateShareURL()" aria-label="共有URLを生成するボタン">🔗</button>
           </div>
+        </div>
+
+        <div class="card" style="background:#f9f5ff;border-left:4px solid #a855f7;">
+          <h2 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#6b21a8;">🎯 目標設定・トラッキング</h2>
+          <p style="font-size:12px;color:#666;margin-bottom:12px;">目標スコアを設定して、診断ごとの進捗を追跡できます。</p>
+          <div style="display:flex;gap:8px;margin-bottom:12px;">
+            <input type="number" id="goalScore" placeholder="目標スコア（例: 75）" min="0" max="100" style="flex:1;" value="">
+            <button class="btn" style="flex:0 0 auto;background:#a855f7;padding:10px 16px;font-size:13px;" onclick="setGoal()" aria-label="目標を設定">目標設定</button>
+            <button class="btn" style="flex:0 0 auto;background:#e879f9;padding:10px 16px;font-size:13px;" onclick="clearGoal()" aria-label="目標をクリア">クリア</button>
+          </div>
+          <div id="goal-display" style="padding:8px 12px;background:white;border-radius:8px;border:1px solid #e9d5ff;font-size:12px;color:#666;"></div>
         </div>
         <div class="result" id="result" style="margin-top:16px;">
           <div class="card">
@@ -475,6 +487,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if(diff<2592000)return`${Math.floor(diff/86400)}日前`;
       return'1ヶ月前以上';
     }
+    let radarChart=null;
     function buildOutput(inputs){
       const total=inputs.vals.reduce((s,v)=>s+v,0);
       const max=15;
@@ -492,7 +505,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const recommendedServiceHtml=`<div style="background:#f0f9ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px;margin:20px 0;"><p style="font-size:13px;color:#1e40af;font-weight:600;margin:0 0 12px;">📌 診断結果に応じたおすすめサービス</p><a href="${grade.serviceUrl}" onclick="if(window.gtag)gtag('event','service_recommendation_click',{service:'${grade.recommendedService}',grade:'${grade.label.split('：')[0]}',score:${pct}})" style="display:inline-block;background:#059669;color:white;padding:12px 24px;border-radius:10px;font-weight:600;text-decoration:none;font-size:13px;">【${grade.recommendedService}】を試す →</a><p style="font-size:12px;color:#3b82f6;margin:12px 0 0;">あなたの診断結果に基づいた、次のステップをサポートするツールです</p></div>`;
       const shareText=encodeURIComponent(getShareText());const shareUrl=encodeURIComponent(window.location.href.split('?')[0]);
       const socialShare=`<div style="background:#f5f3ff;border:1px solid #e9d5ff;border-radius:10px;padding:12px;margin:16px 0;text-align:center;"><p style="font-size:11px;color:#6b7280;margin:0 0 8px;">この診断結果をシェア</p><div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;"><a href="https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}" target="_blank" rel="noopener" onclick="if(window.gtag)gtag('event','share_result',{service:'twitter',grade:'${grade.label.split('：')[0]}',score:${pct}})" style="background:#1DA1F2;color:white;padding:6px 12px;border-radius:6px;font-size:11px;text-decoration:none;font-weight:600;">𝕏</a><a href="https://line.me/R/msg/text/?${shareText}%0A${shareUrl}" target="_blank" rel="noopener" onclick="if(window.gtag)gtag('event','share_result',{service:'line',grade:'${grade.label.split('：')[0]}',score:${pct}})" style="background:#00B900;color:white;padding:6px 12px;border-radius:6px;font-size:11px;text-decoration:none;font-weight:600;">LINE</a></div></div>`;
-      return `<div class="${grade.class}"><div style="text-align:center;margin-bottom:20px;"><div style="font-size:2rem;font-weight:700;color:${grade.color};">${pct}点</div><div style="font-size:1rem;font-weight:600;color:${grade.color};margin-top:4px;">${grade.label}</div></div><div style="background:#f8fafc;padding:12px;border-radius:8px;margin-bottom:16px;"><p style="font-size:12px;color:#666;font-weight:500;">【各軸の評価】</p></div>${bars}<div style="border-top:1px solid #e5e7eb;padding-top:16px;margin-top:16px;"><p style="font-size:13px;color:#444;line-height:1.7;">${grade.msg}</p></div><div style="background:#f0fdf4;border-left:4px solid #16a34a;border-radius:8px;padding:16px;margin:20px 0;">${grade.detailedAdvice}</div>${socialShare}${recommendedServiceHtml}</div>`;
+      const goalData=JSON.parse(localStorage.getItem(STORAGE_PREFIX+'goal')||'null');
+      const goalHtml=goalData?`<div style="background:#fff9e6;border:1px solid #fcd34d;border-radius:10px;padding:12px;margin:16px 0;"><p style="font-size:12px;color:#92400e;font-weight:600;margin:0 0 6px;">🎯 目標達成状況</p><div style="display:flex;align-items:center;justify-content:space-between;"><span style="font-size:12px;color:#666;">目標: ${goalData.score}点</span><span style="font-size:14px;font-weight:700;color:#${pct>=goalData.score?'22c55e':'f59e0b'}">${pct}/${goalData.score}点 ${pct>=goalData.score?'✅ 達成！':'進捗中'}</span></div><div style="height:8px;background:#e5e7eb;border-radius:4px;margin:8px 0;overflow:hidden;"><div style="height:100%;background:#${pct>=goalData.score?'22c55e':'f59e0b'};width:${Math.min(100,Math.round(pct/goalData.score*100))}%;transition:width 0.3s;"></div></div></div>`:'';
+      const chartHtml=`<div style="margin:16px 0;padding:16px;background:#f8fafc;border-radius:10px;border:1px solid #e5e7eb;"><p style="font-size:12px;color:#666;font-weight:500;margin-bottom:12px;">📊 5軸スコア分析</p><canvas id="radar-chart" height="300" width="400" style="max-width:100%;"></canvas></div>`;
+      return `<div class="${grade.class}"><div style="text-align:center;margin-bottom:20px;"><div style="font-size:2rem;font-weight:700;color:${grade.color};">${pct}点</div><div style="font-size:1rem;font-weight:600;color:${grade.color};margin-top:4px;">${grade.label}</div></div>${goalHtml}<div style="background:#f8fafc;padding:12px;border-radius:8px;margin-bottom:16px;"><p style="font-size:12px;color:#666;font-weight:500;">【各軸の評価】</p></div>${bars}${chartHtml}<div style="border-top:1px solid #e5e7eb;padding-top:16px;margin-top:16px;"><p style="font-size:13px;color:#444;line-height:1.7;">${grade.msg}</p></div><div style="background:#f0fdf4;border-left:4px solid #16a34a;border-radius:8px;padding:16px;margin:20px 0;">${grade.detailedAdvice}</div>${socialShare}${recommendedServiceHtml}</div>`;
     }
     function updateLabelColor(selectId){
       const val=document.getElementById(selectId).value;
@@ -616,6 +632,31 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const text=`【ビジネスアイデア検証ツール結果】\n\nアイデア: ${currentResult.idea}\n\nスコア: ${currentResult.score}点\nグレード: ${currentResult.grade}\n\n各軸スコア:\n${AXES.map((a,i)=>`${a.label}: ${currentResult.vals[i]}/3`).join('\n')}\n\n詳細は https://appadaycreator.com/business-idea-validator/ で確認`;
       navigator.clipboard.writeText(text).then(()=>{showToast('📋 結果をコピーしました！');}).catch(()=>{alert('コピーに失敗しました');});
     }
+    function setGoal(){
+      const score=parseInt(document.getElementById('goalScore').value);
+      if(isNaN(score)||score<0||score>100){alert('0〜100の数字を入力してください');return;}
+      const goal={score:score,setDate:Date.now()};
+      localStorage.setItem(STORAGE_PREFIX+'goal',JSON.stringify(goal));
+      updateGoalDisplay();
+      showToast(`🎯 目標を${score}点に設定しました`);
+    }
+    function clearGoal(){
+      localStorage.removeItem(STORAGE_PREFIX+'goal');
+      document.getElementById('goalScore').value='';
+      updateGoalDisplay();
+      showToast('🗑 目標をクリアしました');
+    }
+    function updateGoalDisplay(){
+      const goalData=JSON.parse(localStorage.getItem(STORAGE_PREFIX+'goal')||'null');
+      const goalDisplay=document.getElementById('goal-display');
+      if(goalData){
+        goalDisplay.innerHTML=`<strong>目標スコア: ${goalData.score}点</strong><br><span style="font-size:11px;">目標に向かって頑張りましょう！</span>`;
+        document.getElementById('goalScore').value=goalData.score;
+      }else{
+        goalDisplay.innerHTML='<em>目標が未設定です</em>';
+        document.getElementById('goalScore').value='';
+      }
+    }
     document.addEventListener('DOMContentLoaded',()=>{
       loadState();
       ['idea','market','competition','skill','revenue','uniqueness'].forEach(id=>{
@@ -627,11 +668,45 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         }
       });
       updateHistoryDisplay();
+      updateGoalDisplay();
     });
+    function renderRadarChart(inputs){
+      setTimeout(()=>{
+        const ctx=document.getElementById('radar-chart');
+        if(!ctx)return;
+        if(radarChart){radarChart.destroy();}
+        radarChart=new Chart(ctx,{
+          type:'radar',
+          data:{
+            labels:AXES.map(a=>a.label),
+            datasets:[{
+              label:'現在のスコア',
+              data:inputs.vals,
+              borderColor:'#4338CA',
+              backgroundColor:'#4338CA33',
+              borderWidth:2,
+              pointRadius:5,
+              pointBackgroundColor:'#4338CA',
+              pointBorderColor:'#fff',
+              pointBorderWidth:2
+            }]
+          },
+          options:{
+            responsive:true,
+            maintainAspectRatio:true,
+            indexAxis:undefined,
+            scales:{r:{beginAtZero:true,max:3,ticks:{stepSize:1,font:{size:11}}}},
+            plugins:{legend:{display:false}},
+            elements:{point:{radius:5}}
+          }
+        });
+      },0);
+    }
     function generate(){
       const inputs=getInputs();if(!inputs)return;
       saveState();
       document.getElementById('output').innerHTML=buildOutput(inputs);
+      renderRadarChart(inputs);
       saveHistory();
       document.getElementById('result').classList.add('show');
       document.getElementById('result').scrollIntoView({behavior:'smooth',block:'start'});
