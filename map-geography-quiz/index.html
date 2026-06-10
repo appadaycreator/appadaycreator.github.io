@@ -37,6 +37,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js" defer></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -208,6 +209,39 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
           <div class="card" style="text-align:center;">
             <div style="font-size:1.6rem;font-weight:700;color:#6D28D9;margin-bottom:8px;">🎉 ゲーム終了！</div>
             <div id="final-score" style="font-size:2rem;font-weight:700;"></div>
+            <div id="accuracy" style="font-size:1rem;color:#666;margin:12px 0;"></div>
+
+            <!-- グラフセクション -->
+            <div id="graph-section" style="margin:20px 0;display:none;">
+              <canvas id="scoreChart" style="max-width:100%;max-height:300px;"></canvas>
+            </div>
+
+            <!-- エクスポートボタン -->
+            <div style="display:flex;gap:8px;margin:16px 0;flex-wrap:wrap;justify-content:center;">
+              <button class="btn" style="flex:1;min-width:120px;min-height:44px;background:#4f46e5;font-size:14px;" onclick="printResult()">🖨️ 印刷</button>
+              <button class="btn" style="flex:1;min-width:120px;min-height:44px;background:#10b981;font-size:14px;" onclick="copyResult()">📋 コピー</button>
+              <button class="btn" style="flex:1;min-width:120px;min-height:44px;background:#f59e0b;font-size:14px;" onclick="downloadCSV()">📥 CSV</button>
+            </div>
+            <div id="export-status" style="font-size:12px;color:#10b981;margin:8px 0;min-height:16px;"></div>
+
+            <!-- スコア履歴セクション -->
+            <div id="history-section" style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:left;display:none;">
+              <h3 style="font-size:14px;font-weight:700;color:#374151;margin-bottom:12px;text-align:center;">📊 スコア履歴</h3>
+              <div id="history-table" style="overflow-x:auto;font-size:12px;">
+                <table style="width:100%;border-collapse:collapse;">
+                  <thead>
+                    <tr style="background:#f3f4f6;">
+                      <th style="padding:8px;text-align:left;border-bottom:1px solid #e5e7eb;">日時</th>
+                      <th style="padding:8px;text-align:right;border-bottom:1px solid #e5e7eb;">スコア</th>
+                      <th style="padding:8px;text-align:right;border-bottom:1px solid #e5e7eb;">正答率</th>
+                    </tr>
+                  </thead>
+                  <tbody id="history-body"></tbody>
+                </table>
+              </div>
+              <button class="btn" style="margin-top:12px;font-size:13px;background:#ef4444;" onclick="clearHistory()">履歴をクリア</button>
+            </div>
+
             <button class="btn" style="margin-top:16px;" onclick="startGame()">もう一度</button>
           </div>
         </div>
@@ -359,8 +393,130 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
     function endGame(){
       gameRunning=false;
       document.getElementById('game-area').style.display='none';
+      const correctCount = score;
+      const totalCount = gQuestions.length;
+      const accuracy = Math.round((correctCount/totalCount)*100);
       document.getElementById('final-score').textContent=score+' 点';
+      document.getElementById('accuracy').textContent='正答数: '+correctCount+'/'+totalCount+' ('+accuracy+'%)';
       document.getElementById('result').classList.add('show');
+      saveScore(correctCount, totalCount, accuracy);
+      loadAndRenderHistory();
+    }
+
+    // localStorage関連機能
+    function saveScore(correct, total, accuracy) {
+      const history = JSON.parse(localStorage.getItem('mapGeoScoreHistory') || '[]');
+      const now = new Date();
+      const dateStr = now.getFullYear() + '/' + String(now.getMonth()+1).padStart(2,'0') + '/' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+      history.unshift({ date: dateStr, score: score, accuracy: accuracy });
+      if(history.length > 10) history.pop();
+      localStorage.setItem('mapGeoScoreHistory', JSON.stringify(history));
+    }
+
+    function loadAndRenderHistory() {
+      const history = JSON.parse(localStorage.getItem('mapGeoScoreHistory') || '[]');
+      if(history.length === 0) return;
+      renderHistory(history);
+      if(history.length >= 4) renderChart(history);
+    }
+
+    function renderHistory(history) {
+      const tbody = document.getElementById('history-body');
+      tbody.innerHTML = '';
+      history.slice(0, 5).forEach(function(h) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = '<td style="padding:8px;border-bottom:1px solid #e5e7eb;">'+h.date+'</td><td style="padding:8px;text-align:right;border-bottom:1px solid #e5e7eb;">'+h.score+'点</td><td style="padding:8px;text-align:right;border-bottom:1px solid #e5e7eb;">'+h.accuracy+'%</td>';
+        tbody.appendChild(tr);
+      });
+      document.getElementById('history-section').style.display = 'block';
+    }
+
+    function renderChart(history) {
+      const ctx = document.getElementById('scoreChart');
+      if(!ctx || !window.Chart) return;
+      const chartData = history.slice(0, 5).reverse();
+      const labels = chartData.map(h => h.date.split(' ')[0]);
+      const scores = chartData.map(h => h.score);
+      const accuracies = chartData.map(h => h.accuracy);
+
+      if(window.scoreChartInstance) window.scoreChartInstance.destroy();
+      window.scoreChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'スコア',
+            data: scores,
+            borderColor: '#6D28D9',
+            backgroundColor: '#ede9fe',
+            tension: 0.4,
+            fill: true,
+            yAxisID: 'y'
+          }, {
+            label: '正答率',
+            data: accuracies,
+            borderColor: '#10b981',
+            borderDash: [5, 5],
+            pointRadius: 3,
+            yAxisID: 'y1'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            y: { type: 'linear', position: 'left', max: 5 },
+            y1: { type: 'linear', position: 'right', max: 100, grid: { drawOnChartArea: false } }
+          }
+        }
+      });
+      document.getElementById('graph-section').style.display = 'block';
+    }
+
+    function printResult() {
+      window.print();
+    }
+
+    function copyResult() {
+      const text = 'スコア: '+score+'点\n正答数: '+(Math.round((score/gQuestions.length)*100))+'\n日時: '+new Date().toLocaleString('ja-JP');
+      navigator.clipboard.writeText(text).then(function() {
+        showStatus('コピーしました！');
+      }).catch(function(e) {
+        showStatus('コピーに失敗しました');
+      });
+    }
+
+    function downloadCSV() {
+      const history = JSON.parse(localStorage.getItem('mapGeoScoreHistory') || '[]');
+      if(history.length === 0) { showStatus('履歴がありません'); return; }
+      let csv = '日時,スコア,正答率\n';
+      history.forEach(function(h) { csv += h.date + ',' + h.score + ',' + h.accuracy + '%\n'; });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', 'map-quiz-history.csv');
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showStatus('ダウンロードしました！');
+    }
+
+    function clearHistory() {
+      if(confirm('履歴を全て削除してもよろしいですか？')) {
+        localStorage.removeItem('mapGeoScoreHistory');
+        document.getElementById('history-section').style.display = 'none';
+        document.getElementById('graph-section').style.display = 'none';
+        showStatus('履歴をクリアしました');
+      }
+    }
+
+    function showStatus(msg) {
+      const el = document.getElementById('export-status');
+      el.textContent = msg;
+      setTimeout(function() { el.textContent = ''; }, 2000);
     }
     </script>
 <script id="ux-behavior">

@@ -157,6 +157,15 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
+/* Help icon & tooltip */
+.help-icon { position: relative; display: inline-block; cursor: help; color: #0284c7; font-weight: bold; margin-left: 0.3rem; font-size: 0.8rem; }
+.help-icon::after { content: attr(data-tooltip); position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%); background: #1f2937; color: #fff; padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.75rem; white-space: nowrap; z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.3s; font-weight: normal; }
+.help-icon:hover::after { opacity: 1; }
+.input-error { border-color: #dc2626 !important; }
+.export-buttons { display: flex; gap: 0.5rem; margin-top: 0.8rem; flex-wrap: wrap; }
+.export-btn { flex: 1; min-width: 100px; padding: 0.6rem 0.8rem; background: #f3f4f6; border: 1px solid #d1d5db; color: #1f2937; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: all 0.2s; }
+.export-btn:hover { background: #e5e7eb; border-color: #0284c7; color: #0284c7; }
+@media (max-width: 640px) { .export-buttons { flex-direction: column; } .export-btn { width: 100%; } }
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"ガソリン代計算ツールは無料で使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料でご利用いただけます。登録・ログイン不要ですぐに使えます。"}},{"@type":"Question","name":"入力したデータはどこに保存されますか？","acceptedAnswer":{"@type":"Answer","text":"入力データはお使いのデバイス内にのみ保存されます。外部サーバーへの送信は行いません。"}},{"@type":"Question","name":"ガソリン代計算ツールの計算・診断結果はどのくらい正確ですか？","acceptedAnswer":{"@type":"Answer","text":"本ツールの結果はあくまで参考情報です。重要な判断の際は専門家にご相談ください。"}},{"@type":"Question","name":"どのような人が使っていますか？","acceptedAnswer":{"@type":"Answer","text":"初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}},{"@type":"Question","name":"結果をシェアできますか？","acceptedAnswer":{"@type":"Answer","text":"はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}},{"@type":"Question","name":"有料プランはありますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、すべての機能を完全無料でご利用いただけます。"}}]}</script>
 <script type="application/ld+json">
@@ -210,6 +219,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 @media(max-width:480px){button,[class*=btn]{min-height:48px!important;font-size:15px!important;}input,select,textarea{font-size:16px!important;min-height:44px!important;}[class*=card],[class*=max-w]{padding:16px!important;}}
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://appadaycreator.com/"},{"@type":"ListItem","position":2,"name":"計算機/お金","item":"https://appadaycreator.com/category/finance/"},{"@type":"ListItem","position":3,"name":"ガソリン代計算給油費用・燃費・距離から自動計算","item":"https://appadaycreator.com/gasoline-cost-calculator/"}]}</script>
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body><a href="#main" class="sr-only">本文へスキップ</a>
 <!-- Google Tag Manager (noscript) -->
@@ -236,15 +247,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <h2>🔢 基本計算</h2>
     <div class="form-grid">
       <div class="form-group">
-        <label>走行距離 (km)</label>
+        <label>走行距離 (km) <span class="help-icon" data-tooltip="移動する距離を入力">?</span></label>
         <input type="number" id="distance" value="100" min="1" step="1" placeholder="例: 100" aria-label="例: 100">
       </div>
       <div class="form-group">
-        <label>燃費 (km/L)</label>
+        <label>燃費 (km/L) <span class="help-icon" data-tooltip="1Lで走る距離">?</span></label>
         <input type="number" id="fuelEfficiency" value="15" min="1" step="0.1" placeholder="例: 15" aria-label="例: 15">
       </div>
       <div class="form-group">
-        <label>ガソリン単価 (円/L)</label>
+        <label>ガソリン単価 (円/L) <span class="help-icon" data-tooltip="現在のガソリン価格">?</span></label>
         <input type="number" id="gasolinePrice" value="175" min="1" step="1" placeholder="例: 175" aria-label="例: 175">
         <div class="gas-price-list" id="presetPrices">
           <button class="gas-price-btn" onclick="setPrice(155)">レギュラー安値 ¥155</button>
@@ -282,6 +293,21 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="unit">円/km</div>
         </div>
       </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem;">
+        <div>
+          <h4 style="font-size: 0.95rem; color: #0369a1; margin-bottom: 0.8rem; font-weight: 600;">📊 コスト内訳</h4>
+          <canvas id="basicCostChart" style="max-width: 100%;"></canvas>
+        </div>
+        <div>
+          <h4 style="font-size: 0.95rem; color: #0369a1; margin-bottom: 0.8rem; font-weight: 600;">⛽ ガソリン必要量</h4>
+          <canvas id="basicLiterChart" style="max-width: 100%;"></canvas>
+        </div>
+      </div>
+      <div class="export-buttons">
+        <button class="export-btn" onclick="printResult()">🖨️ 印刷</button>
+        <button class="export-btn" onclick="copyToClipboard('basicResult')">📋 コピー</button>
+        <button class="export-btn" onclick="downloadCSV()">💾 ダウンロード</button>
+      </div>
     </div>
   </section>
 
@@ -290,7 +316,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <h2>📅 月間・年間シミュレーション</h2>
     <div class="form-grid">
       <div class="form-group">
-        <label>月間走行距離 (km)</label>
+        <label>月間走行距離 (km) <span class="help-icon" data-tooltip="毎月の平均走行距離を入力">?</span></label>
         <input type="number" id="monthlyDistance" value="1000" min="1" step="10" placeholder="例: 1000" aria-label="例: 1000">
       </div>
       <div class="form-group">
@@ -326,7 +352,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="unit">L/年</div>
         </div>
       </div>
-      <div class="chart-bar-container" id="monthlyChart"></div>
+      <div style="margin-top: 1.5rem;">
+        <h4 style="font-size: 0.95rem; color: #0369a1; margin-bottom: 0.8rem; font-weight: 600;">📈 月別コスト推移</h4>
+        <canvas id="monthlyChartCanvas" style="max-width: 100%; max-height: 300px;"></canvas>
+      </div>
     </div>
   </section>
 
@@ -335,16 +364,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <h2>🚗 車種別燃費比較 <span class="badge">実際の数値で比較</span></h2>
     <div class="form-grid">
       <div class="form-group">
-        <label>年間走行距離 (km)</label>
-        <input type="number" id="compareDistance" value="12000" min="1" step="100">
+        <label>年間走行距離 (km) <span class="help-icon" data-tooltip="1年間の予想走行距離">?</span></label>
+        <input type="number" id="compareDistance" value="12000" min="1" step="100" placeholder="例: 12000">
       </div>
       <div class="form-group">
-        <label>ガソリン単価 (円/L)</label>
-        <input type="number" id="comparePrice" value="175" min="1" step="1">
+        <label>ガソリン単価 (円/L) <span class="help-icon" data-tooltip="現在のガソリン1Lあたりの価格">?</span></label>
+        <input type="number" id="comparePrice" value="175" min="1" step="1" placeholder="例: 175">
       </div>
     </div>
     <button class="btn" onclick="compareVehicles()">車種別コストを比較</button>
-    <div id="compareResult" class="hidden chart-bar-container"></div>
+    <div id="compareResult" class="hidden">
+      <div style="margin-top: 1rem;">
+        <canvas id="compareChartCanvas" style="max-width: 100%; max-height: 350px;"></canvas>
+      </div>
+    </div>
   </section>
 
   <!-- 節約シミュレーション -->
@@ -352,20 +385,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <h2>💰 節約シミュレーション</h2>
     <div class="form-grid">
       <div class="form-group">
-        <label>現在の燃費 (km/L)</label>
-        <input type="number" id="currentEfficiency" value="12" min="1" step="0.1">
+        <label>現在の燃費 (km/L) <span class="help-icon" data-tooltip="現在の車の実燃費">?</span></label>
+        <input type="number" id="currentEfficiency" value="12" min="1" step="0.1" placeholder="例: 12">
       </div>
       <div class="form-group">
-        <label>目標燃費 (km/L)</label>
-        <input type="number" id="targetEfficiency" value="18" min="1" step="0.1">
+        <label>目標燃費 (km/L) <span class="help-icon" data-tooltip="達成したい燃費目標">?</span></label>
+        <input type="number" id="targetEfficiency" value="18" min="1" step="0.1" placeholder="例: 18">
       </div>
       <div class="form-group">
-        <label>月間走行距離 (km)</label>
-        <input type="number" id="savingDistance" value="1000" min="1" step="10">
+        <label>月間走行距離 (km) <span class="help-icon" data-tooltip="毎月の平均走行距離">?</span></label>
+        <input type="number" id="savingDistance" value="1000" min="1" step="10" placeholder="例: 1000">
       </div>
       <div class="form-group">
-        <label>ガソリン単価 (円/L)</label>
-        <input type="number" id="savingPrice" value="175" min="1" step="1">
+        <label>ガソリン単価 (円/L) <span class="help-icon" data-tooltip="現在のガソリン1Lあたりの価格">?</span></label>
+        <input type="number" id="savingPrice" value="175" min="1" step="1" placeholder="例: 175">
       </div>
     </div>
     <button class="btn" onclick="calcSaving()">節約額を計算</button>
@@ -386,6 +419,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="value" id="decadeSaving">-</div>
           <div class="unit">円/10年</div>
         </div>
+      </div>
+      <div style="margin-top: 1.5rem;">
+        <h4 style="font-size: 0.95rem; color: #0369a1; margin-bottom: 0.8rem; font-weight: 600;">💰 節約額の推移</h4>
+        <canvas id="savingChartCanvas" style="max-width: 100%; max-height: 300px;"></canvas>
       </div>
     </div>
   </section>
@@ -531,6 +568,23 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 </section></div>
 <section style="background:#f0f9ff;border-top:1px solid #bae6fd;padding:14px 16px;text-align:center;"><p style="font-size:12px;font-weight:700;color:#0369a1;margin-bottom:8px;">💡 あわせて活用したいサービス</p><a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ8+9PJRFU+4ABU+6G4HD" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;background:#0369a1;color:#fff;padding:10px 18px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">スーパースポーツゼビオ スポーツ用品 EPC50以上 →</a><img border="0" width="1" height="1" src="https://www14.a8.net/0.gif?a8mat=4B3WJ8+9PJRFU+4ABU+6G4HD" alt="" loading="lazy"></section>
 <script>
+  // Chart.js チャートオブジェクトの保持
+  let basicCostChartObj = null;
+  let basicLiterChartObj = null;
+  let monthlyChartObj = null;
+  let compareChartObj = null;
+  let savingChartObj = null;
+
+  // Chart.js 初期化
+  Chart.defaults.font.family = "'Noto Sans JP', 'Inter', sans-serif";
+
+  // チャートを描画する際のヘルパー関数
+  function destroyChart(chartRef) {
+    if (chartRef) {
+      chartRef.destroy();
+    }
+  }
+
   // 燃料種別変更時にガソリン単価プリセットを自動更新
   function syncFuelType() {
     const fuelType = document.getElementById('fuelType').value;
@@ -596,6 +650,55 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     document.getElementById('costResult').textContent = formatNum(cost);
     document.getElementById('perKmResult').textContent = perKm.toFixed(1);
     document.getElementById('basicResult').classList.remove('hidden');
+
+    // コスト内訳チャート（パイチャート）
+    destroyChart(basicCostChartObj);
+    basicCostChartObj = new Chart(document.getElementById('basicCostChart'), {
+      type: 'doughnut',
+      data: {
+        labels: ['ガソリン代', '未使用枠'],
+        datasets: [{
+          data: [cost, Math.max(0, cost * 0.1)],
+          backgroundColor: ['#0284c7', '#e0f2fe'],
+          borderColor: ['#fff', '#bae6fd'],
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 15 } },
+          tooltip: { callbacks: { label: (ctx) => '¥' + formatNum(ctx.parsed) } }
+        }
+      }
+    });
+
+    // ガソリン必要量チャート（バーチャート）
+    destroyChart(basicLiterChartObj);
+    basicLiterChartObj = new Chart(document.getElementById('basicLiterChart'), {
+      type: 'bar',
+      data: {
+        labels: ['必要ガソリン量'],
+        datasets: [{
+          label: 'リットル',
+          data: [liters],
+          backgroundColor: ['#0369a1'],
+          borderColor: ['#024b70'],
+          borderWidth: 2
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        plugins: {
+          legend: { display: false }
+        },
+        scales: {
+          x: { beginAtZero: true, ticks: { callback: (v) => v.toFixed(1) + 'L' } }
+        }
+      }
+    });
+
     const entry = { date: new Date().toLocaleString('ja-JP'), distance, efficiency, price, liters: liters.toFixed(2), cost: formatNum(cost) };
     history.unshift(entry);
     if (history.length > 10) {
@@ -627,13 +730,38 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
     const multipliers = [0.95, 0.90, 1.00, 1.05, 1.10, 1.20, 1.25, 1.20, 1.05, 1.00, 0.95, 1.05];
     const costs = multipliers.map(m => Math.round(monthlyCost * m));
-    const maxCost = Math.max(...costs);
-    let html = '<h3 style="font-size:0.95rem;color:#0369a1;margin-bottom:0.8rem;">月別ガソリン代推定（夏冬補正あり）</h3>';
-    months.forEach((m, i) => {
-      const pct = (costs[i] / maxCost * 100).toFixed(1);
-      html += `<div class="chart-bar-row"><div class="chart-bar-label">${m}</div><div class="chart-bar-bg"><div class="chart-bar-fill" style="width:${pct}%"></div></div><div class="chart-bar-val">¥${costs[i].toLocaleString()}</div></div>`;
+
+    // Chart.js ラインチャート
+    destroyChart(monthlyChartObj);
+    monthlyChartObj = new Chart(document.getElementById('monthlyChartCanvas'), {
+      type: 'line',
+      data: {
+        labels: months,
+        datasets: [{
+          label: 'ガソリン代',
+          data: costs,
+          borderColor: '#0284c7',
+          backgroundColor: 'rgba(2, 132, 199, 0.1)',
+          borderWidth: 3,
+          fill: true,
+          tension: 0.4,
+          pointBackgroundColor: '#0369a1',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          pointRadius: 5
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'top', labels: { font: { size: 12 }, padding: 15 } },
+          tooltip: { callbacks: { label: (ctx) => '¥' + formatNum(ctx.parsed.y) } }
+        },
+        scales: {
+          y: { beginAtZero: true, ticks: { callback: (v) => '¥' + formatNum(v) } }
+        }
+      }
     });
-    document.getElementById('monthlyChart').innerHTML = html;
   }
 
   function compareVehicles() {
@@ -651,14 +779,38 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       { name: 'EV（電費換算）', efficiency: 35, icon: '🔋' },
     ];
     const costs = vehicles.map(v => ({ ...v, cost: Math.round(dist / v.efficiency * price) }));
-    const maxCost = Math.max(...costs.map(c => c.cost));
-    let html = '<h3 style="font-size:0.95rem;color:#0369a1;margin-bottom:0.8rem;">年間ガソリン代比較</h3>';
-    costs.sort((a, b) => a.cost - b.cost).forEach(v => {
-      const pct = (v.cost / maxCost * 100).toFixed(1);
-      html += `<div class="chart-bar-row"><div class="chart-bar-label" style="width:110px">${v.icon} ${v.name}</div><div class="chart-bar-bg"><div class="chart-bar-fill" style="width:${pct}%"></div></div><div class="chart-bar-val">¥${v.cost.toLocaleString()}</div></div>`;
-    });
-    document.getElementById('compareResult').innerHTML = html;
+    const sortedCosts = costs.sort((a, b) => a.cost - b.cost);
+    const labels = sortedCosts.map(v => v.icon + ' ' + v.name);
+    const data = sortedCosts.map(v => v.cost);
+
     document.getElementById('compareResult').classList.remove('hidden');
+
+    // Chart.js バーチャート
+    destroyChart(compareChartObj);
+    compareChartObj = new Chart(document.getElementById('compareChartCanvas'), {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: '年間ガソリン代',
+          data: data,
+          backgroundColor: '#0369a1',
+          borderColor: '#024b70',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (ctx) => '¥' + formatNum(ctx.parsed.x) } }
+        },
+        scales: {
+          x: { beginAtZero: true, ticks: { callback: (v) => '¥' + formatNum(v) } }
+        }
+      }
+    });
   }
 
   function calcSaving() {
@@ -675,6 +827,35 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     document.getElementById('yearlySaving').textContent = formatNum(monthlySaving * 12);
     document.getElementById('decadeSaving').textContent = formatNum(monthlySaving * 120);
     document.getElementById('savingResult').classList.remove('hidden');
+
+    // 節約額の推移チャート
+    const periods = ['1年', '3年', '5年', '10年'];
+    const savingData = [monthlySaving * 12, monthlySaving * 36, monthlySaving * 60, monthlySaving * 120];
+
+    destroyChart(savingChartObj);
+    savingChartObj = new Chart(document.getElementById('savingChartCanvas'), {
+      type: 'bar',
+      data: {
+        labels: periods,
+        datasets: [{
+          label: '累積節約額',
+          data: savingData,
+          backgroundColor: ['#059669', '#047857', '#065f46', '#064e3b'],
+          borderColor: '#047857',
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'top', labels: { font: { size: 12 }, padding: 15 } },
+          tooltip: { callbacks: { label: (ctx) => '¥' + formatNum(ctx.parsed.y) } }
+        },
+        scales: {
+          y: { beginAtZero: true, ticks: { callback: (v) => '¥' + formatNum(v) } }
+        }
+      }
+    });
   }
 
   function renderHistory() {
@@ -712,6 +893,53 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   }
 
   renderHistory();
+
+  // 印刷機能
+  function printResult() {
+    window.print();
+  }
+
+  // クリップボード コピー機能
+  function copyToClipboard(resultId) {
+    const resultBox = document.getElementById(resultId);
+    let text = '【ガソリン代計算結果】\n\n';
+    const values = resultBox.querySelectorAll('.result-item');
+    values.forEach(item => {
+      const label = item.querySelector('.label').textContent;
+      const value = item.querySelector('.value').textContent;
+      const unit = item.querySelector('.unit').textContent;
+      text += label + ': ' + value + ' ' + unit + '\n';
+    });
+    navigator.clipboard.writeText(text).then(() => {
+      showError('✅ 結果をコピーしました');
+    }).catch(() => {
+      showError('❌ コピーに失敗しました');
+    });
+  }
+
+  // CSV ダウンロード機能
+  function downloadCSV() {
+    const distance = document.getElementById('distance').value || '0';
+    const efficiency = document.getElementById('fuelEfficiency').value || '0';
+    const price = document.getElementById('gasolinePrice').value || '0';
+    const cost = document.getElementById('costResult').textContent || '-';
+    const liter = document.getElementById('literResult').textContent || '-';
+    const perKm = document.getElementById('perKmResult').textContent || '-';
+
+    const csvContent = 'data:text/csv;charset=utf-8,' +
+      'ガソリン代計算結果\n' +
+      '走行距離(km),燃費(km/L),ガソリン単価(円/L),必要ガソリン量(L),ガソリン代(円),1kmあたりコスト(円/km)\n' +
+      distance + ',' + efficiency + ',' + price + ',' + liter + ',' + cost + ',' + perKm;
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', 'gasoline-calc-' + new Date().toISOString().slice(0,10) + '.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showError('✅ CSVをダウンロードしました');
+  }
 </script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"ガソリン代計算【無料】給油費用・燃費・距離から自動計算","description":"走行距離・燃費・ガソリン価格を入力して給油費用を無料計算。高速代・旅行費用の見積もりにも。","url":"https://appadaycreator.com/gasoline-cost-calculator/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"}}</script>
 <div style="margin:16px auto;max-width:800px;padding:14px;background:#fff8f0;border:1px solid #fed7aa;border-radius:12px;"><p style="font-size:0.82rem;font-weight:bold;color:#c2410c;margin-bottom:8px;">📦 関連おすすめ商品</p><div style="display:flex;flex-wrap:wrap;gap:8px;"><a class="js-track-affiliate" href="https://www.amazon.co.jp/s?k=ドライブ+車載+燃費+グッズ&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="background:#ff9900;color:#fff;padding:7px 12px;border-radius:7px;font-size:0.8em;font-weight:bold;text-decoration:none;" data-platform="Amazon" data-item-name="ドライブ車載燃費" data-link-type="affiliate_link">🛒 車・ドライブグッズ →</a><a class="js-track-affiliate" href="https://www.amazon.co.jp/s?k=ドライブ+車載+燃費+グッズ&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="background:#146eb4;color:#fff;padding:7px 12px;border-radius:7px;font-size:0.8em;font-weight:bold;text-decoration:none;" data-platform="Amazon" data-item-name="ドライブ車載燃費" data-link-type="affiliate_link">📚 カーナビ・燃費改善本 →</a></div></div>

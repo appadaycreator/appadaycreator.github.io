@@ -38,6 +38,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
+    <!-- Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"ゲームプレイ時間管理ツール","description":"ゲームタイトル別のプレイ時間を記録して月間・年間の統計を可視化。登録不要・完全無料でご利用いただけます。","url":"https://appadaycreator.com/game-time-tracker/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"author":{"@type":"Organization","name":"AppADayCreator","url":"https://appadaycreator.com/"}}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"ゲームのプレイ時間データはどこに保存されますか？","acceptedAnswer":{"@type":"Answer","text":"すべてのデータはお使いのブラウザのlocalStorageに保存されます。サーバーには一切送信されません。"}},{"@type":"Question","name":"記録したセッションを削除できますか？","acceptedAnswer":{"@type":"Answer","text":"はい、各セッションの「削除」ボタンから個別に削除できます。全データは「すべて削除」ボタンで一括削除可能です。"}},{"@type":"Question","name":"複数デバイスでデータを同期できますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、localStorageはデバイス・ブラウザごとに独立しています。同期には対応していません。"}},{"@type":"Question","name":"スマートフォンでも使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、スマートフォン・タブレット・PCすべてに最適化されています。"}},{"@type":"Question","name":"プレイ時間の記録件数に制限はありますか？","acceptedAnswer":{"@type":"Answer","text":"ブラウザのlocalStorage容量（通常5MB）の範囲内であれば制限なく記録できます。"}}]}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"ゲームプレイ時間管理ツールの使い方","step":[{"@type":"HowToStep","position":1,"name":"ゲームタイトルを入力する","text":"「ゲームタイトル」欄にプレイするゲーム名を入力するか、既存のゲームをリストから選択する"},{"@type":"HowToStep","position":2,"name":"タイマーを開始する","text":"「計測開始」ボタンを押してプレイ時間の計測を始める。タイマーが起動しリアルタイムで経過時間が表示される"},{"@type":"HowToStep","position":3,"name":"プレイを終えてタイマーを停止する","text":"ゲームを終えたら「計測停止」ボタンを押す。セッションが自動的にlocalStorageへ保存される"},{"@type":"HowToStep","position":4,"name":"ゲーム別の統計を確認する","text":"「ゲーム別プレイ時間」セクションで、タイトルごとの累計プレイ時間をグラフで確認する"},{"@type":"HowToStep","position":5,"name":"月間統計でゲーム傾向を把握する","text":"「今月の統計」カードで月間総プレイ時間と最多プレイゲームを確認し、ゲームバランスを見直す"}]}</script>
@@ -85,23 +87,32 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .game-time { font-size: 13px; font-weight: 600; color: #7c3aed; white-space: nowrap; }
 
         /* セッション履歴 */
-        .session-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+        .session-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; flex-wrap: wrap; }
         .session-item:last-child { border-bottom: none; }
         .session-info { flex: 1; min-width: 0; }
         .session-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .session-meta { color: #888; font-size: 12px; margin-top: 2px; }
         .session-dur { font-weight: 700; color: #7c3aed; white-space: nowrap; }
+        .session-delete-btn { min-height: 44px; padding: 8px 14px; font-size: 12px; margin-top: 6px; }
 
         .empty-state { text-align: center; color: #aaa; padding: 24px; font-size: 14px; }
 
+        @media (max-width: 640px) {
+            .chart-container { height: 300px !important; }
+        }
         @media (max-width: 480px) {
             .site-header { padding: 24px 16px; }
             .site-header h1 { font-size: 20px; }
             .site-header p { display: none; }
             .card { padding: 16px; }
-            .btn { font-size: 15px; padding: 13px 20px; }
+            .btn { font-size: 15px; padding: 13px 20px; min-height: 44px; }
+            .btn-sm { min-height: 40px; }
             .timer-display { font-size: 40px; }
-            .stat-grid { grid-template-columns: 1fr 1fr; }
+            .stat-grid { grid-template-columns: 1fr; }
+            .stat-box { padding: 12px; }
+            .stat-value { font-size: 20px; }
+            .chart-container { height: 280px !important; }
+            .session-delete-btn { width: 100%; margin-top: 8px; }
         }
         @media print {
             header, footer, nav, button, .no-print, [class*="share"], script, noscript { display: none !important; }
@@ -131,6 +142,13 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
+
+        /* チャート表示 */
+        .chart-container { position: relative; height: 320px; margin-bottom: 16px; width: 100%; }
+        .tooltip-trigger { display: inline-block; width: 18px; height: 18px; background: #7c3aed; color: white; border-radius: 50%; text-align: center; line-height: 18px; font-size: 12px; font-weight: bold; cursor: help; margin-left: 4px; position: relative; }
+        .tooltip-text { display: none; position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 6px 10px; border-radius: 6px; font-size: 12px; white-space: nowrap; z-index: 100; }
+        .tooltip-trigger:hover .tooltip-text { display: block; }
+        .guidance-text { font-size: 12px; color: #666; margin-top: 4px; line-height: 1.5; }
 </style>
     <style id="ux-enhanced">
 button,input[type=submit],input[type=button],[class*=btn]{min-height:44px;cursor:pointer;transition:opacity .15s,transform .1s;}
@@ -179,8 +197,14 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         <!-- タイマーカード -->
         <div class="card">
             <h2 style="font-size:17px;font-weight:700;margin-bottom:16px;">⏱ プレイ時間を計測</h2>
-            <label for="game-title-input">ゲームタイトル</label>
-            <input type="text" id="game-title-input" placeholder="例: モンスターハンターワイルズ" autocomplete="off" list="game-datalist" aria-label="ゲームタイトルを入力">
+            <div style="display:flex;align-items:center;">
+                <label for="game-title-input" style="margin:0;">ゲームタイトル</label>
+                <span class="tooltip-trigger" aria-describedby="game-title-hint">?
+                    <div class="tooltip-text">タイトルを入力または選択</div>
+                </span>
+            </div>
+            <input type="text" id="game-title-input" placeholder="例: モンスターハンターワイルズ" autocomplete="off" list="game-datalist" aria-label="ゲームタイトルを入力" aria-describedby="game-title-hint">
+            <div id="game-title-hint" class="guidance-text">💡 過去に記録したゲームは自動で候補に表示されます。タイトルをそのまま入力することもできます。</div>
             <datalist id="game-datalist"></datalist>
             <div class="timer-game-name" id="timer-game-name" aria-live="polite"></div>
             <div class="timer-display" id="timer-display" aria-live="polite" aria-label="経過時間">00:00:00</div>
@@ -190,31 +214,43 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         <!-- 今月の統計 -->
         <div class="card">
             <h2 style="font-size:17px;font-weight:700;margin-bottom:16px;">📊 今月の統計</h2>
-            <div class="stat-grid">
+            <div class="stat-grid" style="grid-template-columns: 1fr 1fr;">
                 <div class="stat-box">
                     <div class="stat-value" id="monthly-total">0:00</div>
-                    <div class="stat-label">今月の総プレイ時間</div>
+                    <div class="stat-label">総プレイ時間</div>
                 </div>
                 <div class="stat-box">
                     <div class="stat-value" id="monthly-sessions">0</div>
-                    <div class="stat-label">今月のセッション数</div>
+                    <div class="stat-label">セッション数</div>
                 </div>
-                <div class="stat-box" style="grid-column:1/-1;background:#fff7ed;">
+                <div class="stat-box">
+                    <div class="stat-value" style="font-size:18px;color:#8b5cf6;" id="focus-score">0</div>
+                    <div class="stat-label">集中度スコア (0-100)</div>
+                </div>
+                <div class="stat-box" style="background:#fff7ed;">
                     <div class="stat-value" style="font-size:16px;color:#c2410c;" id="top-game">—</div>
-                    <div class="stat-label">今月の最多プレイ</div>
+                    <div class="stat-label">最多プレイ</div>
                 </div>
             </div>
         </div>
 
         <!-- ゲーム別プレイ時間 -->
         <div class="card">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
                 <h2 style="font-size:17px;font-weight:700;">🏆 ゲーム別プレイ時間</h2>
-                <select id="period-select" onchange="render()" style="width:auto;padding:6px 10px;font-size:13px;min-height:36px;margin-top:0;">
+                <select id="period-select" onchange="render()" style="width:auto;padding:6px 10px;font-size:13px;min-height:44px;margin-top:0;">
                     <option value="all">全期間</option>
                     <option value="month">今月</option>
                     <option value="year">今年</option>
                 </select>
+            </div>
+            <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+                <button id="chart-doughnut-btn" class="btn btn-sm" style="background:#7c3aed;color:white;padding:8px 12px;font-size:12px;min-height:40px;border:none;border-radius:6px;cursor:pointer;font-weight:600;" onclick="switchChartType('doughnut')" aria-label="ドーナツチャート表示">🥧 構成比</button>
+                <button id="chart-bar-btn" class="btn btn-sm" style="background:#e5e7eb;color:#374151;padding:8px 12px;font-size:12px;min-height:40px;border:none;border-radius:6px;cursor:pointer;font-weight:600;" onclick="switchChartType('bar')" aria-label="棒グラフ表示">📊 棒グラフ</button>
+                <button id="chart-trend-btn" class="btn btn-sm" style="background:#e5e7eb;color:#374151;padding:8px 12px;font-size:12px;min-height:40px;border:none;border-radius:6px;cursor:pointer;font-weight:600;" onclick="switchChartType('trend')" aria-label="月別推移表示">📈 推移</button>
+            </div>
+            <div id="chart-container" class="chart-container" style="display:none;height:320px;margin-bottom:16px;">
+                <canvas id="game-chart"></canvas>
             </div>
             <div id="game-list"><div class="empty-state">まだ記録がありません。<br>タイマーでプレイ時間を計測してみましょう！</div></div>
         </div>
@@ -413,6 +449,21 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
     let timerElapsed = 0;
     let isRunning = false;
 
+    // チャート
+    let gameChart = null;
+    let currentChartType = 'doughnut';
+
+    function switchChartType(type) {
+        currentChartType = type;
+        document.getElementById('chart-doughnut-btn').style.background = type === 'doughnut' ? '#7c3aed' : '#e5e7eb';
+        document.getElementById('chart-doughnut-btn').style.color = type === 'doughnut' ? 'white' : '#374151';
+        document.getElementById('chart-bar-btn').style.background = type === 'bar' ? '#7c3aed' : '#e5e7eb';
+        document.getElementById('chart-bar-btn').style.color = type === 'bar' ? 'white' : '#374151';
+        document.getElementById('chart-trend-btn').style.background = type === 'trend' ? '#7c3aed' : '#e5e7eb';
+        document.getElementById('chart-trend-btn').style.color = type === 'trend' ? 'white' : '#374151';
+        render();
+    }
+
     function toggleTimer() {
         if (isRunning) {
             stopTimer();
@@ -528,11 +579,22 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         const monthAgg = aggregateByTitle(monthSessions);
         document.getElementById('top-game').textContent = monthAgg.length ? monthAgg[0][0] : '—';
 
+        // 集中度スコア計算 (セッション数 / 月の日数 * 100)
+        const now = new Date();
+        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        const focusScore = Math.round((monthSessions.length / daysInMonth) * 100);
+        document.getElementById('focus-score').textContent = Math.min(100, focusScore);
+
         // ゲーム別リスト
         const agg = aggregateByTitle(filtered);
         const gameListEl = document.getElementById('game-list');
+        const chartContainer = document.getElementById('chart-container');
+
         if (agg.length === 0) {
             gameListEl.innerHTML = '<div class="empty-state">まだ記録がありません。<br>タイマーでプレイ時間を計測してみましょう！</div>';
+            chartContainer.style.display = 'none';
+            if (gameChart) gameChart.destroy();
+            gameChart = null;
         } else {
             const maxTime = agg[0][1];
             gameListEl.innerHTML = agg.map(([title, sec], i) => `
@@ -545,6 +607,54 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     <div class="game-time">${formatReadable(sec)}</div>
                 </div>
             `).join('');
+
+            // チャート描画
+            chartContainer.style.display = 'block';
+            const chartCanvas = document.getElementById('game-chart');
+            const labels = agg.map(([title]) => title);
+            const data = agg.map(([, sec]) => Math.round(sec / 60));
+            const colors = ['#7c3aed', '#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe', '#ede9fe', '#f3e8ff', '#faf5ff'];
+            const bgColors = labels.map((_, i) => colors[i % colors.length]);
+
+            if (currentChartType === 'trend') {
+                renderTrendChart(chartCanvas, filtered, allSessions);
+            } else {
+                const chartType = currentChartType === 'bar' ? 'bar' : 'doughnut';
+                if (gameChart) {
+                    gameChart.destroy();
+                    gameChart = null;
+                }
+                gameChart = new Chart(chartCanvas, {
+                    type: chartType,
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: data,
+                            backgroundColor: bgColors,
+                            borderColor: '#fff',
+                            borderWidth: chartType === 'doughnut' ? 2 : 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        indexAxis: chartType === 'bar' ? 'y' : undefined,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { font: { size: 11 }, padding: 10, maxWidth: 500 }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(ctx) {
+                                        return ctx.label + ': ' + ctx.parsed.x + '分' || ctx.label + ': ' + ctx.parsed + '分';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
         }
 
         // セッション履歴（最新20件）
@@ -562,11 +672,71 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                             <div class="session-meta">${dateStr}</div>
                         </div>
                         <div class="session-dur">${formatReadable(s.duration)}</div>
-                        <button class="btn btn-sm btn-danger" onclick="deleteSession('${s.id}')" aria-label="${escHtml(s.title)}のセッションを削除" style="min-height:32px;padding:4px 10px;font-size:12px;">削除</button>
+                        <button class="btn btn-sm btn-danger session-delete-btn" onclick="deleteSession('${s.id}')" aria-label="${escHtml(s.title)}のセッションを削除">削除</button>
                     </div>
                 `;
             }).join('');
         }
+    }
+
+    function renderTrendChart(canvas, filtered, allSessions) {
+        // 過去3ヶ月の月別集計
+        const months = {};
+        for (let i = 2; i >= 0; i--) {
+            const d = new Date();
+            d.setMonth(d.getMonth() - i);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            months[key] = 0;
+        }
+
+        allSessions.forEach(s => {
+            const d = new Date(s.endTime);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            if (months.hasOwnProperty(key)) {
+                months[key] += s.duration;
+            }
+        });
+
+        const monthLabels = Object.keys(months).map(k => k.replace('-', '/'));
+        const monthData = Object.values(months).map(sec => Math.round(sec / 60));
+
+        if (gameChart) gameChart.destroy();
+        gameChart = new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: monthLabels,
+                datasets: [{
+                    label: '月間合計時間（分）',
+                    data: monthData,
+                    borderColor: '#7c3aed',
+                    backgroundColor: '#7c3aed22',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 5,
+                    pointBackgroundColor: '#7c3aed',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) {
+                                return ctx.parsed.y + '分';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
     }
 
     function deleteSession(id) {

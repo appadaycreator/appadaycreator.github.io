@@ -39,6 +39,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"児童手当計算ツール","description":"2024年10月改正版の児童手当を所得・子どもの年齢・人数で試算。所得制限撤廃・高校生延長対応。月額・年額を自動計算します。","url":"https://appadaycreator.com/child-allowance-calculator/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"author":{"@type":"Organization","name":"AppADayCreator","url":"https://appadaycreator.com/"}}</script>
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "児童手当計算ツールは無料で使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、完全無料・登録不要でご利用いただけます。"}}, {"@type": "Question", "name": "2024年10月の改正でどう変わりましたか？", "acceptedAnswer": {"@type": "Answer", "text": "①所得制限が完全撤廃 ②支給対象が高校生（18歳年度末）まで延長 ③第3子以降が月30,000円に増額 ④支払い回数が年6回に増加しました。"}}, {"@type": "Question", "name": "第1子・第2子・第3子の数え方は？", "acceptedAnswer": {"@type": "Answer", "text": "基本的に現在養育している子どもの数で数えます。大学生など別居の子も要件を満たせばカウントされる場合があります。詳しくはお住まいの市区町村にご確認ください。"}}, {"@type": "Question", "name": "計算結果はいつから受け取れますか？", "acceptedAnswer": {"@type": "Answer", "text": "出生届・転入届後に申請が必要です。申請翌月分から支給されます。出生後15日以内に申請すると生まれた月分も受給できます。"}}, {"@type": "Question", "name": "所得制限はなくなりましたか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、2024年10月の改正で所得制限・所得上限制限がともに撤廃されました。どの所得でも同額受給できます。"}}]}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"児童手当計算ツール【2024年改正対応】所得・年齢別に試算の使い方","step":[{"@type":"HowToStep","position":1,"name":"必要事項を入力する","text":"フォームに必要な情報（数値・選択肢・条件）を入力または選択する"},{"@type":"HowToStep","position":2,"name":"診断・計算を実行する","text":"「診断する」「計算する」または「確認する」ボタンを押して結果を取得する"},{"@type":"HowToStep","position":3,"name":"結果・分析を確認する","text":"表示された診断結果・計算結果・グラフをじっくり確認する"},{"@type":"HowToStep","position":4,"name":"アドバイスを活用する","text":"結果に基づくアドバイスや提案を日常生活に取り入れる"},{"@type":"HowToStep","position":5,"name":"定期的に再チェックする","text":"生活変化に応じて定期的に再診断して進捗を追跡する"}]}</script>
@@ -246,6 +248,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <option value="3">3人以上（月45,000円）</option>
           </select>
           <button class="btn" style="margin-top:20px;" onclick="calc()">計算する →</button>
+          <div id="history-box" style="display:none;margin-top:16px;padding:12px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;"></div>
         </div>
         <div class="result" id="result">
           <div class="card" style="text-align:center;">
@@ -253,6 +256,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div class="result-value" id="r-month"></div>
             <div style="font-size:13px;color:#888;">年額: <strong id="r-year"></strong></div>
             <div id="r-detail" style="text-align:left;margin-top:16px;font-size:13px;color:#555;line-height:2;"></div>
+            <div id="chart-container" style="margin-top:20px;margin-bottom:16px;">
+              <canvas id="childAllowanceChart" style="max-width:300px;margin:0 auto;"></canvas>
+            </div>
             <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:10px;padding:12px;margin-top:12px;font-size:12px;color:#92400e;text-align:left;">
               <strong>💡 年6回支給パターン</strong>
               <div class="payment-schedule">
@@ -398,28 +404,124 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     const AMOUNT = {
       '0':15000,'3':10000,'3b':15000,'jhs':10000,'hs':10000,'none':0
     };
+    const STORAGE_KEY = 'childAllowanceData';
+    let chartInstance = null;
+
+    function saveToStorage() {
+      const data = {
+        age1: document.getElementById('age1').value,
+        age2: document.getElementById('age2').value,
+        age3: document.getElementById('age3').value,
+        age4: document.getElementById('age4').value,
+        timestamp: new Date().getTime()
+      };
+      const all = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      all.unshift(data);
+      if(all.length > 5) all.pop();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+    }
+
+    function restoreFromStorage() {
+      const all = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      if(all.length > 0) {
+        const data = all[0];
+        if(data.age1) document.getElementById('age1').value = data.age1;
+        if(data.age2) document.getElementById('age2').value = data.age2;
+        if(data.age3) document.getElementById('age3').value = data.age3;
+        if(data.age4) document.getElementById('age4').value = data.age4;
+        showHistory();
+      }
+    }
+
+    function showHistory() {
+      const all = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      const historyBox = document.getElementById('history-box');
+      if(!historyBox) return;
+      if(all.length <= 1) { historyBox.style.display = 'none'; return; }
+      let html = '<p style="font-size:13px;font-weight:600;margin-bottom:8px;">📜 前回の計算</p>';
+      html += '<div style="display:flex;flex-direction:column;gap:6px;">';
+      for(let i=1; i<Math.min(4, all.length); i++) {
+        const d = all[i];
+        const date = new Date(d.timestamp).toLocaleDateString('ja-JP');
+        html += `<button style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;padding:8px 12px;border-radius:8px;font-size:12px;cursor:pointer;text-align:left;" onclick="restoreData(${i})">${date}の計算</button>`;
+      }
+      html += '</div>';
+      historyBox.innerHTML = html;
+      historyBox.style.display = 'block';
+    }
+
+    function restoreData(index) {
+      const all = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      if(all[index]) {
+        const data = all[index];
+        if(data.age1) document.getElementById('age1').value = data.age1;
+        if(data.age2) document.getElementById('age2').value = data.age2;
+        if(data.age3) document.getElementById('age3').value = data.age3;
+        if(data.age4) document.getElementById('age4').value = data.age4;
+        calc();
+      }
+    }
+
+    function drawChart(amounts, labels) {
+      const ctx = document.getElementById('childAllowanceChart');
+      if(!ctx) return;
+      const colors = ['#16A34A', '#4338CA', '#DC2626', '#EA580C'];
+      if(chartInstance) chartInstance.destroy();
+      chartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: amounts,
+            backgroundColor: colors.slice(0, amounts.length),
+            borderColor: '#fff',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { position: 'bottom', labels: { font: { size: 12 }, boxWidth: 16, padding: 12 } },
+            tooltip: { callbacks: { label: ctx => ctx.label + ': ' + ctx.parsed + '円/月' } }
+          }
+        }
+      });
+    }
+
     function calc() {
       const ages=[document.getElementById('age1').value, document.getElementById('age2').value, document.getElementById('age3').value].filter(v=>v&&v!=='none');
       const extra=parseInt(document.getElementById('age4').value)||0;
       if(!ages[0]){alert('1人目の年齢を選択してください');return;}
-      let total=0, detail='';
+      let total=0, detail='', amounts=[], labels=[];
       ages.forEach((age,i)=>{
         const amt=AMOUNT[age]||0;
         total+=amt;
+        amounts.push(amt);
         const label=`子ども${i+1}人目`;
+        labels.push(label);
         detail+=`<div>${label}: <strong>${amt.toLocaleString()}円/月</strong></div>`;
       });
       if(extra>0){
         const extraAmt=extra*15000;
         total+=extraAmt;
+        amounts.push(extraAmt);
+        labels.push('4人目以降');
         detail+=`<div>4人目以降: <strong>${extraAmt.toLocaleString()}円/月</strong></div>`;
       }
       document.getElementById('r-month').textContent=total.toLocaleString()+'円/月';
       document.getElementById('r-year').textContent=(total*12).toLocaleString()+'円';
       document.getElementById('r-detail').innerHTML=detail;
+      drawChart(amounts, labels);
       document.getElementById('result').classList.add('show');
       document.getElementById('result').scrollIntoView({behavior:'smooth'});
+      saveToStorage();
+      showHistory();
     }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      restoreFromStorage();
+    });
     </script>
     <!-- rakuten-affiliate-block -->
     <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">

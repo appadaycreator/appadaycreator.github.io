@@ -41,6 +41,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
+    <!-- Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"ペットワクチン・健康記録","description":"ワクチン接種日・フィラリア予防・健診日程を記録して次回接種のリマインダー管理。登録不要・完全無料でご利用いただけます。","url":"https://appadaycreator.com/pet-vaccination-tracker/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"author":{"@type":"Organization","name":"AppADayCreator","url":"https://appadaycreator.com/"}}</script>
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "ペットワクチン・健康記録は無料で使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、完全無料・登録不要でご利用いただけます。"}}, {"@type": "Question", "name": "記録データはどこに保存されますか？", "acceptedAnswer": {"@type": "Answer", "text": "ご使用のブラウザのローカルストレージに保存されます。他のデバイスとは共有されません。"}}, {"@type": "Question", "name": "ブラウザを閉じても記録は残りますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、同じブラウザを使う限りデータは保持されます。"}}, {"@type": "Question", "name": "記録を削除するにはどうすればいいですか？", "acceptedAnswer": {"@type": "Answer", "text": "リセットボタン、またはブラウザのサイトデータをクリアすることで削除できます。"}}, {"@type": "Question", "name": "スマートフォンで利用できますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、スマートフォン・タブレット・PCすべてでご利用いただけます。"}}]}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"ペットワクチン・健康記録【無料】記録・管理アプリの使い方","step":[{"@type":"HowToStep","position":1,"name":"ペットの名前と種別を入力する","text":"ペットの名前（例：ポチ）と記録種別（混合ワクチン・狂犬病・フィラリア等）を選択する"},{"@type":"HowToStep","position":2,"name":"実施日と次回予定日を入力する","text":"ワクチン接種日などの実施日を入力し、次回予定日もあわせて設定する"},{"@type":"HowToStep","position":3,"name":"「記録を追加」ボタンで保存する","text":"「記録を追加 ＋」ボタンを押してデータをブラウザのローカルストレージに保存する"},{"@type":"HowToStep","position":4,"name":"記録一覧でリマインダーを確認する","text":"記録一覧で次回予定日の期限超過（赤）・もうすぐ（黄）をカラーインジケーターで確認する"},{"@type":"HowToStep","position":5,"name":"複数のペットを登録して一元管理する","text":"犬・猫など複数のペットを登録し、フィルターで個別に絞り込んで管理する"}]}</script>
@@ -76,8 +78,19 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
             .result-value { font-size: 28px; }
         }
         /* ── サービス固有CSS ── */
+        .chart-container{position:relative;height:250px;margin-bottom:16px;background:white;border-radius:12px;padding:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06);}
+        @media (max-width:480px){.chart-container{height:200px;padding:12px;}}
+        .timeline-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;margin-bottom:12px;}
+        .timeline-cell{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;text-align:center;font-size:12px;}
+        .timeline-cell.overdue{background:#fff5f5;border-color:#dc2626;}
+        .timeline-cell.soon{background:#fffbeb;border-color:#f59e0b;}
+        .timeline-cell.ok{background:#f0fdf4;border-color:#16a34a;}
+        .vaccine-gauge{display:flex;gap:12px;margin-bottom:12px;align-items:center;padding:10px;background:#f8fafc;border-radius:8px;}
+        .gauge-bar{flex:1;height:24px;background:#e2e8f0;border-radius:6px;overflow:hidden;}
+        .gauge-fill{height:100%;background:linear-gradient(90deg,#F97316,#f59e0b);transition:width .3s ease;display:flex;align-items:center;justify-content:center;font-size:10px;color:white;font-weight:600;}
+        .gauge-label{font-size:12px;font-weight:600;color:#374151;min-width:40px;text-align:right;}
 
-    
+
 @media print{
   header,footer,nav,button,.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
@@ -585,6 +598,120 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }catch(e){}
       render();
     }
+    // チャートインスタンス管理
+    let chartInstances={vaccinationTypes:null,petGauges:null};
+
+    function buildVaccineGaugesHtml(data,petNames){
+      // ペット別ワクチンカバー率ゲージを生成
+      if(petNames.length===0) return '';
+      const gaugesHtml=petNames.map(petName=>{
+        const petRecords=data.filter(x=>x.name===petName);
+        const petRecordsWithNext=petRecords.filter(x=>x.next);
+        const total=Math.max(petRecords.length,1);
+        const completed=petRecordsWithNext.length;
+        const coverage=Math.round((completed/total)*100);
+        const speciesIcon={'dog':'🐕','cat':'🐱','rabbit':'🐰','other':'🐾'}[data.find(x=>x.name===petName)?.species]||'🐾';
+        return `<div class="vaccine-gauge">
+          <div style="min-width:40px;font-weight:600;color:#374151;">${speciesIcon} ${petName}</div>
+          <div class="gauge-bar">
+            <div class="gauge-fill" style="width:${coverage}%;">${coverage}%</div>
+          </div>
+          <div class="gauge-label">${completed}/${total}</div>
+        </div>`;
+      }).join('');
+      return `<div style="margin-bottom:12px;">
+        <div style="font-size:12px;font-weight:600;color:#666;margin-bottom:8px;">📊 ペット別ワクチンカバー率</div>
+        ${gaugesHtml}
+      </div>`;
+    }
+
+    function buildVaccineTimelineHtml(data){
+      // 次回予定日のタイムライン（3か月間表示）
+      const today=new Date();
+      const timeline={};
+      const monthLabels=[];
+      for(let i=0;i<12;i++){
+        const d=new Date(today.getFullYear(),today.getMonth()+i,1);
+        const ym=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        timeline[ym]={total:0,overdue:0,ok:0};
+        if(i<3) monthLabels.push(ym);
+      }
+      data.forEach(x=>{
+        if(!x.next) return;
+        const [y,m]=x.next.split('-');
+        const ym=`${y}-${m}`;
+        if(timeline[ym]){
+          timeline[ym].total++;
+          const isOverdue=x.next<today.toISOString().slice(0,10);
+          if(isOverdue) timeline[ym].overdue++;
+          else timeline[ym].ok++;
+        }
+      });
+      const timelineHtml=monthLabels.map(ym=>{
+        const stat=timeline[ym];
+        const bgClass=stat.overdue>0?'overdue':stat.ok>0?'ok':'';
+        const label=ym.split('-').join('年').replace(/(\d+)$,'$1月');
+        return `<div class="timeline-cell ${bgClass}" title="合計: ${stat.total}件${stat.overdue>0?', 期限超過: '+stat.overdue+'件':''}" style="cursor:help;">
+          <div style="font-weight:700;color:#374151;">${stat.total}</div>
+          <div style="font-size:11px;color:#666;">${label}</div>
+        </div>`;
+      }).join('');
+      return `<div style="margin-bottom:12px;">
+        <div style="font-size:12px;font-weight:600;color:#666;margin-bottom:8px;">📅 接種予定タイムライン（3か月）</div>
+        <div class="timeline-grid">${timelineHtml}</div>
+      </div>`;
+    }
+
+    function buildVaccineChartHtml(){
+      // ワクチン種別別集計グラフ用のcanvas要素を返す
+      return `<div style="margin-bottom:12px;">
+        <div style="font-size:12px;font-weight:600;color:#666;margin-bottom:8px;">💉 接種種別別集計</div>
+        <div class="chart-container">
+          <canvas id="vaccineTypeChart"></canvas>
+        </div>
+      </div>`;
+    }
+
+    function renderVaccineTypeChart(){
+      // 接種種別別の集計グラフを描画
+      const data=load();
+      const typeCount={};
+      data.forEach(x=>{
+        typeCount[x.type]=(typeCount[x.type]||0)+1;
+      });
+      const labels=Object.keys(typeCount);
+      const counts=Object.values(typeCount);
+      if(labels.length===0) return;
+
+      // 前のチャートを破棄
+      if(chartInstances.vaccinationTypes){
+        chartInstances.vaccinationTypes.destroy();
+      }
+
+      const ctx=document.getElementById('vaccineTypeChart');
+      if(!ctx) return;
+
+      chartInstances.vaccinationTypes=new Chart(ctx,{
+        type:'doughnut',
+        data:{
+          labels:labels,
+          datasets:[{
+            data:counts,
+            backgroundColor:['#F97316','#FF6B6B','#4ECDC4','#45B7D1','#FFA07A','#98D8C8','#F7DC6F'],
+            borderColor:'white',
+            borderWidth:2
+          }]
+        },
+        options:{
+          responsive:true,
+          maintainAspectRatio:false,
+          plugins:{
+            legend:{position:'bottom',labels:{font:{size:12},padding:10}}
+          }
+        }
+      });
+    }
+
     function render(){
       const data=load();
       updatePetNameSuggest();
@@ -658,7 +785,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       </div>`;
       const exportHtml=`<button onclick="exportCSV()" style="padding:8px 16px;background:#F97316;border:none;border-radius:8px;font-size:13px;color:white;cursor:pointer;font-weight:600;margin-bottom:12px;min-height:44px;">📥 CSV出力</button>`;
 
-      document.getElementById('list-area').innerHTML=`<h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">📋 記録一覧（${filtered.length}件${currentFilter?'・'+currentFilter:''}）</h3>${petSummaryHtml}${statsHtml}${filterHtml}${sortHtml}${exportHtml}`+
+      // 可視化セクション
+      const petNames=[...new Set(data.map(x=>x.name))];
+      const gaugesHtml=buildVaccineGaugesHtml(data,petNames);
+      const timelineHtml=buildVaccineTimelineHtml(data);
+      const chartHtml=buildVaccineChartHtml();
+
+      document.getElementById('list-area').innerHTML=`<h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">📋 記録一覧（${filtered.length}件${currentFilter?'・'+currentFilter:''}）</h3>${petSummaryHtml}${statsHtml}${gaugesHtml}${timelineHtml}${chartHtml}${filterHtml}${sortHtml}${exportHtml}`+
       sorted.map(x=>{
         const isOverdue=x.next&&x.next<today;
         const isSoon=x.next&&!isOverdue&&x.next<new Date(Date.now()+30*86400000).toISOString().slice(0,10);
@@ -683,6 +816,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </div>
         </div>`;
       }).join('');
+
+      // チャートレンダリング（DOM更新後）
+      setTimeout(()=>renderVaccineTypeChart(),50);
     }
     function exportCSV(){
       const data=load();

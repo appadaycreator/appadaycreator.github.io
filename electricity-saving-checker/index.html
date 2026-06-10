@@ -35,6 +35,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -77,7 +78,22 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .quiz-opt:active { transform:scale(0.99); background:#ede9fe; }
         .quiz-opt:focus-visible { outline:3px solid #7c3aed; outline-offset:2px; }
 
-    
+        /* M3: localStorage 履歴セクション */
+        .history-section { background: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 12px; padding: 14px; margin-bottom: 16px; }
+        .history-section h3 { font-size: 13px; font-weight: 700; color: #3730a3; margin-bottom: 10px; }
+        .history-item { background: white; padding: 10px 12px; margin-bottom: 8px; border-radius: 8px; font-size: 13px; cursor: pointer; border: 1px solid #e0e7ff; transition: background .2s; }
+        .history-item:hover { background: #eff6ff; border-color: #7c3aed; }
+        .history-item-date { color: #6b7280; font-size: 11px; margin-top: 2px; }
+        .btn-small { background: #7c3aed; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; min-height: auto; width: auto; }
+        .btn-small:hover { opacity: 0.9; }
+
+        /* M4: Chart.js 可視化 */
+        .chart-container { position: relative; height: 250px; margin: 16px 0; }
+        .score-card { background: linear-gradient(135deg, #7c3aed, #6d28d9); color: white; padding: 16px; border-radius: 12px; text-align: center; margin-bottom: 16px; }
+        .score-value { font-size: 36px; font-weight: 700; }
+        .score-label { font-size: 13px; opacity: 0.9; margin-top: 4px; }
+
+
 @media print{
   header,footer,nav,button,.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
@@ -199,6 +215,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
 <h2 style="font-size:18px;font-weight:700;margin-bottom:12px;">💡 家電の電気代チェッカー</h2>
           <p style="color:#666;font-size:14px;margin-bottom:20px;">家電の使い方を選ぶだけで月の電気代目安と節電アドバイスが分かります。</p>
+          <div id="history-box" class="history-section" style="display:none;">
+            <h3>📋 前回の診断結果</h3>
+            <div id="history-list"></div>
+            <button class="btn-small" onclick="clearHistory()">履歴を削除</button>
+          </div>
           <button class="btn" onclick="startQuiz()">診断スタート →</button>
         </div>
         <div id="quiz-area" style="display:none;">
@@ -213,9 +234,22 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
         <div class="result" id="result">
           <div class="card">
+            <div class="score-card">
+              <div class="score-label">エネルギー効率スコア</div>
+              <div class="score-value" id="r-score">0</div>
+              <div class="score-label">/ 30 (満点)</div>
+            </div>
             <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;color:#7c3aed;"></h3>
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
-            <button class="btn" style="margin-top:16px;" onclick="location.reload()">もう一度診断</button>
+
+            <div class="chart-container" id="chart-container" style="display:none;">
+              <canvas id="resultChart"></canvas>
+            </div>
+
+            <div id="r-breakdown" style="margin-top:16px;"></div>
+
+            <button class="btn" style="margin-top:16px;" onclick="startQuiz()">もう一度診断</button>
+            <button class="btn-small" style="margin-top:8px;display:block;margin-left:auto;margin-right:auto;" onclick="copyResult()">結果をコピー</button>
           </div>
         </div>
 
@@ -320,7 +354,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     
 <script>
-    // ★ここだけ実装（約15行）★
+    // M3&M4: localStorage + Chart.js 拡張版
     const QUESTIONS = [
       { text:'エアコンの使用頻度は？', opts:['ほぼ使わない','1日2〜3時間','1日6時間以上','ほぼつけっぱなし'] },
       { text:'冷蔵庫は何年前に購入しましたか？', opts:['3年以内','3〜8年前','8〜15年前','15年以上前'] },
@@ -340,14 +374,84 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         [0,0,2,4],
       ];
       answers.forEach((a,i) => { score += (weights[i]||[0,0,0,0])[a.idx]||0; });
-      if (score <= 5) return { title:'✅ 節電上手！月の電気代は比較的安め', desc:'エアコン・照明・家電の使い方がとても効率的です。このまま意識を続けましょう。さらにスマート家電の導入でさらに5〜10%削減できる可能性があります。' };
-      if (score <= 12) return { title:'⚡ まずまず。あと少しで大きく節電できます', desc:'エアコンや照明の使い方を見直すことで月500〜1,000円程度の削減が見込めます。不使用時の主電源OFF・冷蔵庫の設定温度を見直してみましょう。' };
-      if (score <= 20) return { title:'⚠️ 電気代がかさみやすい使い方です', desc:'古い冷蔵庫・乾燥機の多用・日中の給湯などが電気代を押し上げています。省エネ家電への買い替えや深夜電力の活用で月1,500〜3,000円の削減が期待できます。' };
-      return { title:'🔴 電気代が高くなりやすい状態です', desc:'家電の使用パターンを見直す余地が大きいです。エアコンの温度設定（冷房28℃・暖房20℃）、古い家電の買い替え、乾燥機の使用頻度削減で月3,000円以上の節約が見込めます。' };
+      const categoryScores = answers.map((a,i) => (weights[i]||[0,0,0,0])[a.idx]||0);
+      if (score <= 5) return { title:'✅ 節電上手！月の電気代は比較的安め', desc:'エアコン・照明・家電の使い方がとても効率的です。このまま意識を続けましょう。さらにスマート家電の導入でさらに5〜10%削減できる可能性があります。', score, categoryScores };
+      if (score <= 12) return { title:'⚡ まずまず。あと少しで大きく節電できます', desc:'エアコンや照明の使い方を見直すことで月500〜1,000円程度の削減が見込めます。不使用時の主電源OFF・冷蔵庫の設定温度を見直してみましょう。', score, categoryScores };
+      if (score <= 20) return { title:'⚠️ 電気代がかさみやすい使い方です', desc:'古い冷蔵庫・乾燥機の多用・日中の給湯などが電気代を押し上げています。省エネ家電への買い替えや深夜電力の活用で月1,500〜3,000円の削減が期待できます。', score, categoryScores };
+      return { title:'🔴 電気代が高くなりやすい状態です', desc:'家電の使用パターンを見直す余地が大きいです。エアコンの温度設定（冷房28℃・暖房20℃）、古い家電の買い替え、乾燥機の使用頻度削減で月3,000円以上の節約が見込めます。', score, categoryScores };
     }
-    // ★以下変更不要★
+    function saveToHistory(result) {
+      const hist = JSON.parse(localStorage.getItem('energyHistory')||'[]');
+      hist.push({ date: new Date().toLocaleString('ja-JP'), result: result.title, score: result.score });
+      localStorage.setItem('energyHistory', JSON.stringify(hist.slice(-10)));
+    }
+    function loadHistory() {
+      const hist = JSON.parse(localStorage.getItem('energyHistory')||'[]');
+      if (!hist.length) return;
+      const box = document.getElementById('history-box');
+      const list = document.getElementById('history-list');
+      list.innerHTML = hist.reverse().map((h,i) => `
+        <div class="history-item">
+          <strong>スコア: ${h.score}/30</strong>
+          <div class="history-item-date">${h.date}</div>
+        </div>
+      `).join('');
+      box.style.display = 'block';
+    }
+    function clearHistory() {
+      if (confirm('履歴を削除してもよろしいですか？')) {
+        localStorage.removeItem('energyHistory');
+        document.getElementById('history-box').style.display = 'none';
+      }
+    }
+    function renderChart(categoryScores) {
+      const ctx = document.getElementById('resultChart');
+      if (!ctx) return;
+      const labels = ['エアコン','冷蔵庫','テレビ','乾燥機','給湯器','照明'];
+      const maxScores = [8,5,5,5,4,4];
+      new Chart(ctx, {
+        type: 'radar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'あなたの使用パターン',
+            data: categoryScores,
+            borderColor: '#7c3aed',
+            backgroundColor: '#7c3aed22',
+            borderWidth: 2,
+            fill: true,
+            pointBackgroundColor: '#7c3aed'
+          }, {
+            label: '理想的なパターン（満点）',
+            data: maxScores,
+            borderColor: '#9ca3af',
+            borderWidth: 1,
+            fill: false,
+            borderDash: [5,5],
+            pointBackgroundColor: '#9ca3af'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom' } },
+          scales: { r: { beginAtZero: true, max: 8 } }
+        }
+      });
+      document.getElementById('chart-container').style.display = 'block';
+    }
+    function copyResult() {
+      const title = document.getElementById('r-title').textContent;
+      const desc = document.getElementById('r-desc').textContent;
+      const score = document.getElementById('r-score').textContent;
+      const text = `${title}\nスコア: ${score}\n\n${desc}`;
+      navigator.clipboard.writeText(text).then(() => alert('結果をコピーしました！')).catch(() => alert('コピーに失敗しました'));
+    }
     const BTN='#7c3aed'; let cur=0; const ans=[];
-    document.addEventListener('DOMContentLoaded',()=>{ document.getElementById('q-total').textContent=QUESTIONS.length; });
+    document.addEventListener('DOMContentLoaded',()=>{
+      document.getElementById('q-total').textContent=QUESTIONS.length;
+      loadHistory();
+    });
     function startQuiz(){ cur=0;ans.length=0; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); renderQ(); }
     function renderQ(){
       const q=QUESTIONS[cur];
@@ -360,9 +464,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function showResult(){
       document.getElementById('quiz-area').style.display='none';
       const r=getResult(ans);
+      saveToHistory(r);
       document.getElementById('r-title').textContent=r.title;
       document.getElementById('r-desc').textContent=r.desc;
+      document.getElementById('r-score').textContent=r.score;
+      renderChart(r.categoryScores);
       document.getElementById('result').classList.add('show');
+      setTimeout(() => loadHistory(), 100);
     }
     </script>
 <!-- A8アフィリエイト: Looopでんき -->

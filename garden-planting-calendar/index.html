@@ -39,6 +39,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
+    <!-- Chart.js for visualization (M4) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"家庭菜園・植付けカレンダー","description":"地域・栽培したい野菜から最適な植付け時期と育て方スケジュールを自動生成。登録不要・完全無料でご利用いただけます。","url":"https://appadaycreator.com/garden-planting-calendar/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"author":{"@type":"Organization","name":"AppADayCreator","url":"https://appadaycreator.com/"}}</script>
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "家庭菜園・植付けカレンダーは無料で使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、完全無料・登録不要でご利用いただけます。"}}, {"@type": "Question", "name": "何回でも使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、回数制限なく何度でもご利用いただけます。"}}, {"@type": "Question", "name": "入力したデータはサーバーに送信されますか？", "acceptedAnswer": {"@type": "Answer", "text": "いいえ。すべての処理はブラウザ内で完結し、入力内容はサーバーへ送信されません。"}}, {"@type": "Question", "name": "スマートフォンでも使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、スマートフォン・タブレット・PCすべてに最適化されています。"}}, {"@type": "Question", "name": "結果を保存・共有できますか？", "acceptedAnswer": {"@type": "Answer", "text": "スクリーンショットでの保存またはSNSシェアボタンからご共有いただけます。"}}]}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"家庭菜園・植付けカレンダー【無料】Webツールの使い方","step":[{"@type":"HowToStep","position":1,"name":"記録する情報を入力する","text":"記録したい内容（日付・数値・テキスト）を入力フォームに入力する"},{"@type":"HowToStep","position":2,"name":"「追加」ボタンで保存する","text":"「追加」または「記録」ボタンを押してデータをブラウザに保存する"},{"@type":"HowToStep","position":3,"name":"記録一覧で履歴を確認する","text":"記録一覧やカレンダーで過去のデータを確認する"},{"@type":"HowToStep","position":4,"name":"グラフや集計で傾向を把握する","text":"グラフや統計機能を使ってデータの推移・傾向を分析する"},{"@type":"HowToStep","position":5,"name":"継続して変化を追跡する","text":"毎日継続的に記録することで長期的な変化を可視化する"}]}</script>
@@ -72,8 +74,16 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
             .result-value { font-size: 28px; }
         }
         /* ── サービス固有CSS ── */
+        #timeline-chart { margin: 20px 0; max-height: 300px; }
+        .history-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+        .history-item { background: #f3f4f6; padding: 8px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; border-left: 3px solid #7c3aed; }
+        .history-item:hover { background: #e5e7eb; }
+        .export-buttons { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+        .btn-secondary { background: #6b7280; padding: 10px 16px; font-size: 13px; min-height: 44px; }
+        .btn-secondary:hover { opacity: 0.9; }
+        .progress-bar { width: 100%; background: #e5e7eb; border-radius: 8px; height: 24px; margin-top: 8px; overflow: hidden; }
+        .progress-fill { background: linear-gradient(90deg, #7c3aed, #5b21b6); height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: 600; }
 
-    
 @media print{
   header,footer,nav,button,.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
@@ -213,6 +223,17 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="card">
             <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#7c3aed;">✅ 作成結果</h3>
             <div id="output"></div>
+            <canvas id="timeline-chart" class="no-print" style="margin-top:20px;"></canvas>
+            <div class="export-buttons no-print">
+              <button class="btn btn-secondary" onclick="printResult()" style="flex:1;">🖨️ 印刷する</button>
+              <button class="btn btn-secondary" onclick="copyResult()" style="flex:1;">📋 コピー</button>
+              <button class="btn btn-secondary" onclick="downloadCSV()" style="flex:1;">💾 CSV</button>
+            </div>
+          </div>
+          <div class="card" id="history-section" style="display:none;">
+            <h3 style="font-size:13px;font-weight:700;margin-bottom:12px;color:#374151;">📋 過去の検索履歴</h3>
+            <div class="history-list" id="history-list"></div>
+            <button class="btn btn-secondary" onclick="clearHistory()" style="margin-top:12px;">🗑️ 履歴をクリア</button>
           </div>
         </div>
 
@@ -299,6 +320,33 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <dd style="margin-left:16px;color:#374151;">はい、スクリーンショットやURLをシェアしてご活用ください。家族みんなで家庭菜園・植付けカレンダーWebツーについて話し合うきっかけにどうぞ。</dd>
   </dl>
 </section>
+<!-- r30-tool-guide -->
+<section style="margin:2rem 0;padding:1.5rem;background:#f8fafc;border-radius:.75rem;border:1px solid #e2e8f0">
+<h2 style="font-size:1.05rem;font-weight:700;color:#1e293b;margin:0 0 .75rem">家庭菜園・植付けカレンダーの使い方ガイド</h2>
+<p style="font-size:.88rem;line-height:1.85;color:#374151">家庭菜園を成功させるには、作物ごとの適切な植え付け時期・収穫時期を把握することが大切です。このツールでは育てたい野菜・果物・ハーブを選択し、お住まいの地域（都道府県）を設定するだけで、年間の植え付け・収穫カレンダーを自動生成します。初心者でも失敗しにくい作物の選び方や、連作障害を避けるためのローテーション計画もサポートします。プランターや小さなスペースでも始められる菜園ライフを楽しみましょう。</p>
+<h3 style="font-size:.9rem;font-weight:700;color:#1e293b;margin:1rem 0 .4rem">このツールが役立つシーン</h3>
+<ul style="font-size:.85rem;line-height:2;color:#374151;padding-left:1.2rem">
+<li>家庭菜園を始めたいが何をいつ植えればいいかわからないとき</li>
+<li>季節ごとに収穫できる野菜のサイクルを計画したいとき</li>
+<li>プランター菜園でベランダを活用したいとき</li>
+<li>子どもと一緒に野菜作りを楽しみたいとき</li>
+</ul>
+<h3 style="font-size:.9rem;font-weight:700;color:#1e293b;margin:1rem 0 .4rem">よくある質問</h3>
+<div style="display:grid;gap:.5rem">
+<div style="padding:.65rem;background:#fff;border-left:3px solid #4f46e5;border-radius:0 .375rem .375rem 0">
+<p style="font-size:.82rem;font-weight:700;color:#4f46e5;margin:0 0 .2rem">Q. 地域によって植え付け時期は変わりますか？</p>
+<p style="font-size:.81rem;color:#6b7280;margin:0">はい、北海道・東北・関東・近畿・九州など地域に応じた適切な時期を表示します。</p>
+</div>
+<div style="padding:.65rem;background:#fff;border-left:3px solid #4f46e5;border-radius:0 .375rem .375rem 0">
+<p style="font-size:.82rem;font-weight:700;color:#4f46e5;margin:0 0 .2rem">Q. 初心者におすすめの野菜はありますか？</p>
+<p style="font-size:.81rem;color:#6b7280;margin:0">ミニトマト・レタス・ラディッシュ・小松菜などは育てやすいのでおすすめです。ツール内でも初心者向けフィルターが使えます。</p>
+</div>
+<div style="padding:.65rem;background:#fff;border-left:3px solid #4f46e5;border-radius:0 .375rem .375rem 0">
+<p style="font-size:.82rem;font-weight:700;color:#4f46e5;margin:0 0 .2rem">Q. 連作障害とは何ですか？</p>
+<p style="font-size:.81rem;color:#6b7280;margin:0">同じ場所に同じ科の野菜を続けて植えると育ちにくくなる現象です。毎年異なる作物に切り替えることで防げます。</p>
+</div>
+</div>
+</section>
 </main>
 
     
@@ -334,11 +382,103 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       </table>`;
     }
     // ★以下変更不要★
-    document.addEventListener('DOMContentLoaded',()=>{});
+    const HISTORY_KEY = 'garden_planting_history';
+    const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+    const regionNames = { kanto:'関東・中部', tohoku:'東北・北海道', kinki:'近畿・中国・四国', kyushu:'九州・沖縄' };
+    let chartInstance = null;
+    let currentInputs = null;
+
+    function getHistory(){
+      const h = localStorage.getItem(HISTORY_KEY);
+      return h ? JSON.parse(h) : [];
+    }
+    function saveToHistory(inputs){
+      const h = getHistory();
+      const newEntry = { region:inputs.region, veggie:inputs.veggie, timestamp:new Date().toISOString(), resultHTML:document.getElementById('output').innerHTML };
+      h.unshift(newEntry);
+      if(h.length>20) h.pop();
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(h));
+      updateHistoryDisplay();
+    }
+    function updateHistoryDisplay(){
+      const h = getHistory();
+      if(h.length===0) { document.getElementById('history-section').style.display='none'; return; }
+      document.getElementById('history-section').style.display='block';
+      const list = document.getElementById('history-list');
+      list.innerHTML = h.slice(0,5).map((item,i) => `<div class="history-item" onclick="restoreHistory(${i})">${regionNames[item.region]} / ${document.querySelector('option[value="'+item.veggie+'"]').textContent} (${new Date(item.timestamp).toLocaleDateString('ja-JP')})</div>`).join('');
+    }
+    function restoreHistory(idx){
+      const h = getHistory();
+      const item = h[idx];
+      document.getElementById('region').value = item.region;
+      document.getElementById('veggie').value = item.veggie;
+      document.getElementById('output').innerHTML = item.resultHTML;
+      document.getElementById('result').classList.add('show');
+      drawTimeline(item);
+    }
+    function drawTimeline(inputs){
+      const DATA = {
+        tomato:   { months:[0,0,0,1,1,1,1,1,1,0,0,0] },
+        cucumber: { months:[0,0,0,0,1,1,1,1,1,0,0,0] },
+        eggplant: { months:[0,0,0,0,1,1,1,1,1,0,0,0] },
+        pepper:   { months:[0,0,0,0,1,1,1,1,1,0,0,0] },
+        lettuce:  { months:[1,1,1,1,0,0,0,0,1,1,1,1] },
+        spinach:  { months:[1,1,1,1,0,0,0,0,1,1,1,1] },
+        radish:   { months:[1,1,1,1,0,0,0,0,1,1,1,1] },
+        carrot:   { months:[0,0,1,1,1,1,0,1,1,1,0,0] },
+      };
+      const canvas = document.getElementById('timeline-chart');
+      if(!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const data = DATA[inputs.veggie];
+      if(chartInstance) chartInstance.destroy();
+      chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: MONTH_NAMES,
+          datasets: [{
+            label: document.querySelector('option[value="'+inputs.veggie+'"]').textContent,
+            data: data.months.map(v => v?100:0),
+            backgroundColor: '#7c3aed',
+            borderColor: '#5b21b6',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          indexAxis: 'x',
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { display: false }, tooltip: { enabled: false } },
+          scales: { y: { beginAtZero: true, max: 100, ticks: { display: false }, grid: { display: false } } }
+        }
+      });
+    }
+    function printResult(){ window.print(); }
+    function copyResult(){
+      const output = document.getElementById('output').innerText;
+      navigator.clipboard.writeText(output).then(() => alert('結果をコピーしました！')).catch(() => alert('コピーに失敗しました'));
+    }
+    function downloadCSV(){
+      const rows = Array.from(document.querySelector('table').rows).map(r => Array.from(r.cells).map(c => c.innerText).join(',')).join('\n');
+      const blob = new Blob([rows], {type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'planting-calendar-'+new Date().toISOString().split('T')[0]+'.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    function clearHistory(){
+      if(confirm('履歴を全削除してもいいですか？')) { localStorage.removeItem(HISTORY_KEY); updateHistoryDisplay(); }
+    }
+    document.addEventListener('DOMContentLoaded',()=>{ updateHistoryDisplay(); });
     function generate(){
       const inputs=getInputs(); if(!inputs) return;
+      currentInputs = inputs;
       document.getElementById('output').innerHTML=buildOutput(inputs);
       document.getElementById('result').classList.add('show');
+      saveToHistory(inputs);
+      drawTimeline(inputs);
       document.getElementById('result').scrollIntoView({behavior:'smooth',block:'start'});
     }
     </script>

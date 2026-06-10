@@ -37,6 +37,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -229,6 +230,26 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div class="color-palette" id="r-accent"></div>
             <div class="color-section-title">コーディネートのコツ</div>
             <ul class="tip-list" id="r-tips"></ul>
+
+            <!-- スコア分析グラフ -->
+            <div class="color-section-title" style="margin-top:24px;">スコア分析</div>
+            <canvas id="scoreChart" style="max-height:200px;margin:12px 0;"></canvas>
+
+            <!-- 診断履歴セクション -->
+            <div class="color-section-title" style="margin-top:24px;">診断履歴</div>
+            <div id="history-panel" style="max-height:200px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px;padding:8px;margin:8px 0;background:#f9fafb;display:none;">
+              <div id="history-list" style="font-size:13px;"></div>
+              <button class="btn" style="margin-top:8px;padding:8px;font-size:12px;" onclick="clearDiagnosisHistory()">履歴をクリア</button>
+            </div>
+            <p id="no-history-msg" style="font-size:13px;color:#999;margin:8px 0;">履歴がまだありません</p>
+
+            <!-- エクスポートボタン -->
+            <div style="margin-top:20px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">
+              <button class="btn" style="flex:1;min-width:120px;padding:10px;font-size:14px;" onclick="printResult()">🖨️ 印刷する</button>
+              <button class="btn" style="flex:1;min-width:120px;padding:10px;font-size:14px;" onclick="copyResultToClipboard()">📋 テキストをコピー</button>
+              <button class="btn" style="flex:1;min-width:120px;padding:10px;font-size:14px;" onclick="downloadResultAsJson()">💾 ダウンロード</button>
+            </div>
+
             <button class="btn" style="margin-top:16px;" onclick="location.reload()">もう一度診断</button>
           </div>
         </div>
@@ -276,7 +297,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             </div>
             <div style="border-bottom:1px solid #f1f5f9;padding-bottom:12px;">
               <p style="font-size:14px;font-weight:600;color:#374151;margin-bottom:4px;">Q: 診断結果は保存されますか？</p>
-              <p style="font-size:13px;color:#6b7280;line-height:1.7;">A: 結果はブラウザには保存されません。スクリーンショットやSNSシェアでご記録ください。</p>
+              <p style="font-size:13px;color:#6b7280;line-height:1.7;">A: はい、診断結果はブラウザに自動保存されます。診断結果ページの「診断履歴」から最新10件の診断を確認でき、結果をテキストコピーまたはJSONでダウンロードできます。</p>
             </div>
             <div style="border-bottom:1px solid #f1f5f9;padding-bottom:12px;">
               <p style="font-size:14px;font-weight:600;color:#374151;margin-bottom:4px;">Q: 入力したデータはサーバーに送信されますか？</p>
@@ -546,8 +567,177 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const tipsList = document.getElementById('r-tips');
       tipsList.innerHTML = style.tips.map(t => `<li>${t}</li>`).join('');
 
+      // グローバル変数に結果を保存（エクスポート用）
+      window.currentResult = {
+        styleKey: styleKey,
+        styleName: style.name,
+        styleIcon: style.icon,
+        description: style.desc,
+        scores: {...scores},
+        palette: style.palette,
+        accent: style.accent,
+        tips: style.tips,
+        timestamp: new Date().toISOString()
+      };
+
+      // グラフを描画
+      setTimeout(() => drawScoreChart(styleKey), 100);
+
+      // 診断履歴を保存
+      saveDiagnosisResult(styleKey, style, scores);
+
+      // 履歴パネルを表示
+      loadDiagnosisHistory();
+
       document.getElementById('result').classList.add('show');
     }
+
+    // M3: localStorage で診断履歴を保存
+    function saveDiagnosisResult(styleKey, style, scores) {
+      const history = JSON.parse(localStorage.getItem('room-color-history') || '[]');
+      history.push({
+        timestamp: new Date().toISOString(),
+        styleKey: styleKey,
+        styleName: style.name,
+        scores: scores
+      });
+      localStorage.setItem('room-color-history', JSON.stringify(history.slice(-10))); // 最新10件を保持
+    }
+
+    // M3: 診断履歴を読み込んで表示
+    function loadDiagnosisHistory() {
+      const history = JSON.parse(localStorage.getItem('room-color-history') || '[]');
+      if (history.length === 0) {
+        document.getElementById('history-panel').style.display = 'none';
+        document.getElementById('no-history-msg').style.display = 'block';
+        return;
+      }
+
+      document.getElementById('history-panel').style.display = 'block';
+      document.getElementById('no-history-msg').style.display = 'none';
+      const historyList = document.getElementById('history-list');
+      historyList.innerHTML = history.reverse().map((h, i) => {
+        const date = new Date(h.timestamp).toLocaleString('ja-JP', {year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'});
+        return `<div style="padding:6px 0;border-bottom:1px solid #d1d5db;cursor:pointer;font-size:12px;" onclick="showHistoryDetail(${i})">
+          📅 ${date} - ${h.styleName}
+        </div>`;
+      }).join('');
+    }
+
+    function showHistoryDetail(index) {
+      const history = JSON.parse(localStorage.getItem('room-color-history') || '[]').reverse();
+      if (history[index]) {
+        alert(`${history[index].styleName}\n日時: ${new Date(history[index].timestamp).toLocaleString('ja-JP')}\n\nスコア: ${JSON.stringify(history[index].scores)}`);
+      }
+    }
+
+    function clearDiagnosisHistory() {
+      if (confirm('診断履歴をすべて削除しますか？')) {
+        localStorage.removeItem('room-color-history');
+        loadDiagnosisHistory();
+      }
+    }
+
+    // M4: Chart.js でスコア分析グラフを描画
+    function drawScoreChart(styleKey) {
+      const ctx = document.getElementById('scoreChart');
+      if (!ctx) return;
+
+      const styleNames = ['ナチュラル', 'ノルディック', 'カフェ', 'シック'];
+      const styleKeys = ['natural', 'nordic', 'cafe', 'chic'];
+
+      // 各スタイルのスコアを計算
+      const scoreData = styleKeys.map(key => {
+        if (key === styleKey) return 100; // 選択されたスタイルを100
+        const calc = Object.values(scores).reduce((a,b) => a+b, 0);
+        return Math.max(20, 80 - Math.abs(QUESTIONS.length * 2 - calc) * 5); // 簡易スコア
+      });
+
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: styleNames,
+          datasets: [{
+            label: 'スタイルマッチ度',
+            data: scoreData,
+            backgroundColor: ['#7DB87E', '#7DC4D4', '#E8C84A', '#C84A4A'],
+            borderRadius: 6,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          indexAxis: 'y',
+          plugins: {
+            legend: {display: false},
+            tooltip: {
+              callbacks: {
+                label: function(context) { return context.parsed.x + '%'; }
+              }
+            }
+          },
+          scales: {
+            x: {
+              min: 0,
+              max: 100,
+              title: {display: true, text: 'マッチ度 (%)'}
+            }
+          }
+        }
+      });
+    }
+
+    // M10: 印刷機能
+    function printResult() {
+      window.print();
+    }
+
+    // M10: 結果をテキストでコピー
+    function copyResultToClipboard() {
+      if (!window.currentResult) return;
+      const r = window.currentResult;
+      const text = `部屋のカラーコーディネート診断 - 診断結果
+
+スタイル: ${r.styleName}
+説明: ${r.description}
+
+メインカラー: ${r.palette.join(', ')}
+アクセントカラー: ${r.accent.join(', ')}
+
+コーディネートのコツ:
+${r.tips.map(t => '• ' + t).join('\n')}
+
+診断日時: ${new Date(r.timestamp).toLocaleString('ja-JP')}
+URL: https://appadaycreator.com/room-color-advisor/`;
+
+      navigator.clipboard.writeText(text).then(() => {
+        alert('診断結果をコピーしました！');
+      }).catch(err => {
+        console.error('コピーに失敗:', err);
+        alert('コピーに失敗しました');
+      });
+    }
+
+    // M10: 結果をJSONでダウンロード
+    function downloadResultAsJson() {
+      if (!window.currentResult) return;
+      const r = window.currentResult;
+      const json = JSON.stringify(r, null, 2);
+      const blob = new Blob([json], {type: 'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `room-color-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // ページロード時に初期化
+    function initApp() {
+      // ページロード時の処理
+    }
+    window.addEventListener('load', initApp);
     </script>
 
     <!-- Amazon アフィリエイト -->

@@ -37,6 +37,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -202,8 +203,59 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
         <div class="result" id="result" style="margin-top:16px;">
           <div class="card">
-            <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#16A34A;">✅ 準備チェックリスト</h3>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+              <h3 style="font-size:15px;font-weight:700;color:#16A34A;margin:0;">✅ 準備チェックリスト</h3>
+              <button id="btnNewChecklist" class="btn" style="width:auto;padding:8px 16px;font-size:13px;margin:0;" onclick="newChecklist()">新規開始</button>
+            </div>
+            <div id="progressContainer" style="margin-bottom:16px;">
+              <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                <span style="font-size:13px;color:#555;">進捗</span>
+                <span id="progressText" style="font-size:13px;font-weight:600;color:#16A34A;">0/0</span>
+              </div>
+              <div style="width:100%;height:12px;background:#e2e8f0;border-radius:6px;overflow:hidden;">
+                <div id="progressBar" style="height:100%;background:#16A34A;width:0%;transition:width .3s;"></div>
+              </div>
+              <div id="progressMsg" style="font-size:12px;color:#6b7280;margin-top:6px;text-align:center;"></div>
+              <div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:16px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                  <div>
+                    <p style="font-size:12px;font-weight:600;color:#555;margin:0 0 8px;">完了状況</p>
+                    <canvas id="donutChart" style="max-height:160px;"></canvas>
+                  </div>
+                  <div>
+                    <p style="font-size:12px;font-weight:600;color:#555;margin:0 0 8px;">準備進捗率</p>
+                    <canvas id="progressChart" style="max-height:160px;"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div id="output"></div>
+            <div id="contextualCTA" style="display:none;margin-top:12px;padding:12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;">
+              <p style="font-size:12px;font-weight:600;color:#15803d;margin:0 0 8px;">✨ 準備が完了に近づいています！</p>
+              <p id="ctaRecommendation" style="font-size:12px;color:#374151;margin:0;"></p>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 style="font-size:13px;font-weight:700;margin-bottom:12px;color:#16A34A;">🎯 準備完了目標</h3>
+            <label style="font-size:12px;font-weight:600;">準備完了目標日</label>
+            <input type="date" id="goalDate" style="margin-top:4px;margin-bottom:8px;" onchange="updateGoal()">
+            <div id="goalInfo" style="font-size:12px;color:#6b7280;"></div>
+          </div>
+
+          <div class="card">
+            <h3 style="font-size:13px;font-weight:700;margin-bottom:12px;color:#16A34A;">📥 操作</h3>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <button class="btn" style="background:#4f46e5;margin:0;" onclick="printChecklist()">🖨️ 印刷する</button>
+              <button class="btn" style="background:#8b5cf6;margin:0;" onclick="copyToClipboard()">📋 テキストをコピー</button>
+              <button class="btn" style="background:#ec4899;margin:0;" onclick="downloadCSV()">💾 CSVダウンロード</button>
+            </div>
+          </div>
+
+          <div id="historyCard" class="card" style="display:none;">
+            <h3 style="font-size:13px;font-weight:700;margin-bottom:12px;color:#16A34A;">📋 チェックリスト履歴</h3>
+            <div id="historyList" style="font-size:12px;"></div>
+            <button class="btn" style="background:#ef4444;margin-top:12px;" onclick="clearHistory()">履歴をクリア</button>
           </div>
         </div>
 
@@ -309,27 +361,270 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         upper: ['ノート・ルーズリーフ補充','筆記用具補充','上履き（サイズ確認）','体操服（サイズ確認）','参考書・問題集（学年別）','水筒','ハンカチ・ティッシュ']
       }
     };
+
+    let currentList = [];
+    let currentInputs = null;
+    let donutChartInstance = null;
+    let progressChartInstance = null;
+
     function getInputs() {
       const school = document.getElementById('school').value;
       const grade = document.getElementById('grade').value;
       return {school, grade};
     }
+
+    // M1: 学年別の関連商品推薦テキスト
+    const ctaRecommendations = {
+      elementary: {
+        new: '🎒 ランドセル・上履き・給食用品の確認を忘れずに。楽天・Amazonで「入学準備セット」を探そう！',
+        upper: '📚 教科書・ノート・体育着のサイズ確認を。成長に合わせた買い替えはこちら →'
+      },
+      junior: {
+        new: '👕 制服・上履き・通学カバンは学校指定品を確認。学生生活に必要なアイテムを揃えよう。',
+        upper: '📖 参考書・問題集・定期テスト対策用ノートなどの学習用品をチェック。'
+      },
+      high: {
+        new: '🎓 制服・体操着・参考書など、高校生活の準備品をまとめてチェック。大学受験対策も。',
+        upper: '✏️ 受験対策用の参考書・問題集・電卓などの学用品を準備。'
+      }
+    };
+
     function buildOutput(inputs) {
       const {school, grade} = inputs;
       const list = ITEMS[school][grade];
       const schoolName = {elementary:'小学校', junior:'中学校', high:'高等学校'}[school];
       const gradeName = grade==='new' ? '入学・新1年生' : '在校生（進級）';
-      const items = list.map((item,i)=>`<li style="padding:7px 4px;border-bottom:1px solid #d1fae5;display:flex;align-items:center;gap:8px;"><input type="checkbox" id="c${i}" style="width:16px;height:16px;accent-color:#16A34A;"><label for="c${i}" style="font-size:14px;cursor:pointer;">${item}</label></li>`).join('');
+      currentList = list;
+      currentInputs = inputs;
+      const items = list.map((item,i)=>`<li style="padding:7px 4px;border-bottom:1px solid #d1fae5;display:flex;align-items:center;gap:8px;"><input type="checkbox" id="c${i}" data-item="${item}" style="width:16px;height:16px;accent-color:#16A34A;" onchange="updateProgress()"><label for="c${i}" style="font-size:14px;cursor:pointer;">${item}</label></li>`).join('');
       return `<p style="font-weight:700;color:#16A34A;margin-bottom:10px;">${schoolName}・${gradeName}の準備リスト（${list.length}項目）</p><ul style="list-style:none;padding:0;margin:0;">${items}</ul>`;
     }
-    // ★以下変更不要★
-    document.addEventListener('DOMContentLoaded',()=>{});
-    function generate(){
-      const inputs=getInputs(); if(!inputs) return;
-      document.getElementById('output').innerHTML=buildOutput(inputs);
-      document.getElementById('result').classList.add('show');
-      document.getElementById('result').scrollIntoView({behavior:'smooth',block:'start'});
+
+    function updateProgress() {
+      const checks = document.querySelectorAll('#output input[type="checkbox"]');
+      const checked = Array.from(checks).filter(c=>c.checked).length;
+      const total = checks.length;
+      const percent = total ? Math.round((checked / total) * 100) : 0;
+      document.getElementById('progressText').textContent = `${checked}/${total}`;
+      document.getElementById('progressBar').style.width = percent + '%';
+      const msg = percent === 0 ? '始めましょう' : percent < 50 ? '頑張ってください' : percent < 100 ? 'もう少しです' : '完成おめでとう！🎉';
+      document.getElementById('progressMsg').textContent = msg;
+
+      // グラフ描画: 完了状況（ドーナツグラフ）
+      drawProgressCharts(checked, total - checked);
+
+      // M1: 進捗に応じた文脈CTA表示
+      const ctaDiv = document.getElementById('contextualCTA');
+      const ctaText = document.getElementById('ctaRecommendation');
+      if (percent >= 70) {
+        ctaDiv.style.display = 'block';
+        const rec = ctaRecommendations[currentInputs.school][currentInputs.grade];
+        ctaText.innerHTML = rec;
+      } else {
+        ctaDiv.style.display = 'none';
+      }
+
+      saveCurrentState({school:currentInputs.school, grade:currentInputs.grade, checks});
     }
+
+    function drawProgressCharts(completed, remaining) {
+      // ドーナツグラフ: 完了/未完了
+      const donutCtx = document.getElementById('donutChart');
+      if (donutCtx) {
+        if (donutChartInstance) donutChartInstance.destroy();
+        donutChartInstance = new Chart(donutCtx, {
+          type: 'doughnut',
+          data: {
+            labels: ['完了', '未完了'],
+            datasets: [{
+              data: [completed, remaining],
+              backgroundColor: ['#16A34A', '#e2e8f0'],
+              borderColor: ['#fff', '#fff'],
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 8 } } }
+          }
+        });
+      }
+
+      // 横棒: 進捗率
+      const progressCtx = document.getElementById('progressChart');
+      if (progressCtx) {
+        const total = completed + remaining;
+        const percent = total ? Math.round((completed / total) * 100) : 0;
+        if (progressChartInstance) progressChartInstance.destroy();
+        progressChartInstance = new Chart(progressCtx, {
+          type: 'bar',
+          data: {
+            labels: ['準備進捗'],
+            datasets: [{
+              label: '完了率',
+              data: [percent],
+              backgroundColor: '#16A34A',
+              borderColor: '#16A34A',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: { x: { beginAtZero: true, max: 100, ticks: { font: { size: 10 } } } },
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { label: c => percent + '%' } }
+            }
+          }
+        });
+      }
+    }
+
+    function saveCurrentState(data) {
+      const checks = Array.from(document.querySelectorAll('#output input[type="checkbox"]')).map(c=>c.checked);
+      const record = {
+        timestamp: new Date().toLocaleString('ja-JP'),
+        ...data,
+        checks,
+        items: currentList,
+        completedCount: checks.filter(c=>c).length
+      };
+      let history = JSON.parse(localStorage.getItem('checklistHistory') || '[]');
+      history.unshift(record);
+      history = history.slice(0, 10);
+      localStorage.setItem('checklistHistory', JSON.stringify(history));
+      localStorage.setItem('currentChecklist', JSON.stringify(record));
+      updateHistoryDisplay();
+    }
+
+    function updateHistoryDisplay() {
+      const history = JSON.parse(localStorage.getItem('checklistHistory') || '[]');
+      const historyCard = document.getElementById('historyCard');
+      const historyList = document.getElementById('historyList');
+      if (history.length === 0) {
+        historyCard.style.display = 'none';
+        return;
+      }
+      historyCard.style.display = 'block';
+      const html = history.slice(0, 5).map((h, i) => {
+        const schoolName = {elementary:'小学校', junior:'中学校', high:'高等学校'}[h.school];
+        const gradeName = h.grade === 'new' ? '新1年生' : '在校生';
+        return `<div style="border-bottom:1px solid #e2e8f0;padding:8px 0;${i === 0 ? '' : ''}"><p style="margin:0;font-size:12px;color:#374151;"><strong>${schoolName}・${gradeName}</strong> - ${h.completedCount}/${h.items.length}完了</p><p style="margin:4px 0 0;font-size:11px;color:#9ca3af;">${h.timestamp}</p></div>`;
+      }).join('');
+      historyList.innerHTML = html;
+    }
+
+    function printChecklist() {
+      window.print();
+    }
+
+    function copyToClipboard() {
+      const checks = Array.from(document.querySelectorAll('#output input[type="checkbox"]'));
+      let text = `【${document.getElementById('school').options[document.getElementById('school').selectedIndex].text}・`;
+      text += `${document.getElementById('grade').options[document.getElementById('grade').selectedIndex].text}】\n\n`;
+      checks.forEach(c => {
+        text += (c.checked ? '✓ ' : '☐ ') + c.dataset.item + '\n';
+      });
+      navigator.clipboard.writeText(text).then(() => {
+        alert('チェックリストをコピーしました');
+      });
+    }
+
+    function downloadCSV() {
+      const checks = Array.from(document.querySelectorAll('#output input[type="checkbox"]'));
+      let csv = '項目,状態\n';
+      checks.forEach(c => {
+        csv += `"${c.dataset.item}","${c.checked ? '完了' : '未完了'}"\n`;
+      });
+      const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `checklist_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+    }
+
+    function newChecklist() {
+      document.getElementById('school').value = 'elementary';
+      document.getElementById('grade').value = 'new';
+      generate();
+    }
+
+    function updateGoal() {
+      const goalDate = document.getElementById('goalDate').value;
+      const goalInfo = document.getElementById('goalInfo');
+      if (!goalDate) {
+        goalInfo.innerHTML = '';
+        localStorage.removeItem('goalDate');
+        return;
+      }
+      localStorage.setItem('goalDate', goalDate);
+      const now = new Date();
+      const goal = new Date(goalDate);
+      const daysLeft = Math.ceil((goal - now) / (1000 * 60 * 60 * 24));
+      goalInfo.innerHTML = daysLeft > 0 ? `<p style="margin:0;font-size:12px;color:#6b7280;">📅 あと${daysLeft}日で準備完了予定</p>` : '<p style="margin:0;font-size:12px;color:#dc2626;">📅 期限を過ぎています</p>';
+    }
+
+    function clearHistory() {
+      if (confirm('履歴をすべて削除しますか？')) {
+        localStorage.removeItem('checklistHistory');
+        localStorage.removeItem('currentChecklist');
+        updateHistoryDisplay();
+      }
+    }
+
+    function generate() {
+      const inputs = getInputs();
+      if (!inputs) return;
+      document.getElementById('output').innerHTML = buildOutput(inputs);
+      document.getElementById('result').classList.add('show');
+      updateProgress();
+      const goalDate = localStorage.getItem('goalDate');
+      if (goalDate) {
+        document.getElementById('goalDate').value = goalDate;
+        updateGoal();
+      }
+      document.getElementById('result').scrollIntoView({behavior:'smooth', block:'start'});
+
+      // 前回との比較グラフを表示（オプション）
+      const history = JSON.parse(localStorage.getItem('checklistHistory') || '[]');
+      if (history.length > 1) {
+        const current = history[0];
+        const previous = history[1];
+        if (current && previous && current.items && previous.items && current.items.length === previous.items.length) {
+          drawComparisonChart(current, previous);
+        }
+      }
+    }
+
+    function drawComparisonChart(current, previous) {
+      const currentPercent = Math.round((current.completedCount / current.items.length) * 100);
+      const previousPercent = Math.round((previous.completedCount / previous.items.length) * 100);
+      const progressCtx = document.getElementById('progressChart');
+      if (progressCtx && progressChartInstance) {
+        progressChartInstance.data.datasets = [
+          {
+            label: '今回',
+            data: [currentPercent],
+            backgroundColor: '#16A34A',
+            borderColor: '#16A34A'
+          },
+          {
+            label: '前回',
+            data: [previousPercent],
+            backgroundColor: '#cbd5e1',
+            borderColor: '#cbd5e1'
+          }
+        ];
+        progressChartInstance.update();
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      updateHistoryDisplay();
+    });
     </script>
     <!-- rakuten-affiliate-block -->
     <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">

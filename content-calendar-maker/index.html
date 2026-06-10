@@ -28,8 +28,9 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <meta name="twitter:description" content="ブログ・SNS・YouTube向けのコンテンツ投稿カレンダーを自動生成。登録不要・完全無料でご利用いただけます。" />
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="コンテンツカレンダー作成ツール【無料】自動作成ツール" />
-    
+
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📅</text></svg>">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
@@ -385,6 +386,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
           <button class="btn" onclick="generateCalendar()" style="width:100%;margin-bottom:8px;">カレンダーを生成する</button>
 
+          <!-- 履歴セクション -->
+          <div id="historySection" style="margin-top:12px;padding-top:12px;border-top:1px solid #e0f2fe;display:none;">
+            <div style="font-size:13px;font-weight:600;color:#0e7490;margin-bottom:8px;">📋 前回のデータ</div>
+            <button class="btn" onclick="restoreLastData()" style="width:100%;background:#34d399;margin-bottom:8px;">↶ 前回データを復元</button>
+            <div id="historyList" style="font-size:12px;color:#666;"></div>
+          </div>
+
           <div class="result" id="result" style="margin-top:16px;">
             <div class="card" style="background:#f0f9ff;padding:14px;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
@@ -397,6 +405,32 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               </div>
               <div id="calendarArea" class="cal-grid show"></div>
               <div id="listArea" class="cal-list"></div>
+
+              <!-- グラフセクション -->
+              <div style="margin-top:16px;padding-top:16px;border-top:1px solid #e0f2fe;">
+                <div style="font-size:13px;font-weight:600;color:#0e7490;margin-bottom:12px;">📊 分析グラフ</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+                  <div style="background:#f0f9ff;border-radius:8px;padding:12px;text-align:center;border:1.5px solid #a5f3fc;">
+                    <div style="font-size:11px;color:#0e7490;font-weight:600;margin-bottom:4px;">投稿総数</div>
+                    <div id="totalPosts" style="font-size:28px;font-weight:700;color:#0891B2;">0</div>
+                  </div>
+                  <div style="background:#f0f9ff;border-radius:8px;padding:12px;text-align:center;border:1.5px solid #a5f3fc;">
+                    <div style="font-size:11px;color:#0e7490;font-weight:600;margin-bottom:4px;">平均投稿数/週</div>
+                    <div id="avgPostsPerWeek" style="font-size:28px;font-weight:700;color:#0891B2;">0</div>
+                  </div>
+                </div>
+
+                <div style="margin-bottom:16px;">
+                  <div style="font-size:12px;font-weight:600;color:#0e7490;margin-bottom:8px;">プラットフォーム別</div>
+                  <canvas id="platformChart" style="max-height:200px;"></canvas>
+                </div>
+
+                <div style="margin-bottom:16px;">
+                  <div style="font-size:12px;font-weight:600;color:#0e7490;margin-bottom:8px;">ジャンル別</div>
+                  <canvas id="genreChart" style="max-height:250px;"></canvas>
+                </div>
+              </div>
+
               <div class="export-buttons">
                 <button class="export-btn" onclick="downloadCSV()">📥 CSV</button>
                 <button class="export-btn" onclick="downloadJSON()">📥 JSON</button>
@@ -560,6 +594,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     let draggedItem = null;
     let currentMonth = null;
     let currentYear = null;
+    let platformChart = null;
+    let genreChart = null;
 
     document.addEventListener('DOMContentLoaded', () => {
       const now = new Date();
@@ -574,7 +610,69 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.querySelectorAll('.view-toggle button').forEach(btn => {
         btn.addEventListener('click', (e) => switchView(e.target.dataset.view));
       });
+
+      checkAndDisplayHistory();
     });
+
+    function saveToLocalStorage() {
+      const data = {
+        targetMonth: document.getElementById('targetMonth').value,
+        platform: document.getElementById('platform').value,
+        freq: document.getElementById('freq').value,
+        genres: Array.from(document.querySelectorAll('.tag-chip.active')).map(c => c.dataset.val),
+        calendarData: calendarData,
+        timestamp: new Date().toISOString()
+      };
+      const history = JSON.parse(localStorage.getItem('calendarHistory') || '[]');
+      history.unshift(data);
+      if (history.length > 5) history.pop();
+      localStorage.setItem('calendarHistory', JSON.stringify(history));
+      localStorage.setItem('lastCalendarData', JSON.stringify(data));
+      checkAndDisplayHistory();
+    }
+
+    function checkAndDisplayHistory() {
+      const lastData = localStorage.getItem('lastCalendarData');
+      const historySection = document.getElementById('historySection');
+      if (lastData) {
+        historySection.style.display = 'block';
+        const data = JSON.parse(lastData);
+        const date = new Date(data.timestamp);
+        const dateStr = date.toLocaleString('ja-JP');
+        document.getElementById('historyList').innerHTML = `<div style="color:#888;">前回保存: ${dateStr}</div>`;
+      }
+    }
+
+    function restoreLastData() {
+      const lastData = localStorage.getItem('lastCalendarData');
+      if (!lastData) return;
+      const data = JSON.parse(lastData);
+      document.getElementById('targetMonth').value = data.targetMonth;
+      document.getElementById('platform').value = data.platform;
+      document.getElementById('freq').value = data.freq;
+
+      document.querySelectorAll('.tag-chip').forEach(chip => {
+        const isActive = data.genres.includes(chip.dataset.val);
+        if (isActive) chip.classList.add('active');
+        else chip.classList.remove('active');
+      });
+
+      calendarData = data.calendarData;
+      const [y, m] = data.targetMonth.split('-').map(Number);
+      const daysInMonth = new Date(y, m, 0).getDate();
+      const firstDay = new Date(y, m - 1, 1).getDay();
+
+      currentYear = y;
+      currentMonth = m;
+      document.getElementById('calTitle').textContent = `${y}年${m}月 コンテンツカレンダー`;
+      document.getElementById('calStats').textContent = `投稿予定: ${calendarData.length}件`;
+
+      renderCalendar(y, m, daysInMonth, firstDay);
+      renderListView();
+      document.getElementById('viewToggle').style.display = 'flex';
+      document.getElementById('result').classList.add('show');
+      renderCharts();
+    }
 
     function switchView(view) {
       const toggle = document.getElementById('viewToggle');
@@ -666,6 +764,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       renderListView();
       document.getElementById('viewToggle').style.display = 'flex';
       document.getElementById('result').classList.add('show');
+      renderCharts();
+      saveToLocalStorage();
     }
 
     function getPostDays(freq) {
@@ -800,6 +900,73 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       a.href = URL.createObjectURL(blob);
       a.download = `content-calendar-${y}${String(m).padStart(2,'0')}.xlsx`;
       a.click();
+    }
+
+    function renderCharts() {
+      if (calendarData.length === 0) return;
+
+      document.getElementById('totalPosts').textContent = calendarData.length;
+
+      const weeks = Math.ceil(calendarData.length / (parseInt(document.getElementById('freq').value) || 1));
+      const avgPerWeek = weeks > 0 ? (calendarData.length / weeks).toFixed(1) : 0;
+      document.getElementById('avgPostsPerWeek').textContent = avgPerWeek;
+
+      const platformCount = {};
+      const genreCount = {};
+      calendarData.forEach(d => {
+        platformCount[d.platform] = (platformCount[d.platform] || 0) + 1;
+        genreCount[d.genre] = (genreCount[d.genre] || 0) + 1;
+      });
+
+      const platformCtx = document.getElementById('platformChart').getContext('2d');
+      if (platformChart) platformChart.destroy();
+      platformChart = new Chart(platformCtx, {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(platformCount),
+          datasets: [{
+            data: Object.values(platformCount),
+            backgroundColor: ['#0891B2', '#06B6D4', '#14B8A6', '#10B981', '#F59E0B', '#EF4444'],
+            borderColor: '#fff',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { position: 'bottom', labels: { font: { size: 11 } } }
+          }
+        }
+      });
+
+      const genreCtx = document.getElementById('genreChart').getContext('2d');
+      if (genreChart) genreChart.destroy();
+      const genreLabels = Object.keys(genreCount).sort((a, b) => genreCount[b] - genreCount[a]);
+      genreChart = new Chart(genreCtx, {
+        type: 'bar',
+        data: {
+          labels: genreLabels,
+          datasets: [{
+            label: '\u6295\u7A3F\u6570',
+            data: genreLabels.map(g => genreCount[g]),
+            backgroundColor: '#0891B2',
+            borderRadius: 4,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: { beginAtZero: true, ticks: { stepSize: 1 } }
+          }
+        }
+      });
     }
     </script>
 

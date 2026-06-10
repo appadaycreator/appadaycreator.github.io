@@ -37,6 +37,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.min.js" defer></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -172,7 +173,30 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="card" style="text-align:center;">
             <div style="font-size:2rem;font-weight:700;color:#1D4ED8;" id="score-display"></div>
             <p id="score-detail" style="color:#444;font-size:14px;margin-top:8px;line-height:1.7;"></p>
-            <div id="progress-chart" style="margin:16px 0;text-align:center;"></div>
+            <div id="chart-container" style="margin:24px 0;display:flex;flex-direction:column;gap:20px;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;">
+                <div>
+                  <p style="font-size:12px;color:#666;margin-bottom:8px;">📊 正答率ゲージ</p>
+                  <canvas id="gauge-chart" height="140"></canvas>
+                </div>
+                <div>
+                  <p style="font-size:12px;color:#666;margin-bottom:8px;">🏆 成績レベル</p>
+                  <div id="level-badge" style="font-size:3rem;margin:0 auto;"></div>
+                </div>
+              </div>
+              <div style="margin-top:8px;">
+                <p style="font-size:12px;color:#666;margin-bottom:8px;">📈 過去5回の成績推移</p>
+                <canvas id="history-chart" height="80"></canvas>
+              </div>
+            </div>
+            <div style="margin:20px 0;padding:12px;background:#f0f9ff;border-radius:8px;border-left:4px solid #1D4ED8;">
+              <p style="font-size:12px;color:#666;margin-bottom:8px;">📋 結果をエクスポート</p>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;">
+                <button style="background:#4f46e5;color:white;border:none;padding:8px 16px;border-radius:6px;font-size:12px;cursor:pointer;min-height:40px;" onclick="copyResult()">📋 コピー</button>
+                <button style="background:#7c3aed;color:white;border:none;padding:8px 16px;border-radius:6px;font-size:12px;cursor:pointer;min-height:40px;" onclick="printResult()">🖨️ 印刷</button>
+                <button style="background:#06b6d4;color:white;border:none;padding:8px 16px;border-radius:6px;font-size:12px;cursor:pointer;min-height:40px;" onclick="downloadCSV()">📥 CSVダウンロード</button>
+              </div>
+            </div>
             <div style="display:flex;gap:8px;">
               <button class="btn" style="background:#7c3aed;min-height:44px;" onclick="backToMode()">← 戻る</button>
               <button class="btn" style="background:#22c55e;min-height:44px;" onclick="location.reload()">新規セッション</button>
@@ -382,7 +406,12 @@ function handleTouchStart(){touchStart=event.changedTouches[0].clientX;}
 function handleTouchMove(){touchEnd=event.changedTouches[0].clientX;}
 function handleTouchEnd(){const d=touchStart-touchEnd;if(Math.abs(d)>50){answer(d>0?true:false);setTimeout(()=>{document.getElementById('flip-card').classList.remove('swipe-left','swipe-right');},500);}}
 function answer(ok){stats.total=(stats.total||0)+1;if(ok){correct++;stats.correct=(stats.correct||0)+1;const idx=WORDS.indexOf(WORDS[cur]);stats.mastered[currentSet+'_'+idx]=true;}const fc=document.getElementById('flip-card');if(ok){fc.classList.add('swipe-right');}else{fc.classList.add('swipe-left');}cur++;setTimeout(()=>{if(cur>=WORDS.length){endGame();}else{showCard();}},500);}
-function endGame(){document.getElementById('card-screen').style.display='none';const today=new Date().toDateString();if(stats.lastDate===today){stats.streak=(stats.streak||0)+1;}else{stats.streak=1;stats.lastDate=today;}saveStats();const pct=Math.round(correct/WORDS.length*100);document.getElementById('score-display').textContent=correct+'/'+WORDS.length+'語 ('+pct+'%)';document.getElementById('score-detail').textContent=pct>=80?'素晴らしい！ほぼマスターしています。英検・TOEICで高得点が狙えます。':pct>=50?'順調です。苦手語を重点的に復習しましょう。':'もう一周チャレンジ！繰り返すほど定着します。';document.getElementById('result').style.display='block';}
+function endGame(){document.getElementById('card-screen').style.display='none';const today=new Date().toDateString();if(stats.lastDate===today){stats.streak=(stats.streak||0)+1;}else{stats.streak=1;stats.lastDate=today;}saveStats();const pct=Math.round(correct/WORDS.length*100);document.getElementById('score-display').textContent=correct+'/'+WORDS.length+'語 ('+pct+'%)';document.getElementById('score-detail').textContent=pct>=80?'素晴らしい！ほぼマスターしています。英検・TOEICで高得点が狙えます。':pct>=50?'順調です。苦手語を重点的に復習しましょう。':'もう一周チャレンジ！繰り返すほど定着します。';renderCharts(pct,correct,WORDS.length);document.getElementById('result').style.display='block';}
+function getLevel(pct){if(pct>=90)return{emoji:'🌟',label:'優秀',color:'#22c55e'};if(pct>=80)return{emoji:'⭐',label:'良好',color:'#1D4ED8'};if(pct>=60)return{emoji:'👍',label:'合格',color:'#f59e0b'};if(pct>=40)return{emoji:'😐',label:'要努力',color:'#ef4444'};return{emoji:'📚',label:'未合格',color:'#999'};}
+function renderCharts(pct,correct,total){const level=getLevel(pct);document.getElementById('level-badge').textContent=level.emoji;let chartHistory=JSON.parse(localStorage.getItem('vocab_chart_history')||'[]');chartHistory.push({date:new Date().toLocaleDateString('ja-JP'),pct:pct,correct:correct,total:total});if(chartHistory.length>5)chartHistory.shift();localStorage.setItem('vocab_chart_history',JSON.stringify(chartHistory));if(typeof Chart==='undefined')return;const gaugeCtx=document.getElementById('gauge-chart');if(gaugeCtx&&gaugeCtx.chart)gaugeCtx.chart.destroy();const gaugeChart=new Chart(gaugeCtx,{type:'doughnut',data:{labels:['正答'],datasets:[{data:[pct,100-pct],backgroundColor:[level.color,'#e5e7eb'],borderColor:'white',borderWidth:2}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false},tooltip:{enabled:false}},cutout:'75%'}});gaugeCtx.chart=gaugeChart;const historyCtx=document.getElementById('history-chart');if(historyCtx&&historyCtx.chart)historyCtx.chart.destroy();const historyChart=new Chart(historyCtx,{type:'line',data:{labels:chartHistory.map(h=>h.date),datasets:[{label:'正答率',data:chartHistory.map(h=>h.pct),borderColor:'#1D4ED8',backgroundColor:'#1D4ED822',borderWidth:2,fill:true,tension:0.3,pointRadius:4,pointBackgroundColor:'#1D4ED8'}]},options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:true,position:'top'}},scales:{y:{min:0,max:100,ticks:{callback:function(v){return v+'%'}}}}}});historyCtx.chart=historyChart;}
+function copyResult(){const r=document.getElementById('score-display').textContent;const d=document.getElementById('score-detail').textContent;const t=new Date().toLocaleString('ja-JP');const text='【学習結果】\n日時: '+t+'\n難易度: '+currentSet+'\n成績: '+r+'\nコメント: '+d+'\n\n学習を続けて、英語スキルを向上させましょう！';navigator.clipboard.writeText(text).then(()=>{alert('結果をコピーしました！')}).catch(()=>{alert('コピーに失敗しました')});}
+function printResult(){const content=document.getElementById('result').innerHTML;const w=window.open('','','width=800,height=600');w.document.write('<html><head><meta charset="utf-8"><title>学習結果</title><style>body{font-family:Arial,sans-serif;padding:20px;background:#f8fafc}h1{color:#1D4ED8}p{color:#333;line-height:1.6}</style></head><body><h1>📝 英単語フラッシュカード 学習結果</h1><p>日時: '+new Date().toLocaleString('ja-JP')+'</p><p>難易度: '+currentSet+'</p>'+content+'</body></html>');w.document.close();}
+function downloadCSV(){let history=JSON.parse(localStorage.getItem('vocab_chart_history')||'[]');if(history.length===0){alert('過去の成績がありません');return;}let csv='日付,難易度,正答数,全問数,正答率\n';history.forEach(h=>{csv+=h.date+','+currentSet+','+h.correct+','+h.total+','+(h.pct)+'%\n'});const blob=new Blob([csv],{type:'text/csv'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='vocabulary_results_'+new Date().toISOString().split('T')[0]+'.csv';a.click();URL.revokeObjectURL(url);}
 function backToMode(){location.reload();}
 loadStats();updateStatsDisplay();document.addEventListener('keydown',(e)=>{if(!document.getElementById('card-screen').style.display||document.getElementById('card-screen').style.display==='none')return;if(e.key==='ArrowLeft')answer(true);else if(e.key==='ArrowRight')answer(false);else if(e.key===' '){e.preventDefault();flipCard();}});
     </script>

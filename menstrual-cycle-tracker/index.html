@@ -37,6 +37,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -166,6 +167,16 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
             a[href]::after { content: none !important; }
         }
 
+        /* M4: グラフ・ゲージの設定 */
+        .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+        .chart-container { position: relative; height: 300px; }
+        .gauge-container { position: relative; height: 280px; display: flex; align-items: center; justify-content: center; }
+        .countdown-chart { position: relative; height: 200px; }
+        @media (max-width: 600px) {
+            .chart-grid { grid-template-columns: 1fr; }
+            .chart-container { height: 250px; }
+        }
+
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
 </style>
@@ -224,8 +235,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             </div>
           </div>
 
-          <label for="last-date">最終生理開始日</label>
-          <input type="date" id="last-date" aria-label="最終生理開始日" onchange="updateStepGuide()">
+          <label for="last-date">最終生理開始日 <span style="color:#E11D48;font-weight:700;">*</span></label>
+          <input type="date" id="last-date" aria-label="最終生理開始日" placeholder="例：2024-06-01" onchange="updateStepGuide()" required>
+          <div style="font-size:12px;color:#9CA3AF;margin-top:4px;">📅 最後に生理が始まった日を入力してください（最大180日前まで対応）</div>
+          <div id="date-error" style="font-size:12px;color:#DC2626;margin-top:4px;display:none;"></div>
 
           <label for="cycle-range">平均生理周期（日数）</label>
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
@@ -246,9 +259,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <summary>過去の生理開始日から平均周期を自動計算（任意）</summary>
             <div style="margin-top:10px;">
               <p style="font-size:12px;color:#9CA3AF;margin-bottom:8px;">2件以上入力すると平均周期を自動計算してスライダーに反映します</p>
-              <input type="date" id="past-1" aria-label="過去の生理開始日1" style="margin-bottom:6px;" oninput="calcAvgCycle()">
-              <input type="date" id="past-2" aria-label="過去の生理開始日2" style="margin-bottom:6px;" oninput="calcAvgCycle()">
-              <input type="date" id="past-3" aria-label="過去の生理開始日3" oninput="calcAvgCycle()">
+              <input type="date" id="past-1" aria-label="過去の生理開始日1" placeholder="例：2024-04-01" style="margin-bottom:6px;" oninput="calcAvgCycle()">
+              <input type="date" id="past-2" aria-label="過去の生理開始日2" placeholder="例：2024-05-01" style="margin-bottom:6px;" oninput="calcAvgCycle()">
+              <input type="date" id="past-3" aria-label="過去の生理開始日3" placeholder="例：2024-06-01" oninput="calcAvgCycle()">
               <div id="avg-info" style="margin-top:8px;"></div>
             </div>
           </details>
@@ -708,11 +721,41 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     /* メイン計算 */
     function calc() {
       const lastStr = document.getElementById('last-date').value;
-      if (!lastStr) { alert('最終生理開始日を入力してください'); return; }
+      const dateErrorDiv = document.getElementById('date-error');
+
+      if (!lastStr) {
+        showToast('⚠️ 最終生理開始日を入力してください');
+        document.getElementById('last-date').focus();
+        dateErrorDiv.style.display = 'none';
+        return;
+      }
 
       const cycle = parseInt(document.getElementById('cycle-range').value);
       const period = parseInt(document.getElementById('period-range').value);
       const last = new Date(lastStr + 'T00:00:00');
+
+      // バリデーション: 日付チェック
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+
+      if (last > now) {
+        showToast('⚠️ 最終生理開始日は今日以前の日付を入力してください');
+        dateErrorDiv.textContent = '⚠️ 未来の日付は入力できません';
+        dateErrorDiv.style.display = 'block';
+        document.getElementById('last-date').focus();
+        return;
+      }
+
+      // 最大180日以内の検証
+      const daysDiff = Math.floor((now - last) / 86400000);
+      if (daysDiff > 180) {
+        showToast('⚠️ 最終生理開始日は180日以内の日付を入力してください');
+        dateErrorDiv.textContent = '⚠️ 180日以内の日付を入力してください（古すぎる可能性があります）';
+        dateErrorDiv.style.display = 'block';
+        return;
+      }
+
+      dateErrorDiv.style.display = 'none';
 
       saveData();
       completeStepGuide();
@@ -807,7 +850,21 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div class="countdown-num" style="color:#7C3AED;">${daysUntilOvul}</div>
             <div class="countdown-label">次の排卵まで（日）</div>
           </div>
+        </div>
+        <div class="chart-grid" style="margin-top:20px;">
+          <div style="background:#f8fafc;border-radius:12px;padding:12px;">
+            <p style="font-size:13px;font-weight:600;color:#374151;margin:0 0 10px;text-align:center;">📊 周期進捗</p>
+            <div class="gauge-container"><canvas id="cycle-gauge"></canvas></div>
+          </div>
+          <div style="background:#f8fafc;border-radius:12px;padding:12px;">
+            <p style="font-size:13px;font-weight:600;color:#374151;margin:0 0 10px;text-align:center;">📈 カウントダウン</p>
+            <div class="countdown-chart"><canvas id="countdown-chart"></canvas></div>
+          </div>
         </div>`;
+
+      // M4: ビジュアライゼーション描画
+      drawCycleGauge(dayInCycle, cycle, phaseColor);
+      drawCountdownChart(daysUntilNext, daysUntilOvul);
 
       /* P2: 周期フェーズ別アドバイス */
       const phaseAdviceMap = {
@@ -1005,6 +1062,100 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           btn.style.background = '#2563eb';
         }, 3000);
       }
+    }
+
+    /* M4: 周期進捗ゲージ描画（Chart.js使用） */
+    function drawCycleGauge(dayInCycle, cycle, phaseColor) {
+      const canvas = document.getElementById('cycle-gauge');
+      if (!canvas || typeof Chart === 'undefined') return;
+
+      const ctx = canvas.getContext('2d');
+      if (window.cycleGaugeChart) window.cycleGaugeChart.destroy();
+
+      const percentage = Math.min(100, (dayInCycle / cycle * 100).toFixed(1));
+
+      window.cycleGaugeChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          datasets: [{
+            data: [percentage, 100 - percentage],
+            backgroundColor: [phaseColor, '#e5e7eb'],
+            borderColor: ['#fff', '#fff'],
+            borderWidth: 2,
+            circumference: 360,
+            rotation: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { enabled: false }
+          }
+        }
+      });
+
+      // ゲージ中央にテキスト表示
+      const textDiv = document.createElement('div');
+      textDiv.style.cssText = `position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none;z-index:10;`;
+      textDiv.innerHTML = `<div style="font-size:20px;font-weight:800;color:${phaseColor};">${dayInCycle}</div><div style="font-size:12px;color:#6b7280;margin-top:2px;">/${cycle}日</div>`;
+
+      const container = canvas.parentElement;
+      const existing = container.querySelector('[style*="position:absolute"]');
+      if (existing) existing.remove();
+      container.style.position = 'relative';
+      container.appendChild(textDiv);
+    }
+
+    /* M4: カウントダウン棒グラフ描画 */
+    function drawCountdownChart(daysUntilNext, daysUntilOvul) {
+      const canvas = document.getElementById('countdown-chart');
+      if (!canvas || typeof Chart === 'undefined') return;
+
+      const ctx = canvas.getContext('2d');
+      if (window.countdownChart) window.countdownChart.destroy();
+
+      const maxDays = Math.max(daysUntilNext, daysUntilOvul, 35);
+
+      window.countdownChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['生理', '排卵'],
+          datasets: [{
+            label: '日数',
+            data: [daysUntilNext, daysUntilOvul],
+            backgroundColor: ['#E11D48', '#7C3AED'],
+            borderRadius: 8,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: ctx => `${ctx.parsed.x}日後`
+              }
+            }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              max: maxDays,
+              ticks: {
+                callback: v => `${v}日`
+              }
+            },
+            y: {
+              ticks: { font: { size: 13, weight: 600 } }
+            }
+          }
+        }
+      });
     }
 
     /* 初期化（保存データ復元 + ステップガイダンス更新） */

@@ -238,6 +238,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 }
     </script>
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "name": "収納スペース最適化診断【無料】無料診断・アドバイス", "url": "https://appadaycreator.com/home-storage-advisor/", "description": "5つの質問で最適な収納方法がわかる。住まいの状況や生活スタイルを入力すると、あなたに合った収納ソリューション（断捨離・整理整頓・縦空間活用・システム収納）を診断します。AI・登録不要・完全無料。", "applicationCategory": "UtilityApplication", "operatingSystem": "Any", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "JPY"}, "provider": {"@type": "Organization", "name": "AppADayCreator", "url": "https://appadaycreator.com/"}}</script>
 </head>
 <body>
@@ -305,6 +306,21 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
       <button class="share-btn" onclick="shareLine()">LINE で共有</button>
     </div>
     <div id="r-affiliates" style="margin-top:8px;"></div>
+    <div id="r-score-section" style="margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0;">
+      <div style="font-size:13px;font-weight:600;color:#D97706;margin-bottom:10px;">📊 診断スコア</div>
+      <div id="r-score-gauges" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:16px;"></div>
+      <div style="position:relative;height:300px;width:100%;max-width:400px;">
+        <canvas id="resultChart"></canvas>
+      </div>
+    </div>
+    <div id="r-export-section" style="margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0;">
+      <div style="font-size:13px;font-weight:600;color:#475569;margin-bottom:8px;">⬇️ 結果を保存・共有</div>
+      <div class="share-btn-group">
+        <button class="share-btn" style="border-color:#64748b;color:#64748b;" onclick="printResult()">🖨️ 印刷</button>
+        <button class="share-btn" style="border-color:#64748b;color:#64748b;" onclick="copyResult()">📋 コピー</button>
+        <button class="share-btn" style="border-color:#64748b;color:#64748b;" onclick="downloadCSV()">📥 CSV</button>
+      </div>
+    </div>
     <button class="btn" style="margin-top:16px;" onclick="resetQuiz()">もう一度診断する</button>
   </div>
 </div>
@@ -511,7 +527,8 @@ const RESULTS = {
   }
 };
 
-let cur = 0, scores = { space: 0, stuff: 0 }, lastResultKey = null;
+let cur = 0, scores = { space: 0, stuff: 0 }, lastResultKey = null, chartInstance = null;
+const MAX_SCORE = 12;
 
 function saveHistory(resultKey) {
   const history = JSON.parse(localStorage.getItem('quiz_history') || '[]');
@@ -587,6 +604,32 @@ function showResult() {
   document.getElementById('r-tips').innerHTML = r.tips.map(t => `<div class="tip-box">${t}</div>`).join('');
   document.getElementById('r-next-steps').innerHTML = '<div style="font-size:13px;font-weight:600;color:#D97706;margin-bottom:8px;">🎯 次のステップ</div>' + r.nextSteps.map(s => `<div class="tip-box">${s}</div>`).join('');
   document.getElementById('r-affiliates').innerHTML = '<div class="affiliate-section"><div class="affiliate-title">🛍️ おすすめ商品</div>' + r.affiliates.map(a => `<a href="${a.url}" target="_blank" class="affiliate-link">${a.name}</a>`).join('') + '</div>';
+
+  // スコア計算（0-10スケール）
+  const spaceScore = Math.round((scores.space / MAX_SCORE) * 10);
+  const stuffScore = Math.round((scores.stuff / MAX_SCORE) * 10);
+  const satisfactionScore = Math.round((spaceScore + stuffScore) / 2);
+
+  // ゲージ表示
+  const gaugeHTML = [
+    { label: '収納満足度', score: satisfactionScore, emoji: '📦' },
+    { label: '整理必要度', score: stuffScore, emoji: '🗂️' }
+  ].map(g => {
+    const pct = (g.score / 10) * 100;
+    return `<div style="text-align:center;">
+      <div style="font-size:11px;color:#64748b;margin-bottom:4px;">${g.emoji} ${g.label}</div>
+      <div style="background:#f1f5f9;border-radius:4px;height:24px;position:relative;overflow:hidden;">
+        <div style="background:linear-gradient(90deg,#D97706,#FB923C);height:100%;width:${pct}%;transition:width .5s ease;"></div>
+        <div style="position:absolute;top:2px;right:4px;font-size:11px;font-weight:700;color:#1f2937;">${g.score}/10</div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('r-score-gauges').innerHTML = gaugeHTML;
+
+  // 前回スコア取得・グラフ描画
+  const prevScores = JSON.parse(localStorage.getItem('score_history') || '[]');
+  drawResultChart(satisfactionScore, stuffScore, prevScores);
+
   document.getElementById('result').classList.add('show');
 }
 
@@ -607,6 +650,156 @@ function shareLine() {
 ${location.href}`;
   const url = `https://line.me/R/msg/text/${encodeURIComponent(text)}`;
   window.open(url, '_blank');
+}
+
+function drawResultChart(satisfaction, stuff, history) {
+  const canvas = document.getElementById('resultChart');
+  if (!canvas) return;
+
+  // スコア履歴に現在のスコアを追加
+  const fullHistory = [{ satisfaction, stuff, date: new Date().toLocaleDateString('ja-JP') }, ...history.slice(0, 4)];
+  localStorage.setItem('score_history', JSON.stringify(fullHistory));
+
+  if (chartInstance) chartInstance.destroy();
+
+  chartInstance = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: fullHistory.map(h => h.date),
+      datasets: [
+        {
+          label: '収納満足度',
+          data: fullHistory.map(h => h.satisfaction),
+          borderColor: '#D97706',
+          backgroundColor: '#D9770620',
+          borderWidth: 2,
+          pointRadius: 4,
+          pointBackgroundColor: '#D97706',
+          tension: 0.3
+        },
+        {
+          label: '整理必要度',
+          data: fullHistory.map(h => h.stuff),
+          borderColor: '#4F46E5',
+          backgroundColor: '#4F46E520',
+          borderWidth: 2,
+          pointRadius: 4,
+          pointBackgroundColor: '#4F46E5',
+          tension: 0.3
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'top', labels: { font: { size: 12 }, padding: 12 } }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          max: 10,
+          ticks: { font: { size: 11 } },
+          grid: { color: '#f1f5f9' }
+        },
+        x: { ticks: { font: { size: 11 } }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+function printResult() {
+  const printWin = window.open('', '', 'height=600,width=800');
+  const content = document.querySelector('.result.show .card').innerHTML;
+  printWin.document.write(`<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>診断結果</title>
+<style>
+body { font-family: 'Noto Sans JP', sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; }
+.card { padding: 0; }
+h3 { color: #D97706; font-size: 20px; margin: 16px 0 8px; }
+.tip-box { background: #FFFBEB; border-left: 4px solid #D97706; padding: 12px 14px; margin-bottom: 10px; }
+.affiliate-section { display: none; }
+.share-btn-group { display: none; }
+.btn { display: none; }
+#r-score-section, #r-export-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
+@media print { body { padding: 0; } }
+</style>
+</head>
+<body>
+${content}
+</body>
+</html>`);
+  printWin.document.close();
+  setTimeout(() => printWin.print(), 250);
+}
+
+function copyResult() {
+  if (!lastResultKey) return;
+  const r = RESULTS[lastResultKey];
+  const text = `📦 収納スペース最適化診断 - 診断結果
+
+【診断結果】${r.emoji} ${r.title}
+
+【説明】
+${r.desc}
+
+【次のステップ】
+${r.nextSteps.map(s => '・ ' + s).join('\n')}
+
+【アドバイス】
+${r.tips.map(t => '・ ' + t).join('\n')}
+
+更新日時: ${new Date().toLocaleString('ja-JP')}
+URL: ${location.href}`;
+
+  navigator.clipboard.writeText(text).then(() => {
+    alert('診断結果をコピーしました！');
+  }).catch(() => {
+    alert('コピーに失敗しました');
+  });
+}
+
+function downloadCSV() {
+  const history = JSON.parse(localStorage.getItem('quiz_history') || '[]');
+  const scores = JSON.parse(localStorage.getItem('score_history') || '[]');
+
+  if (!lastResultKey) return;
+  const r = RESULTS[lastResultKey];
+
+  const lines = [
+    '診断結果レポート',
+    new Date().toLocaleString('ja-JP'),
+    '',
+    '【最新の診断結果】',
+    `診断名,${r.emoji} ${r.title}`,
+    `説明,${r.desc.replace(/\n/g, ' ')}`,
+    '',
+    '【診断スコア推移】',
+    '日付,収納満足度,整理必要度'
+  ];
+
+  scores.forEach(s => {
+    lines.push(`${s.date},${s.satisfaction},${s.stuff}`);
+  });
+
+  lines.push('', '【過去の診断履歴】', '日時,診断結果');
+  history.forEach(h => {
+    lines.push(`${h.timestamp},${h.emoji} ${h.title}`);
+  });
+
+  const csv = lines.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', `storage-diagnosis-${new Date().getTime()}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 function resetQuiz() {

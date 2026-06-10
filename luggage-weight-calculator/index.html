@@ -37,6 +37,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -189,7 +190,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   <ul style="margin:0;padding-left:1.25rem;color:#4b5563;line-height:1.9"><li><a href="https://www.caa.go.jp/" target="_blank" rel="noopener noreferrer" style="color:#4f46e5;font-size:.85rem">消費者庁「くらしの安心ガイド」</a></li></ul>
 </div>
 <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;">🧳 荷物重量・航空手荷物計算</h2>
-          <label style="font-size:13px;color:#555;">航空会社</label>
+          <label style="font-size:13px;color:#555;">航空会社
+            <span title="往路で利用する航空会社を選択します。各航空会社の手荷物制限は自動で計算されます。" style="cursor:help;color:#2563eb;font-weight:600;">ⓘ</span>
+          </label>
+          <div id="airlineInfo" style="background:#e0f2fe;border:1px solid #0284c7;border-radius:6px;padding:8px 12px;margin-bottom:8px;font-size:12px;color:#0c4a6e;display:none;"></div>
           <select id="airline" class="sel">
             <option value="ana">ANA（国内線）</option><option value="jal">JAL（国内線）</option>
             <option value="lcc">LCC（ピーチ・ジェットスター等）</option>
@@ -209,7 +213,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <option value="intl_bus">国際線ビジネス（一般）</option>
             </select>
           </div>
-          <h3 style="font-size:14px;font-weight:600;margin-top:16px;margin-bottom:10px;">📦 荷物リスト</h3>
+          <h3 style="font-size:14px;font-weight:600;margin-top:16px;margin-bottom:10px;">📦 荷物リスト
+            <span title="各荷物品目の預け重量と機内持込重量を入力します。複数の荷物を追加して合計を自動計算できます。" style="cursor:help;color:#2563eb;font-weight:600;font-size:12px;">ⓘ</span>
+          </h3>
           <div id="itemsList" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px;"></div>
           <button class="btn" style="background:#16a34a;margin-bottom:12px;" onclick="addItem()">+ 荷物を追加</button>
           <label style="font-size:13px;color:#555;margin-top:12px;display:block;">預け荷物 合計：<span id="totalChecked" style="font-weight:700;color:#2563EB;">0</span> kg</label>
@@ -219,7 +225,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div class="card">
               <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#2563EB;">✈️ チェック結果</h3>
               <div id="output"></div>
+              <div id="chartContainer" style="display:none;margin:16px 0;">
+                <h4 style="font-size:13px;font-weight:600;margin-bottom:8px;">📊 容量使用率</h4>
+                <canvas id="capacityChart" style="max-height:200px;"></canvas>
+              </div>
               <p id="detail" style="font-size:13px;color:#888;margin-top:10px;"></p>
+              <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+                <button onclick="printResult()" style="background:#555;color:white;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;min-height:40px;">🖨️ 印刷する</button>
+                <button onclick="copyResult()" style="background:#7c3aed;color:white;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;min-height:40px;">📋 コピー</button>
+              </div>
             </div>
           </div>
         </div>
@@ -345,27 +359,75 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     };
     let items = [{id:1,name:'',checked:0,cabin:0}];
     let nextId = 2;
+    let chartInstance = null;
+
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('roundTrip').addEventListener('change', e => {
         document.getElementById('returnAirlineBox').style.display = e.target.checked ? 'block' : 'none';
+        saveState();
       });
+      document.getElementById('airline').addEventListener('change', () => {
+        updateAirlineInfo();
+        saveState();
+      });
+      document.getElementById('airlineReturn').addEventListener('change', saveState);
+      loadState();
+      updateAirlineInfo();
       renderItems();
     });
+
+    function updateAirlineInfo(){
+      const airline = RULES[document.getElementById('airline').value];
+      const infoEl = document.getElementById('airlineInfo');
+      if(airline){
+        infoEl.textContent = `預け荷物: ${airline.checked}kg / 機内持込: ${airline.cabin}kg`;
+        infoEl.style.display = 'block';
+      }
+    }
+
+    function saveState(){
+      const state = {
+        items: items,
+        nextId: nextId,
+        airline: document.getElementById('airline').value,
+        airlineReturn: document.getElementById('airlineReturn').value,
+        roundTrip: document.getElementById('roundTrip').checked
+      };
+      localStorage.setItem('lwc_state', JSON.stringify(state));
+    }
+
+    function loadState(){
+      const saved = localStorage.getItem('lwc_state');
+      if(saved){
+        try{
+          const state = JSON.parse(saved);
+          items = state.items;
+          nextId = state.nextId;
+          document.getElementById('airline').value = state.airline;
+          document.getElementById('airlineReturn').value = state.airlineReturn;
+          document.getElementById('roundTrip').checked = state.roundTrip;
+          document.getElementById('returnAirlineBox').style.display = state.roundTrip ? 'block' : 'none';
+        }catch(e){
+          console.error('Failed to load state:', e);
+        }
+      }
+    }
+
     function renderItems(){
       const html = items.map((it,i) => `
         <div style="display:flex;gap:8px;background:#f8fafc;padding:12px;border-radius:8px;">
           <div style="flex:1;">
-            <input type="text" placeholder="品目名（例：スーツケース）" value="${it.name}"
+            <input type="text" placeholder="品目名（例：スーツケース 20kg）" value="${it.name}"
               onchange="updateItem(${it.id}, this.value, null, null)"
               style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;margin-bottom:6px;">
             <div style="display:flex;gap:8px;">
-              <div style="flex:1;"><input type="number" min="0" max="99" step="0.1" placeholder="預け(kg)" value="${it.checked||''}"
+              <div style="flex:1;"><input type="number" min="0" max="99" step="0.1" placeholder="預け(kg)" title="スーツケースなど預ける荷物の重量をkg単位で入力" value="${it.checked||''}"
                 onchange="updateItem(${it.id}, null, parseFloat(this.value)||0, null)"
                 style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;"></div>
-              <div style="flex:1;"><input type="number" min="0" max="30" step="0.1" placeholder="持込(kg)" value="${it.cabin||''}"
+              <div style="flex:1;"><input type="number" min="0" max="30" step="0.1" placeholder="持込(kg)" title="機内に持ち込む荷物の重量をkg単位で入力" value="${it.cabin||''}"
                 onchange="updateItem(${it.id}, null, null, parseFloat(this.value)||0)"
                 style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;"></div>
-              <button onclick="removeItem(${it.id})" style="padding:8px 12px;background:#dc2626;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">削除</button>
+              <button onclick="removeItem(${it.id})" style="padding:8px 12px;background:#dc2626;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;" aria-label="荷物を削除">削除</button>
             </div>
           </div>
         </div>
@@ -373,28 +435,86 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('itemsList').innerHTML = html;
       updateTotals();
     }
+
     function addItem(){
       items.push({id:nextId++,name:'',checked:0,cabin:0});
+      saveState();
       renderItems();
     }
+
     function removeItem(id){
       items = items.filter(it => it.id !== id);
+      saveState();
       renderItems();
     }
+
     function updateItem(id, name, checked, cabin){
       const it = items.find(it => it.id === id);
       if(!it) return;
       if(name !== null) it.name = name;
       if(checked !== null) it.checked = checked;
       if(cabin !== null) it.cabin = cabin;
+      saveState();
       updateTotals();
     }
+
     function updateTotals(){
       const totalChecked = items.reduce((s,it) => s + (it.checked||0), 0);
       const totalCabin = items.reduce((s,it) => s + (it.cabin||0), 0);
       document.getElementById('totalChecked').textContent = totalChecked.toFixed(1);
       document.getElementById('totalCabin').textContent = totalCabin.toFixed(1);
     }
+
+    function drawCapacityChart(checkedOut, cabinOut, rulesOut, checkedIn, cabinIn, rulesIn, isRound){
+      const ctx = document.getElementById('capacityChart');
+      if(!ctx) return;
+
+      if(chartInstance) chartInstance.destroy();
+
+      const labels = isRound ? ['往路: 預け荷物', '往路: 機内持込', '復路: 預け荷物', '復路: 機内持込'] : ['預け荷物', '機内持込'];
+      const limits = isRound ? [rulesOut.checked, rulesOut.cabin, rulesIn.checked, rulesIn.cabin] : [rulesOut.checked, rulesOut.cabin];
+      const usages = isRound ? [checkedOut, cabinOut, checkedIn, cabinIn] : [checkedOut, cabinOut];
+      const overages = usages.map((u, i) => Math.max(0, u - limits[i]));
+      const bgColors = overages.map((o, i) => o > 0 ? '#ef4444' : '#16a34a');
+
+      chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '使用量 (kg)',
+            data: usages,
+            backgroundColor: bgColors,
+            borderColor: bgColors,
+            borderWidth: 1
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {display: false},
+            tooltip: {
+              callbacks: {
+                afterLabel: (ctx) => {
+                  const limit = limits[ctx.dataIndex];
+                  return `上限: ${limit}kg`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              max: Math.max(...limits) * 1.2,
+              ticks: {callback: (v) => v + 'kg'}
+            }
+          }
+        }
+      });
+    }
+
     function calculate(){
       const isRound = document.getElementById('roundTrip').checked;
       const airlineOut = RULES[document.getElementById('airline').value];
@@ -418,14 +538,33 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }
       document.getElementById('output').innerHTML = rows.map((r,i) => i === 0 || (isRound && i === 4) ? '' :
         `<div class="row-item"><span>${r[0]}</span><span class="${r[2]||''}">${r[1]}</span></div>`).join('');
+
+      document.getElementById('chartContainer').style.display = 'block';
+      drawCapacityChart(totalChecked, totalCabin, airlineOut, totalChecked, totalCabin, isRound ? airlineIn : airlineOut, isRound);
+
       const totalFee = isRound
-        ? ((cOverOut > 0 ? airlineOut.fee : 0) + (bOverOut > 0 ? airlineOut.fee : 0)) + ((cOverIn > 0 ? airlineIn.fee : 0) + (bOverIn > 0 ? airlineIn.fee : 0))
+        ? ((cOverOut > 0 ? airlineOut.fee : 0) + (bOverOut > 0 ? airlineOut.fee : 0)) + ((Math.max(0, totalChecked - airlineIn.checked) > 0 ? airlineIn.fee : 0) + (Math.max(0, totalCabin - airlineIn.cabin) > 0 ? airlineIn.fee : 0))
         : feeOut;
       document.getElementById('detail').textContent = totalFee > 0
         ? '超過料金は航空会社・路線により異なります。公式サイトで必ずご確認ください。'
         : '問題ありません！快適な旅を。';
       document.getElementById('result').classList.add('show');
       document.getElementById('result').scrollIntoView({behavior:'smooth', block:'start'});
+    }
+
+    function copyResult(){
+      const output = document.getElementById('output').innerText;
+      const detail = document.getElementById('detail').textContent;
+      const text = `🧳 荷物重量・航空手荷物計算 チェック結果\n\n${output}\n\n${detail}`;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('結果をコピーしました！');
+      }).catch(() => {
+        alert('コピーに失敗しました');
+      });
+    }
+
+    function printResult(){
+      window.print();
     }
     </script>
 

@@ -37,6 +37,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <!-- Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -75,9 +77,11 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         }
         /* ── サービス固有CSS ── */
         .slider-row { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
-        .slider-row input[type=range] { flex: 1; height: 6px; accent-color: #7c3aed; cursor: pointer; min-height: unset; padding: 0; border: none; margin: 0; }
-        .slider-row input[type=number] { width: 90px; flex-shrink: 0; margin: 0; min-height: 40px; padding: 8px 10px; }
+        .slider-row input[type=range] { flex: 1; height: 10px; accent-color: #7c3aed; cursor: pointer; min-height: unset; padding: 0; border: none; margin: 0; border-radius: 4px; }
+        .slider-row input[type=number] { width: 90px; flex-shrink: 0; margin: 0; min-height: 48px; padding: 10px; }
         .slider-row .unit { font-size: 13px; color: #888; flex-shrink: 0; }
+        #chart-container { grid-template-columns: 1fr; }
+        @media (min-width: 600px) { #chart-container { grid-template-columns: 1fr 1fr; } }
 
 @media print{
   header,footer,nav,button,.no-print,
@@ -131,35 +135,45 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="card">
           <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;">🏠 住宅ローン借り換え診断</h2>
           <label>ローン残高（万円）</label>
-          <input type="number" id="balance" placeholder="2000" min="0">
+          <input type="number" id="balance" placeholder="例：2000" min="0">
           <label style="margin-top:12px;">現在の金利（%）</label>
           <div class="slider-row">
             <input type="range" id="current_rate_range" min="0" max="5" step="0.1" value="1.5">
-            <input type="number" id="current_rate" placeholder="1.5" min="0" max="20" step="0.01" value="1.5">
+            <input type="number" id="current_rate" placeholder="例：1.5" min="0" max="20" step="0.01" value="1.5">
             <span class="unit">%</span>
           </div>
           <label style="margin-top:12px;">借り換え後の金利（%）</label>
           <div class="slider-row">
             <input type="range" id="new_rate_range" min="0" max="5" step="0.1" value="0.8">
-            <input type="number" id="new_rate" placeholder="0.8" min="0" max="20" step="0.01" value="0.8">
+            <input type="number" id="new_rate" placeholder="例：0.8" min="0" max="20" step="0.01" value="0.8">
             <span class="unit">%</span>
           </div>
           <label style="margin-top:12px;">残りの返済期間（年）</label>
           <div class="slider-row">
             <input type="range" id="remaining_range" min="1" max="40" step="1" value="25">
-            <input type="number" id="remaining" placeholder="25" min="1" max="50" value="25">
+            <input type="number" id="remaining" placeholder="例：25" min="1" max="50" value="25">
             <span class="unit">年</span>
           </div>
           <label style="margin-top:12px;">借り換え諸費用（万円）<span style="font-size:11px;color:#999;font-weight:400;"> ※登記費用・手数料等の合計</span></label>
-          <input type="number" id="cost_man" placeholder="50" min="0" step="1">
+          <div style="font-size:12px;color:#666;margin-top:3px;margin-bottom:6px;">目安：30〜100万円（金融機関により異なります）/ 未入力時は自動で残高×1%を計算</div>
+          <input type="number" id="cost_man" placeholder="例：50" min="0" step="1">
           <div id="validate-msg" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin-top:10px;font-size:13px;color:#dc2626;"></div>
           <button class="btn" style="margin-top:20px;" onclick="calculate()">借り換え効果を計算する</button>
           <div class="result" id="result" style="margin-top:16px;">
             <div class="card">
               <div id="output" style="font-size:2.2rem;font-weight:700;color:#7c3aed;padding:12px 0;text-align:center;"></div>
               <div id="refin-chart" style="margin-top:12px;"></div>
-              <div id="refin-table" style="margin-top:8px;"></div>
+              <div id="chart-container" style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                <div style="background:#f8fafc;border-radius:10px;padding:12px;">
+                  <canvas id="chartAccumulation" style="max-height:250px;"></canvas>
+                </div>
+                <div style="background:#f8fafc;border-radius:10px;padding:12px;">
+                  <canvas id="chartComposition" style="max-height:250px;"></canvas>
+                </div>
+              </div>
+              <div id="refin-table" style="margin-top:12px;"></div>
               <p id="detail" style="color:#666;font-size:13px;margin-top:8px;"></p>
+              <div id="result-buttons"></div>
             </div>
           </div>
         </div>
@@ -395,11 +409,156 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>`;
     }
 
+    function renderVisualization(breakeven, months, cost, netSaving) {
+      const el = document.getElementById('refin-chart');
+      if(!el) return;
+      const breakEvenPercent = Math.min(breakeven / months * 100, 100);
+      const breakEvenText = breakeven ? `${breakeven}ヶ月後（${Math.round(breakeven/12*10)/10}年）` : '効果なし';
+      const costPercent = (cost / (cost + netSaving)) * 100;
+      const savingPercent = 100 - costPercent;
+      const totalAmount = cost + netSaving;
+
+      const vizHtml = `
+        <p style="font-size:12px;font-weight:600;color:#555;margin-top:12px;margin-bottom:6px;">損益分岐点までの進捗</p>
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+            <span style="font-size:11px;color:#666;">進捗</span>
+            <div style="flex:1;background:#f1f5f9;height:20px;border-radius:4px;position:relative;overflow:hidden;">
+              <div style="background:#7c3aed;height:100%;width:${breakEvenPercent}%;transition:width .4s;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;">
+                ${breakEvenPercent > 5 ? `<span style="font-size:10px;font-weight:700;color:white;">${Math.round(breakEvenPercent)}%</span>` : ''}
+              </div>
+            </div>
+          </div>
+          <p style="font-size:11px;color:#666;margin:4px 0;">${breakEvenText}</p>
+        </div>`;
+
+      el.innerHTML += vizHtml;
+    }
+
+    function renderCharts(monthlyDiff, months, curMonthly, newMonthly, cost, netSaving) {
+      // 累積節約額グラフ
+      const accumCtx = document.getElementById('chartAccumulation');
+      if(accumCtx) {
+        const years = [];
+        const cumulativeSavings = [];
+        for(let y = 1; y <= Math.min(Math.ceil(months/12), 25); y++) {
+          years.push(y + '年');
+          cumulativeSavings.push((monthlyDiff * 12 * y) - cost);
+        }
+        if(window.chartAccumulationInstance) window.chartAccumulationInstance.destroy();
+        window.chartAccumulationInstance = new Chart(accumCtx, {
+          type: 'line',
+          data: {
+            labels: years,
+            datasets: [{
+              label: '純節約額の累積',
+              data: cumulativeSavings,
+              borderColor: '#7c3aed',
+              backgroundColor: 'rgba(124, 58, 237, 0.1)',
+              tension: 0.4,
+              fill: true,
+              pointRadius: 4,
+              pointBackgroundColor: '#7c3aed',
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: { legend: { display: true, position: 'top' } },
+            scales: { y: { beginAtZero: true, ticks: { callback: v => '¥' + (v/1e6).toFixed(1) + 'M' } } }
+          }
+        });
+      }
+
+      // 構成比ドーナツチャート
+      const compCtx = document.getElementById('chartComposition');
+      if(compCtx) {
+        const curTotal = curMonthly * months;
+        const newTotal = newMonthly * months;
+        if(window.chartCompositionInstance) window.chartCompositionInstance.destroy();
+        window.chartCompositionInstance = new Chart(compCtx, {
+          type: 'doughnut',
+          data: {
+            labels: ['現在ローン', '借換ローン'],
+            datasets: [{
+              data: [curTotal, newTotal],
+              backgroundColor: ['#e0e7ff', '#86efac'],
+              borderColor: ['#7c3aed', '#16a34a'],
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: { legend: { display: true, position: 'bottom' }, tooltip: { callbacks: { label: ctx => '¥' + (ctx.parsed/1e6).toFixed(2) + 'M' } } }
+          }
+        });
+      }
+    }
+
+    function downloadCSV() {
+      if (!window.resultData) return;
+      const d = window.resultData;
+      const csvContent = [
+        ['項目', '金額'],
+        ['ローン残高', (d.balance * 10000).toLocaleString() + '円'],
+        ['現在の金利', d.currentRate + '%'],
+        ['借り換え後の金利', d.newRate + '%'],
+        ['残期間', d.remaining + '年'],
+        [''],
+        ['現在の月返済額', Math.round(d.curMonthly).toLocaleString() + '円'],
+        ['借換後の月返済額', Math.round(d.newMonthly).toLocaleString() + '円'],
+        ['月々の節約額', Math.round(d.monthlyDiff).toLocaleString() + '円'],
+        ['総節約額（残期間計）', Math.round(d.totalSaving).toLocaleString() + '円'],
+        ['借換え諸費用', Math.round(d.cost).toLocaleString() + '円'],
+        ['諸費用差引後の純節約額', Math.round(d.netSaving).toLocaleString() + '円'],
+        ['損益分岐点', d.breakeven ? d.breakeven + 'ヶ月後' : '効果なし']
+      ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `mortgage_calc_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
     function showValidate(msg) {
       const el = document.getElementById('validate-msg');
       if(!el) return;
       el.textContent = msg;
       el.style.display = msg ? 'block' : 'none';
+    }
+
+    function copyResult() {
+      if (!window.resultData) return;
+      const d = window.resultData;
+      const text = `住宅ローン借り換え診断 計算結果
+─────────────────────
+ローン残高：${(d.balance * 10000).toLocaleString()}円
+現在の金利：${d.currentRate}%
+借り換え後の金利：${d.newRate}%
+残期間：${d.remaining}年
+
+計算結果：
+─────────────────────
+現在の月返済額：${Math.round(d.curMonthly).toLocaleString()}円
+借換後の月返済額：${Math.round(d.newMonthly).toLocaleString()}円
+月々の節約額：${Math.round(d.monthlyDiff).toLocaleString()}円
+総節約額（残期間計）：${Math.round(d.totalSaving).toLocaleString()}円
+借換え諸費用：${Math.round(d.cost).toLocaleString()}円
+諸費用差引後の純節約額：${Math.round(d.netSaving).toLocaleString()}円
+損益分岐点：${d.breakeven ? d.breakeven + 'ヶ月後' : '効果なし'}`;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = event.target;
+        const originalText = btn.textContent;
+        btn.textContent = '✓ コピーしました';
+        setTimeout(() => { btn.textContent = originalText; }, 2000);
+      }).catch(err => alert('コピーに失敗しました'));
     }
 
     function calculate(){
@@ -430,10 +589,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       // 諸費用：入力値があればそちら、なければ残高の1%
       const cost = (!isNaN(costMan) && costMan >= 0) ? costMan * 10000 : principal * 0.01;
       const breakeven = monthlyDiff > 0 ? Math.ceil(cost / monthlyDiff) : null;
+      const netSaving = totalSaving - cost;
 
       renderChart(curMonthly, newMonthly);
-
-      const netSaving = totalSaving - cost;
+      renderVisualization(breakeven, months, cost, netSaving);
+      renderCharts(monthlyDiff, months, curMonthly, newMonthly, cost, netSaving);
       const tableHtml = `<table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px;"><thead><tr style="background:#ede9fe;"><th style="padding:6px 8px;text-align:left;border-radius:4px 0 0 0;">項目</th><th style="padding:6px 8px;text-align:right;border-radius:0 4px 0 0;">金額</th></tr></thead><tbody>
 <tr><td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;">現在の月返済額</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #f1f5f9;">${Math.round(curMonthly).toLocaleString()}円</td></tr>
 <tr><td style="padding:6px 8px;border-bottom:1px solid #f1f5f9;">借換後の月返済額</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #f1f5f9;">${Math.round(newMonthly).toLocaleString()}円</td></tr>
@@ -453,6 +613,19 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if(detailEl) detailEl.textContent = netSaving > 0
         ? `金利差${(currentRate - newRate).toFixed(2)}%で${remaining}年間の総節約額から諸費用を引いた純節約額です。損益分岐点は${breakeven}ヶ月後です。`
         : '諸費用を考慮すると借り換えメリットが小さい可能性があります。金利差0.3%以上が目安です。';
+
+      // 印刷・コピー・CSVボタンを追加
+      const btnContainer = document.getElementById('result-buttons');
+      if(btnContainer) {
+        window.resultData = {balance, currentRate, newRate, remaining, costMan, curMonthly, newMonthly, monthlyDiff, totalSaving, cost, netSaving, breakeven};
+        btnContainer.innerHTML = `
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px;">
+            <button onclick="window.print()" style="background:#7c3aed;color:white;border:none;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;">🖨️ 印刷</button>
+            <button onclick="copyResult()" style="background:#16a34a;color:white;border:none;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;">📋 コピー</button>
+            <button onclick="downloadCSV()" style="background:#f97316;color:white;border:none;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;">📥 CSV</button>
+          </div>`;
+      }
+
       document.getElementById('result').classList.add('show');
       document.getElementById('result').scrollIntoView({behavior:'smooth', block:'nearest'});
     }

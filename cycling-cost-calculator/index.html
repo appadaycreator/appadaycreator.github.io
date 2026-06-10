@@ -28,8 +28,10 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <meta name="twitter:description" content="自転車通勤vs電車・車の年間コストを比較計算。健康効果も加味した総合診断。登録不要・完全無料でご利用いただけます。" />
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="自転車通勤コスト計算ツール【無料】簡単・無料計算" />
-    
+
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚴</text></svg>">
+    <!-- Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
@@ -326,11 +328,27 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
           <button class="btn" style="margin-top:20px;width:100%;" onclick="calculate()">🧮 コストを比較する</button>
 
+          <!-- 履歴セクション -->
+          <div id="history-section" style="display:none;margin-top:16px;background:#f0f7ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+              <h3 style="font-size:13px;font-weight:700;color:#1e40af;margin:0;">📚 計算履歴</h3>
+              <button onclick="clearHistory()" style="background:#ef4444;color:white;border:none;padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;">クリア</button>
+            </div>
+            <div id="history-list" style="max-height:150px;overflow-y:auto;"></div>
+          </div>
+
           <div class="result" id="result" style="margin-top:16px;">
             <div class="card">
-              <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#4338CA;">📊 年間コスト比較</h3>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <h3 style="font-size:15px;font-weight:700;color:#4338CA;margin:0;">📊 年間コスト比較</h3>
+                <div style="display:flex;gap:6px;">
+                  <button onclick="printResult()" title="結果を印刷" style="background:#7c3aed;color:white;border:none;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;min-height:32px;">📄 印刷</button>
+                  <button onclick="copyResult()" title="結果をコピー" style="background:#10b981;color:white;border:none;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;min-height:32px;">📋 コピー</button>
+                </div>
+              </div>
 
               <div class="compare-grid" id="compare-grid"></div>
+              <canvas id="costChart" style="margin-bottom:16px;"></canvas>
 
               <div class="saving-banner" id="saving-banner"></div>
 
@@ -628,9 +646,258 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('detail').textContent =
         '自転車年間費用の内訳: 減価償却 ' + Math.round(bikeDepreciation).toLocaleString() + '円 ＋ メンテナンス ' + maintenance.toLocaleString() + '円 ／ 年間通勤日数 ' + annualDays + '日';
 
+      // 履歴に追加
+      addToHistory(distance, workDays, transport, currentAnnual, bikeAnnual, saving, calPerYear);
+
+      // グラフを描画
+      renderCostChart(currentLabel, currentAnnual, bikeAnnual);
+
+      // localStorage に入力値と結果を保存
+      saveInputs();
+
       document.getElementById('result').classList.add('show');
       document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+
+    // ========== localStorage 機能 ==========
+    function saveInputs() {
+      const inputs = {
+        distance: document.getElementById('distance').value,
+        workDays: document.getElementById('work-days').value,
+        transport: document.getElementById('current-transport').value,
+        oneWayFare: document.getElementById('one-way-fare').value,
+        gasPrice: document.getElementById('gas-price').value,
+        fuelEff: document.getElementById('fuel-efficiency').value,
+        parking: document.getElementById('parking').value,
+        toll: document.getElementById('toll').value,
+        bikeCost: document.getElementById('bike-cost').value,
+        bikeYears: document.getElementById('bike-years').value,
+        maintenance: document.getElementById('maintenance').value,
+      };
+      localStorage.setItem('cycling-calculator-inputs', JSON.stringify(inputs));
+    }
+
+    function loadInputs() {
+      const saved = localStorage.getItem('cycling-calculator-inputs');
+      if (!saved) return;
+      try {
+        const inputs = JSON.parse(saved);
+        if (inputs.distance) document.getElementById('distance').value = inputs.distance;
+        if (inputs.workDays) document.getElementById('work-days').value = inputs.workDays;
+        if (inputs.transport) {
+          document.getElementById('current-transport').value = inputs.transport;
+          toggleCarFields();
+        }
+        if (inputs.oneWayFare) document.getElementById('one-way-fare').value = inputs.oneWayFare;
+        if (inputs.gasPrice) document.getElementById('gas-price').value = inputs.gasPrice;
+        if (inputs.fuelEff) document.getElementById('fuel-efficiency').value = inputs.fuelEff;
+        if (inputs.parking) document.getElementById('parking').value = inputs.parking;
+        if (inputs.toll) document.getElementById('toll').value = inputs.toll;
+        if (inputs.bikeCost) document.getElementById('bike-cost').value = inputs.bikeCost;
+        if (inputs.bikeYears) document.getElementById('bike-years').value = inputs.bikeYears;
+        if (inputs.maintenance) document.getElementById('maintenance').value = inputs.maintenance;
+      } catch (e) {
+        console.error('Failed to load inputs:', e);
+      }
+    }
+
+    function addToHistory(distance, workDays, transport, currentAnnual, bikeAnnual, saving, calPerYear) {
+      let history = [];
+      const saved = localStorage.getItem('cycling-calculator-history');
+      if (saved) {
+        try {
+          history = JSON.parse(saved);
+        } catch (e) {}
+      }
+      const timestamp = new Date().toLocaleString('ja-JP', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+      history.unshift({
+        timestamp,
+        distance: parseFloat(distance),
+        workDays: parseFloat(workDays),
+        transport,
+        currentAnnual: Math.round(currentAnnual),
+        bikeAnnual: Math.round(bikeAnnual),
+        saving: Math.round(saving),
+      });
+      // 最大5件まで
+      if (history.length > 5) history = history.slice(0, 5);
+      localStorage.setItem('cycling-calculator-history', JSON.stringify(history));
+      renderHistory();
+    }
+
+    function renderHistory() {
+      const saved = localStorage.getItem('cycling-calculator-history');
+      if (!saved) return;
+      try {
+        const history = JSON.parse(saved);
+        if (history.length === 0) {
+          document.getElementById('history-section').style.display = 'none';
+          return;
+        }
+        document.getElementById('history-section').style.display = 'block';
+        const html = history.map((item, idx) =>
+          '<div style="background:white;padding:8px 10px;border-radius:6px;margin-bottom:6px;border:1px solid #cbd5e1;cursor:pointer;font-size:12px;color:#374151;" onclick="restoreFromHistory(' + idx + ')">' +
+          '<div style="font-weight:600;">' + item.distance + 'km / ' + item.workDays + '日 / ' + item.transport + '</div>' +
+          '<div style="font-size:11px;color:#6b7280;margin-top:2px;">' + item.timestamp + ' - 節約額: ' + (Math.round(item.saving / 10000 * 10) / 10) + '万円</div>' +
+          '</div>'
+        ).join('');
+        document.getElementById('history-list').innerHTML = html;
+      } catch (e) {
+        console.error('Failed to render history:', e);
+      }
+    }
+
+    function restoreFromHistory(idx) {
+      const saved = localStorage.getItem('cycling-calculator-history');
+      if (!saved) return;
+      try {
+        const history = JSON.parse(saved);
+        const item = history[idx];
+        document.getElementById('distance').value = item.distance;
+        document.getElementById('work-days').value = item.workDays;
+        document.getElementById('current-transport').value = item.transport;
+        toggleCarFields();
+        document.getElementById('one-way-fare').value = item.oneWayFare || 250;
+        calculate();
+      } catch (e) {
+        console.error('Failed to restore:', e);
+      }
+    }
+
+    function clearHistory() {
+      if (confirm('履歴をクリアしますか？')) {
+        localStorage.removeItem('cycling-calculator-history');
+        document.getElementById('history-section').style.display = 'none';
+        document.getElementById('history-list').innerHTML = '';
+      }
+    }
+
+    // ========== グラフ可視化 ==========
+    let costChartInstance = null;
+
+    function renderCostChart(currentLabel, currentAnnual, bikeAnnual) {
+      const ctx = document.getElementById('costChart');
+      if (!ctx) return;
+
+      if (costChartInstance) {
+        costChartInstance.destroy();
+      }
+
+      const colors = ['#a5b4fc', '#4338ca', '#7c3aed'];
+      costChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: [currentLabel, '自転車', '差額（節約額）'],
+          datasets: [{
+            label: '年間コスト（万円）',
+            data: [
+              Math.round(currentAnnual / 10000 * 10) / 10,
+              Math.round(bikeAnnual / 10000 * 10) / 10,
+              Math.round((currentAnnual - bikeAnnual) / 10000 * 10) / 10
+            ],
+            backgroundColor: colors,
+            borderColor: colors,
+            borderWidth: 1,
+            borderRadius: 8,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          indexAxis: 'x',
+          plugins: {
+            legend: {
+              display: false,
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0,0,0,0.8)',
+              titleFont: { size: 13 },
+              bodyFont: { size: 12 },
+              padding: 10,
+              displayColors: false,
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                font: { size: 12 },
+                color: '#6b7280',
+                callback: function(val) { return val + '万'; }
+              },
+              grid: {
+                color: '#e5e7eb',
+              }
+            },
+            x: {
+              ticks: {
+                font: { size: 12 },
+                color: '#374151',
+              },
+              grid: {
+                display: false,
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // ========== 印刷・エクスポート ==========
+    function printResult() {
+      window.print();
+    }
+
+    function copyResult() {
+      const distance = parseFloat(document.getElementById('distance').value) || 0;
+      const workDays = parseFloat(document.getElementById('work-days').value) || 0;
+      const transport = document.getElementById('current-transport').value;
+
+      const compareGrid = document.getElementById('compare-grid');
+      const diagBox = document.getElementById('diag-box');
+
+      let text = '🚴 自転車通勤コスト計算ツール - 結果\n\n';
+      text += '=== 入力値 ===\n';
+      text += '片道距離: ' + distance + ' km\n';
+      text += '通勤日数: ' + workDays + ' 日/月\n';
+      text += '比較対象: ' + transport + '\n\n';
+
+      if (compareGrid) {
+        text += '=== コスト比較 ===\n';
+        const boxes = compareGrid.querySelectorAll('.compare-box');
+        boxes.forEach(box => {
+          const label = box.querySelector('.cb-label')?.textContent || '';
+          const val = box.querySelector('.cb-val')?.textContent || '';
+          const unit = box.querySelector('.cb-unit')?.textContent || '';
+          if (label && val) {
+            text += label + ': ' + val + ' ' + unit + '\n';
+          }
+        });
+      }
+
+      text += '\n=== 診断結果 ===\n';
+      if (diagBox) {
+        text += diagBox.textContent.replace(/✅ /g, '• ') + '\n';
+      }
+
+      text += '\n📖 詳細はこちら: https://appadaycreator.com/cycling-cost-calculator/\n';
+
+      navigator.clipboard.writeText(text).then(() => {
+        alert('結果をコピーしました！\n\nSNSやメモアプリに貼り付けてシェアできます。');
+      }).catch(() => {
+        alert('コピーに失敗しました。ブラウザのコピー機能をお使いください。');
+      });
+    }
+
+    // ========== 初期化 ==========
+    document.addEventListener('DOMContentLoaded', () => {
+      loadInputs();
+      renderHistory();
+      document.querySelectorAll('input[type="number"]').forEach(inp => {
+        inp.addEventListener('change', saveInputs);
+      });
+      document.getElementById('current-transport').addEventListener('change', saveInputs);
+    });
     </script>
 
     <!-- Amazon アフィリエイト -->

@@ -35,6 +35,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -238,11 +239,24 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="card">
             <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;color:#7c3aed;"></h3>
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
+            <div style="background:#f8fafc;padding:16px;border-radius:12px;margin:16px 0;">
+              <p style="font-size:13px;font-weight:600;color:#666;margin:0 0 12px;text-align:center;">総合スコア</p>
+              <canvas id="riskGaugeChart" style="max-width:200px;margin:0 auto;display:block;"></canvas>
+            </div>
+            <div style="margin:16px 0;">
+              <p style="font-size:13px;font-weight:600;color:#666;margin:0 0 12px;">カテゴリ別スコア</p>
+              <canvas id="categoryBarChart" style="margin:0 auto;"></canvas>
+            </div>
             <div id="score-breakdown" class="score-breakdown"></div>
             <div id="consultation-section"></div>
             <div class="share-buttons">
               <button class="share-btn share-btn-twitter" onclick="shareOnTwitter()">𝕏 シェア</button>
               <button class="share-btn share-btn-line" onclick="shareOnLine()">LINE</button>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:16px 0;">
+              <button style="flex:1;min-width:140px;background:#4f46e5;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;" onclick="copyResultToClipboard()">📋 結果をコピー</button>
+              <button style="flex:1;min-width:140px;background:#059669;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;" onclick="downloadResultAsCSV()">📥 CSVダウンロード</button>
+              <button style="flex:1;min-width:140px;background:#78716c;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;" onclick="window.print()">🖨️ 印刷</button>
             </div>
             <button class="btn" style="margin-top:16px;" onclick="location.reload()">もう一度診断</button>
           </div>
@@ -379,8 +393,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       return result;
     }
 
-    const BTN='#7c3aed'; let cur=0; const ans=[];
-    document.addEventListener('DOMContentLoaded',()=>{ document.getElementById('q-total').textContent=QUESTIONS.length; });
+    const BTN='#7c3aed'; let cur=0; const ans=[]; let currentResult=null;
+    let riskGaugeChart=null; let categoryBarChart=null;
+
+    document.addEventListener('DOMContentLoaded',()=>{
+      document.getElementById('q-total').textContent=QUESTIONS.length;
+      loadAndShowHistory();
+    });
 
     function startQuiz(){
       cur=0; ans.length=0;
@@ -410,22 +429,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     function showResult(){
       document.getElementById('quiz-area').style.display='none';
-      const r=getResult(ans);
-      document.getElementById('r-title').textContent=r.title;
-      document.getElementById('r-desc').textContent=r.desc;
+      currentResult=getResult(ans);
+      document.getElementById('r-title').textContent=currentResult.title;
+      document.getElementById('r-desc').textContent=currentResult.desc;
 
-      // スコア内訳の表示
       const scoreLabels = ['労働時間','心理的消耗','休息の質','休暇取得','メンタルヘルス'];
       const breakdownHTML = scoreLabels.map((label, i) => {
-        const score = r.scores[label];
-        const maxScore = 3;
-        const pct = Math.round((score / maxScore) * 100);
+        const score = currentResult.scores[label];
         return `<div class="score-item"><div class="score-label">${label}</div><div class="score-value">${score}/3</div></div>`;
       }).join('');
       document.getElementById('score-breakdown').innerHTML = breakdownHTML;
 
-      // リスク高の場合、相談窓口を表示
-      if(r.riskLevel === '高'){
+      if(currentResult.riskLevel === '高'){
         document.getElementById('consultation-section').innerHTML = `
           <div class="consultation-notice">
             <h4>📞 相談窓口のご案内</h4>
@@ -438,6 +453,158 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }
 
       document.getElementById('result').classList.add('show');
+      saveToHistory(currentResult);
+      renderCharts(currentResult);
+    }
+
+    function renderCharts(result){
+      const total = result.baseScore;
+      const riskLevel = result.riskLevel;
+      const riskColors = {
+        '低':'#10b981',
+        '中':'#f59e0b',
+        '高':'#ef4444'
+      };
+      const bgColor = riskColors[riskLevel];
+
+      // ドーナツチャート（総合スコア）
+      const gaugeCtx = document.getElementById('riskGaugeChart').getContext('2d');
+      if(riskGaugeChart) riskGaugeChart.destroy();
+      riskGaugeChart = new Chart(gaugeCtx, {
+        type:'doughnut',
+        data:{
+          datasets:[
+            {data:[total, 15-total], backgroundColor:[bgColor,'#e5e7eb'], borderWidth:0}
+          ]
+        },
+        options:{
+          responsive:true,
+          maintainAspectRatio:true,
+          plugins:{
+            legend:{display:false},
+            tooltip:{enabled:true}
+          }
+        }
+      });
+
+      // スコア内訳テキスト
+      const gaugeText = document.querySelector('#riskGaugeChart').parentElement;
+      const textEl = gaugeText.querySelector('[id="score-text"]') || document.createElement('div');
+      textEl.id = 'score-text';
+      textEl.style.cssText = 'text-align:center;margin-top:8px;font-size:14px;font-weight:700;color:#333;';
+      textEl.textContent = `${total} / 15`;
+      if(!gaugeText.querySelector('[id="score-text"]')) gaugeText.appendChild(textEl);
+
+      // 横棒チャート（カテゴリ別）
+      const categoryCtx = document.getElementById('categoryBarChart').getContext('2d');
+      if(categoryBarChart) categoryBarChart.destroy();
+      const categoryLabels = ['労働時間','心理的消耗','休息の質','休暇取得','メンタルヘルス'];
+      const categoryScores = categoryLabels.map(l => result.scores[l]);
+      categoryBarChart = new Chart(categoryCtx, {
+        type:'bar',
+        data:{
+          labels:categoryLabels,
+          datasets:[{label:'スコア',data:categoryScores,backgroundColor:['#3b82f6','#8b5cf6','#06b6d4','#f59e0b','#ef4444'],borderWidth:0}]
+        },
+        options:{
+          indexAxis:'y',
+          responsive:true,
+          maintainAspectRatio:true,
+          scales:{
+            x:{beginAtZero:true,max:3,ticks:{stepSize:1}}
+          },
+          plugins:{
+            legend:{display:false}
+          }
+        }
+      });
+    }
+
+    function saveToHistory(result){
+      const history = JSON.parse(localStorage.getItem('burnoutHistory') || '[]');
+      const entry = {
+        timestamp:new Date().toLocaleString('ja-JP'),
+        riskLevel:result.riskLevel,
+        totalScore:result.baseScore,
+        scores:result.scores
+      };
+      history.unshift(entry);
+      if(history.length > 5) history.pop();
+      localStorage.setItem('burnoutHistory', JSON.stringify(history));
+    }
+
+    function loadAndShowHistory(){
+      const history = JSON.parse(localStorage.getItem('burnoutHistory') || '[]');
+      if(history.length > 0){
+        const historyBtn = document.createElement('div');
+        historyBtn.style.cssText = 'margin-bottom:16px;padding:12px;background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;text-align:center;';
+        const latestEntry = history[0];
+        historyBtn.innerHTML = `
+          <p style="font-size:13px;color:#4f46e5;margin:0 0 8px;font-weight:600;">📊 前回の診断結果</p>
+          <p style="font-size:12px;color:#6b7280;margin:0 0 8px;">${latestEntry.timestamp}</p>
+          <button style="background:#4f46e5;color:white;border:none;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;min-height:40px;" onclick="showHistoryDetail(0)">結果を表示</button>
+          <button style="background:#e5e7eb;color:#333;border:none;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;margin-left:8px;min-height:40px;" onclick="clearAllHistory()">履歴をクリア</button>
+        `;
+        const quizStart = document.getElementById('quiz-start');
+        if(quizStart.querySelector('[id="history-btn"]')) quizStart.querySelector('[id="history-btn"]').remove();
+        historyBtn.id = 'history-btn';
+        quizStart.insertBefore(historyBtn, quizStart.firstChild);
+      }
+    }
+
+    function showHistoryDetail(idx){
+      const history = JSON.parse(localStorage.getItem('burnoutHistory') || '[]');
+      if(idx < history.length){
+        const entry = history[idx];
+        currentResult = {title:'', riskLevel:entry.riskLevel, baseScore:entry.totalScore, scores:entry.scores, desc:''};
+        const result = currentResult;
+        document.getElementById('quiz-start').style.display='none';
+        document.getElementById('quiz-area').style.display='none';
+        document.getElementById('r-title').textContent = `${entry.riskLevel === '低' ? '✅' : entry.riskLevel === '中' ? '⚠️' : '🚨'} 診断結果（${entry.timestamp}）`;
+        document.getElementById('r-desc').textContent = `前回のバーンアウトリスク：${entry.riskLevel}`;
+        const scoreLabels = ['労働時間','心理的消耗','休息の質','休暇取得','メンタルヘルス'];
+        const breakdownHTML = scoreLabels.map(label => {
+          const score = result.scores[label];
+          return `<div class="score-item"><div class="score-label">${label}</div><div class="score-value">${score}/3</div></div>`;
+        }).join('');
+        document.getElementById('score-breakdown').innerHTML = breakdownHTML;
+        document.getElementById('consultation-section').innerHTML = '';
+        document.getElementById('result').classList.add('show');
+        renderCharts(result);
+      }
+    }
+
+    function clearAllHistory(){
+      if(confirm('本当に履歴をすべてクリアしますか？')){
+        localStorage.removeItem('burnoutHistory');
+        location.reload();
+      }
+    }
+
+    function copyResultToClipboard(){
+      if(!currentResult) return;
+      const text = `バーンアウトリスク診断結果\n\n日時：${new Date().toLocaleString('ja-JP')}\nリスクレベル：${currentResult.riskLevel}\n総合スコア：${currentResult.baseScore}/15\n\nカテゴリ別スコア：\n労働時間：${currentResult.scores['労働時間']}/3\n心理的消耗：${currentResult.scores['心理的消耗']}/3\n休息の質：${currentResult.scores['休息の質']}/3\n休暇取得：${currentResult.scores['休暇取得']}/3\nメンタルヘルス：${currentResult.scores['メンタルヘルス']}/3\n\nhttps://appadaycreator.com/burnout-risk-checker/`;
+      navigator.clipboard.writeText(text).then(()=>{
+        alert('結果をコピーしました！');
+      }).catch(()=>{
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        alert('結果をコピーしました！');
+      });
+    }
+
+    function downloadResultAsCSV(){
+      if(!currentResult) return;
+      const csv = `日時,リスクレベル,総合スコア,労働時間,心理的消耗,休息の質,休暇取得,メンタルヘルス\n"${new Date().toLocaleString('ja-JP')}","${currentResult.riskLevel}","${currentResult.baseScore}","${currentResult.scores['労働時間']}","${currentResult.scores['心理的消耗']}","${currentResult.scores['休息の質']}","${currentResult.scores['休暇取得']}","${currentResult.scores['メンタルヘルス']}"`;
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'burnout-result.csv';
+      link.click();
     }
 
     function shareOnTwitter(){

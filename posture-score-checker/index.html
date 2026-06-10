@@ -35,6 +35,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -168,7 +169,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
             <div id="r-tags" class="tag-list" style="margin-bottom:12px;"></div>
             <div id="r-score-wrap" style="margin-bottom:12px;"></div>
+            <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
+              <button class="btn" style="flex:1;min-width:120px;padding:10px 12px;font-size:14px;margin:0;" onclick="copyResult()">📋 結果をコピー</button>
+              <button class="btn" style="flex:1;min-width:120px;padding:10px 12px;font-size:14px;margin:0;" onclick="downloadCSV()">📥 CSVダウンロード</button>
+              <button class="btn" style="flex:1;min-width:120px;padding:10px 12px;font-size:14px;margin:0;" onclick="window.print()">🖨️ 印刷</button>
+            </div>
             <div id="r-exercises"></div>
+            <div id="r-graphs" style="margin-top:20px;"></div>
+            <div id="r-history" style="margin-top:20px;"></div>
             <button class="btn" style="margin-top:16px;" onclick="location.reload()">もう一度診断</button>
           </div>
         </div>
@@ -331,7 +339,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     
 <script>
     const BTN_COLOR = '#EA580C';
-    // 質問データ（各質問にoptions配列とscoreキーを持たせる）
     const QUESTIONS = [
       {
         text: '1. 座っているとき、背中が丸まっていることが多いですか？',
@@ -386,6 +393,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     ];
     const scores = {};
     let currentQ = 0;
+    let currentResult = null;
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('q-total').textContent = QUESTIONS.length;
@@ -415,15 +423,124 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       renderQuestion();
     }
 
+    function saveToStorage(result) {
+      try {
+        const history = JSON.parse(localStorage.getItem('posture_history') || '[]');
+        history.unshift(result);
+        if (history.length > 10) history.pop();
+        localStorage.setItem('posture_history', JSON.stringify(history));
+      } catch(e) {}
+    }
+
+    function getHistory() {
+      try {
+        return JSON.parse(localStorage.getItem('posture_history') || '[]');
+      } catch(e) { return []; }
+    }
+
+    function copyResult() {
+      const text = `姿勢スコア診断結果\n\n${currentResult.title}\n\n${currentResult.desc}\n\n診断日時: ${new Date().toLocaleString('ja-JP')}\n\nおすすめエクサイズ:\n${currentResult.exercises.map(e => `- ${e.name}: ${e.desc}`).join('\n')}\n\n詳細: https://appadaycreator.com/posture-score-checker/`;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('結果をコピーしました！');
+      }).catch(() => {
+        alert('コピーに失敗しました');
+      });
+    }
+
+    function downloadCSV() {
+      const history = getHistory();
+      let csv = 'スコア,診断タイプ,日時\n';
+      history.forEach(r => {
+        csv += `"${r.score}","${r.type}","${r.date}"\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `posture-history-${new Date().getTime()}.csv`;
+      link.click();
+    }
+
+    function renderGraphs(result, history) {
+      let html = '<div style="font-weight:700;font-size:14px;color:#EA580C;margin-bottom:12px;">📊 スコア分析</div>';
+
+      if (history.length > 1) {
+        html += '<div style="margin-bottom:16px;"><canvas id="scoreChart" width="400" height="200"></canvas></div>';
+      }
+
+      html += '<div style="margin-bottom:16px;"><canvas id="categoryChart" width="400" height="200"></canvas></div>';
+
+      document.getElementById('r-graphs').innerHTML = html;
+
+      setTimeout(() => {
+        if (history.length > 1) renderScoreChart(history);
+        renderCategoryChart(result);
+      }, 100);
+    }
+
+    function renderScoreChart(history) {
+      const recent = history.slice(0, 5).reverse();
+      const ctx = document.getElementById('scoreChart');
+      if (!ctx) return;
+
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: recent.map((_,i) => `${i+1}回前`).reverse(),
+          datasets: [{
+            label: 'スコア推移',
+            data: recent.map(r => r.score),
+            borderColor: '#EA580C',
+            backgroundColor: '#EA580C30',
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, max: 100 } }
+        }
+      });
+    }
+
+    function renderCategoryChart(result) {
+      const ctx = document.getElementById('categoryChart');
+      if (!ctx) return;
+
+      const categories = [
+        { label: '座位', score: 25 - Math.min(25, (scores.hunchback || 0) * 5 + (scores.backpain || 0) * 5) },
+        { label: '立位', score: 25 - Math.min(25, (scores.lordosis || 0) * 5 + (scores.roundshoulder || 0) * 5) },
+        { label: '首・肩', score: 25 - Math.min(25, (scores.neckforward || 0) * 5) },
+        { label: 'その他', score: 25 - Math.min(25, (scores.toesout || 0) * 5 + (scores.badhabit || 0) * 5) }
+      ];
+
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: categories.map(c => c.label),
+          datasets: [{
+            label: 'カテゴリ別スコア',
+            data: categories.map(c => Math.max(0, c.score)),
+            backgroundColor: ['#16a34a', '#d97706', '#ea580c', '#3b82f6']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, max: 25 } }
+        }
+      });
+    }
+
     function showResult() {
       document.getElementById('quiz-area').style.display = 'none';
 
-      // スコア集計（0=良好, 3=最悪 の合計）
       const rawScore = Object.values(scores).reduce((s, v) => s + v, 0);
       const maxScore = QUESTIONS.length * 3;
-      const pct = Math.round((1 - rawScore / maxScore) * 100); // 高いほど良い
+      const pct = Math.round((1 - rawScore / maxScore) * 100);
 
-      // 問題カテゴリを特定
       const issues = [];
       if ((scores.hunchback || 0) >= 2) issues.push({ label:'猫背', tag:'warn' });
       if ((scores.neckforward || 0) >= 2) issues.push({ label:'スマホ首', tag:'warn' });
@@ -433,23 +550,25 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if ((scores.exercise || 0) <= 1) issues.push({ label:'運動習慣あり', tag:'good' });
       if (issues.filter(i => i.tag === 'warn').length === 0) issues.push({ label:'姿勢習慣良好', tag:'good' });
 
-      // 診断タイトル
-      let title, desc;
+      let title, desc, type;
       if (pct >= 80) {
         title = '🌟 姿勢スコア: ' + pct + '点 — 優秀な姿勢タイプ';
         desc = 'とても良い姿勢習慣を持っています！現在の習慣を継続しながら、定期的なストレッチで更に維持しましょう。';
+        type = '優秀な姿勢タイプ';
       } else if (pct >= 60) {
         title = '👍 姿勢スコア: ' + pct + '点 — まずまずの姿勢タイプ';
         desc = '姿勢は平均的ですが、いくつか改善できるポイントがあります。日常の小さな意識付けで大きく変わります。';
+        type = 'まずまずの姿勢タイプ';
       } else if (pct >= 40) {
         title = '⚠️ 姿勢スコア: ' + pct + '点 — 要改善タイプ';
         desc = '姿勢の乱れが蓄積しやすい生活パターンが見られます。以下のエクサイズを毎日少しずつ取り入れましょう。';
+        type = '要改善タイプ';
       } else {
         title = '🚨 姿勢スコア: ' + pct + '点 — 姿勢矯正が必要なタイプ';
         desc = '姿勢に関わる複数の習慣に課題があります。放置すると慢性的な痛みに繋がる可能性があります。専門家への相談も検討してみてください。';
+        type = '姿勢矯正が必要なタイプ';
       }
 
-      // 改善エクサイズ選定
       const exercises = [];
       if ((scores.hunchback || 0) >= 1 || (scores.roundshoulder || 0) >= 1) {
         exercises.push({
@@ -488,14 +607,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         });
       }
 
-      document.getElementById('r-title').textContent = title;
-      document.getElementById('r-desc').textContent  = desc;
+      currentResult = { title, desc, score: pct, type, exercises, date: new Date().toLocaleString('ja-JP') };
+      saveToStorage(currentResult);
 
-      // タグ描画
+      document.getElementById('r-title').textContent = title;
+      document.getElementById('r-desc').textContent = desc;
       document.getElementById('r-tags').innerHTML = issues.map(i =>
         `<span class="tag tag-${i.tag}">${i.label}</span>`).join('');
 
-      // スコアリング（SVGゲージ）
       const r = 50, cx = 60, cy = 60, strokeW = 10;
       const circ = 2 * Math.PI * r;
       const dashArr = circ * pct / 100;
@@ -504,8 +623,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="score-ring">
           <svg viewBox="0 0 120 120" width="120" height="120">
             <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#e5e7eb" stroke-width="${strokeW}"/>
-<meta name="twitter:image" content="https://appadaycreator.com/posture-score-checker/ogp.png" />
-<meta name="twitter:description" content="日常の姿勢習慣から猫背・反り腰などの問題を診断。改善エクサイズも提案。登録不要・完全無料でご利用いただけます。" />
             <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="${strokeW}"
               stroke-dasharray="${dashArr.toFixed(1)} ${circ.toFixed(1)}" stroke-linecap="round"/>
           </svg>
@@ -513,10 +630,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
         <p style="text-align:center;font-size:12px;color:#888;margin-top:4px;">姿勢スコア（100点満点）</p>`;
 
-      // エクサイズ描画
       document.getElementById('r-exercises').innerHTML =
         `<div style="font-weight:700;font-size:14px;color:#EA580C;margin-bottom:8px;">🏋️ おすすめ改善エクサイズ</div>` +
         exercises.map(e => `<div class="exercise-card"><h4>${e.name}</h4><p>${e.desc}</p></div>`).join('');
+
+      const history = getHistory();
+      renderGraphs(currentResult, history);
 
       document.getElementById('result').classList.add('show');
     }

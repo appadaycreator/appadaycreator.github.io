@@ -35,6 +35,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <!-- Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -76,13 +78,14 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 
 
 @media print{
-  header,footer,nav,button,.no-print,
+  header,footer,nav,[id*="export-buttons"],.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
   [id*="affiliate"],[id*="banner"],
   script,noscript{display:none!important}
   body{background:#fff!important;color:#000!important;font-size:12pt}
-  [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
+  [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[id*="chart"],[class*="result"]{display:block!important}
   a[href]::after{content:none!important}
+  .card{box-shadow:none!important;border:1px solid #ccc!important}
 }
 
 /* AdSense unfilled: collapse empty ad slots */
@@ -233,6 +236,17 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div style="border-top:2px solid #e0e7ff;padding-top:16px;">
               <div id="output" style="font-size:2.2rem;font-weight:700;color:#6366F1;padding:12px 0;text-align:center;"></div>
               <div id="budget-range" class="budget-range" style="display:none;"></div>
+              <!-- Chart visualization (M4) -->
+              <div id="chart-container" style="margin:16px 0;display:none;">
+                <canvas id="breakdown-chart" style="max-height:300px;"></canvas>
+                <canvas id="comparison-chart" style="max-height:250px;margin-top:16px;"></canvas>
+              </div>
+              <!-- Export buttons (M10) -->
+              <div id="export-buttons" style="display:none;margin:16px 0;display:flex;gap:8px;flex-wrap:wrap;">
+                <button onclick="printResult()" class="btn" style="flex:1;background:#10b981;min-width:120px;font-size:14px;padding:10px;margin:0;">🖨️ 印刷する</button>
+                <button onclick="copyResult()" class="btn" style="flex:1;background:#8b5cf6;min-width:120px;font-size:14px;padding:10px;margin:0;">📋 コピー</button>
+                <button onclick="downloadCSV()" class="btn" style="flex:1;background:#f59e0b;min-width:120px;font-size:14px;padding:10px;margin:0;">⬇️ ダウンロード</button>
+              </div>
               <div id="trip-table" style="margin-top:8px;"></div>
               <p id="detail" style="color:#666;font-size:13px;margin-top:8px;"></p>
             </div>
@@ -333,6 +347,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       error: '人数と宿泊数を入力してください',
       storageKey: 'ftc_inputs',
     };
+
+    // グローバル変数: 最新の計算結果を保存（エクスポート機能で使用）
+    let lastCalcResult = null;
+
     function calcLogic(vals) {
       const [adults, children, nights] = vals;
       const destIdx = parseInt(document.getElementById('destination')?.value || '0');
@@ -369,8 +387,144 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       setTimeout(() => { const el = document.getElementById('trip-table'); if(el) el.innerHTML = tableHtml; }, 0);
       const result = total.toLocaleString() + ' 円';
       const detail = '節約のコツ：' + tips[destIdx];
-      return { result, detail, rangeMin, rangeMax };
+      return {
+        result, detail, rangeMin, rangeMax,
+        // エクスポート用データ
+        transport, hotel, food, sightseeing, total,
+        adults, children, nights, destName: destNames[destIdx]
+      };
     }
+
+    // M4: グラフ可視化
+    let breakdownChart = null, comparisonChart = null;
+
+    function renderCharts(data) {
+      const ctx1 = document.getElementById('breakdown-chart');
+      const ctx2 = document.getElementById('comparison-chart');
+      if (!ctx1 || !ctx2 || !window.Chart) return;
+
+      // 既存チャートを削除
+      if (breakdownChart) breakdownChart.destroy();
+      if (comparisonChart) comparisonChart.destroy();
+
+      // 円グラフ：費用内訳
+      breakdownChart = new Chart(ctx1, {
+        type: 'doughnut',
+        data: {
+          labels: ['交通費', '宿泊費', '食費', '観光・入場料'],
+          datasets: [{
+            data: [data.transport, data.hotel, data.food, data.sightseeing],
+            backgroundColor: ['#6366F1', '#10b981', '#f59e0b', '#ef4444'],
+            borderColor: 'white',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { position: 'bottom' },
+            tooltip: {
+              callbacks: {
+                label: ctx => ctx.label + ': ' + ctx.parsed + '円'
+              }
+            }
+          }
+        }
+      });
+
+      // 棒グラフ：目的地別費用比較
+      const destNames = ['国内近場', '国内遠方', '海外近隣', '海外遠方'];
+      const destPrices = [
+        [5000, 8000, 2500, 1500],    // 国内近場
+        [25000, 12000, 3000, 2500],  // 国内遠方
+        [50000, 18000, 4000, 4000],  // 海外近隣
+        [150000, 30000, 7000, 8000], // 海外遠方
+      ];
+      const totalPeople = data.adults + data.children * 0.7;
+      const comparisonData = destPrices.map(([t,h,f,s]) => {
+        return Math.round(t*totalPeople + h*totalPeople*data.nights + f*totalPeople*(data.nights+1) + s*totalPeople*(data.nights+1));
+      });
+
+      comparisonChart = new Chart(ctx2, {
+        type: 'bar',
+        data: {
+          labels: destNames,
+          datasets: [{
+            label: '旅行総費用（目安）',
+            data: comparisonData,
+            backgroundColor: '#6366F1',
+            borderRadius: 8
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          indexAxis: 'x',
+          plugins: {
+            legend: { display: true },
+            tooltip: {
+              callbacks: {
+                label: ctx => '総費用: ' + Math.round(ctx.parsed.y).toLocaleString() + '円'
+              }
+            }
+          },
+          scales: {
+            y: { ticks: { callback: v => Math.round(v/10000) + '万円' } }
+          }
+        }
+      });
+    }
+
+    // M10: エクスポート機能
+    function printResult() {
+      window.print();
+    }
+
+    function copyResult() {
+      if (!lastCalcResult) return alert('先に計算してください');
+      const text = `家族旅行費用シミュレーター - 計算結果\n\n` +
+        `【条件】\n` +
+        `大人: ${lastCalcResult.adults}人\n` +
+        `子ども: ${lastCalcResult.children}人\n` +
+        `宿泊数: ${lastCalcResult.nights}泊\n` +
+        `目的地: ${lastCalcResult.destName}\n\n` +
+        `【費用内訳】\n` +
+        `交通費: ${lastCalcResult.transport.toLocaleString()}円\n` +
+        `宿泊費: ${lastCalcResult.hotel.toLocaleString()}円\n` +
+        `食費: ${lastCalcResult.food.toLocaleString()}円\n` +
+        `観光・入場料: ${lastCalcResult.sightseeing.toLocaleString()}円\n\n` +
+        `【合計】\n` +
+        `${lastCalcResult.total.toLocaleString()}円`;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('結果をコピーしました！');
+      }).catch(() => {
+        alert('コピーに失敗しました');
+      });
+    }
+
+    function downloadCSV() {
+      if (!lastCalcResult) return alert('先に計算してください');
+      const csv = `項目,金額\n` +
+        `交通費,${lastCalcResult.transport}\n` +
+        `宿泊費,${lastCalcResult.hotel}\n` +
+        `食費,${lastCalcResult.food}\n` +
+        `観光・入場料,${lastCalcResult.sightseeing}\n` +
+        `合計,${lastCalcResult.total}\n\n` +
+        `条件\n` +
+        `大人,${lastCalcResult.adults}人\n` +
+        `子ども,${lastCalcResult.children}人\n` +
+        `宿泊数,${lastCalcResult.nights}泊\n` +
+        `目的地,${lastCalcResult.destName}`;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.href = url;
+      link.download = 'family-trip-result.csv';
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
     document.addEventListener('DOMContentLoaded',()=>{
       // localStorageから入力値を復元
       try {
@@ -388,14 +542,30 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       } catch(e) {}
       CFG.inputs.forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') calculate(); }); });
     });
+
     function calculate(){
       const vals=CFG.inputs.map(id=>parseFloat(document.getElementById(id)?.value)||0);
       if(!vals[0]){ alert(CFG.error); return; }
-      const {result,detail,rangeMin,rangeMax}=calcLogic(vals);
-      document.getElementById('output').textContent=typeof result==='number'?result.toLocaleString():result;
-      const d=document.getElementById('detail'); if(d) d.textContent=detail||'';
+      const data=calcLogic(vals);
+      lastCalcResult = data; // エクスポート用に保存
+      document.getElementById('output').textContent=typeof data.result==='number'?data.result.toLocaleString():data.result;
+      const d=document.getElementById('detail'); if(d) d.textContent=data.detail||'';
       const br=document.getElementById('budget-range');
-      if(br){ br.style.display='block'; br.textContent=`予算の目安範囲: ${rangeMin.toLocaleString()}円 〜 ${rangeMax.toLocaleString()}円（±15%バッファ）`; }
+      if(br){ br.style.display='block'; br.textContent=`予算の目安範囲: ${data.rangeMin.toLocaleString()}円 〜 ${data.rangeMax.toLocaleString()}円（±15%バッファ）`; }
+
+      // M4: グラフ表示
+      const chartContainer = document.getElementById('chart-container');
+      if (chartContainer) {
+        chartContainer.style.display = 'block';
+        renderCharts(data);
+      }
+
+      // M10: エクスポートボタン表示
+      const exportBtns = document.getElementById('export-buttons');
+      if (exportBtns) {
+        exportBtns.style.display = 'flex';
+      }
+
       document.getElementById('result').classList.add('show');
       // 入力値をlocalStorageに保存
       try {

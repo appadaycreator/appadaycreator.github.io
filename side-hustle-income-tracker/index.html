@@ -37,6 +37,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -224,6 +225,28 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <h3 style="font-size:14px;font-weight:700;margin-bottom:8px;color:#0891B2;">📊 サマリー</h3>
             <div id="summary"></div>
           </div>
+          <div class="card" style="margin-top:12px;">
+            <h3 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#0891B2;">📈 グラフ分析</h3>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+              <div style="position:relative;height:250px;">
+                <canvas id="categoryChart"></canvas>
+              </div>
+              <div style="position:relative;height:250px;">
+                <canvas id="pieChart"></canvas>
+              </div>
+            </div>
+            <div style="position:relative;height:300px;">
+              <canvas id="timelineChart"></canvas>
+            </div>
+          </div>
+          <div class="card" style="margin-top:12px;">
+            <h3 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#0891B2;">💾 エクスポート</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button onclick="printRecords()" style="background:#0891B2;color:white;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;min-height:44px;">🖨️ 印刷</button>
+              <button onclick="downloadCSV()" style="background:#10b981;color:white;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;min-height:44px;">📥 CSV保存</button>
+              <button onclick="copyToClipboard()" style="background:#8b5cf6;color:white;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;min-height:44px;">📋 コピー</button>
+            </div>
+          </div>
         </div>
 
         <!-- 関連サービス -->
@@ -333,8 +356,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     
 <script>
-    // ★ここだけ実装（約12行）★
     const KEY='side-hustle-income-tracker';
+    let chartInstances={};
+
     function getEntryData(){
       const category=document.getElementById('category')?.value||'';
       const memo=document.getElementById('memo')?.value||'';
@@ -351,7 +375,97 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const annual=monthly*12;
       return `<p>合計: <b style="font-size:18px;color:#0891B2;">¥${total.toLocaleString()}</b>（${entries.length}件）</p><p style="margin-top:4px;">月平均: ¥${monthly.toLocaleString()} → 年間予測: <b>¥${annual.toLocaleString()}</b></p>`;
     }
-    // ★以下変更不要★
+
+    function renderCharts(entries){
+      if(!entries.length) return;
+
+      // カテゴリ別の集計
+      const categoryData={};
+      entries.forEach(e=>{
+        categoryData[e.category]=(categoryData[e.category]||0)+e.amount;
+      });
+      const categories=Object.keys(categoryData);
+      const categoryAmounts=Object.values(categoryData);
+      const colors=['#0891B2','#06B6D4','#10B981','#F59E0B','#EF4444'];
+
+      // 棒グラフ（カテゴリ別）
+      const categoryCtx=document.getElementById('categoryChart');
+      if(chartInstances.categoryChart) chartInstances.categoryChart.destroy();
+      chartInstances.categoryChart=new Chart(categoryCtx,{
+        type:'bar',
+        data:{labels:categories,datasets:[{label:'金額（円）',data:categoryAmounts,backgroundColor:colors.slice(0,categories.length),borderRadius:4}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{callback:function(v){return '¥'+v.toLocaleString();}}}}}
+      });
+
+      // 円グラフ
+      const pieCtx=document.getElementById('pieChart');
+      if(chartInstances.pieChart) chartInstances.pieChart.destroy();
+      chartInstances.pieChart=new Chart(pieCtx,{
+        type:'doughnut',
+        data:{labels:categories,datasets:[{data:categoryAmounts,backgroundColor:colors.slice(0,categories.length)}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{padding:8,font:{size:12}}}}}
+      });
+
+      // 折れ線グラフ（日付別累積）
+      const dates={};
+      let cumsum=0;
+      entries.slice().reverse().forEach(e=>{
+        cumsum+=e.amount;
+        if(!dates[e.date]) dates[e.date]=cumsum;
+      });
+      const sortedDates=Object.keys(dates).sort();
+      const cumulativeAmounts=sortedDates.map(d=>dates[d]);
+
+      const timelineCtx=document.getElementById('timelineChart');
+      if(chartInstances.timelineChart) chartInstances.timelineChart.destroy();
+      chartInstances.timelineChart=new Chart(timelineCtx,{
+        type:'line',
+        data:{labels:sortedDates,datasets:[{label:'累計金額（円）',data:cumulativeAmounts,borderColor:'#0891B2',backgroundColor:'#0891B222',tension:0.3,fill:true,pointBackgroundColor:'#0891B2'}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true}},scales:{y:{beginAtZero:true,ticks:{callback:function(v){return '¥'+v.toLocaleString();}}}}}
+      });
+    }
+
+    function printRecords(){
+      const printWin=window.open('','','height=600,width=800');
+      const total=entries.reduce((s,e)=>s+e.amount,0);
+      const monthly=Math.round(total/Math.max(1,new Set(entries.map(e=>e.date.slice(0,7))).size));
+      const annual=monthly*12;
+      let html=`<html><head><meta charset="UTF-8"><title>副業記録</title><style>body{font-family:'Noto Sans JP',sans-serif;margin:20px;}table{width:100%;border-collapse:collapse;margin:20px 0;}th,td{border:1px solid #ddd;padding:8px;text-align:left;}th{background:#0891B2;color:white;}h1{color:#0891B2;}</style></head><body>`;
+      html+=`<h1>副業収入記録</h1>`;
+      html+=`<p>生成日時: ${new Date().toLocaleString('ja-JP')}</p>`;
+      html+=`<p><strong>合計:</strong> ¥${total.toLocaleString()} | <strong>月平均:</strong> ¥${monthly.toLocaleString()} | <strong>年間予測:</strong> ¥${annual.toLocaleString()}</p>`;
+      html+=`<table><tr><th>日付</th><th>カテゴリ</th><th>メモ</th><th>金額</th></tr>`;
+      entries.forEach(e=>{ html+=`<tr><td>${e.date}</td><td>${e.category}</td><td>${e.memo}</td><td>¥${e.amount.toLocaleString()}</td></tr>`; });
+      html+=`</table></body></html>`;
+      printWin.document.write(html);
+      printWin.document.close();
+      setTimeout(()=>{ printWin.print(); },250);
+    }
+
+    function downloadCSV(){
+      const csv=['日付,カテゴリ,メモ,金額'];
+      entries.forEach(e=>{ csv.push(`"${e.date}","${e.category}","${e.memo}",${e.amount}`); });
+      const blob=new Blob([csv.join('\n')],{type:'text/csv;charset=utf-8;'});
+      const link=document.createElement('a');
+      const now=new Date();
+      const filename=`記録-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}.csv`;
+      link.href=URL.createObjectURL(blob);
+      link.download=filename;
+      link.click();
+    }
+
+    function copyToClipboard(){
+      let text='副業収入記録\n\n';
+      text+=`生成日時: ${new Date().toLocaleString('ja-JP')}\n`;
+      const total=entries.reduce((s,e)=>s+e.amount,0);
+      const monthly=Math.round(total/Math.max(1,new Set(entries.map(e=>e.date.slice(0,7))).size));
+      const annual=monthly*12;
+      text+=`合計: ¥${total.toLocaleString()}\n月平均: ¥${monthly.toLocaleString()}\n年間予測: ¥${annual.toLocaleString()}\n\n`;
+      text+='日付,カテゴリ,メモ,金額\n';
+      entries.forEach(e=>{ text+=`${e.date},${e.category},${e.memo},¥${e.amount.toLocaleString()}\n`; });
+      navigator.clipboard.writeText(text).then(()=>{ alert('クリップボードにコピーしました'); }).catch(()=>{ alert('コピーに失敗しました'); });
+    }
+
     let entries=JSON.parse(localStorage.getItem(KEY)||'[]');
     document.addEventListener('DOMContentLoaded',()=>{ renderAll(); });
     function addEntry(){
@@ -367,6 +481,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if(ec) ec.textContent=entries.length+'件';
       c.innerHTML=entries.length?entries.map(renderEntry).join(''):'<p style="text-align:center;color:#bbb;padding:16px;">まだ記録がありません</p>';
       const s=document.getElementById('summary'); if(s) s.innerHTML=getSummary(entries);
+      if(entries.length) renderCharts(entries);
     }
     </script>
     <!-- rakuten-affiliate-block -->

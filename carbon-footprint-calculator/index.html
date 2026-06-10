@@ -35,6 +35,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -181,6 +183,91 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
           font-size: 13px;
           color: #065f46;
         }
+        .chart-container {
+          position: relative;
+          height: 250px;
+          margin-bottom: 16px;
+        }
+        .comparison-section {
+          background: #f0f7ff;
+          border-left: 4px solid #3b82f6;
+          border-radius: 6px;
+          padding: 12px;
+          margin-bottom: 12px;
+        }
+        .comparison-bar {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 12px;
+        }
+        .comparison-bar-label {
+          width: 100px;
+          font-size: 12px;
+          font-weight: 600;
+          color: #374151;
+        }
+        .comparison-bar-wrap {
+          flex: 1;
+          background: #e5e7eb;
+          height: 12px;
+          border-radius: 999px;
+          overflow: hidden;
+        }
+        .comparison-bar-fill {
+          height: 100%;
+          border-radius: 999px;
+        }
+        .comparison-bar-val {
+          width: 60px;
+          text-align: right;
+          font-size: 12px;
+          font-weight: 600;
+          color: #3b82f6;
+        }
+        .action-buttons {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          margin-top: 12px;
+        }
+        .action-btn {
+          flex: 1;
+          min-width: 100px;
+          background: #f3f4f6;
+          color: #374151;
+          border: 1px solid #d1d5db;
+          padding: 10px 12px;
+          border-radius: 8px;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .action-btn:hover {
+          background: #e5e7eb;
+          border-color: #9ca3af;
+        }
+        .action-btn:active {
+          transform: scale(0.98);
+        }
+        .toast {
+          position: fixed;
+          bottom: 20px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: #059669;
+          color: white;
+          padding: 12px 20px;
+          border-radius: 8px;
+          font-size: 14px;
+          z-index: 9999;
+          animation: slideUp 0.3s ease;
+        }
+        @keyframes slideUp {
+          from { transform: translateX(-50%) translateY(100px); opacity: 0; }
+          to { transform: translateX(-50%) translateY(0); opacity: 1; }
+        }
     
 @media print{
   header,footer,nav,button,.no-print,
@@ -304,12 +391,45 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               </div>
               <div class="annual-co2">年間換算: <span id="annualCO2">0</span> kg-CO2/年</div>
               <div style="font-size:14px;font-weight:700;color:#065f46;margin-bottom:8px;" id="levelMsg"></div>
-              <!-- カテゴリ内訳 -->
+
+              <!-- カテゴリ別グラフ（円グラフ） -->
+              <div style="font-size:12px;font-weight:700;color:#065f46;margin-bottom:8px;margin-top:16px;">📊 カテゴリ別グラフ</div>
+              <div class="chart-container">
+                <canvas id="categoriesChart"></canvas>
+              </div>
+
+              <!-- 日本平均との比較 -->
+              <div class="comparison-section">
+                <div style="font-size:12px;font-weight:700;color:#1e40af;margin-bottom:8px;">📈 日本平均（400kg/月）との比較</div>
+                <div class="comparison-bar">
+                  <span class="comparison-bar-label">あなた</span>
+                  <div class="comparison-bar-wrap"><div class="comparison-bar-fill" id="compUser" style="background:#059669;width:0%;"></div></div>
+                  <span class="comparison-bar-val" id="compUserVal">0 kg</span>
+                </div>
+                <div class="comparison-bar">
+                  <span class="comparison-bar-label">日本平均</span>
+                  <div class="comparison-bar-wrap"><div class="comparison-bar-fill" style="background:#9ca3af;width:100%;"></div></div>
+                  <span class="comparison-bar-val">400 kg</span>
+                </div>
+                <div style="font-size:12px;color:#1e40af;font-weight:600;margin-top:6px;" id="compMsg"></div>
+              </div>
+
+              <!-- カテゴリ内訳（テキスト表示） -->
               <div style="margin-bottom:12px;">
-                <div style="font-size:12px;font-weight:700;color:#6b7280;margin-bottom:6px;">▼ カテゴリ別内訳</div>
+                <div style="font-size:12px;font-weight:700;color:#6b7280;margin-bottom:6px;">▼ カテゴリ別数値</div>
                 <div id="breakdownArea"></div>
               </div>
+
+              <!-- アドバイス -->
               <div id="adviceArea"></div>
+
+              <!-- アクションボタン（印刷・コピー・CSV） -->
+              <div class="action-buttons">
+                <button class="action-btn" onclick="printResult()" title="結果を印刷します">📄 印刷</button>
+                <button class="action-btn" onclick="copyToClipboard()" title="結果をクリップボードにコピーします">📋 コピー</button>
+                <button class="action-btn" onclick="downloadCSV()" title="結果をCSVでダウンロードします">📊 CSV</button>
+              </div>
+
               <button class="btn" onclick="resetCalc()" style="background:#6b7280;margin-top:12px;font-size:14px;padding:10px;">↩ やり直す（リセット）</button>
             </div>
           </div>
@@ -468,6 +588,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     
 <script>
     const LS_KEY = 'cfp_inputs';
+    let chartInstance = null;
 
     /* localStorage から入力値を復元 */
     document.addEventListener('DOMContentLoaded', () => {
@@ -566,6 +687,46 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>`
       ).join('');
 
+      // 円グラフの描画（Chart.js）
+      try {
+        const ctx = document.getElementById('categoriesChart').getContext('2d');
+        if (chartInstance) chartInstance.destroy();
+        chartInstance = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: categories.map(c => c.label),
+            datasets: [{
+              data: categories.map(c => Math.max(0, c.val)),
+              backgroundColor: categories.map(c => c.color),
+              borderColor: '#fff',
+              borderWidth: 2,
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: { font: { size: 12 }, padding: 10 }
+              }
+            }
+          }
+        });
+      } catch(e) { console.error('Chart.js error:', e); }
+
+      // 日本平均との比較
+      const avg = 400;
+      const compPct = Math.min(100, (total / avg) * 100);
+      document.getElementById('compUser').style.width = compPct + '%';
+      document.getElementById('compUserVal').textContent = total.toFixed(1) + ' kg';
+      let compMsg = '';
+      if (total < avg * 0.8) compMsg = '✅ 優秀！平均より ' + Math.round((1 - total/avg)*100) + '% 低い';
+      else if (total < avg) compMsg = '🟢 良好。平均より ' + Math.round((1 - total/avg)*100) + '% 低い';
+      else if (total < avg * 1.2) compMsg = '🟡 平均に近い。削減の余地あり';
+      else compMsg = '🔴 平均より高い。削減推奨';
+      document.getElementById('compMsg').textContent = compMsg;
+
       const result = document.getElementById('result');
       result.classList.add('show');
       /* 結果エリアへ自動スクロール */
@@ -581,7 +742,102 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('gas').value = 20;
       document.getElementById('result').classList.remove('show');
       localStorage.removeItem(LS_KEY);
+      if (chartInstance) chartInstance.destroy();
       document.querySelector('.card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    /* 印刷 */
+    function printResult() {
+      window.print();
+    }
+
+    /* トースト表示 */
+    function showToast(msg) {
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.textContent = msg;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    /* クリップボードコピー */
+    function copyToClipboard() {
+      const carKm    = parseFloat(document.getElementById('carKm').value) || 0;
+      const carFactor= parseFloat(document.getElementById('carFuel').value);
+      const transit  = parseFloat(document.getElementById('transitKm').value) || 0;
+      const flightH  = parseFloat(document.getElementById('flightH').value) || 0;
+      const meat     = parseFloat(document.getElementById('meatFreq').value);
+      const electric = parseFloat(document.getElementById('electric').value) || 0;
+      const gas      = parseFloat(document.getElementById('gas').value) || 0;
+
+      const co2Car     = carKm * carFactor;
+      const co2Transit = transit * 0.04;
+      const co2Flight  = flightH * 80;
+      const co2Meat    = meat;
+      const co2Elec    = electric * 0.46;
+      const co2Gas     = gas * 2.23;
+      const total = co2Car + co2Transit + co2Flight + co2Meat + co2Elec + co2Gas;
+
+      const text = `🌍 カーボンフットプリント計算結果
+月間CO2排出量: ${total.toFixed(1)} kg-CO2/月
+年間換算: ${(total * 12).toFixed(0)} kg-CO2/年
+
+カテゴリ別内訳:
+🚗 車・移動: ${co2Car.toFixed(1)} kg
+🚌 電車・バス: ${co2Transit.toFixed(1)} kg
+✈️ 飛行機: ${co2Flight.toFixed(1)} kg
+🍽️ 食事: ${co2Meat.toFixed(1)} kg
+⚡ 電力: ${co2Elec.toFixed(1)} kg
+🔥 ガス: ${co2Gas.toFixed(1)} kg
+
+https://appadaycreator.com/carbon-footprint-calculator/`;
+
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('✅ クリップボードにコピーしました');
+      }).catch(() => {
+        showToast('❌ コピーに失敗しました');
+      });
+    }
+
+    /* CSVダウンロード */
+    function downloadCSV() {
+      const carKm    = parseFloat(document.getElementById('carKm').value) || 0;
+      const carFactor= parseFloat(document.getElementById('carFuel').value);
+      const transit  = parseFloat(document.getElementById('transitKm').value) || 0;
+      const flightH  = parseFloat(document.getElementById('flightH').value) || 0;
+      const meat     = parseFloat(document.getElementById('meatFreq').value);
+      const electric = parseFloat(document.getElementById('electric').value) || 0;
+      const gas      = parseFloat(document.getElementById('gas').value) || 0;
+
+      const co2Car     = carKm * carFactor;
+      const co2Transit = transit * 0.04;
+      const co2Flight  = flightH * 80;
+      const co2Meat    = meat;
+      const co2Elec    = electric * 0.46;
+      const co2Gas     = gas * 2.23;
+      const total = co2Car + co2Transit + co2Flight + co2Meat + co2Elec + co2Gas;
+
+      const now = new Date();
+      const dateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
+      const timeStr = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+
+      const csv = `項目,値,単位
+計算日時,${dateStr} ${timeStr},
+月間CO2排出量,${total.toFixed(1)},kg
+年間換算,${(total * 12).toFixed(0)},kg
+車・移動,${co2Car.toFixed(1)},kg
+電車・バス,${co2Transit.toFixed(1)},kg
+飛行機,${co2Flight.toFixed(1)},kg
+食事,${co2Meat.toFixed(1)},kg
+電力,${co2Elec.toFixed(1)},kg
+ガス,${co2Gas.toFixed(1)},kg`;
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `carbon_footprint_${dateStr}.csv`;
+      link.click();
+      showToast('📊 CSVをダウンロードしました');
     }
     </script>
 

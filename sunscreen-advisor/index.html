@@ -35,6 +35,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -121,10 +122,12 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
           header,footer,nav,button,.no-print,
           [class*="share"],[class*="affiliate"],[id*="share"],
           [id*="affiliate"],[id*="banner"],
-          script,noscript{display:none!important}
+          script,noscript,.quiz-opt,.btn,.btn-secondary,#goal-section,#history-section{display:none!important}
           body{background:#fff!important;color:#000!important;font-size:12pt}
-          [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
+          [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"],[id="chart-container"]{display:block!important}
           a[href]::after{content:none!important}
+          .result.show { display: block !important; }
+          #spf-pa-chart { max-height: 500px; }
         }
     
 /* AdSense unfilled: collapse empty ad slots */
@@ -197,6 +200,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div class="result-badges" id="r-badges"></div>
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.75;margin-top:8px;"></p>
             <div class="result-reapply" id="r-reapply" role="note" aria-label="塗り直しタイミング"></div>
+
+            <!-- M4: Chart.js ビジュアライゼーション -->
+            <div id="chart-container" style="margin:16px 0;display:none;background:#f8fafc;padding:14px;border-radius:10px;border:1px solid #e2e8f0;">
+              <h4 style="font-size:14px;font-weight:700;color:#DB2777;margin-bottom:4px;">📊 あなたの紫外線対策レベル</h4>
+              <p style="font-size:12px;color:#6b7280;margin-bottom:12px;margin-top:0;">選んだ条件に基づいた紫外線対策の評価</p>
+              <canvas id="spf-pa-chart" style="max-height:300px;"></canvas>
+            </div>
+
             <div class="result-tips" id="r-tips">
               <h4>✅ 選ぶときのポイント</h4>
               <ul id="r-tips-list"></ul>
@@ -205,12 +216,29 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <a id="share-x" href="#" target="_blank" rel="noopener" class="share-btn-x" aria-label="結果をXでシェア">𝕏 シェア</a>
               <a id="share-line" href="#" target="_blank" rel="noopener" class="share-btn-line" aria-label="結果をLINEでシェア">LINE</a>
             </div>
+
+            <!-- M10: 印刷・エクスポート機能 -->
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;justify-content:center;">
+              <button class="btn-secondary" style="background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe;" onclick="printResult()" aria-label="診断結果を印刷">📄 印刷する</button>
+              <button class="btn-secondary" style="background:#dbeafe;color:#0369a1;border:1px solid #bfdbfe;" onclick="copyResultText()" aria-label="診断結果をテキストでコピー">📋 テキストコピー</button>
+              <button class="btn-secondary" style="background:#f0fdf4;color:#15803d;border:1px solid #86efac;" onclick="downloadCSV()" aria-label="診断結果をCSVでダウンロード">📊 CSVダウンロード</button>
+            </div>
             <div id="r-products" style="margin:16px 0;padding:14px;background:#f0f9ff;border:1px solid #0ea5e930;border-radius:10px;">
               <h4 style="font-size:13px;font-weight:700;color:#0369a1;margin-bottom:10px;">🛍️ おすすめ商品</h4>
               <ul id="r-products-list" style="list-style:none;padding:0;font-size:13px;color:#374151;"></ul>
             </div>
             <button class="btn" style="margin-top:16px;" onclick="resetQuiz()">もう一度診断する</button>
           </div>
+        </div>
+
+        <!-- M6: 目標設定・達成度トラッキング -->
+        <div id="goal-section" class="card" style="margin-top:8px;background:#fdf2f8;display:none;">
+          <h3 style="font-size:14px;font-weight:700;color:#9d174d;margin-bottom:12px;">🎯 紫外線対策の目標設定</h3>
+          <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+            <input type="text" id="goal-input" placeholder="目標を入力（例：毎日SPF50以上の日焼け止めを使う）" style="flex:1;min-width:200px;">
+            <button class="btn" style="background:#7c3aed;width:auto;padding:10px 20px;font-size:14px;" onclick="addGoal()">追加</button>
+          </div>
+          <div id="goal-list" style="display:flex;flex-direction:column;gap:10px;"></div>
         </div>
 
         <!-- 診断履歴セクション -->
@@ -633,8 +661,201 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('share-x').href = `https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}`;
       document.getElementById('share-line').href = `https://line.me/R/msg/text/?${shareText}%0A${shareUrl}`;
 
+      // M4: Chart.js でSPF・PA値を可視化
+      renderVisualization(r);
+
+      // M6: 目標設定セクションを表示・ロード
+      loadGoals();
+      document.getElementById('goal-section').style.display = 'block';
+
       document.getElementById('result').classList.add('show');
       document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // M4: チャート描画関数
+    let spfPaChart = null;
+    function renderVisualization(result) {
+      const spfMap = { 'SPF20〜30': 25, 'SPF30〜40': 35, 'SPF50': 50, 'SPF50+': 60 };
+      const paMap = { 'PA+': 1, 'PA++': 2, 'PA+++': 3, 'PA++++': 4 };
+
+      const spfText = result.spf.match(/SPF\d+(\+)?|SPF\d+〜\d+/)[0];
+      const paText = result.pa.match(/PA\+{1,4}/)[0];
+      const spfValue = spfMap[spfText] || 50;
+      const paValue = paMap[paText] || 3;
+
+      const canvas = document.getElementById('spf-pa-chart');
+      if (!canvas) return;
+
+      if (spfPaChart) {
+        spfPaChart.destroy();
+      }
+
+      const ctx = canvas.getContext('2d');
+      spfPaChart = new Chart(ctx, {
+        type: 'radar',
+        data: {
+          labels: ['UV-B遮断', 'UV-A防御', '保湿性', '塗りやすさ', '低刺激性'],
+          datasets: [{
+            label: result.title.split(' ')[1] || '診断結果',
+            data: [spfValue / 60 * 100, paValue / 4 * 100, 75, 80, 70],
+            borderColor: '#DB2777',
+            backgroundColor: '#DB277722',
+            borderWidth: 2.5,
+            fill: true,
+            pointRadius: 6,
+            pointHoverRadius: 7,
+            pointBackgroundColor: '#DB2777',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          scales: {
+            r: {
+              max: 100,
+              ticks: { stepSize: 20, color: '#6b7280', font: { size: 12, weight: '600' }, backdropColor: 'transparent' },
+              grid: { color: '#e5e7eb', lineWidth: 1 },
+              angleLines: { color: '#e5e7eb', lineWidth: 1 }
+            }
+          },
+          plugins: {
+            legend: { display: true, position: 'top', labels: { font: { size: 13, weight: '600' }, color: '#374151', boxWidth: 14, padding: 15 }, usePointStyle: true },
+            tooltip: { backgroundColor: '#1f2937', titleFont: { size: 14, weight: '600' }, bodyFont: { size: 13 }, padding: 12, borderRadius: 8, displayColors: false, callbacks: { label: function(c) { return (c.label || '') + ': ' + Math.round(c.parsed.r) + '%'; } } }
+          }
+        }
+      });
+
+      document.getElementById('chart-container').style.display = 'block';
+    }
+
+    // M6: 目標管理関数
+    function addGoal() {
+      const input = document.getElementById('goal-input');
+      const goalText = input.value.trim();
+      if (!goalText) {
+        alert('目標を入力してください');
+        return;
+      }
+
+      const goals = JSON.parse(localStorage.getItem('sunscreen-goals') || '[]');
+      const newGoal = {
+        id: Date.now(),
+        text: goalText,
+        createdAt: new Date().toLocaleString('ja-JP', { month: '2-digit', day: '2-digit' }),
+        progress: 0,
+        startDate: new Date().toISOString()
+      };
+      goals.push(newGoal);
+      localStorage.setItem('sunscreen-goals', JSON.stringify(goals));
+      input.value = '';
+      loadGoals();
+    }
+
+    function loadGoals() {
+      const goals = JSON.parse(localStorage.getItem('sunscreen-goals') || '[]');
+      const goalList = document.getElementById('goal-list');
+
+      if (goals.length === 0) {
+        goalList.innerHTML = '<p style="color:#999;font-size:13px;">目標をまだ設定していません。左の入力欄に目標を入力して「追加」をクリックしてください。</p>';
+        return;
+      }
+
+      goalList.innerHTML = goals.map(g => {
+        const progressPercent = g.progress || 0;
+        return `
+          <div style="background:white;border:1px solid #f1f5f9;border-radius:8px;padding:10px;position:relative;">
+            <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px;">
+              <p style="margin:0;font-size:13px;font-weight:600;color:#374151;flex:1;">${g.text}</p>
+              <button class="btn-secondary" style="padding:4px 10px;font-size:12px;background:#ffe0eb;color:#9d174d;border:none;margin-left:8px;" onclick="deleteGoal(${g.id})">削除</button>
+            </div>
+            <div style="display:flex;gap:4px;align-items:center;margin-bottom:6px;">
+              <div style="flex:1;height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden;">
+                <div style="height:100%;background:#7c3aed;width:${progressPercent}%;transition:width .3s;"></div>
+              </div>
+              <span style="font-size:12px;color:#999;min-width:35px;text-align:right;">${progressPercent}%</span>
+            </div>
+            <div style="display:flex;gap:4px;">
+              <button onclick="updateProgress(${g.id}, -10)" style="padding:4px 8px;font-size:12px;background:#f1f5f9;border:none;border-radius:4px;cursor:pointer;">−</button>
+              <button onclick="updateProgress(${g.id}, 10)" style="padding:4px 8px;font-size:12px;background:#f1f5f9;border:none;border-radius:4px;cursor:pointer;">＋</button>
+              <button onclick="updateProgress(${g.id}, 100)" style="padding:4px 8px;font-size:12px;background:#d4f4dd;border:none;border-radius:4px;cursor:pointer;">完了</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function updateProgress(goalId, delta) {
+      const goals = JSON.parse(localStorage.getItem('sunscreen-goals') || '[]');
+      const goal = goals.find(g => g.id === goalId);
+      if (goal) {
+        goal.progress = Math.max(0, Math.min(100, (goal.progress || 0) + delta));
+        localStorage.setItem('sunscreen-goals', JSON.stringify(goals));
+        loadGoals();
+      }
+    }
+
+    function deleteGoal(goalId) {
+      if (!confirm('この目標を削除しますか？')) return;
+      const goals = JSON.parse(localStorage.getItem('sunscreen-goals') || '[]');
+      const filtered = goals.filter(g => g.id !== goalId);
+      localStorage.setItem('sunscreen-goals', JSON.stringify(filtered));
+      loadGoals();
+    }
+
+    // M10: エクスポート機能
+    function printResult() {
+      window.print();
+    }
+
+    function copyResultText() {
+      const title = document.getElementById('r-title').textContent || '';
+      const spf = document.querySelector('.result-badge-spf')?.textContent || '';
+      const pa = document.querySelector('.result-badge-pa')?.textContent || '';
+      const desc = document.getElementById('r-desc').textContent || '';
+      const timestamp = new Date().toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+      const text = `【日焼け止めSPF・PA選び診断結果】
+診断日時：${timestamp}
+
+結果：${title}
+推奨SPF：${spf}
+推奨PA：${pa}
+
+詳細説明：
+${desc}
+
+診断ツール：https://appadaycreator.com/sunscreen-advisor/`;
+
+      navigator.clipboard.writeText(text).then(() => {
+        alert('診断結果をクリップボードにコピーしました。SNSやメモアプリに貼り付けて共有できます。');
+      }).catch(() => {
+        prompt('以下の内容をコピーしてください:', text);
+      });
+    }
+
+    function downloadCSV() {
+      const history = JSON.parse(localStorage.getItem('sunscreen-history') || '[]');
+      if (history.length === 0) {
+        alert('ダウンロードする診断結果がありません。');
+        return;
+      }
+
+      let csv = '診断日時,診断結果,推奨SPF,推奨PA\n';
+      history.forEach(h => {
+        csv += `"${h.timestamp}","${h.title}","${h.spf}","${h.pa}"\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `sunscreen-diagnosis-${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
     </script>
 <!-- A8アフィリエイト: オルビス公式 -->

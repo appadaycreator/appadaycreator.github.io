@@ -216,7 +216,26 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;"></h3>
             <div id="r-gauge"></div>
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;margin:12px 0;"></p>
-            <button class="btn" style="margin-top:16px;" onclick="confirmReset()">もう一度診断</button>
+
+            <!-- 診断スコア推移グラフ（M4実装） -->
+            <div id="r-history-section" style="margin-top:20px;padding-top:20px;border-top:1px solid #e5e7eb;display:none;">
+              <h4 style="font-size:14px;font-weight:600;margin-bottom:12px;">📊 過去5回の診断スコア推移</h4>
+              <canvas id="r-history-chart" style="width:100%;height:200px;border:1px solid #f0f0f0;border-radius:8px;"></canvas>
+              <p id="r-trend" style="font-size:12px;color:#666;margin-top:8px;text-align:center;"></p>
+            </div>
+
+            <!-- 診断履歴（M3実装） -->
+            <div id="r-past-results" style="margin-top:16px;"></div>
+
+            <!-- 印刷・コピーボタン（M10実装） -->
+            <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
+              <button class="btn" style="flex:1;margin-top:0;background:#7c3aed;min-width:100px;" onclick="printResult()">🖨️ 印刷</button>
+              <button class="btn" style="flex:1;margin-top:0;background:#10b981;min-width:100px;" onclick="copyResult()">📋 結果をコピー</button>
+              <button class="btn" style="flex:1;margin-top:0;background:#4f46e5;min-width:100px;" onclick="confirmReset()">🔄 もう一度診断</button>
+            </div>
+
+            <!-- コピー成功通知 -->
+            <div id="copy-toast" style="position:fixed;bottom:20px;right:20px;background:#10b981;color:white;padding:12px 16px;border-radius:8px;display:none;font-size:13px;z-index:10000;box-shadow:0 4px 12px rgba(0,0,0,0.2);">✓ 結果をコピーしました</div>
           </div>
         </div>
 
@@ -348,6 +367,101 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('q-options').innerHTML=q.opts.map((o,i)=>`<button class="quiz-opt" onclick="answer(${i})" style="border-color:${optColors[i]};--opt-color:${optColors[i]}">${o}</button>`).join('');
     }
     function answer(idx){ ans.push({idx}); cur++; if(cur>=QUESTIONS.length) showResult(); else renderQ(); }
+
+    // M3: localStorage へのスコア保存
+    function saveDiagnosisHistory(score, level, color) {
+      let hist = JSON.parse(localStorage.getItem('parenting_history') || '[]');
+      hist.unshift({ score, level, color, date: new Date().toLocaleDateString('ja-JP') });
+      hist = hist.slice(0, 5);
+      localStorage.setItem('parenting_history', JSON.stringify(hist));
+    }
+    function getHistoryList() {
+      return JSON.parse(localStorage.getItem('parenting_history') || '[]');
+    }
+    function deleteHistoryItem(idx) {
+      let hist = getHistoryList();
+      hist.splice(idx, 1);
+      localStorage.setItem('parenting_history', JSON.stringify(hist));
+      location.reload();
+    }
+    function deleteAllHistory() {
+      if(confirm('すべての診断履歴を削除しますか？')) {
+        localStorage.removeItem('parenting_history');
+        location.reload();
+      }
+    }
+
+    // M4: Canvas でグラフ描画
+    function drawHistoryChart() {
+      const hist = getHistoryList().reverse();
+      if(hist.length < 2) return;
+      const canvas = document.getElementById('r-history-chart');
+      if(!canvas) return;
+      const ctx = canvas.getContext('2d');
+      canvas.width = canvas.offsetWidth;
+      canvas.height = 200;
+      const w = canvas.width, h = canvas.height;
+      const pad = 40;
+      const graphW = w - pad * 2, graphH = h - pad * 2;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = '#ddd';
+      ctx.lineWidth = 1;
+      for(let i=0;i<=18;i+=3){
+        const y = pad + graphH * (1 - i/18);
+        ctx.beginPath();
+        ctx.moveTo(pad, y);
+        ctx.lineTo(w-pad, y);
+        ctx.stroke();
+        ctx.fillStyle = '#999';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(i, pad-5, y+3);
+      }
+      ctx.strokeStyle = '#7c3aed';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      hist.forEach((h, i) => {
+        const x = pad + (graphW / (hist.length - 1 || 1)) * i;
+        const y = pad + graphH * (1 - h.score / 18);
+        if(i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      hist.forEach((h, i) => {
+        const x = pad + (graphW / (hist.length - 1 || 1)) * i;
+        const y = pad + graphH * (1 - h.score / 18);
+        ctx.fillStyle = i === hist.length - 1 ? '#ef4444' : h.color;
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, Math.PI*2);
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      });
+      const first = hist[0].score, last = hist[hist.length-1].score;
+      const trend = last < first ? '改善傾向 ↓' : last > first ? '悪化傾向 ↑' : '変わらず →';
+      document.getElementById('r-trend').textContent = `${hist.length}回の診断から: ${trend}`;
+    }
+
+    // M10: 印刷
+    function printResult() {
+      window.print();
+    }
+
+    // M10: テキストコピー
+    function copyResult() {
+      const title = document.getElementById('r-title').textContent;
+      const score = document.querySelector('#r-gauge').textContent.match(/\d+\/18/)[0];
+      const detail = document.getElementById('r-desc').textContent;
+      const text = `育児ストレス度チェック結果\n\n${title}\nスコア: ${score}\n\n${detail.replace(/<br>/g, '\n').replace(/[<>]/g, '')}`;
+      navigator.clipboard.writeText(text).then(() => {
+        const toast = document.getElementById('copy-toast');
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 2000);
+      });
+    }
+
     function showResult(){
       document.getElementById('quiz-area').style.display='none';
       const r=getResult(ans);
@@ -355,6 +469,24 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('r-title').style.color=r.color;
       document.getElementById('r-gauge').innerHTML=`<div style="background:#e5e7eb;height:24px;border-radius:12px;overflow:hidden;margin:8px 0;"><div style="background:${r.color};height:100%;width:${(r.score/18)*100}%;transition:width 0.3s;display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:12px;">${r.score}/18</div></div>`;
       document.getElementById('r-desc').innerHTML=r.detail;
+
+      // M3: 履歴保存と表示
+      saveDiagnosisHistory(r.score, r.level, r.color);
+      const hist = getHistoryList();
+      if(hist.length > 1) {
+        document.getElementById('r-history-section').style.display = 'block';
+        setTimeout(() => drawHistoryChart(), 100);
+        let pastHtml = '<div style="margin-top:16px;"><h4 style="font-size:14px;font-weight:600;margin-bottom:12px;">📋 過去の診断結果</h4><div style="display:flex;flex-direction:column;gap:6px;">';
+        hist.slice(1, 6).forEach((h, i) => {
+          pastHtml += `<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:13px;"><strong style="color:${h.color}">${h.score}/18</strong> - ${h.level} (${h.date})</span>
+            <button onclick="deleteHistoryItem(${i+1})" style="background:none;border:none;color:#999;cursor:pointer;font-size:14px;">✕</button>
+          </div>`;
+        });
+        pastHtml += '</div><button onclick="deleteAllHistory()" style="margin-top:8px;padding:6px 12px;font-size:12px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;">履歴をすべて削除</button></div>';
+        document.getElementById('r-past-results').innerHTML = pastHtml;
+      }
+
       document.getElementById('result').classList.add('show');
     }
     function confirmReset(){ if(confirm('診断を終了して最初に戻りますか？\n\n現在の結果は表示されなくなります。')){location.reload();} }

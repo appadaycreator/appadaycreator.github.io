@@ -40,6 +40,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script>(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
+    <!-- Chart.js for M4: グラフ・スコア・ゲージ可視化 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js" defer></script>
     <script type="application/ld+json">
     {"@context":"https://schema.org","@type":"WebApplication","name":"BMI・体型管理トラッカー","url":"https://appadaycreator.com/bmi-body-tracker/","description":"BMIを無料で計算し、標準体重・目標体重・体重推移グラフを管理できるWebアプリ。","applicationCategory":"HealthApplication","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"}}
     </script>
@@ -210,16 +212,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <button class="gender-btn selected" id="btn-male" onclick="selectGender('male',this)">👨 男性</button>
             <button class="gender-btn" id="btn-female" onclick="selectGender('female',this)">👩 女性</button>
         </div>
-        <label>身長 (cm)</label>
+        <label for="height">身長 (cm)</label>
         <div style="display:flex;align-items:center;gap:8px;">
-            <input type="range" id="height" min="140" max="200" step="1" value="170" oninput="syncHeight(this.value)" style="flex:1;">
-            <input type="number" id="height-num" min="140" max="200" step="1" value="170" oninput="syncHeight(this.value)" style="width:72px;padding:6px 8px;border:1px solid #fed7aa;border-radius:8px;font-size:0.88em;background:#fff7f0;text-align:center;">
+            <input type="range" id="height" aria-label="身長（cm）" min="140" max="200" step="1" value="170" oninput="syncHeight(this.value)" style="flex:1;">
+            <input type="number" id="height-num" aria-label="身長（cm）" min="140" max="200" step="1" value="170" placeholder="170" oninput="syncHeight(this.value)" style="width:72px;padding:6px 8px;border:1px solid #fed7aa;border-radius:8px;font-size:0.88em;background:#fff7f0;text-align:center;">
         </div>
         <div class="val-display" id="height-disp">170 cm</div>
-        <label>現在の体重 (kg)</label>
+        <label for="weight">現在の体重 (kg)</label>
         <div style="display:flex;align-items:center;gap:8px;">
-            <input type="range" id="weight" min="35" max="150" step="0.5" value="65" oninput="syncWeight(this.value)" style="flex:1;">
-            <input type="number" id="weight-num" min="35" max="150" step="0.1" value="65" oninput="syncWeight(this.value)" style="width:72px;padding:6px 8px;border:1px solid #fed7aa;border-radius:8px;font-size:0.88em;background:#fff7f0;text-align:center;">
+            <input type="range" id="weight" aria-label="現在の体重（kg）" min="35" max="150" step="0.5" value="65" oninput="syncWeight(this.value)" style="flex:1;">
+            <input type="number" id="weight-num" aria-label="現在の体重（kg）" min="35" max="150" step="0.1" value="65" placeholder="65" oninput="syncWeight(this.value)" style="width:72px;padding:6px 8px;border:1px solid #fed7aa;border-radius:8px;font-size:0.88em;background:#fff7f0;text-align:center;">
         </div>
         <div class="val-display" id="weight-disp">65.0 kg</div>
         <label>年齢</label>
@@ -233,6 +235,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     <!-- 結果 -->
     <div id="calc-result"></div>
+
+    <!-- M4: スコア表示（Chart.js） -->
+    <div class="card" id="score-card" style="display:none;">
+        <div class="card-title">📊 BMI スコア</div>
+        <div style="position:relative;width:160px;height:160px;margin:0 auto;margin-bottom:12px;">
+            <canvas id="bmiScoreChart" style="max-width:100%;"></canvas>
+        </div>
+        <div id="score-label" style="text-align:center;font-size:0.82em;color:#475569;margin-bottom:8px;"></div>
+    </div>
 
     <!-- 目標体重計算 -->
     <div class="card" id="goal-card">
@@ -271,13 +282,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     <div class="card">
         <div class="card-title">📈 体重推移グラフ（直近30件）</div>
-        <div style="display:flex;gap:10px;font-size:0.68em;color:#64748b;margin-bottom:6px;align-items:center;flex-wrap:wrap;">
-            <span><span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:2px;margin-right:2px;"></span>減少</span>
-            <span><span style="display:inline-block;width:10px;height:10px;background:#ef4444;border-radius:2px;margin-right:2px;"></span>増加</span>
-            <span><span style="display:inline-block;width:10px;height:2px;background:rgba(234,88,12,0.6);border-top:2px dashed rgba(234,88,12,0.6);margin-right:2px;"></span>平均</span>
-            <span><span style="display:inline-block;width:10px;height:2px;border-top:2px dashed rgba(22,163,74,0.8);margin-right:2px;"></span>目標</span>
+        <div style="position:relative;height:280px;margin-bottom:12px;">
+            <canvas id="weightTrendChart"></canvas>
         </div>
-        <div class="chart-wrap"><div class="weight-chart" id="weight-chart" style="position:relative;"></div></div>
         <div id="chart-legend" style="display:flex;justify-content:space-between;font-size:0.72em;color:#94a3b8;margin-top:4px;"></div>
     </div>
 
@@ -337,6 +344,9 @@ const STORE_KEY = 'bmi_records_v1';
 const PROFILE_KEY = 'bmi_profile_v1';
 let gender = 'male';
 let goalBmi = 21;
+// M4: グラフ管理用グローバル変数
+let bmiScoreChart = null;
+let weightTrendChart = null;
 
 const BMI_RANGES = [
     { max: 18.5, label: '低体重', color: '#3b82f6', bg: 'linear-gradient(135deg,#1d4ed8,#3b82f6)' },
@@ -443,6 +453,9 @@ function updateCalc() {
 
     // プロフィール保存
     try { localStorage.setItem(PROFILE_KEY, JSON.stringify({ h, w, gender, age })); } catch(e) {}
+
+    // M4: BMI スコアチャート（Chart.js）
+    renderBmiScoreChart(bmi, range);
 
     // アドバイス更新
     renderAdvice(bmi, range, gender, age);
@@ -604,51 +617,12 @@ function renderRecords() {
         gpEl.innerHTML = '';
     }
 
-    // --- グラフ（色分け＋平均ライン） ---
-    const recent = records.slice(-30);
-    const minW = Math.min(...recent.map(r => r.weight)) - 1;
-    const maxW = Math.max(...recent.map(r => r.weight)) + 1;
-    const rangeW = Math.max(maxW - minW, 2);
-    const avgLine = (weights.reduce((a,b)=>a+b,0)/weights.length);
-    const avgPct = Math.round(((avgLine - minW) / rangeW) * 110) + 10;
+    // M4: Chart.js で体重推移グラフを描画
+    renderWeightTrendChart(records);
 
-    const chartHtml = recent.map((r, i) => {
-        const h = Math.round(((r.weight - minW) / rangeW) * 110) + 10;
-        const prev = recent[i-1];
-        const barColor = !prev ? 'linear-gradient(180deg,#ea580c,#f97316)'
-            : r.weight < prev.weight ? 'linear-gradient(180deg,#16a34a,#22c55e)'
-            : r.weight > prev.weight ? 'linear-gradient(180deg,#dc2626,#ef4444)'
-            : 'linear-gradient(180deg,#94a3b8,#cbd5e1)';
-        return `<div class="w-col">
-            <div class="w-bar" style="height:${h}px;background:${barColor};" title="${r.date}: ${r.weight}kg"></div>
-            <div class="w-lbl">${r.date.slice(5)}</div>
-        </div>`;
-    }).join('');
-
-    chart.style.position = 'relative';
-    chart.innerHTML = chartHtml;
-    // 平均ラインを絶対配置で追加
-    if (recent.length >= 3) {
-        const avgLineEl = document.createElement('div');
-        avgLineEl.style.cssText = `position:absolute;bottom:${avgPct}px;left:0;right:0;height:2px;background:rgba(234,88,12,0.5);border-top:2px dashed rgba(234,88,12,0.6);pointer-events:none;`;
-        avgLineEl.title = `平均: ${avgLine.toFixed(1)}kg`;
-        chart.appendChild(avgLineEl);
-    }
-    // 目標体重ラインを追加（目標設定時のみ）
-    const savedGoalForChart = (() => { try { return JSON.parse(localStorage.getItem(GOAL_KEY)); } catch(e) { return null; } })();
-    if (savedGoalForChart && savedGoalForChart >= minW && savedGoalForChart <= maxW) {
-        const goalPct = Math.round(((savedGoalForChart - minW) / rangeW) * 110) + 10;
-        const goalLineEl = document.createElement('div');
-        goalLineEl.style.cssText = `position:absolute;bottom:${goalPct}px;left:0;right:0;height:0;border-top:2px dashed rgba(22,163,74,0.8);pointer-events:none;`;
-        goalLineEl.title = `目標: ${savedGoalForChart}kg`;
-        chart.appendChild(goalLineEl);
-        const goalLabel = document.createElement('div');
-        goalLabel.style.cssText = `position:absolute;bottom:${goalPct+2}px;right:2px;font-size:0.6em;color:#16a34a;background:rgba(240,253,244,0.9);padding:1px 4px;border-radius:3px;pointer-events:none;font-weight:700;`;
-        goalLabel.textContent = `目標 ${savedGoalForChart}kg`;
-        chart.appendChild(goalLabel);
-    }
-
-    if (recent.length >= 2) {
+    // グラフの凡例を簡潔に表示
+    if (records.length >= 2) {
+        const recent = records.slice(-30);
         const first = recent[0], last = recent[recent.length-1];
         const diff = (last.weight - first.weight).toFixed(1);
         legend.innerHTML = `<span>${first.date}:${first.weight}kg</span><span style="color:${parseFloat(diff)<0?'#16a34a':'#dc2626'};font-weight:700;">${parseFloat(diff)>=0?'+':''}${diff}kg</span><span>${last.date}:${last.weight}kg</span>`;
@@ -675,6 +649,101 @@ function renderRecords() {
             </div>
         </div>`;
     }).join('');
+}
+
+// M4: 体重推移グラフ（Chart.js Line Chart）
+function renderWeightTrendChart(records) {
+    const chartEl = document.getElementById('weightTrendChart');
+    if (!chartEl || typeof Chart === 'undefined') return;
+
+    if (!records || records.length < 2) {
+        chartEl.parentElement.style.display = 'none';
+        return;
+    }
+    chartEl.parentElement.style.display = 'block';
+
+    const recent = records.slice(-30);
+    const labels = recent.map(r => r.date.slice(5)); // MM-DD 形式
+    const weights = recent.map(r => r.weight);
+
+    // 保存済み目標体重
+    let savedGoal = null;
+    try { savedGoal = JSON.parse(localStorage.getItem('bmi_goal_v1')); } catch(e) {}
+
+    // 平均ラインデータ
+    const avgW = weights.reduce((a,b)=>a+b,0) / weights.length;
+    const avgLine = weights.map(() => avgW);
+
+    // 目標体重ラインデータ
+    const goalLine = savedGoal ? weights.map(() => savedGoal) : null;
+
+    // 破棄されたチャートがあれば削除
+    if (weightTrendChart && typeof weightTrendChart.destroy === 'function') {
+        weightTrendChart.destroy();
+    }
+
+    const datasets = [
+        {
+            label: '体重',
+            data: weights,
+            borderColor: '#ea580c',
+            backgroundColor: 'rgba(234, 88, 12, 0.05)',
+            fill: true,
+            tension: 0.4,
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            pointBackgroundColor: '#ea580c',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2
+        },
+        {
+            label: '平均',
+            data: avgLine,
+            borderColor: 'rgba(234, 88, 12, 0.6)',
+            borderDash: [5, 5],
+            borderWidth: 2,
+            fill: false,
+            pointRadius: 0,
+            tension: 0.1
+        }
+    ];
+
+    if (goalLine) {
+        datasets.push({
+            label: '目標',
+            data: goalLine,
+            borderColor: 'rgba(22, 163, 74, 0.8)',
+            borderDash: [5, 5],
+            borderWidth: 2,
+            fill: false,
+            pointRadius: 0,
+            tension: 0.1
+        });
+    }
+
+    weightTrendChart = new Chart(chartEl, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: { font: { size: 12 }, padding: 12, usePointStyle: true }
+                },
+                tooltip: { backgroundColor: 'rgba(0,0,0,0.8)', titleFont: { size: 12 }, bodyFont: { size: 12 }, padding: 10 }
+            },
+            scales: {
+                x: { grid: { display: true, color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 10 } } },
+                y: { grid: { display: true, color: 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 10 } }, beginAtZero: false }
+            }
+        }
+    });
 }
 
 function deleteRecord(date) {
@@ -714,6 +783,53 @@ function exportCSV() {
     a.click();
     URL.revokeObjectURL(url);
     showSuccess(`${records.length}件の記録をダウンロードしました`);
+}
+
+// M4: BMI スコアチャート（Chart.js）
+function renderBmiScoreChart(bmi, range) {
+    const scoreCard = document.getElementById('score-card');
+    const chartEl = document.getElementById('bmiScoreChart');
+    const labelEl = document.getElementById('score-label');
+
+    if (!scoreCard || !chartEl) return;
+    scoreCard.style.display = 'block';
+
+    // BMI値を0-100の正規化スコアに変換（10未満は0、45以上は100）
+    const normalizedScore = Math.max(0, Math.min(100, (bmi - 10) / 35 * 100));
+
+    // 破棄されたチャートがあれば削除
+    if (bmiScoreChart && typeof bmiScoreChart.destroy === 'function') {
+        bmiScoreChart.destroy();
+    }
+
+    // Chart.jsが読み込まれているか確認
+    if (typeof Chart === 'undefined') {
+        labelEl.innerHTML = `<div style="font-size:0.75em;color:#94a3b8;">（グラフ読込中...）</div>`;
+        return;
+    }
+
+    bmiScoreChart = new Chart(chartEl, {
+        type: 'doughnut',
+        data: {
+            labels: ['BMI', '残り'],
+            datasets: [{
+                data: [normalizedScore, 100 - normalizedScore],
+                backgroundColor: [range.color, '#e5e7eb'],
+                borderColor: '#fff',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: { enabled: true }
+            }
+        }
+    });
+
+    labelEl.innerHTML = `<div style="font-weight:700;color:${range.color};font-size:0.9em;">${range.label}</div><div style="font-size:0.75em;color:#94a3b8;">スコア: ${normalizedScore.toFixed(0)}/100</div>`;
 }
 
 // ===== アドバイス =====

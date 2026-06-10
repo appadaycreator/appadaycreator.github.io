@@ -212,11 +212,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <option value="trip">旅行・宿泊</option>
           </select>
           <button class="btn" style="margin-top:20px;" onclick="generate()">アイデアを生成する</button>
+          <button style="background:#e5e7eb;color:#374151;border:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;width:100%;margin-top:8px;min-height:44px;" onclick="generate()">↶ 前回の結果を復元</button>
         </div>
         <div class="result" id="result" style="margin-top:16px;">
           <div class="card">
             <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#7c3aed;">✅ 記念日アイデア提案</h3>
             <div id="output"></div>
+            <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
+              <button onclick="printResult()" style="background:#6b7280;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex:1;min-width:120px;min-height:40px;">🖨 印刷</button>
+              <button onclick="copyResult()" style="background:#3b82f6;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;flex:1;min-width:120px;min-height:40px;">📋 コピー</button>
+            </div>
           </div>
         </div>
 
@@ -318,7 +323,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     
 <script>
-    // ★ここだけ実装（約10行）★
     const IDEAS = {
       home: { low: ['手作りディナーでキャンドルナイト', 'ふたりで観たい映画をまとめてホームシアター', 'お気に入りの写真でアルバム作り'],
               mid: ['デリバリーで豪華ディナー＋ケーキでお祝い', 'ふたりの思い出を詰めたフォトブック作成', 'ボードゲームナイト＋スパークリングワイン'],
@@ -331,25 +335,108 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               high: ['高級旅館で贅沢ステイ', '国内リゾートホテルで記念旅行', '海外旅行（近距離アジア）'] }
     };
     const NAMES = {1:'紙婚式',3:'革婚式',5:'木婚式',10:'錫婚式',15:'水晶婚式',20:'磁器婚式',25:'銀婚式',30:'真珠婚式',50:'金婚式'};
+    const BUDGET_LABELS = {low:'〜5,000円',mid:'5,000〜20,000円',high:'20,000円以上'};
+    const STYLE_LABELS = {home:'おうちでゆっくり',out:'外食・お出かけ',trip:'旅行・宿泊'};
+
+    // M3: localStorage 読み込み（ページロード時）
+    function loadFromLocalStorage() {
+      try {
+        const saved = localStorage.getItem('weddingAnniversaryData');
+        if (!saved) return;
+        const data = JSON.parse(saved);
+        if (data.years) document.getElementById('years').value = data.years;
+        if (data.budget) document.getElementById('budget').value = data.budget;
+        if (data.style) document.getElementById('style').value = data.style;
+      } catch(e) {}
+    }
+
+    // M3: localStorage 保存
+    function saveToLocalStorage(inputs) {
+      try {
+        localStorage.setItem('weddingAnniversaryData', JSON.stringify(inputs));
+      } catch(e) {}
+    }
+
     function getInputs() {
       const years = document.getElementById('years').value;
       const budget = document.getElementById('budget').value;
       const style = document.getElementById('style').value;
       return {years, budget, style};
     }
+
+    // M4: 結果の可視化（進捗ゲージ + バー表示）
+    function buildVisualization(years) {
+      const maxYears = 50;
+      const progress = Math.min((years / maxYears) * 100, 100);
+      return `<div style="margin-bottom:16px;">
+        <p style="font-size:12px;font-weight:600;color:#666;margin-bottom:4px;">周年進捗</p>
+        <div style="background:#e5e7eb;border-radius:12px;height:24px;overflow:hidden;">
+          <div style="background:linear-gradient(90deg,#7c3aed,#a78bfa);height:100%;width:${progress}%;transition:width 0.3s;display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700;">${Math.round(progress)}%</div>
+        </div>
+      </div>`;
+    }
+
+    // 予算レベルの視覚化
+    function buildBudgetBar(budget) {
+      const budgetValues = {low:1, mid:2, high:3};
+      const level = budgetValues[budget] || 1;
+      const bars = Array(3).fill(0).map((_, i) =>
+        `<div style="background:${i < level ? '#10b981' : '#e5e7eb'};height:8px;border-radius:4px;flex:1;"></div>`
+      ).join('');
+      return `<div style="margin-bottom:12px;">
+        <p style="font-size:12px;font-weight:600;color:#666;margin-bottom:6px;">予算レベル: ${BUDGET_LABELS[budget]}</p>
+        <div style="display:flex;gap:4px;">${bars}</div>
+      </div>`;
+    }
+
     function buildOutput(inputs) {
       const {years, budget, style} = inputs;
       const name = NAMES[years] || years+'周年';
       const list = IDEAS[style][budget];
       const items = list.map(i=>`<li style="padding:6px 0;border-bottom:1px solid #e5e7eb;">${i}</li>`).join('');
-      return `<p style="font-weight:700;color:#7c3aed;margin-bottom:10px;">${years}周年（${name}）のおすすめアイデア</p><ul style="list-style:none;padding:0;margin:0;">${items}</ul>`;
+      const viz = buildVisualization(parseInt(years));
+      const budgetBar = buildBudgetBar(budget);
+
+      return `${viz}${budgetBar}
+<p style="font-weight:700;color:#7c3aed;margin-bottom:10px;">${years}周年（${name}）のおすすめアイデア</p>
+<p style="font-size:13px;color:#666;margin-bottom:8px;">スタイル: ${STYLE_LABELS[style]}</p>
+<ul style="list-style:none;padding:0;margin:0;">${items}</ul>`;
     }
-    // ★以下変更不要★
-    document.addEventListener('DOMContentLoaded',()=>{});
+
+    // M10: 印刷機能
+    function printResult() {
+      window.print();
+    }
+
+    // M10: クリップボードコピー機能
+    function copyResult() {
+      const output = document.getElementById('output');
+      if (!output || !output.innerText) {
+        alert('まず「アイデアを生成する」をクリックしてください');
+        return;
+      }
+      const inputs = getInputs();
+      const {years, budget, style} = inputs;
+      const name = NAMES[years] || years+'周年';
+      const text = `【${years}周年（${name}）アイデア】\nスタイル: ${STYLE_LABELS[style]}\n予算: ${BUDGET_LABELS[budget]}\n\n${output.innerText}`;
+
+      navigator.clipboard.writeText(text).then(() => {
+        alert('結果をコピーしました！SNSやメールに貼り付けられます。');
+      }).catch(() => {
+        alert('コピーに失敗しました。ブラウザの設定をご確認ください。');
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadFromLocalStorage();
+    });
+
     function generate(){
-      const inputs=getInputs(); if(!inputs) return;
-      document.getElementById('output').innerHTML=buildOutput(inputs);
+      const inputs = getInputs();
+      if(!inputs) return;
+      document.getElementById('output').innerHTML = buildOutput(inputs);
       document.getElementById('result').classList.add('show');
+      saveToLocalStorage(inputs);
       document.getElementById('result').scrollIntoView({behavior:'smooth',block:'start'});
     }
     </script>

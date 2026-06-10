@@ -36,6 +36,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -152,7 +153,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div id="r-season" style="background:#f0f4ff;border-left:3px solid #2563EB;padding:12px;border-radius:6px;margin-bottom:14px;font-size:13px;color:#333;">
               <strong style="color:#2563EB;">🌸 ベストシーズン:</strong> <span id="r-season-text"></span>
             </div>
+            <div id="r-chart" style="margin-bottom:16px;"></div>
             <div id="r-share"></div>
+            <div id="r-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;"></div>
+          </div>
+          <div class="card" id="r-history" style="margin-top:8px;display:none;">
+            <h3 style="font-size:14px;font-weight:700;margin-bottom:10px;">📋 過去の診断履歴</h3>
+            <div id="history-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+            <button style="background:#ef4444;color:white;border:none;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;min-height:40px;margin-top:10px;width:100%;" onclick="if(confirm('診断履歴をすべて削除してもよろしいですか？')){localStorage.removeItem('onsen_history');document.getElementById('r-history').style.display='none';alert('履歴をクリアしました');}">🗑️ 履歴をクリア</button>
           </div>
         </div>
 
@@ -207,7 +215,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             </div>
             <div style="border-bottom:1px solid #f1f5f9;padding-bottom:12px;">
               <p style="font-size:14px;font-weight:600;color:#374151;margin-bottom:4px;">Q: 診断結果は保存されますか？</p>
-              <p style="font-size:13px;color:#6b7280;line-height:1.7;">A: 結果はブラウザには保存されません。スクリーンショットやSNSシェアでご記録ください。</p>
+              <p style="font-size:13px;color:#6b7280;line-height:1.7;">A: はい。診断結果はお使いのブラウザのlocalStorageに自動保存され、次回訪問時に履歴として表示されます。過去の診断履歴をいつでもクリアできます。</p>
             </div>
             <div style="border-bottom:1px solid #f1f5f9;padding-bottom:12px;">
               <p style="font-size:14px;font-weight:600;color:#374151;margin-bottom:4px;">Q: 入力したデータはサーバーに送信されますか？</p>
@@ -390,34 +398,29 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }
     ];
     function getResult(answers) {
-      // 目的・予算・人数・泉質・設備・エリアでスコア計算
       const scores = [0,0,0,0,0,0];
       const a = answers.map(x => x.idx);
-      // 目的
       if(a[0]===0) { scores[0]+=2; scores[4]+=1; }
       if(a[0]===1) { scores[1]+=2; scores[3]+=1; }
       if(a[0]===2) { scores[1]+=1; scores[2]+=2; }
       if(a[0]===3) { scores[5]+=2; scores[4]+=1; }
-      // 予算
       if(a[1]===0) { scores[4]+=2; scores[0]+=1; }
       if(a[1]===1) { scores[0]+=1; scores[1]+=1; }
       if(a[1]===2) { scores[2]+=2; scores[3]+=1; }
       if(a[1]===3) { scores[2]+=2; scores[1]+=1; }
-      // 人数
       if(a[2]===0) { scores[0]+=1; scores[4]+=2; }
       if(a[2]===1) { scores[1]+=2; scores[2]+=1; }
       if(a[2]===2) { scores[1]+=1; scores[3]+=2; }
       if(a[2]===3) { scores[3]+=1; scores[5]+=1; }
-      // 泉質
       if(a[3]===0) { scores[0]+=2; scores[5]+=1; }
       if(a[3]===1) { scores[2]+=1; scores[1]+=1; }
       if(a[3]===2) { scores[2]+=2; }
-      // エリア
       if(a[5]===0) { scores[1]+=2; scores[0]+=1; }
       if(a[5]===1) { scores[2]+=2; scores[3]+=1; }
       if(a[5]===2) { scores[5]+=2; }
       const best = scores.indexOf(Math.max(...scores));
-      return RESULTS[best];
+      const result = {...RESULTS[best], scores};
+      return result;
     }
     // ★以下変更不要★
     const BTN='#2563EB'; let cur=0; const ans=[];
@@ -431,20 +434,94 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('q-options').innerHTML=q.opts.map((o,i)=>`<button class="quiz-opt" onclick="answer(${i})">${o}</button>`).join('');
     }
     function answer(idx){ ans.push({idx}); cur++; if(cur>=QUESTIONS.length) showResult(); else renderQ(); }
+    let chartInstance = null;
     function showResult(){
       document.getElementById('quiz-area').style.display='none';
       const r=getResult(ans);
+      const dateStr = new Date().toLocaleString('ja-JP', {year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'});
+
       document.getElementById('r-title').textContent=r.title;
       document.getElementById('r-desc').textContent=r.desc;
       document.getElementById('r-season-text').textContent=r.season;
+
+      // P1-1: localStorageに保存
+      let history = JSON.parse(localStorage.getItem('onsen_history') || '[]');
+      history.unshift({date:dateStr, result:r.title, scores:r.scores});
+      if(history.length > 10) history = history.slice(0,10);
+      localStorage.setItem('onsen_history', JSON.stringify(history));
+
+      // P1-2: Chart.jsでスコアグラフ表示（改善版）
+      const labels = ['草津', '箱根', '有馬', '別府', '道後', '東北秘湯'];
+      const chartDiv = document.getElementById('r-chart');
+      const chartHeight = window.innerWidth <= 480 ? '240px' : '200px';
+      chartDiv.innerHTML = '<div style="position:relative;height:'+chartHeight+';margin-bottom:12px;"><canvas id="scoreChart"></canvas></div><p style="font-size:12px;color:#666;text-align:center;margin-top:8px;">スコアが高いほどあなたの好みにマッチしています</p>';
+      setTimeout(() => {
+        const ctx = document.getElementById('scoreChart');
+        if(ctx && typeof Chart !== 'undefined'){
+          if(chartInstance) chartInstance.destroy();
+          const maxScore = Math.max(...r.scores);
+          chartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: labels,
+              datasets: [{
+                label: 'マッチスコア',
+                data: r.scores,
+                backgroundColor: r.scores.map((s,i) => i===r.scores.indexOf(maxScore) ? '#2563EB' : '#e2e8f0'),
+                borderColor: '#cbd5e1',
+                borderWidth: 1,
+                borderRadius: 4
+              }]
+            },
+            options: {
+              indexAxis: 'y',
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend:{display:false},
+                tooltip:{callbacks:{label:function(ctx){return 'スコア: '+ctx.parsed.x+'/10'}}}
+              },
+              scales: {x:{beginAtZero:true,max:10,ticks:{stepSize:2,callback:function(v){return v+'/10'}}}}
+            }
+          });
+        }
+      }, 10);
+
+      // 履歴一覧
+      if(history.length > 1){
+        document.getElementById('r-history').style.display='block';
+        const histList = document.getElementById('history-list');
+        histList.innerHTML = history.slice(1,6).map((h,i) =>
+          `<div style="background:#f8fafc;padding:8px 12px;border-radius:6px;font-size:12px;color:#475569;">
+            <strong>${h.date}</strong>: ${h.result.split('—')[0].trim()}
+          </div>`
+        ).join('');
+      }
+
+      // アクションボタン（印刷・コピー・CSV）
       const shareText=encodeURIComponent(r.title+' #温泉診断');
       const shareUrl=encodeURIComponent('https://appadaycreator.com/japan-onsen-advisor/');
+      const scoreDetails = labels.map((l,i)=>l+': '+r.scores[i]+'/10').join(', ');
+      const resultText = `${r.title}\n\n${r.desc}\n\n📊 マッチスコア\n${scoreDetails}\n\n🌸 ベストシーズン: ${r.season}`;
+
+      // CSV出力機能
+      const csvData = [['診断日時',dateStr],['おすすめ温泉地',r.title.replace(/♨️ /,'').split('—')[0].trim()],['草津',r.scores[0]],['箱根',r.scores[1]],['有馬',r.scores[2]],['別府',r.scores[3]],['道後',r.scores[4]],['東北秘湯',r.scores[5]],['ベストシーズン',r.season]];
+      const csvContent = 'data:text/csv;charset=utf-8,' + csvData.map(row=>'\"'+row[0]+'\",\"'+row[1]+'\"').join('\n');
+      const csvLink = encodeURI(csvContent);
+
       document.getElementById('r-share').innerHTML=`
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
-          <a href="https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}" target="_blank" rel="noopener" style="background:#1DA1F2;color:white;padding:8px 14px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">𝕏 結果をシェア</a>
-          <a href="https://line.me/R/msg/text/?${shareText}%0A${shareUrl}" target="_blank" rel="noopener" style="background:#00B900;color:white;padding:8px 14px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">LINE でシェア</a>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <a href="https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}" target="_blank" rel="noopener" style="background:#1DA1F2;color:white;padding:8px 14px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">𝕏 シェア</a>
+          <a href="https://line.me/R/msg/text/?${shareText}%0A${shareUrl}" target="_blank" rel="noopener" style="background:#00B900;color:white;padding:8px 14px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">LINE</a>
           <a href="${r.bookingUrl}" target="_blank" rel="noopener sponsored" style="background:#bf2200;color:white;padding:8px 14px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">${r.bookingLabel}</a>
         </div>`;
+
+      document.getElementById('r-actions').innerHTML=`
+        <button style="background:#6366f1;color:white;border:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;flex:1;" onclick="navigator.clipboard.writeText(\`${resultText}\`);alert('スコア付き結果をコピーしました！')">📋 結果をコピー</button>
+        <button style="background:#10b981;color:white;border:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;flex:1;" onclick="const a=document.createElement('a');a.href='${csvLink}';a.download='onsen-result-${dateStr.replace(/[:\\s]/g,'')}.csv';a.click();">📊 CSV出力</button>
+        <button style="background:#8b5cf6;color:white;border:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;flex:1;" onclick="window.print()">🖨️ 印刷する</button>
+      `;
+
       document.getElementById('result').classList.add('show');
     }
     </script>

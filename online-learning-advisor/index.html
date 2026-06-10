@@ -238,7 +238,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
         <!-- P2: Result sharing section -->
         <div class="bg-blue-50 rounded-xl p-4 mb-4">
-          <h3 class="font-bold text-blue-800 mb-3">📤 診断結果をシェア</h3>
+          <h3 class="font-bold text-blue-800 mb-3">📤 診断結果をシェア・保存</h3>
           <div class="flex gap-2 flex-col sm:flex-row">
             <button onclick="copyResultLink()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-lg text-sm transition-colors">
               📋 結果リンクをコピー
@@ -251,6 +251,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             </button>
           </div>
           <p id="copy-feedback" class="text-xs text-green-600 font-medium mt-2 hidden">✅ リンクをコピーしました！</p>
+        </div>
+
+        <!-- M10: 印刷・エクスポート機能 -->
+        <div class="bg-gray-50 rounded-xl p-4 mb-4">
+          <h3 class="font-bold text-gray-800 mb-3">💾 結果を保存</h3>
+          <div class="flex gap-2 flex-col sm:flex-row">
+            <button onclick="printResult()" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-lg text-sm transition-colors">
+              🖨️ 印刷する
+            </button>
+            <button onclick="copyResultAsText()" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-3 rounded-lg text-sm transition-colors">
+              📄 テキストをコピー
+            </button>
+          </div>
+          <p id="copy-text-feedback" class="text-xs text-green-600 font-medium mt-2 hidden">✅ テキストをコピーしました！</p>
         </div>
 
         <!-- Affiliate CTAs -->
@@ -738,12 +752,72 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     let current = 0;
     let answers = {};
 
+    // M3: localStorage にデータ保存・復元機能
+    function saveAnswersToLocalStorage(answersObj) {
+      try {
+        localStorage.setItem('online_learning_advisor_current_answers', JSON.stringify(answersObj));
+      } catch (e) {
+        // localStorage 満杯時は黙って失敗
+      }
+    }
+
+    function loadAnswersFromLocalStorage() {
+      try {
+        const saved = localStorage.getItem('online_learning_advisor_current_answers');
+        return saved ? JSON.parse(saved) : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function saveDiagnosisHistory(answersObj, resultKey) {
+      try {
+        let history = JSON.parse(localStorage.getItem('online_learning_advisor_history') || '[]');
+        history.unshift({
+          timestamp: new Date().toISOString(),
+          answers: answersObj,
+          resultKey: resultKey
+        });
+        if (history.length > 10) history = history.slice(0, 10); // 最新10件まで保持
+        localStorage.setItem('online_learning_advisor_history', JSON.stringify(history));
+      } catch (e) {
+        // localStorage 満杯時は黙って失敗
+      }
+    }
+
+    function loadDiagnosisHistory() {
+      try {
+        return JSON.parse(localStorage.getItem('online_learning_advisor_history') || '[]');
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function clearCurrentAnswers() {
+      try {
+        localStorage.removeItem('online_learning_advisor_current_answers');
+      } catch (e) {}
+    }
+
     function startQuiz() {
       document.getElementById('intro').classList.add('hidden');
       document.getElementById('quiz').classList.remove('hidden');
-      current = 0;
-      answers = {};
-      showQuestion(0);
+      // M3: localStorage から前回の回答を復元
+      const saved = loadAnswersFromLocalStorage();
+      if (saved && Object.keys(saved).length > 0) {
+        answers = saved;
+        current = Object.keys(saved).length;
+        if (current >= questions.length) {
+          // 全問回答済みなら結果表示
+          showResult();
+        } else {
+          showQuestion(current);
+        }
+      } else {
+        current = 0;
+        answers = {};
+        showQuestion(0);
+      }
     }
 
     function showQuestion(idx) {
@@ -771,6 +845,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     function selectOption(key, value) {
       answers[key] = value;
+      // M3: localStorage に回答をリアルタイム保存
+      saveAnswersToLocalStorage(answers);
       current++;
       if (current < questions.length) {
         showQuestion(current);
@@ -790,6 +866,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
       const key = getResultKey(answers);
       const r = results[key];
+
+      // M3: 診断完了時に履歴に保存
+      saveDiagnosisHistory(answers, key);
+      clearCurrentAnswers();
 
       document.getElementById('result-icon').textContent = r.icon;
       document.getElementById('result-title').textContent = r.title;
@@ -871,6 +951,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function resetQuiz() {
       current = 0;
       answers = {};
+      clearCurrentAnswers(); // M3: localStorage もクリア
       document.getElementById('result').classList.add('hidden');
       document.getElementById('intro').classList.remove('hidden');
       // URLハッシュをクリアしてリロード時に前の結果が復元されないようにする
@@ -1004,6 +1085,32 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const text = `オンライン学習診断\n私の結果: ${title}\nあなたは？\n${url}`;
       const lineUrl = `https://line.me/R/share?text=${encodeURIComponent(text)}`;
       window.open(lineUrl, '_blank', 'width=500,height=400');
+    }
+
+    // M10: 印刷・エクスポート機能
+    function printResult() {
+      window.print();
+    }
+
+    function copyResultAsText() {
+      const key = getResultKey(answers);
+      const r = results[key];
+      const text = `オンライン学習診断 - 診断結果\n\n`
+        + `診断結果: ${r.title}\n`
+        + `タイプ: ${r.type}\n\n`
+        + `説明:\n${r.desc}\n\n`
+        + `あなたへのおすすめ理由:\n${r.reason}\n\n`
+        + `習得・修了までの期間目安:\n${r.period}\n\n`
+        + `月次コストシミュレーション:\n`
+        + r.costs.map(c => `- ${c.label}: ${c.amount}`).join('\n') + '\n\n'
+        + `このツール: https://appadaycreator.com/online-learning-advisor/`;
+      navigator.clipboard.writeText(text).then(() => {
+        const feedback = document.getElementById('copy-text-feedback');
+        feedback.classList.remove('hidden');
+        setTimeout(() => feedback.classList.add('hidden'), 2000);
+      }).catch(() => {
+        alert('テキストコピーに失敗しました。お手数ですが手動でコピーしてください。');
+      });
     }
 
     // P2: Load result from URL on page load

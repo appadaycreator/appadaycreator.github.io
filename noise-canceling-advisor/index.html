@@ -37,6 +37,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -186,7 +187,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   <p style="color:#4b5563;margin:0 0 .5rem;line-height:1.75">計算結果は参考値です。入力値や前提条件によって結果が変わります。重要な判断の際は最新の公式情報をご確認ください。</p>
   <ul style="margin:0;padding-left:1.25rem;color:#4b5563;line-height:1.9"><li><a href="https://www.caa.go.jp/" target="_blank" rel="noopener noreferrer" style="color:#4f46e5;font-size:.85rem">消費者庁「くらしの安心ガイド」</a></li></ul>
 </div>
-<h2 style="font-size:18px;font-weight:700;margin-bottom:12px;">🎧 ノイキャンイヤホン診断</h2>
+<div id="restore-hint" style="background:#d1fae5;border:1px solid #6ee7b7;border-radius:8px;padding:12px;margin-bottom:16px;display:none;">
+          <p style="font-size:13px;color:#047857;margin:0;">💾 前回の診断が見つかりました</p>
+          <button type="button" style="background:#10b981;color:white;border:none;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;margin-top:6px;" onclick="restoreLastDiagnosis()">前回の診断を復元 →</button>
+          </div>
+          <h2 style="font-size:18px;font-weight:700;margin-bottom:12px;">🎧 ノイキャンイヤホン診断</h2>
           <p style="color:#666;font-size:14px;margin-bottom:16px;">5つの質問に答えてあなたに最適な機種タイプを診断します</p>
           <label>Q1. 主な使用シーンは？</label>
           <select id="scene">
@@ -233,7 +238,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="card">
             <h3 id="r-type" style="font-size:18px;font-weight:700;color:#2563EB;margin-bottom:8px;"></h3>
             <div id="r-rec" style="background:#EFF6FF;border-radius:10px;padding:16px;margin-bottom:12px;font-size:14px;line-height:1.8;"></div>
-            <div id="r-models" style="font-size:13px;color:#555;"></div>
+            <div id="r-models" style="font-size:13px;color:#555;margin-bottom:20px;"></div>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin-bottom:20px;">
+              <h4 style="font-size:14px;font-weight:700;color:#374151;margin-bottom:12px;">📊 あなたの診断スコア</h4>
+              <canvas id="scoreChart" style="max-width:100%;"></canvas>
+            </div>
             <button class="btn" style="margin-top:16px;" onclick="location.reload()">もう一度診断</button>
           </div>
         </div>
@@ -325,42 +334,162 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     
 <script>
-    function diagnose() {
-      const scene=document.getElementById('scene').value,
-            budget=document.getElementById('budget').value,
-            form=document.getElementById('form').value,
-            priority=document.getElementById('priority').value,
-            pain=document.getElementById('pain').value;
-      if(!scene||!budget||!form||!priority||!pain){alert('すべて選択してください');return;}
-      let type='',rec='',models='';
-      if(budget==='premium'&&priority==='nc'){
-        type='🏆 プレミアムNCヘッドホン';
-        rec='最高クラスのノイズキャンセリング性能をお求めですね。Sony WH-1000XM5やBose QuietComfort Ultra Headphonesが最適です。業界最高水準のANCで航空機エンジン音・オフィス騒音をほぼ無音に。マルチポイント接続・高音質コーデック対応で長距離フライトや集中作業で真価を発揮します。';
-        models='<strong>おすすめモデル例:</strong><br>• Sony WH-1000XM5（約40,000円）<br>• Bose QC Ultra（約50,000円）<br>• Apple AirPods Max（約82,800円）';
-      } else if(budget==='high'&&form==='inear'){
-        type='💎 ハイエンド完全ワイヤレス';
-        rec='本格的なNCを持つ完全ワイヤレスをお求めですね。Sony WF-1000XM5またはApple AirPods Pro 2が最適です。コンパクトながら驚異的なNC性能と音質を両立。iPhoneユーザーならAirPods Pro 2が空間オーディオ・ロスレス転送対応でおすすめです。';
-        models='<strong>おすすめモデル例:</strong><br>• Sony WF-1000XM5（約35,000円）<br>• Apple AirPods Pro 2（約38,800円）<br>• Bose QuietComfort Earbuds II（約30,000円）';
-      } else if(budget==='mid'){
-        type='✨ コスパ重視の中級NC';
-        rec='2〜3万円台でコスパ重視のNCモデルが狙えます。Anker Soundcore Liberty 4 NCやJBL TOUR PRO 2が人気です。1万円台ならEarFun Air Pro 3・Soundcore Q45もNC性能が高評価。まずは1万円台でNC体験を試すのもおすすめです。';
-        models='<strong>おすすめモデル例:</strong><br>• JBL TUNE 770NC（約12,000円）<br>• Anker Soundcore Liberty 4 NC（約13,000円）<br>• EarFun Air Pro 4（約9,000円）';
-      } else if(budget==='low'){
-        type='💡 コスパ入門NCイヤホン';
-        rec='5,000円以下でもNC機能付きモデルが増えています。Anker Soundcore Life Note 3SやEarFun Air Sが5,000円前後でNC搭載。NC性能は上位機には及びませんが、電車内の低音騒音カットに十分効果的です。まずは試してみる価値あり。';
-        models='<strong>おすすめモデル例:</strong><br>• EarFun Air S（約5,000円）<br>• Anker Soundcore Life P3（約6,000円）<br>• TOZO NC9 Plus（約4,500円）';
-      } else {
-        type='🎯 あなたへのおすすめ';
-        rec='用途・予算に応じたNCイヤホンをお選びください。通勤・在宅ワーク用なら完全ワイヤレスタイプが便利。フライト用ならオーバーイヤー型ヘッドホンが遮音性に優れます。まず試着できる家電量販店でつけ心地を確認することをおすすめします。';
-        models='';
+let globalChart = null;
+
+function getScores(scene, budget, form, priority, pain) {
+  let ncScore = 5, costScore = 5, soundScore = 5, comfortScore = 5;
+
+  // NC性能スコア計算
+  if(priority==='nc') ncScore += 3;
+  if(budget==='premium'||budget==='high') ncScore += 2;
+  if(scene==='flight'||scene==='remote') ncScore += 1;
+
+  // コスパスコア計算
+  if(budget==='low'||budget==='mid') costScore += 3;
+  if(priority!=='nc') costScore += 1;
+
+  // 音質スコア計算
+  if(priority==='sound') soundScore += 3;
+  if(budget==='high'||budget==='premium') soundScore += 2;
+
+  // 装着感スコア計算
+  if(pain==='fit') comfortScore += 2;
+  if(form==='inear') comfortScore += 1;
+  else if(form==='overear') comfortScore -= 1;
+
+  return {
+    nc: Math.min(10, ncScore),
+    cost: Math.min(10, costScore),
+    sound: Math.min(10, soundScore),
+    comfort: Math.min(10, comfortScore)
+  };
+}
+
+function drawScoreChart(scores) {
+  const ctx = document.getElementById('scoreChart').getContext('2d');
+
+  if(globalChart) globalChart.destroy();
+
+  globalChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['NC性能', 'コスパ', '音質', '装着感'],
+      datasets: [{
+        label: 'スコア',
+        data: [scores.nc, scores.cost, scores.sound, scores.comfort],
+        backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'],
+        borderRadius: 6,
+        borderSkipped: false,
+        barPercentage: 0.7
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              return ctx.parsed.x + '/10';
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          beginAtZero: true,
+          max: 10,
+          ticks: { stepSize: 2 },
+          grid: { color: '#e5e7eb' }
+        },
+        y: {
+          grid: { display: false }
+        }
       }
-      document.getElementById('r-type').textContent=type;
-      document.getElementById('r-rec').textContent=rec;
-      document.getElementById('r-models').innerHTML=models;
-      document.getElementById('result').classList.add('show');
-      document.getElementById('result').scrollIntoView({behavior:'smooth'});
     }
-    </script>
+  });
+}
+
+function saveDiagnosis(scene, budget, form, priority, pain, result) {
+  let history = JSON.parse(localStorage.getItem('diagnosisHistory') || '[]');
+  const diagnosis = {
+    id: Date.now(),
+    timestamp: new Date().toLocaleString('ja-JP'),
+    scene, budget, form, priority, pain, result
+  };
+  history.unshift(diagnosis);
+  history = history.slice(0, 5);
+  localStorage.setItem('diagnosisHistory', JSON.stringify(history));
+  localStorage.setItem('lastDiagnosis', JSON.stringify({scene, budget, form, priority, pain}));
+}
+
+function restoreLastDiagnosis() {
+  const last = localStorage.getItem('lastDiagnosis');
+  if(!last) return;
+  const {scene, budget, form, priority, pain} = JSON.parse(last);
+  document.getElementById('scene').value = scene;
+  document.getElementById('budget').value = budget;
+  document.getElementById('form').value = form;
+  document.getElementById('priority').value = priority;
+  document.getElementById('pain').value = pain;
+  diagnose();
+}
+
+function checkRestoreHint() {
+  const last = localStorage.getItem('lastDiagnosis');
+  const hint = document.getElementById('restore-hint');
+  if(last && hint) hint.style.display = 'block';
+}
+
+function diagnose() {
+  const scene=document.getElementById('scene').value,
+        budget=document.getElementById('budget').value,
+        form=document.getElementById('form').value,
+        priority=document.getElementById('priority').value,
+        pain=document.getElementById('pain').value;
+  if(!scene||!budget||!form||!priority||!pain){alert('すべて選択してください');return;}
+
+  const scores = getScores(scene, budget, form, priority, pain);
+  let type='',rec='',models='';
+
+  if(budget==='premium'&&priority==='nc'){
+    type='🏆 プレミアムNCヘッドホン';
+    rec='最高クラスのノイズキャンセリング性能をお求めですね。Sony WH-1000XM5やBose QuietComfort Ultra Headphonesが最適です。業界最高水準のANCで航空機エンジン音・オフィス騒音をほぼ無音に。マルチポイント接続・高音質コーデック対応で長距離フライトや集中作業で真価を発揮します。';
+    models='<strong>おすすめモデル例:</strong><br>• Sony WH-1000XM5（約40,000円）<br>• Bose QC Ultra（約50,000円）<br>• Apple AirPods Max（約82,800円）';
+  } else if(budget==='high'&&form==='inear'){
+    type='💎 ハイエンド完全ワイヤレス';
+    rec='本格的なNCを持つ完全ワイヤレスをお求めですね。Sony WF-1000XM5またはApple AirPods Pro 2が最適です。コンパクトながら驚異的なNC性能と音質を両立。iPhoneユーザーならAirPods Pro 2が空間オーディオ・ロスレス転送対応でおすすめです。';
+    models='<strong>おすすめモデル例:</strong><br>• Sony WF-1000XM5（約35,000円）<br>• Apple AirPods Pro 2（約38,800円）<br>• Bose QuietComfort Earbuds II（約30,000円）';
+  } else if(budget==='mid'){
+    type='✨ コスパ重視の中級NC';
+    rec='2〜3万円台でコスパ重視のNCモデルが狙えます。Anker Soundcore Liberty 4 NCやJBL TOUR PRO 2が人気です。1万円台ならEarFun Air Pro 3・Soundcore Q45もNC性能が高評価。まずは1万円台でNC体験を試すのもおすすめです。';
+    models='<strong>おすすめモデル例:</strong><br>• JBL TUNE 770NC（約12,000円）<br>• Anker Soundcore Liberty 4 NC（約13,000円）<br>• EarFun Air Pro 4（約9,000円）';
+  } else if(budget==='low'){
+    type='💡 コスパ入門NCイヤホン';
+    rec='5,000円以下でもNC機能付きモデルが増えています。Anker Soundcore Life Note 3SやEarFun Air Sが5,000円前後でNC搭載。NC性能は上位機には及びませんが、電車内の低音騒音カットに十分効果的です。まずは試してみる価値あり。';
+    models='<strong>おすすめモデル例:</strong><br>• EarFun Air S（約5,000円）<br>• Anker Soundcore Life P3（約6,000円）<br>• TOZO NC9 Plus（約4,500円）';
+  } else {
+    type='🎯 あなたへのおすすめ';
+    rec='用途・予算に応じたNCイヤホンをお選びください。通勤・在宅ワーク用なら完全ワイヤレスタイプが便利。フライト用ならオーバーイヤー型ヘッドホンが遮音性に優れます。まず試着できる家電量販店でつけ心地を確認することをおすすめします。';
+    models='';
+  }
+
+  document.getElementById('r-type').textContent = type;
+  document.getElementById('r-rec').textContent = rec;
+  document.getElementById('r-models').innerHTML = models;
+
+  drawScoreChart(scores);
+  saveDiagnosis(scene, budget, form, priority, pain, type);
+
+  document.getElementById('result').classList.add('show');
+  document.getElementById('result').scrollIntoView({behavior:'smooth'});
+}
+
+// ページロード時に前回診断の復元ヒントを表示
+window.addEventListener('DOMContentLoaded', checkRestoreHint);
+</script>
     <!-- rakuten-affiliate-block -->
     <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">
       <p style="font-size:0.85rem;color:#4b5563;margin-bottom:8px;">🛒 関連商品を楽天市場で探す</p>

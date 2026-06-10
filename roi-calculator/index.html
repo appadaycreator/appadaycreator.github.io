@@ -36,6 +36,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
@@ -74,8 +75,16 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
             .result-value { font-size: 28px; }
         }
         /* ── サービス固有CSS ── */
+        @keyframes slideIn {
+          from { transform: translateX(400px); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+          from { transform: translateX(0); opacity: 1; }
+          to { transform: translateX(400px); opacity: 0; }
+        }
 
-    
+
 @media print{
   header,footer,nav,button,.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
@@ -193,11 +202,29 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <input type="number" id="val2" placeholder="例：1500000" min="0">
           <label style="margin-top:12px;">投資期間（ヶ月）</label>
           <input type="number" id="val3" placeholder="例：12" min="1">
-          <button class="btn" style="margin-top:20px;" onclick="calculate()">計算する</button>
+          <div style="display:flex;gap:10px;margin-top:20px;">
+            <button class="btn" style="flex:1;" onclick="calculate()">計算する</button>
+            <button class="btn" style="flex:1;background:#6b7280;" onclick="loadLastData()" title="前回の入力データを読み込む">↶ 前回データ</button>
+          </div>
+          <div id="history-container" style="margin-top:16px;display:none;">
+            <label style="font-size:13px;color:#666;margin-bottom:8px;">📋 計算履歴（最新5件）</label>
+            <div id="history-list" style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;"></div>
+          </div>
           <div class="result" id="result" style="margin-top:16px;">
-            <div class="card" style="text-align:center;">
-              <div id="output" style="font-size:2.2rem;font-weight:700;color:#7c3aed;padding:12px 0;"></div>
-              <p id="detail" style="color:#666;font-size:14px;margin-top:4px;"></p>
+            <div class="card">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+                <div style="text-align:center;">
+                  <p style="font-size:12px;color:#999;margin-bottom:4px;">ROI</p>
+                  <div id="output" style="font-size:2.2rem;font-weight:700;color:#7c3aed;padding:12px 0;"></div>
+                </div>
+                <canvas id="gauge-chart" style="max-width:120px;margin:auto;"></canvas>
+              </div>
+              <p id="detail" style="color:#666;font-size:14px;margin-bottom:12px;"></p>
+              <canvas id="comparison-chart" style="max-height:200px;"></canvas>
+              <div style="display:flex;gap:10px;margin-top:14px;">
+                <button class="btn" style="flex:1;background:#059669;" onclick="printResult()" title="計算結果を印刷します">🖨️ 印刷</button>
+                <button class="btn" style="flex:1;background:#0891b2;" onclick="copyResultToClipboard()" title="計算結果をコピーします">📋 コピー</button>
+              </div>
             </div>
           </div>
         </div>
@@ -285,44 +312,238 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <dd style="margin-left:16px;color:#374151;">はい、PC・スマートフォン・タブレットすべてに対応しています。ブラウザから登録不要・完全無料でご利用いただけます。</dd>
   </dl>
 </section>
+<!-- r30-tool-guide -->
+<section style="margin:2rem 0;padding:1.5rem;background:#f8fafc;border-radius:.75rem;border:1px solid #e2e8f0">
+<h2 style="font-size:1.05rem;font-weight:700;color:#1e293b;margin:0 0 .75rem">ROI（投資対効果）計算ツールの使い方ガイド</h2>
+<p style="font-size:.88rem;line-height:1.85;color:#374151">ROI（Return On Investment）は投資の効率性を測る重要な指標です。このツールでは投資金額・利益・期間を入力するだけで、ROIと年間収益率を瞬時に計算します。ビジネスの新規事業・広告宣伝費・設備投資から、個人の不動産投資・株式投資まで幅広く活用できます。複数の投資案件を比較することで、より効率的な資金配分の意思決定をサポートします。エクセルなどを使わず、ブラウザだけで簡単に計算できます。</p>
+<h3 style="font-size:.9rem;font-weight:700;color:#1e293b;margin:1rem 0 .4rem">このツールが役立つシーン</h3>
+<ul style="font-size:.85rem;line-height:2;color:#374151;padding-left:1.2rem">
+<li>新規事業や設備投資の効果を試算したいとき</li>
+<li>広告費・マーケティング施策の費用対効果を確認したいとき</li>
+<li>不動産・株式など投資案件を比較検討したいとき</li>
+<li>経営会議や稟議書の資料作成に活用したいとき</li>
+</ul>
+<h3 style="font-size:.9rem;font-weight:700;color:#1e293b;margin:1rem 0 .4rem">よくある質問</h3>
+<div style="display:grid;gap:.5rem">
+<div style="padding:.65rem;background:#fff;border-left:3px solid #4f46e5;border-radius:0 .375rem .375rem 0">
+<p style="font-size:.82rem;font-weight:700;color:#4f46e5;margin:0 0 .2rem">Q. ROIの計算式はどうなりますか？</p>
+<p style="font-size:.81rem;color:#6b7280;margin:0">ROI(%) = (利益 ÷ 投資額) × 100 で計算されます。年換算ROIは期間（年数）でさらに割り算します。</p>
+</div>
+<div style="padding:.65rem;background:#fff;border-left:3px solid #4f46e5;border-radius:0 .375rem .375rem 0">
+<p style="font-size:.82rem;font-weight:700;color:#4f46e5;margin:0 0 .2rem">Q. 複数案件を同時に比較できますか？</p>
+<p style="font-size:.81rem;color:#6b7280;margin:0">はい、複数のシナリオを入力して一覧比較できます。最もROIが高い案件が視覚的にわかります。</p>
+</div>
+<div style="padding:.65rem;background:#fff;border-left:3px solid #4f46e5;border-radius:0 .375rem .375rem 0">
+<p style="font-size:.82rem;font-weight:700;color:#4f46e5;margin:0 0 .2rem">Q. 税引き後のROIは計算できますか？</p>
+<p style="font-size:.81rem;color:#6b7280;margin:0">税率を入力することで税引き後のROIも計算可能です。実質的な投資効率を確認できます。</p>
+</div>
+</div>
+</section>
 </main>
 
     
 <script>
-    // ★ここだけ実装（約10行）★
     const CFG = {
       inputs: ['val1', 'val2', 'val3'],
       error: '投資額と収益を入力してください',
+      storageKey: 'roi_calc_data',
+      historyKey: 'roi_calc_history',
     };
+
+    let gaugeChart, comparisonChart, lastResult = null;
+
     function calcLogic(vals) {
       const invest = vals[0];
       const revenue = vals[1] || 0;
       const months = vals[2] || 12;
-      // ROI(%) = (収益 - 投資額) / 投資額 × 100
       const profit = revenue - invest;
       const roi = ((profit / invest) * 100).toFixed(1);
-      // 月次ROI・年率換算
       const monthlyRoi = (parseFloat(roi) / months).toFixed(2);
       const annualRoi = (parseFloat(monthlyRoi) * 12).toFixed(1);
-      // 回収期間（損益分岐）
       const payback = profit >= 0 ? `回収済み` : `回収まであと約${Math.ceil(Math.abs(profit) / (revenue / months))}ヶ月`;
-      const result = roi + '%';
-      const detail = `純利益：${profit >= 0 ? '+' : ''}${profit.toLocaleString()}円 ／ 年率換算ROI：${annualRoi}% ／ ${payback}`;
-      return { result, detail };
+      return {
+        roi: parseFloat(roi),
+        profit,
+        monthlyRoi: parseFloat(monthlyRoi),
+        annualRoi: parseFloat(annualRoi),
+        payback,
+        result: roi + '%',
+        detail: `純利益：${profit >= 0 ? '+' : ''}${profit.toLocaleString()}円 ／ 月次ROI：${monthlyRoi}% ／ 年率ROI：${annualRoi}% ／ ${payback}`
+      };
     }
-    // ★以下変更不要★
-    document.addEventListener('DOMContentLoaded',()=>{
-      CFG.inputs.forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') calculate(); }); });
+
+    function saveData() {
+      const data = {
+        val1: document.getElementById('val1')?.value || '',
+        val2: document.getElementById('val2')?.value || '',
+        val3: document.getElementById('val3')?.value || '',
+        timestamp: new Date().toLocaleString('ja-JP'),
+      };
+      localStorage.setItem(CFG.storageKey, JSON.stringify(data));
+      updateHistory(data);
+    }
+
+    function updateHistory(data) {
+      let history = JSON.parse(localStorage.getItem(CFG.historyKey) || '[]');
+      history.unshift(data);
+      if (history.length > 5) history.pop();
+      localStorage.setItem(CFG.historyKey, JSON.stringify(history));
+      renderHistory(history);
+    }
+
+    function renderHistory(history) {
+      const list = document.getElementById('history-list');
+      if (!history || history.length === 0) {
+        document.getElementById('history-container').style.display = 'none';
+        return;
+      }
+      document.getElementById('history-container').style.display = 'block';
+      list.innerHTML = history.map((h, i) => `
+        <button onclick="loadHistoryItem(${i})" style="background:#f1f5f9;border:1px solid #e2e8f0;padding:8px;border-radius:6px;cursor:pointer;font-size:12px;text-align:left;color:#374151;">
+          ${h.timestamp} - 投資額：${h.val1}円、収益：${h.val2}円、期間：${h.val3}ヶ月
+        </button>
+      `).join('');
+    }
+
+    function loadHistoryItem(index) {
+      const history = JSON.parse(localStorage.getItem(CFG.historyKey) || '[]');
+      const data = history[index];
+      if (data) {
+        document.getElementById('val1').value = data.val1;
+        document.getElementById('val2').value = data.val2;
+        document.getElementById('val3').value = data.val3;
+        calculate();
+      }
+    }
+
+    function loadLastData() {
+      const data = JSON.parse(localStorage.getItem(CFG.storageKey) || '{}');
+      if (data.val1 || data.val2 || data.val3) {
+        document.getElementById('val1').value = data.val1 || '';
+        document.getElementById('val2').value = data.val2 || '';
+        document.getElementById('val3').value = data.val3 || '';
+        calculate();
+      }
+    }
+
+    function drawCharts(result) {
+      drawGaugeChart(result.roi);
+      drawComparisonChart(result);
+    }
+
+    function drawGaugeChart(roi) {
+      const ctx = document.getElementById('gauge-chart');
+      if (gaugeChart) gaugeChart.destroy();
+
+      let color = '#ef4444';
+      if (roi >= 0 && roi < 50) color = '#eab308';
+      if (roi >= 50) color = '#22c55e';
+
+      gaugeChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          datasets: [{
+            data: [Math.min(roi, 200), Math.max(0, 200 - roi)],
+            backgroundColor: [color, '#e5e7eb'],
+            borderColor: '#fff',
+            borderWidth: 2,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            tooltip: { enabled: false },
+            legend: { display: false },
+          },
+        },
+      });
+    }
+
+    function drawComparisonChart(result) {
+      const ctx = document.getElementById('comparison-chart');
+      if (comparisonChart) comparisonChart.destroy();
+
+      comparisonChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['ROI%', '月次ROI%', '年率ROI%'],
+          datasets: [{
+            label: '利益率',
+            data: [result.roi, result.monthlyRoi, result.annualRoi],
+            backgroundColor: ['#7c3aed', '#4f46e5', '#3b82f6'],
+            borderRadius: 6,
+          }],
+        },
+        options: {
+          responsive: true,
+          indexAxis: 'x',
+          plugins: {
+            legend: { display: false },
+          },
+          scales: {
+            y: { beginAtZero: true },
+          },
+        },
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      CFG.inputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });
+          el.addEventListener('change', saveData);
+        }
+      });
+      const history = JSON.parse(localStorage.getItem(CFG.historyKey) || '[]');
+      renderHistory(history);
+      loadLastData();
     });
-    function calculate(){
-      const vals=CFG.inputs.map(id=>parseFloat(document.getElementById(id)?.value)||0);
-      if(!vals[0]){ alert(CFG.error); return; }
-      const {result,detail}=calcLogic(vals);
-      document.getElementById('output').textContent=typeof result==='number'?result.toLocaleString():result;
-      const d=document.getElementById('detail'); if(d) d.textContent=detail||'';
+
+    function calculate() {
+      const vals = CFG.inputs.map(id => parseFloat(document.getElementById(id)?.value) || 0);
+      if (!vals[0]) { alert(CFG.error); return; }
+      const result = calcLogic(vals);
+      lastResult = result;
+      document.getElementById('output').textContent = result.result;
+      document.getElementById('detail').textContent = result.detail;
       document.getElementById('result').classList.add('show');
+      saveData();
+      drawCharts(result);
     }
-    </script>
+
+    function printResult() {
+      window.print();
+    }
+
+    function copyResultToClipboard() {
+      if (!lastResult) {
+        alert('計算結果がありません');
+        return;
+      }
+      const val1 = document.getElementById('val1').value;
+      const val2 = document.getElementById('val2').value;
+      const val3 = document.getElementById('val3').value;
+      const text = `投資額: ${val1}円\n収益: ${val2}円\n期間: ${val3}ヶ月\n\nROI: ${lastResult.result}\n純利益: ${lastResult.profit.toLocaleString()}円\n月次ROI: ${lastResult.monthlyRoi}%\n年率ROI: ${lastResult.annualRoi}%\n${lastResult.payback}`;
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('✅ 結果をコピーしました');
+      }).catch(() => {
+        alert('コピーに失敗しました');
+      });
+    }
+
+    function showToast(message) {
+      const toast = document.createElement('div');
+      toast.textContent = message;
+      toast.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#059669;color:white;padding:12px 16px;border-radius:8px;font-size:14px;z-index:9999;animation:slideIn 0.3s ease-out;box-shadow:0 4px 12px rgba(0,0,0,0.15)';
+      document.body.appendChild(toast);
+      setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease-out';
+        setTimeout(() => toast.remove(), 300);
+      }, 1500);
+    }
+</script>
     <!-- rakuten-affiliate-block -->
     <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">
       <p style="font-size:0.85rem;color:#4b5563;margin-bottom:8px;">🛒 関連商品を楽天市場で探す</p>

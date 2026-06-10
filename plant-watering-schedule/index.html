@@ -59,11 +59,22 @@
             .result-value { font-size: 28px; }
         }
         /* ── サービス固有CSS ── */
-
+        .records-section { margin-top: 24px; }
+        .record-item { background: #f8fafc; border-left: 4px solid #6366F1; padding: 12px; margin-bottom: 8px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
+        .record-info { flex: 1; }
+        .record-date { font-size: 12px; color: #888; }
+        .record-plant { font-weight: 600; color: #374151; }
+        .record-freq { font-size: 13px; color: #666; margin-top: 2px; }
+        .record-btn { background: #e0e7ff; border: none; color: #6366F1; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; margin: 0 4px; }
+        .record-btn:hover { background: #c7d2fe; }
+        .gauge-container { position: relative; margin: 16px 0; max-width: 300px; margin-left: auto; margin-right: auto; }
+        .save-record-btn { background: #10b981; color: white; margin-top: 12px; }
+        .save-record-btn:hover { opacity: 0.9; }
     </style>
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "item": {"@id": "https://appadaycreator.com/", "name": "AppADayCreator"}}, {"@type": "ListItem", "position": 2, "item": {"@id": "https://appadaycreator.com/plant-watering-schedule/", "name": "観葉植物・水やりスケジューラー"}}]}</script>
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-ZDPNYD2875"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-ZDPNYD2875',{send_page_view:false});</script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -87,6 +98,13 @@
     <main id="main-content" class="container" role="main" aria-label="観葉植物・水やりスケジューラーのメインコンテンツ">
         <ins class="adsbygoogle" style="display:block;margin:12px 0" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
         <script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
+
+        <!-- 保存済み記録 -->
+        <div class="card" id="records-card" style="display:none;">
+          <h2 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#374151;">📋 保存済み記録（最大10件）</h2>
+          <div id="records-list" class="records-section"></div>
+          <p style="font-size:12px;color:#888;margin-top:12px;">「復元」で前回の入力値を再利用。「削除」で個別削除。</p>
+        </div>
 
         <div class="card">
           <div id="tool-desc-box" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:1.5rem 1.75rem;margin:1.5rem 0">
@@ -194,6 +212,11 @@
           <div class="card">
             <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#6366F1;">🗓️ あなたの水やりスケジュール</h3>
             <div id="output"></div>
+            <!-- Gauge Chart -->
+            <div class="gauge-container">
+              <canvas id="gaugeChart"></canvas>
+            </div>
+            <button class="btn save-record-btn" onclick="saveRecord()" aria-label="この結果を記録に保存">💾 記録に保存</button>
           </div>
         </div>
 
@@ -318,6 +341,9 @@
       winter:'休眠期は水やりを控えめに。根腐れを防ぐため乾かし気味に。',
       dry:'エアコンで乾燥している場合は霧吹き（葉水）も併用してください。'
     };
+    let currentDays = null;
+    let currentInputs = null;
+
     function getInputs() {
       return {
         plant: document.getElementById('plant').value,
@@ -330,9 +356,57 @@
       if (days <= 7) return { bg: '#dcfce7', text: '#16a34a', label: '🟢 中程度' };
       return { bg: '#dbeafe', text: '#0284c7', label: '🔵 低頻度' };
     }
+    function drawGaugeChart(days) {
+      const canvas = document.getElementById('gaugeChart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const maxDays = 30;
+      const percentage = (days / maxDays) * 100;
+      const color = days <= 3 ? '#d97706' : days <= 7 ? '#16a34a' : '#0284c7';
+      new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['推奨', ''],
+          datasets: [{
+            data: [percentage, 100 - percentage],
+            backgroundColor: [color, '#e5e7eb'],
+            borderColor: ['white', 'white'],
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: { enabled: false }
+          }
+        },
+        plugins: [{
+          id: 'textCenter',
+          beforeDatasetsDraw(chart) {
+            const { width, height } = chart;
+            const x = width / 2;
+            const y = height / 2;
+            chart.ctx.save();
+            chart.ctx.font = 'bold 32px Arial';
+            chart.ctx.textAlign = 'center';
+            chart.ctx.textBaseline = 'middle';
+            chart.ctx.fillStyle = color;
+            chart.ctx.fillText(`${days}日`, x, y - 15);
+            chart.ctx.font = '14px Arial';
+            chart.ctx.fillStyle = '#666';
+            chart.ctx.fillText('ごとに1回', x, y + 15);
+            chart.ctx.restore();
+          }
+        }]
+      });
+    }
     function buildOutput(inputs) {
       const p = PLANT_DATA[inputs.plant];
       const days = Math.round(p.base * POT_MULT[inputs.potsize] * SEASON_MULT[inputs.season]);
+      currentDays = days;
+      currentInputs = inputs;
       const freq = days === 1 ? '毎日' : days <= 3 ? `${days}日に1回` : days <= 7 ? `${days}日に1回（週${Math.round(7/days)}〜2回）` : `${days}日に1回（月${Math.round(30/days)}回程度）`;
       const color = getFrequencyColor(days);
       const tipsHtml = p.tips.map(t => `<li style="margin-bottom:6px;">${t}</li>`).join('');
@@ -357,10 +431,61 @@
         alert('コピーに失敗しました');
       });
     }
-    document.addEventListener('DOMContentLoaded',()=>{});
+    function saveRecord() {
+      if (!currentInputs || !currentDays) return;
+      const records = JSON.parse(localStorage.getItem('plantRecords') || '[]');
+      const p = PLANT_DATA[currentInputs.plant];
+      const date = new Date().toLocaleDateString('ja-JP', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+      const freq = currentDays === 1 ? '毎日' : currentDays <= 3 ? `${currentDays}日に1回` : currentDays <= 7 ? `${currentDays}日に1回` : `${currentDays}日に1回`;
+      records.unshift({ date, plant: p.name, days: currentDays, freq, inputs: currentInputs });
+      if (records.length > 10) records.pop();
+      localStorage.setItem('plantRecords', JSON.stringify(records));
+      alert('✅ 記録を保存しました！');
+      loadRecords();
+    }
+    function loadRecords() {
+      const records = JSON.parse(localStorage.getItem('plantRecords') || '[]');
+      const recordsCard = document.getElementById('records-card');
+      const recordsList = document.getElementById('records-list');
+      if (records.length === 0) {
+        recordsCard.style.display = 'none';
+        return;
+      }
+      recordsCard.style.display = 'block';
+      recordsList.innerHTML = records.map((r, i) => `
+        <div class="record-item">
+          <div class="record-info">
+            <div class="record-date">📅 ${r.date}</div>
+            <div class="record-plant">${r.plant}</div>
+            <div class="record-freq">水やり: ${r.freq}</div>
+          </div>
+          <div>
+            <button class="record-btn" onclick="restoreRecord(${i})">復元</button>
+            <button class="record-btn" onclick="deleteRecord(${i})">削除</button>
+          </div>
+        </div>
+      `).join('');
+    }
+    function restoreRecord(index) {
+      const records = JSON.parse(localStorage.getItem('plantRecords') || '[]');
+      const r = records[index];
+      document.getElementById('plant').value = r.inputs.plant;
+      document.getElementById('potsize').value = r.inputs.potsize;
+      document.getElementById('season').value = r.inputs.season;
+      generate();
+    }
+    function deleteRecord(index) {
+      if (!confirm('この記録を削除しますか？')) return;
+      const records = JSON.parse(localStorage.getItem('plantRecords') || '[]');
+      records.splice(index, 1);
+      localStorage.setItem('plantRecords', JSON.stringify(records));
+      loadRecords();
+    }
+    document.addEventListener('DOMContentLoaded', loadRecords);
     function generate() {
       const inputs = getInputs();
       document.getElementById('output').innerHTML = buildOutput(inputs);
+      setTimeout(() => drawGaugeChart(currentDays), 0);
       document.getElementById('result').classList.add('show');
       document.getElementById('result').scrollIntoView({behavior:'smooth',block:'start'});
     }

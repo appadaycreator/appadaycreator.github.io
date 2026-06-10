@@ -58,6 +58,15 @@
             .btn { font-size: 15px; padding: 13px 20px; }
             .result-value { font-size: 28px; }
         }
+        @media print {
+            body { background: white; }
+            .site-header, nav, footer, .adsbygoogle, [role="complementary"], .card:not(.result .card) { display: none; }
+            .container { max-width: 100%; margin: 0; padding: 0; }
+            .result .card { box-shadow: none; border: none; margin: 0; }
+            .btn { page-break-inside: avoid; }
+            h1, h2, h3 { page-break-after: avoid; }
+            .result { display: block !important; }
+        }
         /* ── サービス固有CSS ── */
 
     </style>
@@ -174,9 +183,14 @@
 <h2 style="font-size:18px;font-weight:700;margin-bottom:12px;">🦴 腰痛・肩こり原因チェッカー</h2>
           <p style="color:#666;font-size:14px;margin-bottom:8px;">生活習慣・仕事スタイル・姿勢から腰痛・肩こりの原因タイプを診断し、改善エクサ...</p>
           <ul style="font-size:13px;color:#94a3b8;margin:0 0 16px 16px;"><li>質問数：5問</li><li>所要時間：約1分</li></ul>
+          <div id="historyPanel" style="display:none;background:#f0f9ff;border-left:4px solid #3b82f6;border-radius:8px;padding:12px;margin-bottom:16px">
+            <p style="font-size:12px;font-weight:600;color:#1e40af;margin-bottom:10px;margin-top:0">📋 診断履歴（最新5件）</p>
+            <div id="historyList" style="max-height:200px;overflow-y:auto"></div>
+            <button onclick="clearAllHistory()" style="background:#ef4444;color:white;border:none;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;margin-top:8px;min-height:40px">履歴をすべて削除</button>
+          </div>
           <button class="btn" onclick="startQuiz()" aria-label="診断スタート">診断スタート →</button>
         </div>
-        <div id="quiz-area" style="display:none;">
+        <div id="quiz-area" style="display:none;" class="card">
           <div style="font-size:12px;color:#999;margin-bottom:8px;">
             質問 <span id="q-num">1</span> / <span id="q-total">5</span>
           </div>
@@ -186,11 +200,30 @@
           <p id="q-text" style="font-size:16px;font-weight:600;margin-bottom:16px;"></p>
           <div id="q-options" class="space-y-2"></div>
         </div>
-        <div class="result" id="result">
+        
+    <div class="card p-6 mb-4">
+      <h2 class="font-bold text-gray-800 mb-3">💡 使用例</h2>
+      <ul class="text-sm text-gray-700 space-y-2">
+        <li>• 複数の選択肢から最適なものを選びたい場合</li>
+        <li>• 意思決定に客観的な基準が欲しい場合</li>
+        <li>• プロフェッショナルなアドバイスが必要な場合</li>
+        <li>• 予算やニーズに合わせた提案を受けたい場合</li>
+      </ul>
+    </div>
+    <div class="result" id="result">
           <div class="card">
             <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;color:#EA580C;"></h3>
-            <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
-            <button class="btn" style="margin-top:16px;" onclick="location.reload()" aria-label="もう一度診断">もう一度診断</button>
+            <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;margin-bottom:16px;"></p>
+            <div id="scoreSection" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin:16px 0">
+              <p style="font-size:12px;font-weight:600;color:#374151;margin-bottom:12px">📊 スコア分布</p>
+              <canvas id="scoreChart" style="max-width:100%;margin:0 auto;display:block"></canvas>
+              <div id="scoreDetails" style="margin-top:12px;font-size:12px;color:#475569"></div>
+            </div>
+            <div style="display:flex;gap:8px;margin:16px 0;flex-wrap:wrap">
+              <button class="btn" style="margin:0;flex:1;min-width:120px;background:#3b82f6;min-height:44px" onclick="printResult()" aria-label="診断結果を印刷">🖨️ 印刷</button>
+              <button class="btn" style="margin:0;flex:1;min-width:120px;background:#10b981;min-height:44px" onclick="downloadCSV()" aria-label="診断結果をCSVダウンロード">📥 CSV</button>
+              <button class="btn" style="margin:0;flex:1;min-width:120px;background:#EA580C;min-height:44px" onclick="location.reload()" aria-label="もう一度診断">🔄 再診断</button>
+            </div>
           </div>
         </div>
 
@@ -288,6 +321,7 @@
         <p style="margin-top:6px;">© 2026 AppADayCreator. All services are free. | <a href="/tb-corp/?utm_source=appadaycreator&utm_medium=footer&utm_campaign=b2b_cta" onclick="gtag('event','b2b_cta_click',{source_page:location.pathname,cta_position:'footer',tool_category:'portal',destination:'tech-and-brace'})" style="color:white;opacity:0.75;font-size:11px;">Web制作・DX相談 → Tech&amp;Brace</a></p>
     </footer>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.min.js"></script>
     <script>
     const QUESTIONS = [
       { text:'Q1. 痛みを感じる主な部位は？', opts:['腰・臀部（座ると悪化する）','首・肩・首筋（頭痛も伴う）','背中全体・肩甲骨まわり','複数箇所・全体的にだるい'] },
@@ -319,11 +353,119 @@
       if(a[3]===2) scores[3]+=1;
       if(a[3]===3) scores[3]+=2;
       const best = scores.indexOf(Math.max(...scores));
-      return RESULTS[best];
+      return { ...RESULTS[best], scores, typeIdx: best };
     }
-    // ★以下変更不要★
+    function saveHistory(result) {
+      let history = JSON.parse(localStorage.getItem('backPainHistory') || '[]');
+      history.unshift({
+        date: new Date().toLocaleString('ja-JP'),
+        typeIdx: result.typeIdx,
+        scores: result.scores,
+        title: result.title
+      });
+      if(history.length > 10) history.pop();
+      localStorage.setItem('backPainHistory', JSON.stringify(history));
+    }
+    function getLastResult() {
+      const history = JSON.parse(localStorage.getItem('backPainHistory') || '[]');
+      return history.length > 0 ? history[0] : null;
+    }
+    function clearHistory() {
+      if(confirm('診断履歴を削除してもよろしいですか？')) {
+        localStorage.removeItem('backPainHistory');
+        location.reload();
+      }
+    }
     const BTN='#EA580C'; let cur=0; const ans=[];
-    document.addEventListener('DOMContentLoaded',()=>{ document.getElementById('q-total').textContent=QUESTIONS.length; });
+    function renderHistoryPanel() {
+      const history = JSON.parse(localStorage.getItem('backPainHistory') || '[]');
+      const panel = document.getElementById('historyPanel');
+      const historyList = document.getElementById('historyList');
+      if(history.length > 0) {
+        panel.style.display = 'block';
+        historyList.innerHTML = history.slice(0,5).map((h,i)=>`
+          <div style="background:white;border:1px solid #d1e7f6;border-radius:6px;padding:8px;margin-bottom:6px;font-size:12px">
+            <p style="margin:0 0 4px;font-weight:600;color:#1e40af">${h.date}</p>
+            <p style="margin:0 0 4px;color:#374151">${h.title.split('—')[0].trim()}</p>
+            <button onclick="this.parentElement.parentElement.removeChild(this.parentElement)" style="background:#fee2e2;color:#dc2626;border:none;padding:3px 8px;border-radius:4px;font-size:11px;cursor:pointer;min-height:32px">削除</button>
+          </div>
+        `).join('');
+      } else {
+        panel.style.display = 'none';
+      }
+    }
+    function clearAllHistory() {
+      if(confirm('すべての診断履歴を削除してもよろしいですか？')) {
+        localStorage.removeItem('backPainHistory');
+        location.reload();
+      }
+    }
+    function printResult() {
+      const title = document.getElementById('r-title').textContent;
+      const desc = document.getElementById('r-desc').textContent;
+      const newWin = window.open('','','width=800,height=600');
+      const typeLabels = ['デスクワーク型','首・肩こり型','筋疲労型','姿勢・生活習慣型'];
+      newWin.document.write(`
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+          <meta charset="utf-8">
+          <title>腰痛・肩こり原因チェッカー診断結果</title>
+          <style>
+            body { font-family: 'Noto Sans JP', sans-serif; margin: 20px; line-height: 1.8; }
+            h1 { color: #EA580C; font-size: 24px; margin-bottom: 10px; }
+            p { color: #333; margin: 10px 0; }
+            .score-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            .score-table th, .score-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            .score-table th { background: #EA580C; color: white; font-weight: 600; }
+            .footer { margin-top: 20px; font-size: 12px; color: #999; border-top: 1px solid #ddd; padding-top: 10px; }
+            @media print { body { margin: 0; } }
+          </style>
+        </head>
+        <body>
+          <h1>${title}</h1>
+          <p><strong>診断日時：</strong> ${new Date().toLocaleString('ja-JP')}</p>
+          <h2>診断結果</h2>
+          <p>${desc}</p>
+          <table class="score-table">
+            <thead><tr><th>タイプ</th><th>スコア</th></tr></thead>
+            <tbody id="scoreTbody"></tbody>
+          </table>
+          <div class="footer">
+            <p>本診断は参考情報です。詳細は医療機関にご相談ください。</p>
+            <p>出力日時: ${new Date().toLocaleString('ja-JP')}</p>
+          </div>
+        </body>
+        </html>
+      `);
+      const scores = JSON.parse(document.getElementById('scoreDetails').dataset.scores || '[0,0,0,0]');
+      const tbody = newWin.document.getElementById('scoreTbody');
+      typeLabels.forEach((label,i)=>{
+        const tr = newWin.document.createElement('tr');
+        tr.innerHTML = `<td>${label}</td><td>${scores[i]}点</td>`;
+        tbody.appendChild(tr);
+      });
+      newWin.document.close();
+      newWin.print();
+    }
+    function downloadCSV() {
+      const history = JSON.parse(localStorage.getItem('backPainHistory') || '[]');
+      const last = history[0];
+      if(!last) { alert('診断結果がありません'); return; }
+      const typeLabels = ['デスクワーク型','首・肩こり型','筋疲労型','姿勢・生活習慣型'];
+      const headers = ['日時','結果タイプ','デスクワーク型','首・肩こり型','筋疲労型','姿勢・生活習慣型'];
+      const row = [last.date, last.title.split('—')[0].trim(), ...last.scores];
+      const csv = headers.join(',') + '\n' + row.map(v => `"${v}"`).join(',');
+      const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `back-pain-result-${new Date().toISOString().slice(0,10)}.csv`;
+      link.click();
+    }
+    document.addEventListener('DOMContentLoaded',()=>{
+      document.getElementById('q-total').textContent=QUESTIONS.length;
+      renderHistoryPanel();
+    });
     function startQuiz(){ cur=0;ans.length=0; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); renderQ(); }
     function renderQ(){
       const q=QUESTIONS[cur];
@@ -336,9 +478,46 @@
     function showResult(){
       document.getElementById('quiz-area').style.display='none';
       const r=getResult(ans);
+      saveHistory(r);
       document.getElementById('r-title').textContent=r.title;
       document.getElementById('r-desc').textContent=r.desc;
+      const typeLabels = ['デスクワーク型','首・肩こり型','筋疲労型','姿勢・生活習慣型'];
+      const scoreDetailsDiv = document.getElementById('scoreDetails');
+      scoreDetailsDiv.dataset.scores = JSON.stringify(r.scores);
+      scoreDetailsDiv.innerHTML = r.scores.map((s,i)=>`<div style="margin:6px 0"><span style="font-weight:600">●${typeLabels[i]}:</span> <strong style="color:#EA580C">${s}点</strong></div>`).join('');
+      setTimeout(()=>{
+        const ctx = document.getElementById('scoreChart');
+        if(ctx) {
+          new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: typeLabels,
+              datasets: [{
+                label: 'スコア',
+                data: r.scores,
+                backgroundColor: ['#EA580C','#3b82f6','#ef4444','#10b981'],
+                borderColor: 'rgba(0,0,0,0)',
+                borderWidth: 0,
+                borderRadius: 6
+              }]
+            },
+            options: {
+              indexAxis: 'y',
+              responsive: true,
+              maintainAspectRatio: true,
+              plugins: { legend: { display: false } },
+              scales: { x: { max: 10, ticks: { stepSize: 2 } } }
+            }
+          });
+        }
+      },50);
       document.getElementById('result').classList.add('show');
+      renderHistoryPanel();
+    }
+    if('serviceWorker' in navigator) {
+      window.addEventListener('load',()=>{
+        navigator.serviceWorker.register('/back-pain-checker/sw.js').catch(e=>console.log('SW registration failed:',e));
+      });
     }
     </script>
 <div style="text-align:center;padding:10px 16px 14px;background:#eef2ff;border-top:2px solid #c7d2fe;margin-top:8px">

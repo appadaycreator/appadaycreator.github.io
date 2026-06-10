@@ -57,6 +57,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .btn:hover { opacity: 0.9; }
         .btn:active { transform: scale(0.98); }
         .btn:focus-visible { outline: 3px solid #7c3aed; outline-offset: 3px; }
+        .btn-secondary { background: #6366f1; width: auto; }
         input, select, textarea { width: 100%; padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 15px; margin-top: 4px; font-family: inherit; min-height: 44px; }
         input:focus, select:focus, textarea:focus { outline: none; border-color: #7c3aed; box-shadow: 0 0 0 3px #7c3aed22; }
         label { font-size: 13px; font-weight: 600; color: #555; display: block; margin-top: 14px; margin-bottom: 2px; }
@@ -65,6 +66,20 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .result-value { font-size: 36px; font-weight: 700; color: #7c3aed; text-align: center; padding: 16px 0; }
         .badge { display: inline-block; background: #7c3aed20; color: #7c3aed; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+        /* M3, M4, M10用スタイル */
+        #restore-btn { margin-bottom: 12px; }
+        #score-chart { max-width: 100%; height: auto; margin: 16px 0; }
+        .score-bar { display: flex; align-items: center; margin-bottom: 12px; font-size: 12px; }
+        .score-label { width: 120px; font-weight: 600; color: #333; }
+        .score-container { flex: 1; background: #e5e7eb; border-radius: 6px; overflow: hidden; height: 24px; margin: 0 8px; }
+        .score-fill { background: linear-gradient(to right, #7c3aed, #8b5cf6); height: 100%; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; font-size: 11px; font-weight: 600; color: white; min-width: 24px; }
+        .score-value { width: 30px; text-align: right; color: #666; font-weight: 600; }
+        #result-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+        #result-actions button { flex: 1; min-width: 120px; }
+        #history-list { margin-top: 12px; max-height: 200px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px; }
+        .history-item { padding: 8px; border-bottom: 1px solid #f1f5f9; cursor: pointer; background: #f8fafc; border-radius: 4px; margin-bottom: 4px; font-size: 12px; }
+        .history-item:hover { background: #ede9fe; }
+        .history-item:last-child { border-bottom: none; margin-bottom: 0; }
         @media (max-width: 480px) {
             .site-header { padding: 24px 16px; }
             .site-header h1 { font-size: 20px; }
@@ -137,6 +152,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <h2 style="font-size:18px;font-weight:700;margin-bottom:12px;">📷 写真・動画編集ソフト選び診断</h2>
           <p style="color:#666;font-size:14px;margin-bottom:8px;">用途・スキル・予算から最適な写真・動画編集ソフトを診断提案。</p>
           <ul style="font-size:13px;color:#94a3b8;margin:0 0 16px 16px;"><li>質問数：5問</li><li>所要時間：約1分</li></ul>
+          <div id="restore-history" style="display:none;margin-bottom:12px;padding:12px;background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;">
+            <p style="font-size:12px;font-weight:600;color:#1e40af;margin-bottom:8px;">📋 前回の診断結果</p>
+            <div id="history-list"></div>
+          </div>
           <button class="btn" onclick="startQuiz()">診断スタート →</button>
         </div>
         <div id="quiz-area" style="display:none;">
@@ -153,7 +172,17 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="card">
             <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;color:#7c3aed;"></h3>
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
+            <!-- M4: スコアグラフ表示 -->
+            <div style="margin-top:16px;padding:14px;background:#f8fafc;border-radius:8px;">
+              <p style="font-size:13px;font-weight:600;color:#374151;margin:0 0 12px;">📊 各ソフトのマッチスコア</p>
+              <div id="score-chart"></div>
+            </div>
             <div id="r-share" style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;"></div>
+            <!-- M10: エクスポート・印刷機能 -->
+            <div id="result-actions" style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+              <button class="btn btn-secondary" style="flex:1;min-width:120px;" onclick="copyResult()">📋 結果をコピー</button>
+              <button class="btn btn-secondary" style="flex:1;min-width:120px;" onclick="window.print()">🖨 印刷する</button>
+            </div>
             <button class="btn" style="margin-top:12px;" onclick="location.reload()">もう一度診断</button>
           </div>
         </div>
@@ -350,7 +379,45 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       return {idx:best, data:RESULTS[best]};
     }
     let cur=0; const ans=[];
-    document.addEventListener('DOMContentLoaded',()=>{ document.getElementById('q-total').textContent=QUESTIONS.length; });
+    // M3: localStorage 関連関数
+    function saveToHistory(result, answers) {
+      try {
+        const history = JSON.parse(localStorage.getItem('photoEditorHistory') || '[]');
+        const timestamp = new Date().toLocaleString('ja-JP');
+        history.unshift({ timestamp, result: result.data, answers });
+        if (history.length > 5) history.pop();
+        localStorage.setItem('photoEditorHistory', JSON.stringify(history));
+      } catch(e) {}
+    }
+    function loadHistory() {
+      try {
+        const history = JSON.parse(localStorage.getItem('photoEditorHistory') || '[]');
+        if (history.length > 0) {
+          const restoreDiv = document.getElementById('restore-history');
+          if (restoreDiv) {
+            restoreDiv.style.display = 'block';
+            const historyHtml = history.map((h, i) =>
+              `<div class="history-item" onclick="restoreResult(${i})">${h.timestamp} → ${h.result.title}</div>`
+            ).join('');
+            document.getElementById('history-list').innerHTML = historyHtml;
+          }
+        }
+      } catch(e) {}
+    }
+    function restoreResult(idx) {
+      try {
+        const history = JSON.parse(localStorage.getItem('photoEditorHistory') || '[]');
+        if (history[idx]) {
+          document.getElementById('quiz-start').style.display = 'none';
+          document.getElementById('quiz-area').style.display = 'none';
+          showResultFromData(history[idx].result);
+        }
+      } catch(e) {}
+    }
+    document.addEventListener('DOMContentLoaded',()=>{
+      document.getElementById('q-total').textContent=QUESTIONS.length;
+      loadHistory();
+    });
     function startQuiz(){ cur=0;ans.length=0; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); renderQ(); }
     function renderQ(){
       const q=QUESTIONS[cur];
@@ -362,10 +429,33 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('q-options').innerHTML=q.opts.map((o,i)=>`<button class="quiz-opt" onclick="answer(${i})">${o}</button>`).join('');
     }
     function answer(idx){ ans.push({idx}); cur++; if(cur>=QUESTIONS.length) showResult(); else renderQ(); }
+    // M4: スコアデータを計算（グラフ用）
+    function getScores(answers) {
+      const a=answers.map(x=>x.idx);
+      const scores=[0,0,0,0,0,0];
+      if(a[0]===0){ scores[2]+=2; scores[5]+=1; }
+      if(a[0]===1){ scores[1]+=2; scores[3]+=1; }
+      if(a[0]===2){ scores[0]+=2; scores[1]+=1; }
+      if(a[0]===3){ scores[2]+=2; scores[3]+=1; }
+      if(a[1]===0){ scores[0]+=2; scores[1]+=1; }
+      if(a[1]===2||a[1]===3){ scores[3]+=1; scores[4]+=1; }
+      if(a[2]===0){ scores[0]+=2; scores[1]+=2; scores[4]+=2; }
+      if(a[2]===1||a[2]===2){ scores[2]+=1; scores[5]+=1; }
+      if(a[2]===3){ scores[3]+=2; }
+      if(a[3]===0||a[3]===2){ scores[4]+=1; }
+      if(a[4]===0){ scores[0]+=2; }
+      if(a[4]===1){ scores[2]+=1; scores[3]+=1; }
+      if(a[4]===2){ scores[1]+=1; scores[5]+=1; }
+      if(a[4]===3){ scores[4]+=2; }
+      return scores;
+    }
     function showResult(){
       document.getElementById('quiz-area').style.display='none';
       const res=getResult(ans);
-      const r=res.data;
+      saveToHistory(res, ans);
+      showResultFromData(res.data, res.idx, ans);
+    }
+    function showResultFromData(r, resultIdx, answers) {
       document.getElementById('r-title').textContent=r.title;
       document.getElementById('r-desc').textContent=r.desc;
       const url=encodeURIComponent('https://appadaycreator.com/photo-editing-advisor/');
@@ -373,17 +463,48 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('r-share').innerHTML=
         `<a href="https://twitter.com/intent/tweet?text=${txt}&url=${url}" target="_blank" rel="noopener" style="background:#1DA1F2;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">𝕏 結果をシェア</a>`+
         `<a href="https://line.me/R/msg/text/?${txt}%0A${url}" target="_blank" rel="noopener" style="background:#00B900;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">LINE</a>`;
+      // M4: スコアグラフの表示
+      if (answers) {
+        const scores = getScores(answers);
+        let chartHtml = '';
+        RESULTS.forEach((result, idx) => {
+          const score = scores[idx];
+          const pct = Math.round((score / 10) * 100);
+          const isBest = resultIdx !== undefined && idx === resultIdx;
+          chartHtml += `
+            <div class="score-bar" style="${isBest ? 'font-weight:700;' : ''}">
+              <div class="score-label">${result.title}</div>
+              <div class="score-container">
+                <div class="score-fill" style="width:${Math.max(pct, 5)}%;${isBest ? 'background: linear-gradient(to right, #7c3aed, #6d28d9);' : ''}">${score > 2 ? score : ''}</div>
+              </div>
+              <div class="score-value">${score}</div>
+            </div>
+          `;
+        });
+        document.getElementById('score-chart').innerHTML = chartHtml;
+      }
       const details=`<div style="margin-bottom:10px;"><strong>💡 対象ユーザー</strong>: ${r.targetUsers}</div>`+
         `<div style="margin-bottom:10px;"><strong>⭐ 学習難易度</strong>: ${r.difficulty}</div>`+
         `<div><strong>📌 こんな用途に最適</strong>: ${r.useCases.join('・')}</div>`;
-      document.getElementById('r-details').innerHTML=details;
-      const others=RESULTS.filter((v,i)=>i!==res.idx).map((v,i)=>
+      if(document.getElementById('r-details')) document.getElementById('r-details').innerHTML=details;
+      const others=RESULTS.filter((v,i)=>i!==(resultIdx||0)).map((v,i)=>
         `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e5e7eb;font-size:12px;">
           <span><strong>${v.title}</strong></span>
           <span style="color:#666;">${v.price}</span>
         </div>`).join('');
-      document.getElementById('r-compare').innerHTML=`<div style="border:1px solid #e5e7eb;border-radius:8px;padding:10px;background:#fff;"><div style="font-size:12px;font-weight:600;color:#666;margin-bottom:8px;">他のおすすめソフト</div>${others}</div>`;
+      if(document.getElementById('r-compare')) document.getElementById('r-compare').innerHTML=`<div style="border:1px solid #e5e7eb;border-radius:8px;padding:10px;background:#fff;"><div style="font-size:12px;font-weight:600;color:#666;margin-bottom:8px;">他のおすすめソフト</div>${others}</div>`;
       document.getElementById('result').classList.add('show');
+    }
+    // M10: 結果をコピーする機能
+    function copyResult() {
+      const title = document.getElementById('r-title').textContent;
+      const desc = document.getElementById('r-desc').textContent;
+      const text = `【診断結果】${title}\n\n${desc}\n\n詳細: https://appadaycreator.com/photo-editing-advisor/`;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('結果をコピーしました！');
+      }).catch(err => {
+        console.error('コピー失敗:', err);
+      });
     }
     </script>
     <!-- rakuten-affiliate-block -->

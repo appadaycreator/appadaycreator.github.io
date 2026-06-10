@@ -150,20 +150,23 @@
 <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;">🗾 観光ルート最適化ツール</h2>
   <div id="error-msg" style="display:none;background:#fee;color:#c00;padding:12px;border-radius:8px;margin-bottom:12px;font-size:14px;"></div>
 
-  <label style="margin-top:0;">🚗 交通手段を選択</label>
+  <label style="margin-top:0;">🚗 交通手段を選択 <span style="color:#888;font-weight:400;font-size:12px;">※ 移動時間・費用が変わります</span></label>
   <div style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;">
-    <label style="margin:0;"><input type="radio" name="transport" value="walk" checked> 徒歩</label>
-    <label style="margin:0;"><input type="radio" name="transport" value="bike"> 自転車</label>
-    <label style="margin:0;"><input type="radio" name="transport" value="car"> 車</label>
-    <label style="margin:0;"><input type="radio" name="transport" value="train"> 公共交通</label>
+    <label style="margin:0;"><input type="radio" name="transport" value="walk" checked aria-label="徒歩"> 徒歩</label>
+    <label style="margin:0;"><input type="radio" name="transport" value="bike" aria-label="自転車"> 自転車</label>
+    <label style="margin:0;"><input type="radio" name="transport" value="car" aria-label="車"> 車</label>
+    <label style="margin:0;"><input type="radio" name="transport" value="train" aria-label="公共交通"> 公共交通</label>
   </div>
 
-  <label style="margin-top:16px;">📍 観光スポットを追加（最大10個）</label>
+  <label style="margin-top:16px;">📍 観光スポットを追加（最大10個） <span style="color:#888;font-weight:400;font-size:12px;">※ 名前と滞在時間を入力</span></label>
   <div id="spots-container" style="margin-top:8px;"></div>
-  <button type="button" class="btn" style="margin-top:12px;background:#666;width:100%;padding:12px;font-size:14px;" onclick="addSpot()">+ スポット追加</button>
+  <div style="display:flex;gap:8px;margin-top:12px;">
+    <button type="button" class="btn" style="margin-top:0;background:#666;flex:1;padding:12px;font-size:14px;" onclick="addSpot()">+ スポット追加</button>
+    <button type="button" class="btn" style="margin-top:0;background:#9ca3af;flex:1;padding:12px;font-size:14px;" onclick="clearData()">🗑️ データクリア</button>
+  </div>
 
-  <label style="margin-top:16px;">⏰ 開始時刻（オプション）</label>
-  <input type="time" id="startTime" placeholder="09:00">
+  <label style="margin-top:16px;">⏰ 開始時刻（オプション） <span style="color:#888;font-weight:400;font-size:12px;">※ 指定すると終了時刻も計算します</span></label>
+  <input type="time" id="startTime" placeholder="09:00" aria-label="開始時刻（HH:MM形式）">
 
   <button class="btn" style="margin-top:20px;" onclick="calculate()">観光ルートを計算</button>
   <div class="result" id="result" style="margin-top:16px;">
@@ -288,26 +291,37 @@
 const SPOTS = [];
 const TRANSPORT_SPEEDS = { walk:4, bike:15, car:40, train:20 };
 const TRANSPORT_COSTS = { walk:0, bike:0, car:15, train:200 };
+const STORAGE_KEY = 'sightseeing-route-planner-data';
 
 function addSpot() {
   if(SPOTS.length >= 10) { showError('最大10個までです'); return; }
   const id = 'spot-' + Date.now();
   SPOTS.push({id, name:'', time:30});
   renderSpots();
+  saveData();
 }
 function removeSpot(id) {
   SPOTS.splice(SPOTS.findIndex(s=>s.id===id), 1);
   renderSpots();
+  saveData();
 }
 function updateSpot(id, field, val) {
   const s = SPOTS.find(s=>s.id===id);
-  if(s) s[field] = field==='time'?Math.max(0,parseInt(val)||0):val;
+  if(s) {
+    if(field==='time') {
+      const num = parseInt(val)||0;
+      s.time = Math.min(240, Math.max(0, num));
+    } else {
+      s.name = val;
+    }
+  }
+  saveData();
 }
 function renderSpots() {
   const html = SPOTS.map(s=>`
     <div style="display:grid;grid-template-columns:1fr 100px 50px;gap:8px;margin-bottom:8px;">
-      <input type="text" placeholder="京都駅・伏見稲荷..." value="\${s.name}" onchange="updateSpot('\${s.id}','name',this.value)" style="margin-top:0;">
-      <input type="number" placeholder="30" min="0" value="\${s.time}" onchange="updateSpot('\${s.id}','time',this.value)" style="margin-top:0;">
+      <input type="text" placeholder="京都駅・伏見稲荷大社" value="\${s.name}" onchange="updateSpot('\${s.id}','name',this.value)" aria-label="観光スポット名" style="margin-top:0;">
+      <input type="number" placeholder="30" min="0" max="240" value="\${s.time}" onchange="updateSpot('\${s.id}','time',this.value)" aria-label="滞在時間（分）" style="margin-top:0;">
       <button type="button" class="btn" style="background:#ef4444;padding:8px;margin-top:0;" onclick="removeSpot('\${s.id}')">削除</button>
     </div>
   `).join('');
@@ -326,7 +340,12 @@ function formatTime(minutes) {
 }
 function calculate() {
   if(SPOTS.length === 0) { showError('最低1つのスポットを追加してください'); return; }
-  if(SPOTS.some(s=>!s.name)) { showError('スポット名を入力してください'); return; }
+
+  const emptyIdx = SPOTS.findIndex(s=>!s.name);
+  if(emptyIdx !== -1) { showError(`スポット${emptyIdx+1}の名前を入力してください`); return; }
+
+  const badTimeIdx = SPOTS.findIndex(s=>s.time<0 || s.time>240);
+  if(badTimeIdx !== -1) { showError(`スポット${badTimeIdx+1}の滞在時間は0～240分の範囲で入力してください`); return; }
 
   const transport = document.querySelector('input[name="transport"]:checked').value;
   const totalStayTime = SPOTS.reduce((s,sp)=>s+sp.time, 0);
@@ -354,12 +373,72 @@ function calculate() {
   document.getElementById('total-time').textContent = formatTime(totalTime) +
     (endTimeStr ? ' (終了: '+endTimeStr+')' : '');
   document.getElementById('result').classList.add('show');
+  saveData();
 }
 function clearResults() {
   document.getElementById('result').classList.remove('show');
 }
-document.addEventListener('DOMContentLoaded',()=>{
+
+function saveData() {
+  const data = {
+    spots: SPOTS,
+    transport: document.querySelector('input[name="transport"]:checked').value,
+    startTime: document.getElementById('startTime').value
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function loadData() {
+  const data = localStorage.getItem(STORAGE_KEY);
+  if(!data) return;
+  try {
+    const parsed = JSON.parse(data);
+    if(parsed.spots && Array.isArray(parsed.spots)) {
+      SPOTS.splice(0, SPOTS.length, ...parsed.spots);
+    }
+    if(parsed.transport) {
+      const radio = document.querySelector(`input[name="transport"][value="${parsed.transport}"]`);
+      if(radio) radio.checked = true;
+    }
+    if(parsed.startTime) {
+      document.getElementById('startTime').value = parsed.startTime;
+    }
+    renderSpots();
+    if(SPOTS.length > 0) {
+      showInfo('前回のデータを復元しました');
+    }
+  } catch(e) {
+    console.error('データ復元エラー:', e);
+  }
+}
+
+function clearData() {
+  if(!confirm('すべてのデータを削除しますか？')) return;
+  localStorage.removeItem(STORAGE_KEY);
+  SPOTS.length = 0;
+  document.querySelector('input[name="transport"]').checked = true;
+  document.getElementById('startTime').value = '';
   renderSpots();
+  document.getElementById('result').classList.remove('show');
+  showInfo('データを削除しました');
+}
+
+function showInfo(msg) {
+  const el = document.getElementById('error-msg');
+  el.textContent = msg;
+  el.style.display = 'block';
+  el.style.background = '#f0fdf4';
+  el.style.color = '#166534';
+  setTimeout(()=>el.style.display='none', 2000);
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  loadData();
+  // 交通手段・開始時刻の変更も保存
+  document.querySelectorAll('input[name="transport"]').forEach(el => {
+    el.addEventListener('change', saveData);
+  });
+  document.getElementById('startTime').addEventListener('change', saveData);
 });
     </script>
 <div style="text-align:center;padding:10px 16px 14px;background:#eef2ff;border-top:2px solid #c7d2fe;margin-top:8px">

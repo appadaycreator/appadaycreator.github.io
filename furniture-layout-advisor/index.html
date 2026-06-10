@@ -35,6 +35,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -225,7 +226,22 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <p id="r-desc" style="font-size:14px;color:#475569;line-height:1.7;"></p>
             <div class="tip-box" id="r-tips"></div>
             <div id="r-points" style="margin-top:12px;"></div>
-            <button class="btn" style="margin-top:16px;" onclick="location.reload()">もう一度診断する</button>
+            <div style="margin-top:20px;position:relative;width:100%;max-width:300px;margin-left:auto;margin-right:auto;">
+              <canvas id="scoreChart" style="display:none;"></canvas>
+              <div id="chartContainer" style="display:none;">
+                <h4 style="text-align:center;font-size:13px;font-weight:600;color:#374151;margin-bottom:8px;">診断スコア</h4>
+                <canvas id="scoreChart"></canvas>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:16px;flex-direction:column;">
+              <button class="btn" style="margin:0;" onclick="printResult()">🖨️ 結果を印刷</button>
+              <button class="btn" style="margin:0;background:#4f46e5;" onclick="downloadResult()">📥 結果をダウンロード</button>
+              <button class="btn" style="margin:0;background:#666;" onclick="location.reload()">もう一度診断する</button>
+            </div>
+          </div>
+          <div class="card" id="historyCard" style="display:none;margin-top:16px;">
+            <h3 style="font-size:16px;font-weight:700;color:#374151;margin-bottom:12px;">📋 診断履歴（直近3件）</h3>
+            <div id="historyList" style="display:flex;flex-direction:column;gap:8px;"></div>
           </div>
         </div>
 
@@ -363,6 +379,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     };
 
     let cur=0, typeScore={minimal:0, cozy:0, work:0, storage:0};
+    let currentResult = null;
+    let chart = null;
 
     function startQuiz() {
       cur=0; typeScore={minimal:0, cozy:0, work:0, storage:0};
@@ -384,7 +402,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     }
 
     function answer(idx) {
-      // 質問ごとにスコアを加算（部屋・採光・用途・生活・スタイル・課題 に対応）
       const maps = [
         ['minimal','cozy','work','storage'],
         ['cozy','work','minimal','storage'],
@@ -404,12 +421,116 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('quiz-area').style.display='none';
       const best = Object.entries(typeScore).sort((a,b)=>b[1]-a[1])[0][0];
       const r = RESULTS[best];
+      currentResult = {type: best, scores: typeScore, result: r, timestamp: new Date().toLocaleString('ja-JP')};
       document.getElementById('r-emoji').textContent  = r.emoji;
       document.getElementById('r-title').textContent  = r.title;
       document.getElementById('r-desc').textContent   = r.desc;
       document.getElementById('r-tips').textContent   = '💡 配置のコツ: ' + r.tips;
       document.getElementById('r-points').innerHTML   = r.points.map(p=>`<p class="r-point">${p}</p>`).join('');
       document.getElementById('result').classList.add('show');
+
+      saveToHistory(currentResult);
+      renderChart(typeScore);
+      displayHistory();
+    }
+
+    function saveToHistory(result) {
+      let history = JSON.parse(localStorage.getItem('furnitureHistory') || '[]');
+      history.unshift(result);
+      if (history.length > 3) history.pop();
+      localStorage.setItem('furnitureHistory', JSON.stringify(history));
+    }
+
+    function displayHistory() {
+      const history = JSON.parse(localStorage.getItem('furnitureHistory') || '[]');
+      if (history.length <= 1) return;
+
+      const historyCard = document.getElementById('historyCard');
+      const historyList = document.getElementById('historyList');
+      historyList.innerHTML = history.slice(1).map((h, i) => `
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;cursor:pointer;transition:0.2s;" onclick="viewHistoryItem(${i+1})">
+          <div style="font-weight:600;color:#374151;font-size:13px;">
+            ${h.result.emoji} ${h.result.title}
+          </div>
+          <div style="font-size:12px;color:#6b7280;margin-top:4px;">${h.timestamp}</div>
+        </div>
+      `).join('');
+      historyCard.style.display = 'block';
+    }
+
+    function viewHistoryItem(idx) {
+      const history = JSON.parse(localStorage.getItem('furnitureHistory') || '[]');
+      const h = history[idx];
+      currentResult = h;
+      renderChart(h.scores);
+      alert(`${h.timestamp}\n${h.result.title}\n\nスコア: ${JSON.stringify(h.scores)}`);
+    }
+
+    function renderChart(scores) {
+      const ctx = document.getElementById('scoreChart');
+      if (!ctx) return;
+
+      const container = document.getElementById('chartContainer');
+      container.style.display = 'block';
+
+      if (chart) chart.destroy();
+
+      chart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['ミニマル', 'くつろぎ', '仕事対応', '収納重視'],
+          datasets: [{
+            data: [scores.minimal, scores.cozy, scores.work, scores.storage],
+            backgroundColor: ['#D97706', '#8B5CF6', '#2563EB', '#059669'],
+            borderColor: '#fff',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {font: {size: 12}}
+            }
+          }
+        }
+      });
+    }
+
+    function printResult() {
+      window.print();
+    }
+
+    function downloadResult() {
+      if (!currentResult) return;
+      const {type, result, timestamp} = currentResult;
+      const text = `【家具配置アドバイザー 診断結果】
+診断日時: ${timestamp}
+
+【診断結果】
+${result.emoji} ${result.title}
+
+【説明】
+${result.desc}
+
+【配置のコツ】
+${result.tips}
+
+【ポイント】
+${result.points.join('\n')}
+
+---
+詳しくは: https://appadaycreator.com/furniture-layout-advisor/`;
+
+      const blob = new Blob([text], {type: 'text/plain; charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `家具配置診断_${timestamp.replace(/[^\w]/g, '_')}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
     }
     </script>
 

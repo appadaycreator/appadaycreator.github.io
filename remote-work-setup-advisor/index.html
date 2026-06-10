@@ -181,8 +181,18 @@
     <div class="result" id="result">
           <div class="card">
             <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;color:#6366F1;"></h3>
+            <canvas id="result-chart" style="max-width:300px;margin:16px auto;display:block;"></canvas>
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
+            <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+              <button class="btn" style="flex:1;margin:0;font-size:13px;padding:10px;background:#6366F1;" onclick="exportResult()" aria-label="結果をコピー">📋 コピー</button>
+              <button class="btn" style="flex:1;margin:0;font-size:13px;padding:10px;background:#8B5CF6;" onclick="printResult()" aria-label="印刷">🖨️ 印刷</button>
+            </div>
             <button class="btn" style="margin-top:16px;" onclick="location.reload()" aria-label="もう一度診断">もう一度診断</button>
+          </div>
+          <div class="card" style="margin-top:8px;background:#f8fafc;">
+            <h3 style="font-size:14px;font-weight:600;margin-bottom:8px;color:#374151;">📜 診断履歴</h3>
+            <div id="history-panel" style="font-size:13px;"></div>
+            <button id="clear-history-btn" class="btn" style="margin-top:12px;background:#d9d9e3;color:#333;display:none;" onclick="clearHistory()">履歴をクリア</button>
           </div>
         </div>
 
@@ -294,6 +304,7 @@
         <p style="margin-top:6px;">© 2026 AppADayCreator. All services are free. | <a href="/tb-corp/?utm_source=appadaycreator&utm_medium=footer&utm_campaign=b2b_cta" onclick="gtag('event','b2b_cta_click',{source_page:location.pathname,cta_position:'footer',tool_category:'portal',destination:'tech-and-brace'})" style="color:white;opacity:0.75;font-size:11px;">Web制作・DX相談 → Tech&amp;Brace</a></p>
     </footer>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script>
     // ★ここだけ実装（約15行）★
     const QUESTIONS = [
@@ -304,10 +315,10 @@
       { text:'Q5. テレワークの作業内容は？', opts:['主にテキスト作業（文書・メール・Slack）','ビデオ会議が多い（Zoom・Teams）','プログラミング・デザインなどクリエイティブ','データ分析・表計算・マルチタスク'] }
     ];
     const RESULTS = [
-      { title:'🪑 まずはチェアへの投資を — 腰痛改善が最優先', desc:'テレワーク環境の最重要投資はチェアです。一日8時間座るなら、アーロンチェア・エルゴヒューマン・オカムラなどのエルゴノミクスチェアへの投資（5〜15万円）が最もQOLを上げます。次のステップとして、ノートPCスタンド+外部キーボード・マウスセット（1〜3万円）で首・肩の負担を軽減しましょう。足元にフットレストを置くだけでも腰痛改善効果があります。' },
-      { title:'🖥️ 外部モニター追加が最優先 — 目の疲れ・生産性を大幅改善', desc:'外部モニター1台追加が最もコスパの高い投資です。27インチ4Kモニター（2〜5万円）1枚で作業効率が20〜30%向上するという報告があります。デュアルモニターにするとさらに◎。ノートPC台+外部キーボード・マウスで「首が下を向かない」姿勢を作ることも重要です。ブルーライトカットフィルターの導入も検討してください。' },
-      { title:'📹 ウェブカメラ・マイク・照明を整備 — オンライン会議の質を上げる', desc:'ビデオ会議の品質改善にはウェブカメラ（Logicool C920/C922: 1〜2万円）、コンデンサーマイク（Blue Yeti/AT2020: 1〜3万円）、リングライト（3,000〜8,000円）の3点セットがおすすめ。背景にバーチャル背景またはロールスクリーンを使うと、より清潔感が出ます。音質改善はカメラ改善より相手への印象に大きく影響します。' },
-      { title:'🚀 ネット回線・ルーター強化 — 速度・安定性を根本解決', desc:'テレワークで最もストレスになる通信環境を改善しましょう。Wi-Fi 6対応ルーター（TP-Link Archer AX73など: 1〜3万円）への更新でZoom・大容量ファイル転送が安定します。光回線+有線LANが最強構成。ノートPCを有線接続するためのUSB-Cドック（5,000〜2万円）も合わせて揃えると理想的です。' }
+      { title:'🪑 まずはチェアへの投資を — 腰痛改善が最優先', desc:'テレワーク環境の最重要投資はチェアです。一日8時間座るなら、アーロンチェア・エルゴヒューマン・オカムラなどのエルゴノミクスチェアへの投資（5〜15万円）が最もQOLを上げます。次のステップとして、ノートPCスタンド+外部キーボード・マウスセット（1〜3万円）で首・肩の負担を軽減しましょう。足元にフットレストを置くだけでも腰痛改善効果があります。', scores:[8,3,2,1] },
+      { title:'🖥️ 外部モニター追加が最優先 — 目の疲れ・生産性を大幅改善', desc:'外部モニター1台追加が最もコスパの高い投資です。27インチ4Kモニター（2〜5万円）1枚で作業効率が20〜30%向上するという報告があります。デュアルモニターにするとさらに◎。ノートPC台+外部キーボード・マウスで「首が下を向かない」姿勢を作ることも重要です。ブルーライトカットフィルターの導入も検討してください。', scores:[2,9,2,1] },
+      { title:'📹 ウェブカメラ・マイク・照明を整備 — オンライン会議の質を上げる', desc:'ビデオ会議の品質改善にはウェブカメラ（Logicool C920/C922: 1〜2万円）、コンデンサーマイク（Blue Yeti/AT2020: 1〜3万円）、リングライト（3,000〜8,000円）の3点セットがおすすめ。背景にバーチャル背景またはロールスクリーンを使うと、より清潔感が出ます。音質改善はカメラ改善より相手への印象に大きく影響します。', scores:[2,2,9,2] },
+      { title:'🚀 ネット回線・ルーター強化 — 速度・安定性を根本解決', desc:'テレワークで最もストレスになる通信環境を改善しましょう。Wi-Fi 6対応ルーター（TP-Link Archer AX73など: 1〜3万円）への更新でZoom・大容量ファイル転送が安定します。光回線+有線LANが最強構成。ノートPCを有線接続するためのUSB-Cドック（5,000〜2万円）も合わせて揃えると理想的です。', scores:[2,3,2,8] }
     ];
     function getResult(answers) {
       const scores = [0,0,0,0];
@@ -325,9 +336,40 @@
       const best = scores.indexOf(Math.max(...scores));
       return RESULTS[best];
     }
+    // ストレージ操作関数
+    function saveHistory(result, answers) {
+      const history = JSON.parse(localStorage.getItem('quiz_history') || '[]');
+      const entry = { date: new Date().toISOString(), result, answers };
+      history.unshift(entry);
+      if(history.length > 5) history.pop();
+      localStorage.setItem('quiz_history', JSON.stringify(history));
+    }
+    function getHistory() {
+      return JSON.parse(localStorage.getItem('quiz_history') || '[]');
+    }
+    function clearHistory() {
+      localStorage.removeItem('quiz_history');
+      renderHistoryPanel();
+    }
+    function renderHistoryPanel() {
+      const history = getHistory();
+      const panel = document.getElementById('history-panel');
+      if(!panel) return;
+      panel.innerHTML = history.length === 0 ? '<p style="color:#999;font-size:13px;margin:0;">まだ診断履歴がありません</p>' :
+        '<div style="font-size:12px;color:#666;margin-bottom:12px;"><strong>過去の診断結果：</strong></div>' + history.map((e,i) => {
+          const d = new Date(e.date);
+          const fmt = `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+          return `<div style="padding:8px;background:#f8fafc;border-radius:6px;margin-bottom:8px;border-left:3px solid #6366F1"><p style="margin:0 0 4px;font-weight:600;color:#374151;font-size:12px">${e.result.title}</p><p style="margin:0;color:#666;font-size:11px">${fmt}</p></div>`;
+        }).join('');
+      const btn = document.getElementById('clear-history-btn');
+      if(btn && history.length > 0) btn.style.display = 'block';
+    }
     // ★以下変更不要★
-    const BTN='#6366F1'; let cur=0; const ans=[];
-    document.addEventListener('DOMContentLoaded',()=>{ document.getElementById('q-total').textContent=QUESTIONS.length; });
+    const BTN='#6366F1'; let cur=0; const ans=[]; let chart=null;
+    document.addEventListener('DOMContentLoaded',()=>{
+      document.getElementById('q-total').textContent=QUESTIONS.length;
+      renderHistoryPanel();
+    });
     function startQuiz(){ cur=0;ans.length=0; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); renderQ(); }
     function renderQ(){
       const q=QUESTIONS[cur];
@@ -340,9 +382,45 @@
     function showResult(){
       document.getElementById('quiz-area').style.display='none';
       const r=getResult(ans);
+      saveHistory(r, ans);
       document.getElementById('r-title').textContent=r.title;
       document.getElementById('r-desc').textContent=r.desc;
+      renderChart(r.scores);
       document.getElementById('result').classList.add('show');
+      renderHistoryPanel();
+    }
+    function renderChart(scores) {
+      const canvas = document.getElementById('result-chart');
+      if(!canvas) return;
+      if(chart) chart.destroy();
+      chart = new Chart(canvas, {
+        type: 'doughnut',
+        data: {
+          labels: ['チェア重視','モニター重視','ビデオ会議重視','ネット重視'],
+          datasets: [{
+            data: scores,
+            backgroundColor: ['#6366F1','#8B5CF6','#D946EF','#EC4899'],
+            borderColor: '#fff',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'bottom', labels: { font: { size: 12 }, boxWidth: 12, padding: 10 } },
+            tooltip: { bodyFont: { size: 12 }, padding: 8 }
+          }
+        }
+      });
+    }
+    function exportResult() {
+      const r = document.getElementById('r-title').textContent;
+      const d = document.getElementById('r-desc').textContent;
+      const text = `テレワーク環境整備診断結果\n日時: ${new Date().toLocaleString('ja-JP')}\n\n${r}\n\n${d}`;
+      navigator.clipboard.writeText(text).then(() => alert('結果をコピーしました'));
+    }
+    function printResult() {
+      window.print();
     }
     </script>
 <div style="text-align:center;padding:10px 16px 14px;background:#eef2ff;border-top:2px solid #c7d2fe;margin-top:8px">

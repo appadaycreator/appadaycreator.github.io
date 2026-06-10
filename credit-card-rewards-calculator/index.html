@@ -40,6 +40,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -179,8 +180,28 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
           <div class="result" id="result" style="margin-top:16px;">
             <div class="card" style="padding:16px;">
+              <!-- Export/Print buttons -->
+              <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+                <button class="btn" style="flex:1;min-width:100px;background:#10b981;font-size:14px;padding:10px;" onclick="copyToClipboard()" title="結果をコピー">📋 コピー</button>
+                <button class="btn" style="flex:1;min-width:100px;background:#8b5cf6;font-size:14px;padding:10px;" onclick="exportCSV()" title="CSVでダウンロード">📊 CSV</button>
+                <button class="btn" style="flex:1;min-width:100px;background:#f59e0b;font-size:14px;padding:10px;" onclick="window.print()" title="このページを印刷">🖨️ 印刷</button>
+              </div>
+
               <div id="output"></div>
               <div id="compare-table"></div>
+
+              <!-- M4: Chart.js visualization -->
+              <div id="charts-container" style="margin-top:16px;display:none;">
+                <div style="margin-bottom:20px;">
+                  <h3 style="font-size:13px;font-weight:700;color:#374151;margin-bottom:10px;">📈 カード比較チャート</h3>
+                  <canvas id="comparisonChart" style="max-height:300px;"></canvas>
+                </div>
+                <div id="category-chart-container" style="display:none;">
+                  <h3 style="font-size:13px;font-weight:700;color:#374151;margin-bottom:10px;">🥧 カテゴリ別ポイント分布</h3>
+                  <canvas id="categoryChart" style="max-height:300px;"></canvas>
+                </div>
+              </div>
+
               <p id="detail" style="color:#666;font-size:13px;margin-top:8px;"></p>
             </div>
           </div>
@@ -404,6 +425,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     ];
 
     let currentMode = 'simple';
+    let comparisonChartInstance = null;
+    let categoryChartInstance = null;
 
     function switchMode(mode) {
       currentMode = mode;
@@ -506,7 +529,180 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('compare-table').innerHTML = html;
       document.getElementById('detail').textContent = '';
       document.getElementById('result').classList.add('show');
+
+      // M4: Chart.js visualization
+      createComparisonChart(results, monthly);
+      if (currentMode === 'detail') {
+        createCategoryChart(cats, results[0].card);
+      }
+
       setTimeout(() => document.getElementById('result').scrollIntoView({behavior:'smooth', block:'nearest'}), 80);
+    }
+
+    function createComparisonChart(results, monthly) {
+      const canvas = document.getElementById('comparisonChart');
+      if (!canvas) return;
+
+      if (comparisonChartInstance) comparisonChartInstance.destroy();
+
+      const chartData = {
+        labels: results.map(r => r.card.name),
+        datasets: [{
+          label: '年間獲得ポイント',
+          data: results.map(r => r.yearly),
+          backgroundColor: results.map((_, i) => i === 0 ? '#6366F1' : '#a5b4fc'),
+          borderColor: '#6366F1',
+          borderWidth: 1,
+        }]
+      };
+
+      comparisonChartInstance = new Chart(canvas, {
+        type: 'bar',
+        data: chartData,
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          indexAxis: 'y',
+          plugins: {
+            legend: { display: true, position: 'bottom' },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => `${ctx.parsed.x.toLocaleString()}pt/年`
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: {
+                callback: (v) => v.toLocaleString()
+              }
+            }
+          }
+        }
+      });
+
+      document.getElementById('charts-container').style.display = 'block';
+    }
+
+    function createCategoryChart(cats, card) {
+      const container = document.getElementById('category-chart-container');
+      const canvas = document.getElementById('categoryChart');
+      if (!canvas || !container) return;
+
+      const categoryData = CATS.map(cat => {
+        const spend = parseInt(cats[cat.id] || 0, 10);
+        const rate = card[cat.id] ?? card.base;
+        return Math.floor(spend * rate / 100) * 12;
+      }).filter(v => v > 0);
+
+      const categoryLabels = CATS.map(cat => {
+        const spend = parseInt(cats[cat.id] || 0, 10);
+        return spend > 0 ? cat.label : null;
+      }).filter(v => v);
+
+      if (categoryData.length === 0) {
+        container.style.display = 'none';
+        return;
+      }
+
+      if (categoryChartInstance) categoryChartInstance.destroy();
+
+      const chartData = {
+        labels: categoryLabels,
+        datasets: [{
+          data: categoryData,
+          backgroundColor: ['#6366F1', '#818cf8', '#a5b4fc', '#c7d2fe', '#e0e7ff', '#f3f4f6'],
+          borderColor: '#fff',
+          borderWidth: 2,
+        }]
+      };
+
+      categoryChartInstance = new Chart(canvas, {
+        type: 'doughnut',
+        data: chartData,
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: true, position: 'bottom' },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => `${ctx.label}: ${ctx.parsed.toLocaleString()}pt/年`
+              }
+            }
+          }
+        }
+      });
+
+      container.style.display = 'block';
+    }
+
+    // M10: Export/Print functions
+    function copyToClipboard() {
+      const monthly = currentMode === 'simple' ? parseFloat(document.getElementById('monthly')?.value) || 0 :
+                      CATS.reduce((s, cat) => s + (parseInt(document.getElementById('cat-'+cat.id)?.value||0, 10)), 0);
+      const compareTable = document.getElementById('compare-table');
+      if (!compareTable.innerHTML) {
+        alert('先に計算を実行してください');
+        return;
+      }
+
+      const text = `クレカ還元率・ポイント計算 結果\n\n月間支出: ¥${monthly.toLocaleString()}\n\n` +
+                   Array.from(document.querySelectorAll('[class*="chart-bar"]')).map((el, i) => {
+                     const name = el.previousElementSibling?.textContent || '';
+                     const pts = el.nextElementSibling?.textContent || '';
+                     return `${name.replace('🏆', '').trim()}: ${pts}`;
+                   }).join('\n');
+
+      navigator.clipboard.writeText(text).then(() => {
+        alert('結果をコピーしました');
+      }).catch(err => {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        alert('結果をコピーしました');
+      });
+    }
+
+    function exportCSV() {
+      const monthly = currentMode === 'simple' ? parseFloat(document.getElementById('monthly')?.value) || 0 :
+                      CATS.reduce((s, cat) => s + (parseInt(document.getElementById('cat-'+cat.id)?.value||0, 10)), 0);
+      const rate = currentMode === 'simple' ? parseFloat(document.getElementById('rate')?.value) || 0 : 'カテゴリ別';
+
+      const rows = ['クレカ還元率・ポイント計算結果'];
+      rows.push('');
+      rows.push('計算条件');
+      rows.push(`月間支出額,¥${monthly.toLocaleString()}`);
+      rows.push(`還元率,${rate}%`);
+      rows.push('');
+      rows.push('カード別年間ポイント比較');
+      rows.push('カード名,年間獲得ポイント');
+
+      const cardRows = Array.from(document.querySelectorAll('[style*="margin-bottom:12px"]')).map(el => {
+        const nameEl = el.querySelector('[style*="font-weight"]');
+        const ptsEl = el.querySelector('[style*="white-space"]');
+        const name = nameEl?.textContent?.replace(/🏆\s*/, '') || '';
+        const pts = ptsEl?.textContent?.replace('pt/年', '').trim() || '';
+        return `${name.trim()},${pts}`;
+      });
+
+      rows.push(...cardRows);
+      rows.push('');
+      rows.push('出力日時,' + new Date().toLocaleString('ja-JP'));
+
+      const csv = rows.join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `credit-card-calc-${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
 
     document.addEventListener('DOMContentLoaded', () => {

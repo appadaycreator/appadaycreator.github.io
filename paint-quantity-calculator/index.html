@@ -189,12 +189,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
             <div>
-              <label for="width">壁の幅（m）</label>
-              <input type="number" id="width" value="3.0" min="0.1" step="0.1">
+              <label for="width">壁の幅（m）<span style="color:#999;font-size:12px;">※単位はメートル</span></label>
+              <input type="number" id="width" value="3.0" min="0.1" step="0.1" placeholder="例）3.0" aria-label="壁の幅をメートル単位で入力">
+              <p style="font-size:12px;color:#666;margin:4px 0 0;">塗装する壁の横幅を入力してください</p>
             </div>
             <div>
-              <label for="height">壁の高さ（m）</label>
-              <input type="number" id="height" value="2.5" min="0.1" step="0.1">
+              <label for="height">壁の高さ（m）<span style="color:#999;font-size:12px;">※単位はメートル</span></label>
+              <input type="number" id="height" value="2.5" min="0.1" step="0.1" placeholder="例）2.5" aria-label="壁の高さをメートル単位で入力">
+              <p style="font-size:12px;color:#666;margin:4px 0 0;">塗装する壁の高さを入力してください</p>
             </div>
           </div>
 
@@ -225,12 +227,19 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <option value="16">16L缶</option>
           </select>
 
-          <button class="btn" style="margin-top:20px;" onclick="calculate()">必要量を計算する</button>
+          <div style="display:flex;gap:8px;margin-top:20px;flex-wrap:wrap;">
+            <button class="btn" style="flex:1;min-width:200px;" onclick="calculate()">必要量を計算する</button>
+            <button class="btn" style="background:#6b7280;flex:0 1 auto;min-width:100px;" onclick="clearHistory()" title="入力値をリセット">入力値をリセット</button>
+          </div>
 
           <div class="result" id="result" tabindex="-1" style="margin-top:16px;outline:none;">
             <div style="background:linear-gradient(135deg,#f5f3ff,#f0f9ff);border-radius:12px;padding:20px;border:1px solid #e9d5ff;">
               <div id="output" style="font-size:3rem;font-weight:700;color:#7c3aed;text-align:center;padding:8px 0;"></div>
               <div id="breakdown" style="margin-top:12px;display:flex;flex-direction:column;gap:8px;"></div>
+              <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;justify-content:center;border-top:1px solid #e2e8f0;padding-top:16px;">
+                <button style="background:#f0f9ff;color:#7c3aed;border:1px solid #7c3aed;padding:8px 16px;border-radius:6px;font-size:14px;cursor:pointer;min-height:40px;" onclick="copyToClipboard()" title="結果をクリップボードにコピー">📋 結果をコピー</button>
+                <button style="background:#f0f9ff;color:#7c3aed;border:1px solid #7c3aed;padding:8px 16px;border-radius:6px;font-size:14px;cursor:pointer;min-height:40px;" onclick="printResult()" title="結果を印刷">🖨️ 印刷</button>
+              </div>
             </div>
           </div>
         </div>
@@ -413,13 +422,115 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       setTimeout(() => resultEl.focus(), 600);
     }
 
+    // localStorage を使用した入力値の自動保存・復元（M3）
+    function saveToLocalStorage() {
+      const data = {
+        width: document.getElementById('width').value,
+        height: document.getElementById('height').value,
+        paintType: document.getElementById('paintType').value,
+        coats: document.getElementById('coats').value,
+        canSize: document.getElementById('canSize').value,
+      };
+      localStorage.setItem('paintCalcData', JSON.stringify(data));
+    }
+
+    function loadFromLocalStorage() {
+      const saved = localStorage.getItem('paintCalcData');
+      if (saved) {
+        try {
+          const data = JSON.parse(saved);
+          document.getElementById('width').value = data.width || '3.0';
+          document.getElementById('height').value = data.height || '2.5';
+          document.getElementById('paintType').value = data.paintType || 'water';
+          document.getElementById('coats').value = data.coats || '2';
+          document.getElementById('canSize').value = data.canSize || '4';
+        } catch (e) {
+          console.error('localStorage 復元エラー:', e);
+        }
+      }
+    }
+
+    function clearHistory() {
+      if (confirm('入力値をリセットしますか？')) {
+        document.getElementById('width').value = '3.0';
+        document.getElementById('height').value = '2.5';
+        document.getElementById('paintType').value = 'water';
+        document.getElementById('coats').value = '2';
+        document.getElementById('canSize').value = '4';
+        localStorage.removeItem('paintCalcData');
+        calculate();
+      }
+    }
+
+    // クリップボードにコピー（M10）
+    function copyToClipboard() {
+      const width = document.getElementById('width').value;
+      const height = document.getElementById('height').value;
+      const paintType = document.getElementById('paintType').value;
+      const coats = document.getElementById('coats').value;
+      const canSize = document.getElementById('canSize').value;
+
+      const output = document.getElementById('output').textContent;
+      const paint = PAINT_DATA[paintType];
+      const area = parseFloat(width) * parseFloat(height);
+      const needed = (area * parseInt(coats)) / paint.coverage;
+      const cans = Math.ceil(needed / parseFloat(canSize));
+      const cost = Math.ceil(needed * paint.unitPrice);
+
+      const text = `【ペンキ・塗料必要量計算 結果】\n\n` +
+                   `塗装面積: ${area.toFixed(2)} ㎡\n` +
+                   `塗料の種類: ${paint.label}\n` +
+                   `塗布回数: ${coats}回\n` +
+                   `必要塗料量: ${needed.toFixed(1)}L\n` +
+                   `必要缶数: ${cans}缶 (${canSize}L缶)\n` +
+                   `概算費用: ¥${cost.toLocaleString()}\n\n` +
+                   `https://appadaycreator.com/paint-quantity-calculator/`;
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          alert('結果をコピーしました！');
+        }).catch(() => {
+          fallbackCopy(text);
+        });
+      } else {
+        fallbackCopy(text);
+      }
+    }
+
+    function fallbackCopy(text) {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        alert('結果をコピーしました！');
+      } catch (err) {
+        alert('コピーに失敗しました。ブラウザがコピー機能に対応していません。');
+      }
+      document.body.removeChild(textarea);
+    }
+
+    // 印刷（M10）
+    function printResult() {
+      window.print();
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
+      loadFromLocalStorage();
+
       const fields = ['width', 'height', 'paintType', 'coats', 'canSize'];
       fields.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
-          el.addEventListener('change', calculate);
-          el.addEventListener('input', calculate);
+          el.addEventListener('change', () => {
+            calculate();
+            saveToLocalStorage();
+          });
+          el.addEventListener('input', () => {
+            calculate();
+            saveToLocalStorage();
+          });
         }
       });
       ['width','height'].forEach(id => {

@@ -15,7 +15,12 @@
     <meta name="twitter:card" content="summary">
     <link rel="canonical" href="https://appadaycreator.com/muscle-pain-checker/">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💪</text></svg>">
-    <meta name="theme-color" content="#7c3aed">
+    <meta name="theme-color" content="#6366F1">
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="筋肉痛チェック">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='40' fill='%236366F1'/><text x='50%' y='50%' font-size='100' text-anchor='middle' dy='.3em' fill='white'>💪</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
@@ -64,6 +69,8 @@
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "item": {"@id": "https://appadaycreator.com/", "name": "AppADayCreator"}}, {"@type": "ListItem", "position": 2, "item": {"@id": "https://appadaycreator.com/muscle-pain-checker/", "name": "筋肉痛・部位別ケアアドバイザー"}}]}</script>
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-ZDPNYD2875"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-ZDPNYD2875',{send_page_view:false});</script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>if('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').catch(e => console.log('SW registration failed:', e)); }</script>
 </head>
 <body>
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -176,8 +183,24 @@
     </div>
     <div class="result" id="result">
           <div class="card">
+            <div style="text-align:center;margin-bottom:20px;">
+              <div style="font-size:13px;color:#666;margin-bottom:8px;">診断スコア</div>
+              <div style="position:relative;width:200px;height:200px;margin:0 auto;padding:8px;">
+                <canvas id="scoreGauge" style="max-width:100%;"></canvas>
+              </div>
+              <div id="score-text" style="font-size:24px;font-weight:700;color:#6366F1;margin-top:-40px;">0/100点</div>
+            </div>
             <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;color:#6366F1;"></h3>
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
+            <div style="margin:16px 0;">
+              <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:8px;">診断傾向</div>
+              <canvas id="answerChart" style="max-width:100%;"></canvas>
+            </div>
+            <div id="history-section" style="margin:16px 0;padding:12px;background:#f8fafc;border-radius:8px;">
+              <div style="font-size:13px;font-weight:600;color:#555;margin-bottom:8px;">📋 診断履歴</div>
+              <div id="history-list" style="display:flex;gap:8px;overflow-x:auto;padding:4px 0;"></div>
+              <button id="clear-history" class="btn" style="margin-top:8px;background:#dc2626;font-size:12px;padding:8px;min-height:36px;" onclick="clearHistory()">履歴をクリア</button>
+            </div>
             <button class="btn" style="margin-top:16px;" onclick="location.reload()" aria-label="もう一度診断">もう一度診断</button>
           </div>
         </div>
@@ -304,6 +327,8 @@
       { title:'❄️ アイシング推奨タイプ — 炎症を抑えて回復を早める', desc:'運動直後〜24時間以内の急性期は冷却が基本です。氷を布に包んで患部に10〜15分当てる（直接は凍傷に注意）を1〜2時間おきに繰り返しましょう。「RICE処置（Rest安静・Ice冷却・Compression圧迫・Elevation挙上）」が外傷・急性炎症の基本対処。腫れ・熱感が2日以上続く場合は整形外科を受診してください。' },
       { title:'😴 休養最優先タイプ — 完全休養と栄養で体を修復', desc:'痛みが強い・日常動作に支障がある場合は完全休養が最優先です。回復を促す栄養素はタンパク質（体重×2g/日）、BCAA・EAAサプリメント、ビタミンB群（神経・筋肉の修復）が重要です。痛みが72時間以上変わらない・腫れがひどい場合は筋断裂やオーバートレーニング症候群の可能性があります。無理せず整形外科を受診してください。' }
     ];
+    let chartInstance = null;
+    let answerChartInstance = null;
     function getResult(answers) {
       const scores = [0,0,0,0];
       const a = answers.map(x => x.idx);
@@ -319,11 +344,79 @@
       if(a[4]===1) scores[1]+=2;
       if(a[4]===2) scores[2]+=2;
       const best = scores.indexOf(Math.max(...scores));
-      return RESULTS[best];
+      const totalScore = Math.round((Math.max(...scores)/6)*100);
+      return {...RESULTS[best], scores, totalScore, resultType: best};
     }
-    // ★以下変更不要★
+    function saveHistory(result) {
+      const history = JSON.parse(localStorage.getItem('muscleHistories') || '[]');
+      history.unshift({date: new Date().toLocaleString('ja-JP'), title: result.title, scores: result.scores});
+      if(history.length > 10) history.pop();
+      localStorage.setItem('muscleHistories', JSON.stringify(history));
+      renderHistory();
+    }
+    function renderHistory() {
+      const history = JSON.parse(localStorage.getItem('muscleHistories') || '[]');
+      const histList = document.getElementById('history-list');
+      histList.innerHTML = history.map((h, i) => `<button onclick="alert('${h.title}\\n日時: ${h.date}')" style="padding:8px 12px;background:#e0e7ff;border:none;border-radius:6px;font-size:12px;color:#4f46e5;cursor:pointer;white-space:nowrap;">${h.date.split(' ')[0]}</button>`).join('');
+    }
+    function clearHistory() {
+      if(confirm('診断履歴をすべてクリアしますか？')) {
+        localStorage.removeItem('muscleHistories');
+        renderHistory();
+      }
+    }
+    function drawCharts(result) {
+      const ctx = document.getElementById('scoreGauge').getContext('2d');
+      if(chartInstance) chartInstance.destroy();
+      chartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          datasets: [{
+            data: [result.totalScore, 100-result.totalScore],
+            backgroundColor: ['#6366F1', '#e5e7eb'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: { enabled: false }
+          }
+        }
+      });
+      document.getElementById('score-text').textContent = result.totalScore + '/100点';
+      const ctx2 = document.getElementById('answerChart').getContext('2d');
+      if(answerChartInstance) answerChartInstance.destroy();
+      answerChartInstance = new Chart(ctx2, {
+        type: 'bar',
+        data: {
+          labels: ['アクティブ回復', 'ホットケア', 'アイシング', '休養優先'],
+          datasets: [{
+            label: 'スコア',
+            data: result.scores,
+            backgroundColor: '#6366F1',
+            borderRadius: 6
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: { max: 6, beginAtZero: true }
+          }
+        }
+      });
+    }
     const BTN='#6366F1'; let cur=0; const ans=[];
-    document.addEventListener('DOMContentLoaded',()=>{ document.getElementById('q-total').textContent=QUESTIONS.length; });
+    document.addEventListener('DOMContentLoaded',()=>{
+      document.getElementById('q-total').textContent=QUESTIONS.length;
+      renderHistory();
+    });
     function startQuiz(){ cur=0;ans.length=0; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); renderQ(); }
     function renderQ(){
       const q=QUESTIONS[cur];
@@ -339,6 +432,8 @@
       document.getElementById('r-title').textContent=r.title;
       document.getElementById('r-desc').textContent=r.desc;
       document.getElementById('result').classList.add('show');
+      drawCharts(r);
+      saveHistory(r);
     }
     </script>
 <div style="text-align:center;padding:10px 16px 14px;background:#eef2ff;border-top:2px solid #c7d2fe;margin-top:8px">

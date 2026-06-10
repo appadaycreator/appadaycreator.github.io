@@ -37,6 +37,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -217,6 +218,24 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="card">
             <h3 style="font-size:14px;font-weight:700;margin-bottom:8px;color:#4338CA;">📊 サマリー</h3>
             <div id="summary"></div>
+            <!-- グラフエリア -->
+            <div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:16px;">
+              <h4 style="font-size:13px;font-weight:600;color:#4338CA;margin-bottom:12px;">📈 労働時間の推移</h4>
+              <canvas id="overtimeChart" style="max-height:250px;"></canvas>
+            </div>
+            <div style="margin-top:16px;">
+              <h4 style="font-size:13px;font-weight:600;color:#4338CA;margin-bottom:12px;">⏱ 36協定上限までの進捗</h4>
+              <div style="margin-bottom:8px;">
+                <div style="background:#e2e8f0;height:24px;border-radius:8px;overflow:hidden;position:relative;">
+                  <div id="progressBar" style="height:100%;background:#4338CA;width:0%;transition:width 0.3s;display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:600;"></div>
+                </div>
+              </div>
+              <p id="progressText" style="font-size:12px;color:#666;margin-top:4px;"></p>
+            </div>
+            <div style="margin-top:16px;">
+              <h4 style="font-size:13px;font-weight:600;color:#4338CA;margin-bottom:12px;">📊 月別残業時間</h4>
+              <canvas id="monthlyChart" style="max-height:250px;"></canvas>
+            </div>
           </div>
         </div>
 
@@ -320,6 +339,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <script>
     // ★ここだけ実装（約12行）★
     const KEY='work-hour-tracker';
+    let overtimeChartInstance=null, monthlyChartInstance=null;
     function getEntryData(){
       const date=document.getElementById('rec-date').value;
       const ot=parseFloat(document.getElementById('overtime').value||'0');
@@ -341,6 +361,47 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const warn=totalOt>45?`<p style="color:#ef4444;font-weight:700;margin-top:8px;">⚠ 残業累計が45時間を超えています（36協定上限）</p>`:'';
       return `<p style="font-size:14px;color:#333;">残業累計: <b>${totalOt.toFixed(1)}時間</b>　総労働: <b>${totalTh.toFixed(1)}時間</b>　有給: <b>${totalPl}日</b></p>${warn}`;
     }
+    function drawOverTimeChart(entries){
+      if(!entries.length) return;
+      const ctx=document.getElementById('overtimeChart');
+      if(!ctx) return;
+      if(overtimeChartInstance) overtimeChartInstance.destroy();
+      const data=entries.sort((a,b)=>new Date(a.date)-new Date(b.date)).map(e=>({date:e.date,ot:e.ot}));
+      overtimeChartInstance=new Chart(ctx,{
+        type:'line',
+        data:{labels:data.map(d=>d.date),datasets:[{label:'残業時間',data:data.map(d=>d.ot),borderColor:'#4338CA',backgroundColor:'rgba(67,56,202,0.1)',tension:0.3,fill:true,pointRadius:4,pointBackgroundColor:'#4338CA'}]},
+        options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:true,labels:{font:{size:12}}}},scales:{y:{beginAtZero:true,title:{display:true,text:'残業時間（時間）'}}}}
+      });
+    }
+    function updateProgressBar(entries){
+      const totalOt=entries.reduce((s,e)=>s+e.ot,0);
+      const limit=45;
+      const pct=Math.min((totalOt/limit)*100,100);
+      const pb=document.getElementById('progressBar');
+      const pt=document.getElementById('progressText');
+      if(!pb||!pt) return;
+      pb.style.width=pct+'%';
+      pb.style.backgroundColor=totalOt>limit?'#ef4444':'#4338CA';
+      pb.textContent=totalOt.toFixed(1)+'h / '+limit+'h';
+      pt.textContent=totalOt>limit?`⚠ 上限超過: ${(totalOt-limit).toFixed(1)}時間`:`あと ${(limit-totalOt).toFixed(1)}時間で上限（${(100-pct).toFixed(0)}%）`;
+    }
+    function drawMonthlyChart(entries){
+      if(!entries.length) return;
+      const ctx=document.getElementById('monthlyChart');
+      if(!ctx) return;
+      if(monthlyChartInstance) monthlyChartInstance.destroy();
+      const monthData={};
+      entries.forEach(e=>{
+        const month=e.date.substring(0,7);
+        monthData[month]=(monthData[month]||0)+e.ot;
+      });
+      const months=Object.keys(monthData).sort();
+      monthlyChartInstance=new Chart(ctx,{
+        type:'bar',
+        data:{labels:months,datasets:[{label:'月別残業時間',data:months.map(m=>monthData[m]),backgroundColor:'#4338CA',borderRadius:6}]},
+        options:{responsive:true,maintainAspectRatio:true,indexAxis:'x',plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}
+      });
+    }
     // ★以下変更不要★
     let entries=JSON.parse(localStorage.getItem(KEY)||'[]');
     document.addEventListener('DOMContentLoaded',()=>{ renderAll(); });
@@ -357,6 +418,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if(ec) ec.textContent=entries.length+'件';
       c.innerHTML=entries.length?entries.map(renderEntry).join(''):'<p style="text-align:center;color:#bbb;padding:16px;">まだ記録がありません</p>';
       const s=document.getElementById('summary'); if(s) s.innerHTML=getSummary(entries);
+      if(entries.length){
+        drawOverTimeChart(entries);
+        updateProgressBar(entries);
+        drawMonthlyChart(entries);
+      }
     }
     </script>
     <!-- rakuten-affiliate-block -->

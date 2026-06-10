@@ -39,6 +39,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"家電買い替え時期診断","description":"家電の種類・使用年数・不具合から買い替え時期の目安と費用対効果を診断。登録不要・完全無料でご利用いただけます。","url":"https://appadaycreator.com/home-appliance-lifespan/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"author":{"@type":"Organization","name":"AppADayCreator","url":"https://appadaycreator.com/"}}</script>
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "家電買い替え時期診断は無料で使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、完全無料でご利用いただけます。登録・ログイン・アプリのインストールも不要です。"}}, {"@type": "Question", "name": "何回でも診断できますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、何度でもご利用いただけます。条件を変えて繰り返し診断してみてください。"}}, {"@type": "Question", "name": "スマートフォンでも使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、スマートフォン・タブレット・PCすべてのデバイスに対応しています。"}}, {"@type": "Question", "name": "診断結果は保存されますか？", "acceptedAnswer": {"@type": "Answer", "text": "結果はブラウザには保存されません。スクリーンショットやSNSシェアでご記録ください。"}}, {"@type": "Question", "name": "入力したデータはサーバーに送信されますか？", "acceptedAnswer": {"@type": "Answer", "text": "いいえ。すべての処理はブラウザ内で完結し、個人情報・入力データのサーバー送信は行いません。"}}]}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"家電買い替え時期診断の使い方","step":[{"@type":"HowToStep","position":1,"name":"「診断スタート」をクリックする","text":"トップ画面の「診断スタート →」ボタンをクリックして診断を開始する"},{"@type":"HowToStep","position":2,"name":"家電の種類を選ぶ","text":"冷蔵庫・洗濯機・エアコンなど診断したい家電の種類を選択する"},{"@type":"HowToStep","position":3,"name":"使用年数・不具合・電気代を回答する","text":"使用年数・不具合の状況・電気代の気になり具合の3問に答える"},{"@type":"HowToStep","position":4,"name":"診断結果と費用対効果を確認する","text":"緊急度レベルと年間電気代節約見込み・買い替え目安価格を確認する"},{"@type":"HowToStep","position":5,"name":"結果をSNSでシェアする","text":"診断結果をX（Twitter）やLINEでシェアして家族・友人と情報共有する"}]}</script>
@@ -170,12 +172,18 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             <!-- 内訳バッジ -->
             <div id="r-badges" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;"></div>
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;margin-bottom:12px;"></p>
+            <!-- スコア可視化グラフ -->
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:14px;">
+              <p style="font-size:13px;font-weight:600;color:#374151;margin-bottom:10px;">📊 詳細スコア</p>
+              <canvas id="r-chart" style="max-height:200px;"></canvas>
+            </div>
             <!-- 費用対効果 -->
             <div id="r-cost" style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px;line-height:1.8;"></div>
             <button class="btn" onclick="location.reload()">もう一度診断</button>
             <!-- 結果シェアボタン -->
             <div id="r-share" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;"></div>
           </div>
+        <div id="history-panel"></div>
         </div>
 
         <!-- 関連サービス -->
@@ -399,6 +407,53 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
       },
     ];
 
+    // localStorage ユーティリティ
+    function saveToHistory(appName, answers, result) {
+      let history = JSON.parse(localStorage.getItem('appHistory') || '[]');
+      const entry = {
+        id: Date.now(),
+        date: new Date().toLocaleString('ja-JP'),
+        appName: appName,
+        answers: answers.map(a => a.idx),
+        title: result.title,
+        urgency: result.urgency,
+        desc: result.desc.substring(0, 80) + '...'
+      };
+      history.unshift(entry);
+      if (history.length > 5) history.pop();
+      localStorage.setItem('appHistory', JSON.stringify(history));
+    }
+
+    function loadHistory() {
+      return JSON.parse(localStorage.getItem('appHistory') || '[]');
+    }
+
+    function restoreFromHistory(entry) {
+      const appIdx = APPLIANCE_NAMES.indexOf(entry.appName);
+      ans = entry.answers.map((idx, qIdx) => ({ idx: idx }));
+      cur = QUESTIONS.length;
+      showResult();
+    }
+
+    function renderHistory() {
+      const history = loadHistory();
+      if (history.length === 0) return '';
+      return `
+        <div class="card" style="margin-top:8px;background:#f3f4f6;">
+          <h3 style="font-size:14px;font-weight:600;margin-bottom:10px;color:#374151;">📋 診断履歴</h3>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            ${history.map((h, i) => `
+              <button onclick='restoreFromHistory(JSON.parse(\`${JSON.stringify(h)}\`))' style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;text-align:left;cursor:pointer;transition:all .2s;">
+                <div style="font-weight:600;color:#374151;font-size:13px;">${h.appName}</div>
+                <div style="font-size:12px;color:#6b7280;margin-top:2px;">${h.date}</div>
+                <div style="font-size:12px;color:#7c3aed;margin-top:2px;font-weight:600;">${h.title}</div>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
     function getResult(answers) {
       const appName = APPLIANCE_NAMES[answers[0].idx];
       const data = APPLIANCE_DATA[appName];
@@ -443,13 +498,16 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
       const powerLabels = ['◎ 電気代問題なし','△ 少し高め','▲ かなり高め','✕ とても高い'];
       const badgeColors = ['#dcfce7|#166534','#fef9c3|#854d0e','#ffedd5|#9a3412','#fee2e2|#991b1b'];
 
-      return { title, desc, urgency, costInfo, data, appName,
+      const result = { title, desc, urgency, costInfo, data, appName,
+        yrScore, faultScore, powerScore,
         badges: [
           { label: yrLabels[yrScore],    colors: badgeColors[yrScore] },
           { label: faultLabels[faultScore], colors: badgeColors[faultScore] },
           { label: powerLabels[powerScore], colors: badgeColors[powerScore] },
         ]
       };
+      saveToHistory(appName, answers, result);
+      return result;
     }
 
     // クイズ制御
@@ -489,6 +547,53 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
       renderQ();
     }
 
+    let chartInstance = null;
+
+    function renderScoreChart(yrScore, faultScore, powerScore) {
+      const ctx = document.getElementById('r-chart');
+      if (!ctx) return;
+
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      const maxScore = 3;
+      chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['寿命使用率', '不具合度', '電気代懸念度'],
+          datasets: [{
+            label: 'スコア',
+            data: [yrScore, faultScore, powerScore],
+            backgroundColor: [
+              yrScore <= 1 ? '#22c55e' : yrScore <= 2 ? '#eab308' : '#ef4444',
+              faultScore <= 1 ? '#22c55e' : faultScore <= 2 ? '#eab308' : '#ef4444',
+              powerScore <= 1 ? '#22c55e' : powerScore <= 2 ? '#eab308' : '#ef4444'
+            ],
+            borderRadius: 6,
+            borderSkipped: false,
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              max: 3,
+              ticks: { stepSize: 1 },
+              grid: { drawBorder: false }
+            },
+            y: { grid: { display: false } }
+          }
+        }
+      });
+    }
+
     function showResult() {
       document.getElementById('quiz-area').style.display = 'none';
       const r = getResult(ans);
@@ -515,6 +620,11 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         return `<span class="badge-sm" style="background:${bg};color:${color};">${b.label}</span>`;
       }).join('');
 
+      // スコアグラフをレンダリング
+      setTimeout(() => {
+        renderScoreChart(r.yrScore, r.faultScore, r.powerScore);
+      }, 50);
+
       // 費用対効果
       document.getElementById('r-cost').innerHTML = r.costInfo;
 
@@ -528,6 +638,12 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         `<a href="${lineUrl}" target="_blank" rel="noopener" style="background:#00B900;color:white;padding:8px 14px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;min-height:40px;">LINE</a>`;
 
       document.getElementById('result').classList.add('show');
+
+      // 履歴パネルの挿入
+      const historyPanel = document.querySelector('#history-panel');
+      if (historyPanel) {
+        historyPanel.innerHTML = renderHistory();
+      }
     }
     </script>
 <script id="ux-behavior">

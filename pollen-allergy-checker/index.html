@@ -32,6 +32,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <meta name="twitter:title" content="花粉症・アレルギー対策チェッカー【無料】無料診断・アドバイス" />
     
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌸</text></svg>">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js" crossorigin="anonymous"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
@@ -160,6 +161,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <p style="color:#666;font-size:14px;margin-bottom:8px;">症状・生活習慣・地域から花粉症の重症度を診断し、薬・マスク・空気清浄機の選び提案。登録不要・完全無料。</p>
           <ul style="font-size:13px;color:#94a3b8;margin:0 0 16px 16px;"><li>質問数：5問</li><li>所要時間：約1分</li></ul>
           <button class="btn" onclick="startQuiz()">診断スタート →</button>
+          <button id="prev-result-btn" class="btn" style="background:#666;margin-top:8px;display:none;" onclick="loadPreviousResult()">📋 前回の結果を見る</button>
         </div>
         <div id="quiz-area" style="display:none;">
           <div style="font-size:12px;color:#999;margin-bottom:8px;">
@@ -185,6 +187,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               </div>
             </div>
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;margin-bottom:14px;"></p>
+            <!-- グラフセクション -->
+            <div style="margin-bottom:16px;padding:12px;background:#f8fafc;border-radius:10px;">
+              <h4 style="font-size:13px;font-weight:600;color:#374151;margin-bottom:10px;">📊 詳細スコア</h4>
+              <canvas id="severity-radar" style="max-width:100%;height:250px;"></canvas>
+            </div>
             <!-- アドバイスカード -->
             <div id="r-cards" class="advice-cards"></div>
             <!-- 結果シェアボタン -->
@@ -194,6 +201,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
                 <a id="r-share-x" href="#" target="_blank" rel="noopener" aria-label="Xでシェア" class="share-btn-x">𝕏 シェア</a>
                 <a id="r-share-line" href="#" target="_blank" rel="noopener" aria-label="LINEでシェア" class="share-btn-line">LINE</a>
               </div>
+            </div>
+            <!-- 結果エクスポート -->
+            <div style="background:#f0fdf4;border:1px solid #dcfce7;border-radius:10px;padding:12px;margin:12px 0;text-align:center;">
+              <p style="font-size:12px;font-weight:600;color:#374151;margin-bottom:8px;">📥 結果をエクスポート</p>
+              <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
+                <button style="background:#fff;color:#4b5563;border:1px solid #d1d5db;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;min-height:40px;" onclick="printResult()">🖨️ 印刷</button>
+                <button style="background:#fff;color:#4b5563;border:1px solid #d1d5db;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;min-height:40px;" onclick="copyResultText()">📋 コピー</button>
+                <button style="background:#fff;color:#4b5563;border:1px solid #d1d5db;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;min-height:40px;" onclick="downloadResultJSON()">💾 ダウンロード</button>
+              </div>
+              <p id="export-toast" style="font-size:11px;color:#16a34a;margin-top:6px;display:none;"></p>
             </div>
             <button class="btn" style="margin-top:4px;" onclick="restartQuiz()">もう一度診断する</button>
           </div>
@@ -374,15 +391,22 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function getResult(answers) {
       const nose = answers[0].idx;
       const eye = answers[1].idx;
+      const measures = answers[2].idx;
       const medicine = answers[3].idx;
+      const cleaner = answers[4].idx;
       const score = nose + eye + (medicine === 3 ? 3 : 0);
       const severity = Math.min(100, Math.round(((nose + eye + medicine) / 9) * 100));
+      const radarData = {
+        labels: ['くしゃみ・鼻水', '目のかゆみ', '飛散対策', '薬の効き目', '空気清浄機'],
+        data: [nose, eye, measures, medicine === 3 ? 0 : (3 - medicine), cleaner]
+      };
 
       if (medicine === 3 || score >= 5) return {
         title: '💊 薬が効きにくいタイプ',
         severity: Math.max(80, severity),
         severityLabel: '要受診',
         severityColor: '#DC2626',
+        radarData: radarData,
         desc: '現在使用中の薬の効果が弱まっている可能性があります。薬の種類の見直しや根本治療の選択肢を専門医に相談しましょう。',
         cards: [
           { icon:'💊', title:'薬の見直し', text:'抗ヒスタミン薬の切り替え（第2世代）・点鼻ステロイドの追加が有効です。根本治療として舌下免疫療法（アレルゲン免疫療法）も選択肢に。耳鼻科・アレルギー科への受診を強くおすすめします。' },
@@ -395,6 +419,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         severity: Math.max(65, severity),
         severityLabel: '重症',
         severityColor: '#EA580C',
+        radarData: radarData,
         desc: '症状が重く、日常生活への影響が出ています。セルフケアだけでは限界があるため、アレルギー専門医への受診をおすすめします。',
         cards: [
           { icon:'💊', title:'薬の選び方', text:'第2世代抗ヒスタミン薬（アレグラ・クラリチン等）と点鼻ステロイドの併用が効果的です。花粉飛散2週間前から服用開始する「初期療法」で重症化を防げます。耳鼻科で処方を受けましょう。' },
@@ -407,6 +432,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         severity: Math.max(40, severity),
         severityLabel: '中症',
         severityColor: '#D97706',
+        radarData: radarData,
         desc: '症状が中程度あります。市販薬と物理対策を組み合わせて、早めにケアを始めましょう。症状が続く場合は耳鼻科への受診も検討してください。',
         cards: [
           { icon:'💊', title:'薬の選び方', text:'眠くなりにくい第2世代抗ヒスタミン薬（アレグラFX・アレジオン等）がおすすめです。症状が続く場合は耳鼻科を受診し、点鼻薬の追加処方をもらうと効果的です。' },
@@ -419,6 +445,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         severity: Math.max(10, severity),
         severityLabel: '軽症',
         severityColor: '#16A34A',
+        radarData: radarData,
         desc: '症状は軽めです。基本的なセルフケアを継続することで快適に過ごせます。飛散量が多い日は対策を強化しましょう。',
         cards: [
           { icon:'💊', title:'薬の選び方', text:'症状が出始めたら市販の抗ヒスタミン薬（アレグラFX・クラリチンEX等）を早めに服用しましょう。症状が軽い場合は点眼薬・点鼻薬のみで対応できることもあります。' },
@@ -430,10 +457,116 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     let cur = 0;
     const ans = [];
+    let lastResult = null;
+    let radarChart = null;
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('q-total').textContent = QUESTIONS.length;
+      loadHistoryButton();
     });
+
+    // ローカルストレージ関数
+    function saveResult(result) {
+      try {
+        const now = new Date().toLocaleString('ja-JP');
+        const entry = { ...result, timestamp: now };
+        let history = JSON.parse(localStorage.getItem('pollenCheckerHistory') || '[]');
+        history.unshift(entry);
+        if (history.length > 10) history = history.slice(0, 10);
+        localStorage.setItem('pollenCheckerHistory', JSON.stringify(history));
+      } catch(e) {}
+    }
+
+    function loadHistoryButton() {
+      try {
+        const history = JSON.parse(localStorage.getItem('pollenCheckerHistory') || '[]');
+        const btn = document.getElementById('prev-result-btn');
+        if (history.length > 0) {
+          btn.style.display = 'block';
+        }
+      } catch(e) {}
+    }
+
+    function loadPreviousResult() {
+      try {
+        const history = JSON.parse(localStorage.getItem('pollenCheckerHistory') || '[]');
+        if (history.length > 0) {
+          const prev = history[0];
+          lastResult = prev;
+          document.getElementById('quiz-start').style.display = 'none';
+          document.getElementById('quiz-area').style.display = 'none';
+          showResultFromData(prev);
+        }
+      } catch(e) {}
+    }
+
+    function showResultFromData(r) {
+      document.getElementById('r-title').textContent = r.title;
+      document.getElementById('r-desc').textContent = r.desc;
+      const badge = document.getElementById('r-badge');
+      badge.textContent = r.severityLabel;
+      badge.style.background = r.severityColor;
+      document.getElementById('r-percent').textContent = r.severity + '%';
+      document.getElementById('r-percent').style.color = r.severityColor;
+      const fill = document.getElementById('r-bar');
+      fill.style.background = r.severityColor;
+      setTimeout(() => { fill.style.width = r.severity + '%'; }, 100);
+
+      document.getElementById('r-cards').innerHTML = r.cards.map(c => `
+        <div class="advice-card">
+          <div class="advice-card-icon">${c.icon}</div>
+          <div class="advice-card-title">${c.title}</div>
+          <div class="advice-card-text">${c.text}</div>
+        </div>
+      `).join('');
+
+      const shareText = encodeURIComponent(`私の花粉症タイプは「${r.title.replace(/[💊🏥⚠️🌿]/g, '').trim()}」でした！あなたも無料診断してみて`);
+      const shareUrl = encodeURIComponent('https://appadaycreator.com/pollen-allergy-checker/');
+      document.getElementById('r-share-x').href = `https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}&hashtags=花粉症対策`;
+      document.getElementById('r-share-line').href = `https://line.me/R/msg/text/?${shareText}%0A${shareUrl}`;
+
+      if (radarChart) radarChart.destroy();
+      renderRadarChart(r);
+
+      const resultEl = document.getElementById('result');
+      resultEl.classList.add('show');
+      const card = document.getElementById('result-card');
+      card.classList.remove('fade-in');
+      void card.offsetWidth;
+      card.classList.add('fade-in');
+    }
+
+    function renderRadarChart(result) {
+      const ctx = document.getElementById('severity-radar');
+      if (!ctx) return;
+      const datasets = [];
+      if (result.radarData) {
+        radarChart = new Chart(ctx, {
+          type: 'radar',
+          data: {
+            labels: result.radarData.labels,
+            datasets: [{
+              label: '重症度スコア',
+              data: result.radarData.data,
+              borderColor: result.severityColor,
+              backgroundColor: result.severityColor + '22',
+              borderWidth: 2,
+              pointBackgroundColor: result.severityColor,
+              pointRadius: 4,
+              pointHoverRadius: 6,
+              fill: true,
+              tension: 0.1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10 } } },
+            scales: { r: { min: 0, max: 3, ticks: { stepSize: 1, font: { size: 10 } } } }
+          }
+        });
+      }
+    }
 
     function startQuiz() {
       cur = 0; ans.length = 0;
@@ -467,6 +600,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function showResult() {
       document.getElementById('quiz-area').style.display = 'none';
       const r = getResult(ans);
+      lastResult = r;
+      saveResult(r);
+      loadHistoryButton();
 
       document.getElementById('r-title').textContent = r.title;
       document.getElementById('r-desc').textContent = r.desc;
@@ -498,6 +634,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('r-share-line').href =
         `https://line.me/R/msg/text/?${shareText}%0A${shareUrl}`;
 
+      if (radarChart) radarChart.destroy();
+      renderRadarChart(r);
+
       const resultEl = document.getElementById('result');
       resultEl.classList.add('show');
       const card = document.getElementById('result-card');
@@ -509,6 +648,48 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function restartQuiz() {
       document.getElementById('result').classList.remove('show');
       document.getElementById('quiz-start').style.display = 'block';
+    }
+
+    // エクスポート関数
+    function printResult() {
+      window.print();
+    }
+
+    function copyResultText() {
+      if (!lastResult) return;
+      const text = `【診断結果】\n${lastResult.title}\n\n重症度: ${lastResult.severity}%\n\n${lastResult.desc}`;
+      navigator.clipboard.writeText(text).then(() => {
+        const toast = document.getElementById('export-toast');
+        toast.textContent = '✅ テキストをコピーしました！';
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 2000);
+      });
+    }
+
+    function downloadResultJSON() {
+      if (!lastResult) return;
+      const data = {
+        title: lastResult.title,
+        severity: lastResult.severity,
+        label: lastResult.severityLabel,
+        description: lastResult.desc,
+        timestamp: lastResult.timestamp || new Date().toLocaleString('ja-JP')
+      };
+      const json = JSON.stringify(data, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `pollen_result_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      const toast = document.getElementById('export-toast');
+      toast.textContent = '✅ ファイルをダウンロードしました！';
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 2000);
     }
     </script>
     <!-- rakuten-affiliate-block -->

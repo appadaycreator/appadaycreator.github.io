@@ -465,7 +465,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if(data.advice) {
         html += `<p style="color:#EA580C;font-size:13px;margin-top:12px;padding:8px;background:#FEF3C7;border-radius:6px;">${data.advice}</p>`;
       }
-      html += `</div>`;
+      html += `<div style="display:flex;gap:8px;margin-top:16px;justify-content:center;flex-wrap:wrap;">
+        <button style="background:#667eea;color:white;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;min-height:40px;" onclick="window.print();" title="計算結果を印刷">🖨 印刷</button>
+        <button style="background:#10b981;color:white;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;min-height:40px;" onclick="exportResultCSV();" title="計算結果をCSVで保存">📥 CSV保存</button>
+      </div></div>`;
 
       document.getElementById('result').innerHTML = html;
       document.getElementById('result').classList.add('show');
@@ -480,41 +483,119 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     }
 
     function drawMonthlyCostChart(monthlyData) {
-      const canvas = document.createElement('canvas');
-      canvas.id = 'costChart';
-      canvas.width = 300;
-      canvas.height = 150;
+      const svgWidth = 500;
+      const svgHeight = 250;
+      const padding = { top: 20, right: 30, bottom: 40, left: 50 };
+      const chartWidth = svgWidth - padding.left - padding.right;
+      const chartHeight = svgHeight - padding.top - padding.bottom;
+      const maxCost = Math.max(...monthlyData, 1);
 
-      const ctx = canvas.getContext('2d');
-      const padding = 30;
-      const width = canvas.width - padding * 2;
-      const height = canvas.height - padding * 2;
-      const maxCost = Math.max(...monthlyData);
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.id = 'costChart';
+      svg.setAttribute('viewBox', `0 0 ${svgWidth} ${svgHeight}`);
+      svg.setAttribute('style', 'max-width: 100%; height: auto; margin-top: 16px;');
 
-      ctx.fillStyle = '#f3f4f6';
-      ctx.fillRect(padding, padding, width, height);
-      ctx.strokeStyle = '#d1d5db';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(padding, padding, width, height);
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.setAttribute('transform', `translate(${padding.left}, ${padding.top})`);
 
-      ctx.fillStyle = '#2563EB';
-      const barWidth = width / monthlyData.length;
+      // グリッドラインと Y軸目盛り
+      const ySteps = 5;
+      for(let i = 0; i <= ySteps; i++) {
+        const y = (chartHeight / ySteps) * i;
+        const value = Math.round((maxCost / ySteps) * (ySteps - i));
+
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', '0');
+        line.setAttribute('y1', y);
+        line.setAttribute('x2', chartWidth);
+        line.setAttribute('y2', y);
+        line.setAttribute('stroke', '#e5e7eb');
+        line.setAttribute('stroke-width', '1');
+        g.appendChild(line);
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', '-8');
+        text.setAttribute('y', y + 4);
+        text.setAttribute('text-anchor', 'end');
+        text.setAttribute('font-size', '11');
+        text.setAttribute('fill', '#666');
+        text.textContent = value.toLocaleString();
+        g.appendChild(text);
+      }
+
+      // バー
+      const barWidth = chartWidth / monthlyData.length - 2;
       monthlyData.forEach((cost, i) => {
-        const barHeight = (cost / maxCost) * height;
-        ctx.fillRect(padding + i * barWidth + 2, padding + height - barHeight, barWidth - 4, barHeight);
+        const barHeight = (cost / maxCost) * chartHeight;
+        const x = (chartWidth / monthlyData.length) * i + 1;
+        const y = chartHeight - barHeight;
+
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', x);
+        rect.setAttribute('y', y);
+        rect.setAttribute('width', barWidth);
+        rect.setAttribute('height', barHeight);
+        rect.setAttribute('fill', '#2563EB');
+        rect.setAttribute('opacity', '0.9');
+        g.appendChild(rect);
+
+        // X軸ラベル（全月表示）
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', x + barWidth / 2);
+        label.setAttribute('y', chartHeight + 18);
+        label.setAttribute('text-anchor', 'middle');
+        label.setAttribute('font-size', '11');
+        label.setAttribute('fill', '#666');
+        label.textContent = (i + 1) + '月';
+        g.appendChild(label);
       });
 
-      ctx.fillStyle = '#666';
-      ctx.font = '11px sans-serif';
-      ctx.textAlign = 'center';
-      for(let i = 0; i < monthlyData.length; i += 3) {
-        ctx.fillText((i+1) + '月', padding + (i + 0.5) * barWidth, canvas.height - 5);
-      }
+      // Y軸ラベル
+      const yAxisLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      yAxisLabel.setAttribute('transform', `translate(-40, ${chartHeight / 2}) rotate(-90)`);
+      yAxisLabel.setAttribute('text-anchor', 'middle');
+      yAxisLabel.setAttribute('font-size', '12');
+      yAxisLabel.setAttribute('fill', '#666');
+      yAxisLabel.setAttribute('font-weight', '600');
+      yAxisLabel.textContent = '月間電気代（円）';
+      g.appendChild(yAxisLabel);
+
+      // 軸線
+      const xAxis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      xAxis.setAttribute('x1', '0');
+      xAxis.setAttribute('y1', chartHeight);
+      xAxis.setAttribute('x2', chartWidth);
+      xAxis.setAttribute('y2', chartHeight);
+      xAxis.setAttribute('stroke', '#333');
+      xAxis.setAttribute('stroke-width', '2');
+      g.appendChild(xAxis);
+
+      const yAxis = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      yAxis.setAttribute('x1', '0');
+      yAxis.setAttribute('y1', '0');
+      yAxis.setAttribute('x2', '0');
+      yAxis.setAttribute('y2', chartHeight);
+      yAxis.setAttribute('stroke', '#333');
+      yAxis.setAttribute('stroke-width', '2');
+      g.appendChild(yAxis);
+
+      // タイトル
+      const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      title.setAttribute('x', chartWidth / 2);
+      title.setAttribute('y', '-5');
+      title.setAttribute('text-anchor', 'middle');
+      title.setAttribute('font-size', '14');
+      title.setAttribute('font-weight', '600');
+      title.setAttribute('fill', '#374151');
+      title.textContent = '12ヶ月の予想月間電気代';
+      g.appendChild(title);
+
+      svg.appendChild(g);
 
       const chartContainer = document.getElementById('result');
       const existing = document.getElementById('costChart');
       if(existing) existing.remove();
-      chartContainer.appendChild(canvas);
+      chartContainer.appendChild(svg);
     }
 
     function addComparisonPattern() {
@@ -575,6 +656,52 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         document.getElementById('season').value = data.season || 'spring';
         document.getElementById('val4').value = data.price || '';
       }
+    }
+
+    function exportResultCSV() {
+      const watt = getWattValue();
+      const hours = parseFloat(document.getElementById('val2').value) || 0;
+      const days = parseFloat(document.getElementById('val3').value) || 0;
+      const price = parseFloat(document.getElementById('val4').value) || 0;
+
+      if(!watt || !hours || !days || !price) {
+        alert('先に計算してください');
+        return;
+      }
+
+      const data = calcLogic(watt, hours, days, price);
+      const lines = [
+        '電気代シミュレーター - 計算結果',
+        '',
+        '【計算条件】',
+        '消費電力,' + watt + 'W',
+        '1日の使用時間,' + hours + '時間',
+        '1ヶ月の使用日数,' + days + '日',
+        '電力単価,' + price + '円/kWh',
+        '',
+        '【計算結果】',
+        '月間消費電力量,' + data.kwh.toFixed(2) + 'kWh',
+        '月間電気代,' + data.monthCost.toLocaleString() + '円',
+        '年間電気代,' + data.yearCost.toLocaleString() + '円'
+      ];
+
+      if(comparisonPatterns.length > 0) {
+        lines.push('');
+        lines.push('【比較パターン】');
+        comparisonPatterns.forEach((pattern, i) => {
+          const pData = calcLogic(pattern.watt, pattern.hours, pattern.days, pattern.price);
+          lines.push('パターン' + (i+1) + ' - ' + pattern.label);
+          lines.push('消費電力,' + pattern.watt + 'W');
+          lines.push('月間電気代,' + pData.monthCost.toLocaleString() + '円');
+        });
+      }
+
+      const csv = lines.join('\n');
+      const blob = new Blob([csv], { type: 'text/csv; charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = '電気代シミュレーター_結果_' + new Date().toISOString().slice(0,10) + '.csv';
+      link.click();
     }
 
     function clearHistory() {

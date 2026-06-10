@@ -41,6 +41,7 @@
     <!-- Libraries -->
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     
     <!-- Google Tag Manager -->
     <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
@@ -426,6 +427,33 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                             <span id="maxPopulation">0個</span>
                         </div>
                     </div>
+                </div>
+
+                <!-- グラフ表示 (M4) -->
+                <div class="mt-4 p-3 rounded-lg" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);">
+                    <div style="font-size:0.8rem;font-weight:bold;color:#34d399;margin-bottom:8px;">📊 推移グラフ</div>
+                    <canvas id="populationChart" style="max-height:200px;"></canvas>
+                </div>
+
+                <!-- 生存率ゲージ -->
+                <div class="mt-3 p-3 rounded-lg" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);">
+                    <div style="font-size:0.75rem;color:#d1d5db;margin-bottom:6px;">生存率</div>
+                    <div id="survivalGauge" style="height:16px;background:rgba(255,255,255,0.1);border-radius:8px;overflow:hidden;">
+                        <div style="height:100%;background:linear-gradient(90deg, #10b981, #34d399);width:0%;transition:width 0.3s ease;border-radius:8px;"></div>
+                    </div>
+                </div>
+
+                <!-- エクスポート機能 (M10) -->
+                <div class="mt-4 grid grid-cols-3 gap-2">
+                    <button id="printBtn" class="px-2 py-2 bg-blue-600 hover:bg-blue-700 rounded text-xs transition-colors" aria-label="印刷" title="結果を印刷">
+                        <span aria-hidden="true" class="block mb-1">🖨</span>印刷
+                    </button>
+                    <button id="exportCsvBtn" class="px-2 py-2 bg-blue-600 hover:bg-blue-700 rounded text-xs transition-colors" aria-label="CSVダウンロード" title="CSVでダウンロード">
+                        <span aria-hidden="true" class="block mb-1">📊</span>CSV
+                    </button>
+                    <button id="copyResultBtn" class="px-2 py-2 bg-blue-600 hover:bg-blue-700 rounded text-xs transition-colors" aria-label="結果をコピー" title="結果をクリップボードにコピー">
+                        <span aria-hidden="true" class="block mb-1">📋</span>コピー
+                    </button>
                 </div>
 
                 <!-- ミッション表示 -->
@@ -951,7 +979,11 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             currentChallenge: null,
             challengeCleared: []
         };
-        
+
+        // グラフ管理
+        let populationChart = null;
+        let chartData = { generations: [], populations: [] };
+
         // Translations
         const translations = {
             ja: {
@@ -1006,6 +1038,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             loadFromStorage();
             updateUI();
             updateMissionUI();
+            initCharts();
         }
         
         // 画面幅に応じたセルサイズを計算
@@ -1194,6 +1227,10 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             // ゲームモード進行チェック
             if (gameState.gameMode === 'story') checkStoryProgress(population);
             else if (gameState.gameMode === 'challenge') checkChallengeProgress(population);
+
+            // グラフと生存率ゲージを更新
+            updateCharts(population);
+            updateSurvivalGauge(survivalRate);
         }
 
         function updateMissionUI() {
@@ -1278,7 +1315,121 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             updateAllCells();
             updateStats();
         }
-        
+
+        // グラフ管理関数（M4）
+        function initCharts() {
+            const canvas = document.getElementById('populationChart');
+            if (!canvas || !window.Chart) return;
+
+            if (populationChart) populationChart.destroy();
+
+            populationChart = new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: chartData.generations.map(g => g % 10 === 0 ? g : ''),
+                    datasets: [{
+                        label: '個体数',
+                        data: chartData.populations,
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        pointHoverRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, max: gameState.width * gameState.height * 1.1, ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                        x: { ticks: { color: '#9ca3af' }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function updateCharts(population) {
+            chartData.generations.push(gameState.generation);
+            chartData.populations.push(population);
+            if (chartData.generations.length > 100) {
+                chartData.generations.shift();
+                chartData.populations.shift();
+            }
+            if (populationChart) populationChart.update('none');
+        }
+
+        function updateSurvivalGauge(survivalRate) {
+            const gauge = document.querySelector('#survivalGauge > div');
+            if (gauge) gauge.style.width = survivalRate + '%';
+        }
+
+        // エクスポート機能（M10）
+        function printResult() {
+            window.print();
+        }
+
+        function exportCSV() {
+            const missionText = MISSIONS.map(m => {
+                const status = gameState.clearedMissions.includes(m.id) ? '達成' : '未達成';
+                return m.name.replace(/[🌱🌿🌲⏰🏆]\s/g, '') + ',' + status;
+            }).join('\n');
+
+            const csv = 'データ,値\n' +
+                '世代数,' + gameState.generation + '\n' +
+                '個体数,' + document.getElementById('population').textContent + '\n' +
+                '最大個体数,' + gameState.maxPopulation + '\n' +
+                '生存率,' + document.getElementById('survivalRate').textContent + '\n' +
+                'ミッション達成,' + gameState.clearedMissions.length + '/5\n\n' +
+                'ミッション名,ステータス\n' + missionText;
+
+            const bom = '﻿';
+            const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            const now = new Date();
+            const dateStr = now.getFullYear() + ('0' + (now.getMonth() + 1)).slice(-2) + ('0' + now.getDate()).slice(-2);
+
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'cellular-adventure-result-' + dateStr + '.csv');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            if (typeof showToast === 'function') {
+                showToast('📊 CSVをダウンロードしました', 'success');
+            }
+        }
+
+        function copyResultText() {
+            const missionList = MISSIONS.map(m => {
+                const status = gameState.clearedMissions.includes(m.id) ? '✅' : '○';
+                return status + ' ' + m.name.replace(/[🌱🌿🌲⏰🏆]\s/g, '');
+            }).join('\n');
+
+            const text = '【細胞の冒険 - 最終結果】\n' +
+                '世代: ' + gameState.generation + '\n' +
+                '個体数: ' + document.getElementById('population').textContent + '\n' +
+                '最大個体数: ' + gameState.maxPopulation + '\n' +
+                '生存率: ' + document.getElementById('survivalRate').textContent + '\n' +
+                'ミッション達成: ' + gameState.clearedMissions.length + '/5\n\n' +
+                '【達成ミッション】\n' + missionList + '\n\n' +
+                window.location.href;
+
+            navigator.clipboard.writeText(text).then(() => {
+                if (typeof showToast === 'function') {
+                    showToast('📋 結果をコピーしました', 'success');
+                }
+            }).catch(() => {
+                if (typeof showToast === 'function') {
+                    showToast('❌ コピーに失敗しました', 'error');
+                }
+            });
+        }
+
         // Pattern Functions
         const patterns = {
             glider: [
@@ -1515,6 +1666,11 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             document.getElementById('playPauseBtn').addEventListener('click', playPause);
             document.getElementById('resetBtn').addEventListener('click', resetGame);
             document.getElementById('randomBtn').addEventListener('click', randomize);
+
+            // エクスポート/印刷ボタン（M10）
+            document.getElementById('printBtn').addEventListener('click', printResult);
+            document.getElementById('exportCsvBtn').addEventListener('click', exportCSV);
+            document.getElementById('copyResultBtn').addEventListener('click', copyResultText);
             
             // Speed control
             const speedSlider = document.getElementById('speedSlider');

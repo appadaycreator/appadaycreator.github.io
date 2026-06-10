@@ -37,6 +37,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <!-- Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -207,7 +209,24 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="card">
             <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#7c3aed;">✅ 採点結果</h3>
             <div id="output"></div>
+            <!-- Chart visualization -->
+            <div id="chart-container" style="margin-top:20px;display:none;">
+              <h4 style="font-size:13px;font-weight:600;margin-bottom:10px;color:#555;">📊 スコア内訳</h4>
+              <canvas id="scoreChart" style="max-height:300px;"></canvas>
+            </div>
+            <!-- Export/Print buttons -->
+            <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+              <button onclick="printResult()" style="flex:1;min-width:140px;background:#7c3aed;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;">🖨️ 印刷</button>
+              <button onclick="exportCSV()" style="flex:1;min-width:140px;background:#4f46e5;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;">📥 CSV</button>
+              <button onclick="copyResult()" style="flex:1;min-width:140px;background:#6366f1;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;">📋 コピー</button>
+            </div>
           </div>
+        </div>
+        <!-- History section -->
+        <div class="card" id="history-section" style="margin-top:8px;display:none;">
+          <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#7c3aed;">📋 計算履歴</h3>
+          <div id="history-list" style="display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto;"></div>
+          <button onclick="clearHistory()" style="width:100%;background:#fee2e2;color:#991b1b;border:none;padding:8px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;margin-top:12px;min-height:40px;">🗑️ 履歴をすべて削除</button>
         </div>
 
         <!-- 関連サービス -->
@@ -321,7 +340,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     
 <script>
-    // ★ここだけ実装★
+    let scoreChart = null;
+    const STORAGE_KEY = 'wlb_scorer_history';
+    const INPUTS_KEY = 'wlb_scorer_lastInputs';
+
     function getInputs() {
       const w = parseFloat(document.getElementById('workHours')?.value);
       if (!w) { alert('週の実働時間を入力してください'); return null; }
@@ -333,14 +355,19 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         sl: parseFloat(document.getElementById('sleepHours')?.value) || 7,
       };
     }
-    function buildOutput(i) {
+
+    function calculateScore(i) {
       let s = 100;
       if (i.w > 60) s -= 30; else if (i.w > 50) s -= 20; else if (i.w > 45) s -= 10;
       if (i.ot > 20) s -= 20; else if (i.ot > 10) s -= 10; else if (i.ot > 5) s -= 5;
       if (i.hb >= 14) s += 10; else if (i.hb >= 7) s += 5; else if (i.hb < 3) s -= 10;
       if (i.vr >= 80) s += 10; else if (i.vr >= 60) s += 5; else if (i.vr < 30) s -= 10;
       if (i.sl >= 7 && i.sl <= 9) s += 5; else if (i.sl < 6) s -= 15;
-      s = Math.max(0, Math.min(100, s));
+      return Math.max(0, Math.min(100, s));
+    }
+
+    function buildOutput(i) {
+      const s = calculateScore(i);
       const [g, tc, bg, msg] = s >= 80 ? ['S', '#065F46', '#D1FAE5', '理想的なバランスです！'] :
         s >= 60 ? ['A', '#1D4ED8', '#DBEAFE', '良好。もう少しで理想的！'] :
         s >= 40 ? ['B', '#92400E', '#FEF3C7', '改善の余地があります'] :
@@ -360,15 +387,135 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         .join('');
       return `<div style="background:${bg};border-radius:12px;padding:16px;text-align:center;margin-bottom:14px;"><div style="font-size:3rem;font-weight:700;color:${tc};">${s}点</div><div style="font-size:1.2rem;font-weight:700;color:${tc};margin-top:4px;">ランク ${g}</div><p style="font-size:13px;color:${tc};margin-top:8px;">${msg}</p></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">${statsHtml}</div>${tipsHtml}`;
     }
-    // ★以下変更不要★
-    document.addEventListener('DOMContentLoaded', () => {});
+
+    function renderChart(i) {
+      const score = calculateScore(i);
+      const ctx = document.getElementById('scoreChart');
+      if (!ctx) return;
+
+      if (scoreChart) scoreChart.destroy();
+      scoreChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['実働\n評価', '残業\n評価', '自由時間\n評価', '有給\n評価', '睡眠\n評価', '総合\nスコア'],
+          datasets: [{
+            label: 'スコア',
+            data: [
+              i.w <= 40 ? 20 : i.w <= 45 ? 10 : 0,
+              i.ot <= 5 ? 20 : i.ot <= 10 ? 10 : 0,
+              i.hb >= 14 ? 20 : i.hb >= 7 ? 10 : 0,
+              i.vr >= 80 ? 20 : i.vr >= 60 ? 10 : 0,
+              (i.sl >= 7 && i.sl <= 9) ? 20 : i.sl < 6 ? 0 : 10,
+              score
+            ],
+            backgroundColor: ['#7c3aed', '#7c3aed', '#7c3aed', '#7c3aed', '#7c3aed', '#4f46e5'],
+            borderRadius: 6,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, max: 100, ticks: { font: { size: 11 }, color: '#888' }, grid: { color: '#f1f5f9' } }, x: { ticks: { font: { size: 11 }, color: '#555' }, grid: { display: false } } }
+        }
+      });
+      document.getElementById('chart-container').style.display = 'block';
+    }
+
+    function saveToHistory(i) {
+      const score = calculateScore(i);
+      const now = new Date().toISOString();
+      let history = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      history.unshift({ ...i, score, timestamp: now });
+      if (history.length > 20) history = history.slice(0, 20);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+      localStorage.setItem(INPUTS_KEY, JSON.stringify(i));
+      updateHistoryDisplay();
+    }
+
+    function updateHistoryDisplay() {
+      const history = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      const histList = document.getElementById('history-list');
+      if (!histList) return;
+
+      if (history.length === 0) {
+        document.getElementById('history-section').style.display = 'none';
+        return;
+      }
+
+      document.getElementById('history-section').style.display = 'block';
+      histList.innerHTML = history.map((h, idx) => {
+        const date = new Date(h.timestamp).toLocaleString('ja-JP', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        return `<div style="background:#f9fafb;padding:10px;border-radius:6px;cursor:pointer;border-left:3px solid #7c3aed;" onclick="restoreHistory(${idx})"><div style="display:flex;justify-content:space-between;align-items:center;"><span style="font-size:12px;font-weight:600;color:#374151;">${h.score}点 (${date})</span></div></div>`;
+      }).join('');
+    }
+
+    function restoreHistory(idx) {
+      const history = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      if (!history[idx]) return;
+      const h = history[idx];
+      document.getElementById('workHours').value = h.w;
+      document.getElementById('overtime').value = h.ot;
+      document.getElementById('hobbyHours').value = h.hb;
+      document.getElementById('vacationRate').value = h.vr;
+      document.getElementById('sleepHours').value = h.sl;
+      generate();
+    }
+
+    function clearHistory() {
+      if (confirm('計算履歴をすべて削除してもよろしいですか？')) {
+        localStorage.removeItem(STORAGE_KEY);
+        updateHistoryDisplay();
+        alert('履歴を削除しました');
+      }
+    }
+
+    function printResult() {
+      window.print();
+    }
+
+    function exportCSV() {
+      const inputs = getInputs();
+      if (!inputs) return;
+      const score = calculateScore(inputs);
+      const csv = `項目,値\n実働時間,${inputs.w}h/週\n残業時間,${inputs.ot}h/週\n自由時間,${inputs.hb}h/週\n有給取得率,${inputs.vr}%\n睡眠時間,${inputs.sl}h/日\n総合スコア,${score}点`;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `work-life-balance-${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+    }
+
+    function copyResult() {
+      const inputs = getInputs();
+      if (!inputs) return;
+      const score = calculateScore(inputs);
+      const text = `ワークライフバランス採点結果\nスコア: ${score}点\n実働時間: ${inputs.w}h/週\n残業時間: ${inputs.ot}h/週\n自由時間: ${inputs.hb}h/週\n有給取得率: ${inputs.vr}%\n睡眠時間: ${inputs.sl}h/日`;
+      navigator.clipboard.writeText(text).then(() => alert('結果をコピーしました')).catch(e => console.error(e));
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const lastInputs = JSON.parse(localStorage.getItem(INPUTS_KEY) || 'null');
+      if (lastInputs) {
+        document.getElementById('workHours').value = lastInputs.w;
+        document.getElementById('overtime').value = lastInputs.ot;
+        document.getElementById('hobbyHours').value = lastInputs.hb;
+        document.getElementById('vacationRate').value = lastInputs.vr;
+        document.getElementById('sleepHours').value = lastInputs.sl;
+      }
+      updateHistoryDisplay();
+    });
+
     function generate() {
       const inputs = getInputs(); if (!inputs) return;
       document.getElementById('output').innerHTML = buildOutput(inputs);
+      renderChart(inputs);
+      saveToHistory(inputs);
       document.getElementById('result').classList.add('show');
       document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-    </script>
+</script>
     <!-- rakuten-affiliate-block -->
     <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">
       <p style="font-size:0.85rem;color:#4b5563;margin-bottom:8px;">🛒 関連商品を楽天市場で探す</p>

@@ -41,6 +41,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
+    <!-- Chart.js for M4: グラフ可視化 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"アルバイト収入・時給計算ツール","description":"時給・勤務時間・日数から月収・年収・所得税を計算。103万・130万の壁もチェック。登録不要・完全無料でご利用いただけます。","url":"https://appadaycreator.com/part-time-income-calculator/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"author":{"@type":"Organization","name":"AppADayCreator","url":"https://appadaycreator.com/"}}</script>
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "アルバイト収入・時給計算ツールは無料で使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、完全無料・登録不要でご利用いただけます。"}}, {"@type": "Question", "name": "計算結果は正確ですか？", "acceptedAnswer": {"@type": "Answer", "text": "参考値としてご活用ください。重要な判断の際は専門家・公式機関にご確認ください。"}}, {"@type": "Question", "name": "何回でも計算できますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、回数制限なく何度でもご利用いただけます。条件を変えて比較にお使いください。"}}, {"@type": "Question", "name": "入力したデータはどこかに保存されますか？", "acceptedAnswer": {"@type": "Answer", "text": "いいえ。すべての計算はブラウザ内で処理され、データのサーバー送信は行いません。"}}, {"@type": "Question", "name": "スマートフォンで利用できますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、PC・スマートフォン・タブレットすべてに対応しています。"}}]}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"アルバイト収入・時給計算ツール【無料】簡単・無料計算の使い方","step":[{"@type":"HowToStep","position":1,"name":"必要事項を入力する","text":"フォームに必要な情報（数値・選択肢・条件）を入力または選択する"},{"@type":"HowToStep","position":2,"name":"診断・計算を実行する","text":"「診断する」「計算する」または「確認する」ボタンを押して結果を取得する"},{"@type":"HowToStep","position":3,"name":"結果・分析を確認する","text":"表示された診断結果・計算結果・グラフをじっくり確認する"},{"@type":"HowToStep","position":4,"name":"アドバイスを活用する","text":"結果に基づくアドバイスや提案を日常生活に取り入れる"},{"@type":"HowToStep","position":5,"name":"定期的に再チェックする","text":"生活変化に応じて定期的に再診断して進捗を追跡する"}]}</script>
@@ -88,12 +90,12 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         @media (max-width: 360px) { .rc-val { font-size: 18px; } }
 
 @media print{
-  header,footer,nav,button,.no-print,
+  header,footer,nav,.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
-  [id*="affiliate"],[id*="banner"],
+  [id*="affiliate"],[id*="banner"],#print-btn,#csv-btn,#reset-btn,#share-btn,
   script,noscript{display:none!important}
   body{background:#fff!important;color:#000!important;font-size:12pt}
-  [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
+  [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"],canvas{display:block!important}
   a[href]::after{content:none!important}
 }
 
@@ -462,6 +464,63 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       `;
     }
 
+    // グラフ描画: M4実装
+    function renderGraphs(data) {
+      const { yearly, takehome, shotokuZei, juminZei, shakaihokenryou } = data;
+
+      // 1. 収入構成グラフ（円グラフ）
+      const ctx1 = document.getElementById('income-pie-chart');
+      if (ctx1 && ctx1.chart) ctx1.chart.destroy();
+
+      const pieChart = new Chart(ctx1, {
+        type: 'doughnut',
+        data: {
+          labels: ['手取り', '所得税', '住民税', shakaihokenryou > 0 ? '社会保険料' : null].filter(Boolean),
+          datasets: [{
+            data: [takehome, shotokuZei, juminZei, shakaihokenryou].filter((v, i) => i < 3 || v > 0),
+            backgroundColor: ['#10b981', '#ef4444', '#f59e0b', '#6366f1'],
+            borderColor: '#fff',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { position: 'bottom' },
+            tooltip: { callbacks: { label: ctx => '¥' + ctx.parsed.toLocaleString() } }
+          }
+        }
+      });
+      ctx1.chart = pieChart;
+
+      // 2. 年収レベルゲージ（横棒）
+      const ctx2 = document.getElementById('wage-wall-chart');
+      if (ctx2 && ctx2.chart) ctx2.chart.destroy();
+
+      const barChart = new Chart(ctx2, {
+        type: 'bar',
+        data: {
+          labels: ['年収レベル'],
+          datasets: [
+            { label: '103万円の壁', data: [1030000], backgroundColor: '#ec4899', borderRadius: 4 },
+            { label: '106万円の壁', data: [1060000], backgroundColor: '#f59e0b', borderRadius: 4 },
+            { label: '130万円の壁', data: [1300000], backgroundColor: '#ef4444', borderRadius: 4 },
+            { label: 'あなたの年収', data: [yearly], backgroundColor: '#3b82f6', borderRadius: 4 }
+          ]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom' } },
+          scales: { x: { max: 1500000 } }
+        }
+      });
+      ctx2.style.height = '200px';
+      ctx2.chart = barChart;
+    }
+
     // 結果をカード形式で描画
     function renderResult(data) {
       const { monthly, yearly, takehome, shotokuZei, juminZei, shakaihokenryou, walls, yearMonths } = data;
@@ -479,10 +538,33 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         ${shakaihokenryou > 0 ? `<p style="font-size:12px;color:#666;margin-top:8px;">社会保険料（概算）: 約${fmt(shakaihokenryou)}円/年</p>` : ''}
         <div class="walls-wrap">${wallsHtml}</div>
         <p style="font-size:11px;color:#9ca3af;margin-top:8px;text-align:center;">※給与所得控除・基礎控除48万適用後の概算値。</p>
+
+        <!-- M4: グラフ可視化 -->
+        <div style="margin-top:20px;">
+          <h3 style="font-size:14px;font-weight:600;margin-bottom:10px;">📊 収入構成</h3>
+          <canvas id="income-pie-chart" width="300" height="200"></canvas>
+        </div>
+        <div style="margin-top:20px;">
+          <h3 style="font-size:14px;font-weight:600;margin-bottom:10px;">📈 年収レベルと各種「壁」</h3>
+          <canvas id="wage-wall-chart"></canvas>
+        </div>
+
+        <!-- M10: 印刷・エクスポートボタン -->
+        <div style="margin-top:20px;display:flex;gap:8px;flex-wrap:wrap;">
+          <button id="print-btn" style="background:#8b5cf6;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;min-height:44px;flex:1;">🖨️ 印刷する</button>
+          <button id="csv-btn" style="background:#06b6d4;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;min-height:44px;flex:1;">📥 CSVダウンロード</button>
+        </div>
       `;
       document.getElementById('breakdown').innerHTML = renderBreakdown(data);
       document.getElementById('result').classList.add('show');
       document.getElementById('share-btn').style.display = 'block';
+
+      // M4: グラフを描画
+      setTimeout(() => renderGraphs(data), 0);
+
+      // M10: ボタンにイベント追加
+      document.getElementById('print-btn')?.addEventListener('click', () => window.print());
+      document.getElementById('csv-btn')?.addEventListener('click', () => downloadCSV(data));
     }
 
     function getParamsFromUrl() {
@@ -548,6 +630,42 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const vals = CFG.inputs.map(id => parseFloat(document.getElementById(id)?.value) || 0);
       if (vals[0] > 0 && validateInputs()) calculate();
     });
+
+    // M10: CSVダウンロード機能
+    function downloadCSV(data) {
+      const now = new Date();
+      const dateStr = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
+      const { hourly, hoursDay, daysMonth, yearMonths, monthly, yearly, takehome, shotokuZei, juminZei, shakaihokenryou, kyuyoKojo, kaiseiShotoku } = data;
+      const fmt = v => Math.round(v);
+
+      const csv = `アルバイト収入・時給計算結果
+計算実施日,${now.toLocaleString('ja-JP')}
+
+【入力値】
+時給（円）,${fmt(hourly)}
+1日の勤務時間（時間）,${hoursDay}
+月の勤務日数（日）,${daysMonth}
+年間稼働月数（ヶ月）,${yearMonths}
+
+【計算結果】
+月収（円）,${fmt(monthly)}
+年収（円）,${fmt(yearly)}
+給与所得控除（円）,${fmt(kyuyoKojo)}
+課税所得（円）,${fmt(kaiseiShotoku)}
+所得税（円）,${fmt(shotokuZei)}
+住民税（円）,${fmt(juminZei)}
+社会保険料（円）,${fmt(shakaihokenryou)}
+手取り（円）,${fmt(takehome)}
+
+※参考値です。実際の税額は個人の状況により異なります。
+`;
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `部分時間給与計算_${dateStr}.csv`;
+      link.click();
+    }
 
     function calculate() {
       if (!validateInputs()) return;

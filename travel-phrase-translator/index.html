@@ -91,7 +91,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%) translateY(12px); background:#1e293b; color:white; padding:10px 20px; border-radius:24px; font-size:13px; font-weight:500; opacity:0; pointer-events:none; transition:opacity .2s,transform .2s; z-index:9999; white-space:nowrap; }
         .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
         .lang-badge { display:inline-block; background:#7c3aed15; color:#7c3aed; padding:3px 10px; border-radius:12px; font-size:12px; font-weight:600; margin-bottom:10px; }
-@media print{header,footer,nav,button,.no-print,[class*="share"],[class*="affiliate"],[id*="share"],[id*="affiliate"],[id*="banner"],script,noscript{display:none!important}body{background:#fff!important;color:#000!important;font-size:12pt}[id*="result"],[id*="output"],[class*="result"]{display:block!important}a[href]::after{content:none!important}}
+@media print{header,footer,nav,.no-print,[class*="share"],[class*="affiliate"],[id*="share"],[id*="affiliate"],[id*="banner"],script,noscript,.search-wrap,.phrase-actions,.result-header,.count-label,#stats-panel{display:none!important}body{background:#fff!important;color:#000!important;font-size:11pt;margin:0;padding:0}[id*="result"],[id*="output"],[class*="result"]{display:block!important}.phrase-card{border:none;border-bottom:1px solid #e5e7eb;padding:8px 0;margin-bottom:8px;display:flex;gap:8px}.phrase-main{font-size:11pt;font-weight:600;color:#000}.phrase-jp{font-size:10pt;color:#333;margin-top:2px}.phrase-content{flex:1}button{display:none!important}a[href]::after{content:none!important}.lang-badge{display:none!important}}
 
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
@@ -380,15 +380,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     var _currentScene = 'airport';
     var _currentLang = 'en';
     var _favorites = {};
+    var _stats = {};
 
     function he(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
     function initFavorites(){try{_favorites=JSON.parse(localStorage.getItem('travel-favorites')||'{}');}catch(e){}}
     function saveFavorites(){localStorage.setItem('travel-favorites',JSON.stringify(_favorites));}
     function getFavKey(scene,lang,idx){return scene+':'+lang+':'+idx;}
-    function toggleFav(scene,lang,idx){var k=getFavKey(scene,lang,idx);_favorites[k]?delete _favorites[k]:_favorites[k]=1;saveFavorites();updateFavButton(idx);}
+    function toggleFav(scene,lang,idx){var k=getFavKey(scene,lang,idx);_favorites[k]?delete _favorites[k]:_favorites[k]=1;saveFavorites();updateFavButton(idx);updateStats('fav',scene,lang);}
     function isFav(scene,lang,idx){return!!_favorites[getFavKey(scene,lang,idx)];}
     function updateFavButton(idx){var btn=document.getElementById('fav-'+idx);if(btn)btn.textContent=isFav(_currentScene,_currentLang,idx)?'⭐':'☆';}
+
+    function initStats(){try{_stats=JSON.parse(localStorage.getItem('travel-stats')||'{}');}catch(e){}}
+    function saveStats(){localStorage.setItem('travel-stats',JSON.stringify(_stats));}
+    function updateStats(action,scene,lang){var k=scene+':'+lang;if(!_stats[k])_stats[k]={copies:0,favs:0};if(action==='copy')_stats[k].copies++;else if(action==='fav')_stats[k].favs++;saveStats();}
 
     function toggleDarkMode(){var html=document.documentElement;var isDark=html.getAttribute('data-theme')==='dark';html.setAttribute('data-theme',isDark?'light':'dark');localStorage.setItem('theme',isDark?'light':'dark');updateThemeToggle();}
     function updateThemeToggle(){var isDark=document.documentElement.getAttribute('data-theme')==='dark';document.getElementById('theme-toggle').textContent=isDark?'☀️':'🌙';}
@@ -404,8 +409,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         var isFaved=isFav(_currentScene,_currentLang,i);
         return '<div class="phrase-card '+(isFaved?'favorited':'')+" data-i='"+i+"'><div class=\"phrase-content\"><div class=\"phrase-main\">"+he(p.phrase)+'</div><div class="phrase-jp">'+he(p.jp)+'</div></div><div class="phrase-actions"><button class="icon-btn" id="fav-'+i+'" onclick="toggleFav(\''+_currentScene+'\',\''+_currentLang+'\','+i+')" title="お気に入い" aria-label="お気に入い">'+(isFaved?'⭐':'☆')+'</button><button class="icon-btn" onclick="speakPhrase('+i+')" title="発音を聞く" aria-label="発音を聞く">🔊</button><button class="icon-btn" id="cb-'+i+'" oncontextmenu="showCopyMenu(event,'+i+')" onclick="copyPhrase('+i+',\'phrase\')" title="コピー（右クリックで選択）" aria-label="コピー">📋</button></div></div>';
       }).join('');
-      document.getElementById('output').innerHTML='<div class="lang-badge">'+he(data.label)+' &mdash; '+LANG_LABELS[_currentLang]+'</div>'+rows;
+      var btnBar='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn" onclick="printPhrases()" style="flex:1;background:#7c3aed;min-height:40px;font-size:14px;padding:8px">🖨️ 印刷</button><button class="btn" onclick="exportAll(\'text\')" style="flex:1;background:#6b7280;min-height:40px;font-size:14px;padding:8px">📄 すべてコピー</button><button class="btn" onclick="exportAll(\'csv\')" style="flex:1;background:#059669;min-height:40px;font-size:14px;padding:8px">📥 CSV保存</button></div>';
+      document.getElementById('output').innerHTML=btnBar+'<div class="lang-badge">'+he(data.label)+' &mdash; '+LANG_LABELS[_currentLang]+'</div>'+rows+'<div id="stats-panel" style="margin-top:16px;"></div>';
       updateCount(_phrases.length,_phrases.length);
+      renderStats();
       var s=document.getElementById('search');if(s)s.value='';
     }
 
@@ -448,6 +455,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       var text=p.phrase;if(mode==='both')text=p.phrase+'\n('+p.jp+')';
       var btn=document.getElementById('cb-'+idx);
       var done=function(){
+        updateStats('copy',_currentScene,_currentLang);
         if(btn){btn.textContent='✅';setTimeout(function(){btn.textContent='📋';},1500);}
         showToast('コピーしました！');
       };
@@ -472,6 +480,61 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       speechSynthesis.speak(u);
     }
 
+    function renderStats(){
+      var panel=document.getElementById('stats-panel');
+      if(!panel)return;
+      var entries=Object.keys(_stats).map(function(k){return{key:k,data:_stats[k]};}).sort(function(a,b){return(b.data.copies+b.data.favs)-(a.data.copies+a.data.favs);}).slice(0,3);
+      if(entries.length===0){panel.innerHTML='';return;}
+      var total=entries.reduce(function(s,e){return s+e.data.copies+e.data.favs;},0);
+      var html='<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-top:12px;"><p style="font-size:12px;font-weight:600;color:#374151;margin-bottom:8px;">📊 利用統計</p>';
+      if(window.Chart){
+        var labels=entries.map(function(e){return e.key.split(':')[0];});
+        var copies=entries.map(function(e){return e.data.copies;});
+        var favs=entries.map(function(e){return e.data.favs;});
+        html+='<canvas id="stats-chart" style="max-height:150px;"></canvas><script>if(window.statsChart)window.statsChart.destroy();var ctx=document.getElementById("stats-chart").getContext("2d");window.statsChart=new Chart(ctx,{type:"bar",data:{labels:'+JSON.stringify(labels)+',datasets:[{label:"コピー",data:'+JSON.stringify(copies)+',backgroundColor:"#7c3aed",borderRadius:6},{label:"お気に入い",data:'+JSON.stringify(favs)+',backgroundColor:"#fbbf24",borderRadius:6}]},options:{responsive:true,maintainAspectRatio:true,indexAxis:"y",plugins:{legend:{display:true,position:"bottom",labels:{font:{size:11},padding:8}},tooltip:{callbacks:{label:function(ctx){return ctx.dataset.label+": "+ctx.parsed.x+"回";}}}},scales:{x:{beginAtZero:true,grid:{display:false}},y:{grid:{display:false}}}}});</script>';
+      }else{
+        html+='<div style="font-size:12px;color:#6b7280;">';
+        entries.forEach(function(e){html+='<div style="margin-bottom:6px;">'+e.key+': コピー '+e.data.copies+'回・お気に入い '+e.data.favs+'回</div>';});
+        html+='</div>';
+      }
+      html+='</div>';
+      panel.innerHTML=html;
+    }
+
+    function printPhrases(){
+      window.print();
+    }
+
+    function exportAll(fmt){
+      var data=PHRASES[_currentScene];
+      var title=he(data.label)+' - '+LANG_LABELS[_currentLang];
+      if(fmt==='text'){
+        var lines=[title,'---'];
+        _phrases.forEach(function(p){lines.push(p.phrase);lines.push(p.jp);lines.push('');});
+        var text=lines.join('\n');
+        fallbackCopy(text,function(){showToast('すべてコピーしました！');});
+      }else if(fmt==='csv'){
+        var csv='シーン,言語,フレーズ,日本語訳\n';
+        var scene=_currentScene;
+        var lang=LANG_LABELS[_currentLang];
+        _phrases.forEach(function(p){
+          var phrase='"'+he(p.phrase).replace(/"/g,'""')+'"';
+          var jp='"'+he(p.jp).replace(/"/g,'""')+'"';
+          csv+='"'+scene+'","'+lang+'",'+phrase+','+jp+'\n';
+        });
+        var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+        var link=document.createElement('a');
+        var url=URL.createObjectURL(blob);
+        link.setAttribute('href',url);
+        link.setAttribute('download',title+'.csv');
+        link.style.visibility='hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast('CSVを保存しました！');
+      }
+    }
+
     var _toastTimer;
     function showToast(msg){
       var t=document.getElementById('toast');
@@ -480,7 +543,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       _toastTimer=setTimeout(function(){t.classList.remove('show');},2000);
     }
 
-    document.addEventListener('DOMContentLoaded',function(){initTheme();initFavorites();generate();if('serviceWorker'in navigator){navigator.serviceWorker.register('service-worker.js').catch(function(e){console.log('SW registration failed',e);});}});
+    document.addEventListener('DOMContentLoaded',function(){initTheme();initFavorites();initStats();generate();if('serviceWorker'in navigator){navigator.serviceWorker.register('service-worker.js').catch(function(e){console.log('SW registration failed',e);});}});
     </script>
     <!-- rakuten-affiliate-block -->
     <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">

@@ -22,6 +22,8 @@
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <!-- Chart.js for M4: visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <!-- GTM -->
     <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
     <!-- Clarity -->
@@ -187,7 +189,29 @@
           <div class="card">
             <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;color:#6366F1;"></h3>
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
-            <button class="btn" style="margin-top:16px;" onclick="location.reload()" aria-label="もう一度診断">もう一度診断</button>
+
+            <!-- M4: Chart.js visualization -->
+            <div id="chart-section" style="margin:24px 0;padding:16px;background:#f9fafb;border-radius:10px;display:none;">
+              <h4 style="font-size:13px;font-weight:700;margin:0 0 12px;color:#374151;">📊 スコア分析</h4>
+              <canvas id="resultChart" style="max-height:300px;"></canvas>
+            </div>
+
+            <!-- M10: Print & Export buttons -->
+            <div style="display:flex;gap:8px;margin:16px 0;flex-wrap:wrap;">
+              <button class="btn" style="flex:1;min-width:140px;background:#4f46e5;margin-top:0;font-size:14px;" onclick="printResult()" aria-label="診断結果を印刷">🖨️ 印刷する</button>
+              <button class="btn" style="flex:1;min-width:140px;background:#8b5cf6;margin-top:0;font-size:14px;" onclick="copyResult()" aria-label="診断結果をコピー">📋 結果をコピー</button>
+              <button class="btn" style="flex:1;min-width:140px;background:#6366F1;margin-top:0;font-size:14px;" onclick="location.reload()" aria-label="もう一度診断">もう一度診断</button>
+            </div>
+
+            <!-- M3: History section -->
+            <div id="history-section" style="margin-top:20px;padding:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;">
+              <h4 style="font-size:13px;font-weight:700;margin:0 0 12px;color:#14532d;">📜 診断履歴</h4>
+              <div id="history-list" style="font-size:13px;color:#4b5563;"></div>
+              <button class="btn" style="margin-top:12px;background:#dc2626;font-size:13px;" onclick="clearHistory()" aria-label="診断履歴をクリア">全削除</button>
+            </div>
+
+            <!-- Toast notification -->
+            <div id="toast" style="position:fixed;bottom:20px;right:20px;background:#333;color:white;padding:12px 20px;border-radius:8px;font-size:13px;display:none;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.3);">✅ コピーしました！</div>
           </div>
         </div>
 
@@ -333,6 +357,123 @@
       { title:'🌿 空気清浄機タイプ — アレルギー・花粉対策の基本', desc:'アレルギー・花粉症対策には空気清浄機が最優先です。HEPAフィルター搭載機が花粉・PM2.5・ダニの糞などを99.97%除去します。シャープのプラズマクラスター、ダイキンのストリーマが定評あり。置く場所は「空気の流れる場所（窓・ドア付近）」または「寝室の空気の入り口」が最も効果的。フィルターの定期清掃（2週間に1回）が性能維持の鍵です。加湿機能付きモデルで一台二役も◎。' },
       { title:'🏠 換気・総合管理タイプ — 習慣と機器で最適な空気環境を', desc:'定期的な換気（1時間に1回・5〜10分）が最もコストをかけずに空気環境を改善する方法です。換気のコツ：対角線上の2箇所を開けると空気が流れやすい。加えて：①重曹・竹炭の除湿・消臭効果を活用 ②サーキュレーターで空気を循環させる ③カビ防止スプレーをユニットバス・窓枠に定期的に使用。最終的には加湿器+空気清浄機の組み合わせが最強の空気環境を実現します。まず湿度計を購入して現状を把握することから始めましょう。' }
     ];
+    const RESULT_NAMES = ['加湿器', '除湿器', '空気清浄機', '換気総合'];
+    const RESULT_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
+
+    // M3: localStorage functions
+    function saveHistory(scores, resultIdx) {
+      let history = JSON.parse(localStorage.getItem('humidity_history') || '[]');
+      history.push({
+        date: new Date().toLocaleString('ja-JP'),
+        resultType: RESULT_NAMES[resultIdx],
+        scores: scores,
+        resultIdx: resultIdx
+      });
+      if(history.length > 10) history.shift();
+      localStorage.setItem('humidity_history', JSON.stringify(history));
+      renderHistory();
+    }
+    function renderHistory() {
+      const history = JSON.parse(localStorage.getItem('humidity_history') || '[]');
+      const list = document.getElementById('history-list');
+      if(history.length === 0) {
+        list.innerHTML = '<p style="margin:0;color:#6b7280;">診断履歴はまだありません</p>';
+        return;
+      }
+      list.innerHTML = history.map((h, i) => `
+        <div style="padding:8px;margin:4px 0;background:white;border-radius:6px;border-left:3px solid ${RESULT_COLORS[h.resultIdx]};">
+          <div style="font-weight:600;margin-bottom:2px;">${h.resultType}</div>
+          <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">${h.date}</div>
+          <button style="font-size:11px;background:#059669;color:white;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;margin-right:4px;" onclick="restoreQuiz(${i})">復元</button>
+          <button style="font-size:11px;background:#dc2626;color:white;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;" onclick="deleteHistoryItem(${i})">削除</button>
+        </div>
+      `).join('');
+    }
+    function deleteHistoryItem(idx) {
+      let history = JSON.parse(localStorage.getItem('humidity_history') || '[]');
+      history.splice(idx, 1);
+      localStorage.setItem('humidity_history', JSON.stringify(history));
+      renderHistory();
+    }
+    function clearHistory() {
+      if(confirm('診断履歴をすべて削除しますか？')) {
+        localStorage.removeItem('humidity_history');
+        renderHistory();
+      }
+    }
+
+    // M4: Chart.js visualization
+    let chartInstance = null;
+    function drawChart(scores, resultIdx) {
+      const ctx = document.getElementById('resultChart').getContext('2d');
+      if(chartInstance) chartInstance.destroy();
+      const total = scores.reduce((a,b) => a+b, 0) || 1;
+      const labels = RESULT_NAMES;
+      const data = scores;
+      chartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: RESULT_COLORS,
+            borderColor: '#fff',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 12 } },
+            tooltip: { callbacks: { label: function(ctx) { const total = ctx.dataset.data.reduce((a,b) => a+b); const pct = ((ctx.parsed || 0) / total * 100).toFixed(1); return `${ctx.label}: ${ctx.parsed} (${pct}%)`; } } }
+          }
+        }
+      });
+    }
+
+    // M10: Print & Export
+    function printResult() {
+      const title = document.getElementById('r-title').textContent;
+      const desc = document.getElementById('r-desc').textContent;
+      const content = `
+        <html>
+          <head>
+            <meta charset="UTF-8">
+            <title>室内湿度診断結果</title>
+            <style>
+              body { font-family: 'Noto Sans JP', sans-serif; padding: 40px; max-width: 600px; margin: 0 auto; }
+              h1 { color: #6366f1; font-size: 24px; margin: 0 0 16px; }
+              p { line-height: 1.8; color: #333; font-size: 14px; }
+              .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #999; }
+            </style>
+          </head>
+          <body>
+            <h1>${title}</h1>
+            <p>${desc}</p>
+            <div class="footer">
+              <p>室内湿度・空気環境最適化診断</p>
+              <p>https://appadaycreator.com/humidity-home-advisor/</p>
+            </div>
+          </body>
+        </html>
+      `;
+      const w = window.open();
+      w.document.write(content);
+      w.document.close();
+      setTimeout(() => w.print(), 100);
+    }
+    function copyResult() {
+      const title = document.getElementById('r-title').textContent;
+      const desc = document.getElementById('r-desc').textContent;
+      const text = `${title}\n\n${desc}\n\n室内湿度・空気環境最適化診断\nhttps://appadaycreator.com/humidity-home-advisor/`;
+      navigator.clipboard.writeText(text).then(() => {
+        const toast = document.getElementById('toast');
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 3000);
+      });
+    }
+
     function getResult(answers) {
       const scores = [0,0,0,0];
       const a = answers.map(x => x.idx);
@@ -357,10 +498,13 @@
       if(a[4]===2) scores[0]+=1;
       if(a[4]===3) scores[2]+=1;
       const best = scores.indexOf(Math.max(...scores));
-      return RESULTS[best];
+      return { result: RESULTS[best], scores: scores, idx: best };
     }
     let cur=0; const ans=[];
-    document.addEventListener('DOMContentLoaded',()=>{ document.getElementById('q-total').textContent=QUESTIONS.length; });
+    document.addEventListener('DOMContentLoaded',()=>{
+      document.getElementById('q-total').textContent=QUESTIONS.length;
+      renderHistory();
+    });
     function startQuiz(){ cur=0;ans.length=0; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); renderQ(); }
     function renderQ(){
       const q=QUESTIONS[cur];
@@ -372,13 +516,42 @@
     }
     function answer(idx){ ans.push({idx}); cur++; if(cur>=QUESTIONS.length) showResult(); else renderQ(); }
     function goBack(){ if(cur>0) { cur--; ans.pop(); renderQ(); } }
+    function restoreQuiz(historyIdx) {
+      const history = JSON.parse(localStorage.getItem('humidity_history') || '[]');
+      if(historyIdx < history.length) {
+        cur = 0;
+        ans.length = 0;
+        for(let i = 0; i < history[historyIdx].scores.length && i < QUESTIONS.length; i++) {
+          const q = QUESTIONS[i];
+          const resultIdx = history[historyIdx].resultIdx;
+          const scores = history[historyIdx].scores;
+          for(let j = 0; j < q.opts.length; j++) {
+            if(scores[j] > 0) { ans.push({idx: j}); break; }
+          }
+        }
+        showResultByIndex(history[historyIdx].resultIdx);
+      }
+    }
     function showResult(){
       document.getElementById('quiz-area').style.display='none';
-      const r=getResult(ans);
-      document.getElementById('r-title').textContent=r.title;
-      document.getElementById('r-desc').textContent=r.desc;
+      const { result, scores, idx } = getResult(ans);
+      document.getElementById('r-title').textContent=result.title;
+      document.getElementById('r-desc').textContent=result.desc;
+      document.getElementById('chart-section').style.display='block';
       document.getElementById('result').classList.add('show');
-      setTimeout(()=>document.getElementById('result').scrollIntoView({behavior:'smooth'}),100);
+      saveHistory(scores, idx);
+      setTimeout(() => { drawChart(scores, idx); document.getElementById('result').scrollIntoView({behavior:'smooth'}); }, 100);
+    }
+    function showResultByIndex(resultIdx) {
+      document.getElementById('quiz-area').style.display='none';
+      const result = RESULTS[resultIdx];
+      document.getElementById('r-title').textContent=result.title;
+      document.getElementById('r-desc').textContent=result.desc;
+      document.getElementById('chart-section').style.display='block';
+      document.getElementById('result').classList.add('show');
+      const scores = [0,0,0,0];
+      scores[resultIdx] = 10;
+      setTimeout(() => { drawChart(scores, resultIdx); document.getElementById('result').scrollIntoView({behavior:'smooth'}); }, 100);
     }
     </script>
 <div style="text-align:center;padding:10px 16px 14px;background:#eef2ff;border-top:2px solid #c7d2fe;margin-top:8px">

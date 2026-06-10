@@ -131,6 +131,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   <p style="color:#374151;margin:0 0 .75rem;line-height:1.75;font-size:.92rem">【使い方】①必要な情報を入力 → ②ボタンをクリック → ③結果・アドバイスを確認してください。</p>
   <p style="color:#4b5563;margin:0;line-height:1.75;font-size:.9rem">当ツールで入力したデータはお使いのブラウザ内にのみ保存され、外部サーバーへ送信されることはありません。安心してご利用ください。</p>
 </div>
+<!-- 保存済みデータの復元 -->
+<div id="restore-banner" style="background:#e0f4f5;border:1px solid #5dade2;border-radius:8px;padding:12px 16px;margin:12px 0;display:none;">
+  <p style="margin:0 0 8px;font-size:13px;font-weight:600;color:#0c5460;">✨ 前回の入力データが見つかりました</p>
+  <button onclick="restorePreviousData()" style="background:#17a2b8;color:white;border:none;padding:6px 16px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;margin-right:6px;">復元する</button>
+  <button onclick="clearRestoreBanner()" style="background:transparent;color:#0c5460;border:1px solid #5dade2;padding:6px 16px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">スキップ</button>
+</div>
 <div style="background:#eaf4fb;border-left:4px solid #1976d2;padding:20px 24px;margin:24px 0;border-radius:0 8px 8px 0">
   <h3 style="font-size:1.1rem;font-weight:800;color:#1e3a5f">このツールでできること</h3>
   <p style="margin:8px 0 0;line-height:1.7;color:#1a1a2e">購入を検討している商品のスペック・価格・レビュー情報を入力すると、条件に合った最適な商品と購入先をアドバイスします。ポイント還元・送料込みの実質最安値比較にも対応します。</p>
@@ -188,6 +194,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div id="items-container"></div>
           <button class="btn" style="margin-top:12px;background:#7c3aed;" onclick="addItem()">➕ 商品を追加</button>
           <button class="btn" style="margin-top:8px;" onclick="compareAll()">比較する</button>
+        </div>
+        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 12px;margin:8px 0;display:flex;align-items:center;gap:8px;font-size:12px;color:#16A34A;">
+          <span>✅ 入力データは自動保存されています</span>
+          <small style="color:#6b7280;">(ブラウザのローカルストレージ使用・個人情報は外部に送信されません)</small>
         </div>
         <div class="result" id="result" style="margin-top:16px;">
           <div class="card">
@@ -298,6 +308,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 let itemCount=0;let chart=null;
 const SHOPS=[{name:'Amazon',color:'#16A34A',defaultShip:0},{name:'楽天',color:'#bf5af2',defaultShip:500},{name:'Yahoo',color:'#f5a623',defaultShip:500}];
 const CURRENCY_RATES={USD:110,EUR:130};
+const STORAGE_KEY='shoppingToolData';
 
 function addItem(){
   const cnt=itemCount++;
@@ -306,17 +317,36 @@ function addItem(){
       <label style="font-weight:700;">商品 ${cnt+1}</label>
       <button onclick="removeItem(${cnt})" style="background:#f87171;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;">削除</button>
     </div>
-    <input type="text" id="item-${cnt}" placeholder="例: ワイヤレスイヤホン" style="margin-bottom:8px;">
+    <div style="display:flex;gap:4px;align-items:center;margin-bottom:4px;">
+      <label style="font-size:12px;font-weight:600;color:#555;">商品名</label>
+      <span title="購入予定の商品名を入力（例：ワイヤレスイヤホン、27インチ4K液晶モニタなど）" style="font-size:12px;color:#9ca3af;cursor:help;">?</span>
+    </div>
+    <input type="text" id="item-${cnt}" placeholder="例: ワイヤレスイヤホン、ノートパソコン" style="margin-bottom:8px;">
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;" data-shop-grid>
-      ${SHOPS.map((s,i)=>`<div data-shop><label style="font-size:11px;font-weight:700;color:${s.color};">${s.name}</label>
-        <input type="number" id="item-${cnt}-p${i}" placeholder="価格(円)" min="0" style="font-size:13px;">
-        <input type="number" id="item-${cnt}-pt${i}" placeholder="ポイント(%)" min="0" max="100" style="margin-top:2px;font-size:13px;">
-        <input type="number" id="item-${cnt}-s${i}" placeholder="送料(円)" min="0" style="margin-top:2px;font-size:13px;" value="${s.defaultShip}">
+      ${SHOPS.map((s,i)=>`<div data-shop>
+        <div style="display:flex;gap:4px;align-items:center;margin-bottom:2px;">
+          <label style="font-size:11px;font-weight:700;color:${s.color};">${s.name}</label>
+          <span title="${s.name}での商品価格（税抜き）。各ECサイトで確認できます。" style="font-size:10px;color:#9ca3af;cursor:help;">?</span>
+        </div>
+        <input type="number" id="item-${cnt}-p${i}" placeholder="価格(円)" min="0" style="font-size:13px;" onchange="saveData()" title="商品の税抜き価格を入力してください">
+        <div style="display:flex;gap:4px;align-items:center;margin:4px 0 2px;font-size:10px;">
+          <label style="font-size:10px;font-weight:600;color:#666;">ポイント</label>
+          <span title="ポイント還元率（例：楽天は1～5%、Amazonは0.5～2%程度）" style="font-size:9px;color:#9ca3af;cursor:help;">?</span>
+        </div>
+        <input type="number" id="item-${cnt}-pt${i}" placeholder="%(例: 1, 5)" min="0" max="100" style="font-size:13px;" onchange="saveData()" title="ポイント還元率を%で入力">
+        <div style="display:flex;gap:4px;align-items:center;margin:4px 0 2px;font-size:10px;">
+          <label style="font-size:10px;font-weight:600;color:#666;">送料</label>
+          <span title="配送料金。楽天・Yahoo!は通常500円以上、Amazonは無料の場合が多いです。" style="font-size:9px;color:#9ca3af;cursor:help;">?</span>
+        </div>
+        <input type="number" id="item-${cnt}-s${i}" placeholder="送料(円)" min="0" style="font-size:13px;" value="${s.defaultShip}" onchange="saveData()" title="送料を入力してください">
       </div>`).join('')}
     </div>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <label style="font-size:11px;font-weight:600;flex:1;">税込</label>
-      <input type="checkbox" id="item-${cnt}-tax" style="width:18px;height:18px;cursor:pointer;">
+    <div style="display:flex;gap:8px;align-items:center;padding:8px 0;border-top:1px solid #e5e7eb;">
+      <label style="font-size:11px;font-weight:600;flex:1;display:flex;gap:4px;align-items:center;">
+        税込
+        <span title="税率10%を含めて計算します。チェックすると価格×1.1で計算されます。" style="font-size:9px;color:#9ca3af;cursor:help;">?</span>
+      </label>
+      <input type="checkbox" id="item-${cnt}-tax" style="width:18px;height:18px;cursor:pointer;" onchange="saveData()" title="消費税10%を含めるかどうか">
     </div>
   </div>`;
   document.getElementById('items-container').insertAdjacentHTML('beforeend',html);
@@ -325,6 +355,48 @@ function addItem(){
 function removeItem(id){
   const el=document.querySelector(`[data-item-id="${id}"]`);
   if(el) el.remove();
+  saveData();
+}
+
+function saveData(){
+  const data={timestamp:new Date().toISOString(),items:[]};
+  document.querySelectorAll('[data-item-id]').forEach(el=>{
+    const id=el.dataset.itemId;
+    const item={id:parseInt(id),name:document.getElementById(`item-${id}`)?.value||''};
+    item.shops=[];
+    SHOPS.forEach((s,i)=>{
+      item.shops.push({
+        price:document.getElementById(`item-${id}-p${i}`)?.value||'',
+        point:document.getElementById(`item-${id}-pt${i}`)?.value||'',
+        ship:document.getElementById(`item-${id}-s${i}`)?.value||SHOPS[i].defaultShip,
+        tax:document.getElementById(`item-${id}-tax`)?.checked||false
+      });
+    });
+    data.items.push(item);
+  });
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
+}
+
+function restorePreviousData(){
+  const data=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+  if(!data.items||!data.items.length) return;
+  document.getElementById('items-container').innerHTML='';
+  itemCount=0;
+  data.items.forEach(item=>{
+    addItem();
+    document.getElementById(`item-${itemCount-1}`)?.setAttribute('value',item.name);
+    item.shops.forEach((shop,i)=>{
+      if(shop.price) document.getElementById(`item-${itemCount-1}-p${i}`)?.setAttribute('value',shop.price);
+      if(shop.point) document.getElementById(`item-${itemCount-1}-pt${i}`)?.setAttribute('value',shop.point);
+      if(shop.ship) document.getElementById(`item-${itemCount-1}-s${i}`)?.setAttribute('value',shop.ship);
+      if(shop.tax) document.getElementById(`item-${itemCount-1}-tax`)?.setAttribute('checked','checked');
+    });
+  });
+  document.getElementById('restore-banner').style.display='none';
+}
+
+function clearRestoreBanner(){
+  document.getElementById('restore-banner').style.display='none';
 }
 
 function compareAll(){
@@ -348,6 +420,7 @@ function compareAll(){
     if(valid){items.push({name,shops});}
   });
   if(!items.length){alert('少なくとも1つの商品と価格を入力してください');return;}
+  saveData();
   renderResults(items);
 }
 
@@ -410,7 +483,12 @@ function renderResults(items){
 }
 
 document.addEventListener('DOMContentLoaded',()=>{
-  addItem();
+  const savedData=localStorage.getItem(STORAGE_KEY);
+  if(savedData){
+    document.getElementById('restore-banner').style.display='block';
+  }else{
+    addItem();
+  }
   const s=document.createElement('script');
   s.src='https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.min.js';
   document.head.appendChild(s);

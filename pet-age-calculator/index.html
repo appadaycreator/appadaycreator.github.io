@@ -37,6 +37,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -207,6 +209,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
           <button class="btn" style="margin-top:20px;" onclick="calculate()">人間年齢に換算する</button>
 
+          <!-- 前回データ復元ボタン -->
+          <button type="button" class="btn" id="restore-btn" style="margin-top:8px;background:#7c3aed;display:none;" onclick="restorePreviousData()" aria-label="前回のデータを復元">↻ 前回のデータを復元</button>
+
           <!-- 結果エリア -->
           <div class="result" id="result" style="margin-top:16px;">
             <div style="background:#FFF7ED;border-radius:12px;padding:16px;border:2px solid #FED7AA;">
@@ -219,7 +224,33 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
                 <div class="stage-item" id="st-4">高齢期</div>
               </div>
               <div class="detail-grid" id="detail"></div>
-              <div class="result-share" id="share-result"></div>
+
+              <!-- グラフコンテナ (Chart.js) -->
+              <div style="margin-top:16px;display:none;" id="chart-container">
+                <canvas id="age-chart" style="max-width:100%;height:250px;"></canvas>
+              </div>
+
+              <!-- 進捗ゲージ -->
+              <div style="margin-top:12px;display:none;" id="lifespan-gauge">
+                <p style="font-size:12px;color:#94a3b8;margin-bottom:4px;">寿命の進捗</p>
+                <div style="background:#e5e7eb;border-radius:10px;height:16px;overflow:hidden;">
+                  <div id="gauge-fill" style="height:100%;background:#F97316;width:0%;transition:width .3s ease;"></div>
+                </div>
+              </div>
+
+              <div class="result-share" id="share-result" style="margin-top:12px;"></div>
+
+              <!-- エクスポート・コピーボタン -->
+              <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid #f1f5f9;">
+                <button type="button" class="btn" id="copy-result-btn" style="flex:1;min-width:120px;background:#10b981;font-size:13px;padding:10px;" onclick="copyResultToClipboard()" aria-label="結果をコピー">📋 コピー</button>
+                <button type="button" class="btn" id="csv-download-btn" style="flex:1;min-width:120px;background:#0ea5e9;font-size:13px;padding:10px;" onclick="downloadAsCSV()" aria-label="CSVでダウンロード">📥 CSV</button>
+              </div>
+
+              <!-- 履歴セクション -->
+              <div style="margin-top:16px;padding-top:12px;border-top:1px solid #f1f5f9;display:none;" id="history-section">
+                <p style="font-size:12px;color:#94a3b8;margin-bottom:8px;font-weight:600;">📜 計算履歴</p>
+                <div id="history-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -366,12 +397,41 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <dd style="margin-left:16px;color:#374151;">はい、PC・スマートフォン・タブレットすべてに対応しています。ブラウザから登録不要・完全無料でご利用いただけます。</dd>
   </dl>
 </section>
+<!-- r30-tool-guide -->
+<section style="margin:2rem 0;padding:1.5rem;background:#f8fafc;border-radius:.75rem;border:1px solid #e2e8f0">
+<h2 style="font-size:1.05rem;font-weight:700;color:#1e293b;margin:0 0 .75rem">ペット年齢・人間換算計算ツールの使い方ガイド</h2>
+<p style="font-size:.88rem;line-height:1.85;color:#374151">犬や猫の年齢を人間の年齢に換算することで、今のペットのライフステージを理解しやすくなります。このツールでは、ペットの種類・犬種（大型・小型）・実年齢を入力するだけで、人間換算の年齢を瞬時に計算します。「うちの子は人間でいうと何歳くらい？」という疑問に答えるとともに、そのライフステージに合った健康管理・食事・運動の注意点も表示します。大切なペットの健康を長く守るための参考にご活用ください。</p>
+<h3 style="font-size:.9rem;font-weight:700;color:#1e293b;margin:1rem 0 .4rem">このツールが役立つシーン</h3>
+<ul style="font-size:.85rem;line-height:2;color:#374151;padding-left:1.2rem">
+<li>ペットの人間換算年齢を知りたいとき</li>
+<li>老犬・老猫の健康管理を始めたいとき</li>
+<li>シニアペットに合ったフードや運動量を検討したいとき</li>
+<li>子ペットから成犬・成猫への移行時期を確認したいとき</li>
+</ul>
+<h3 style="font-size:.9rem;font-weight:700;color:#1e293b;margin:1rem 0 .4rem">よくある質問</h3>
+<div style="display:grid;gap:.5rem">
+<div style="padding:.65rem;background:#fff;border-left:3px solid #4f46e5;border-radius:0 .375rem .375rem 0">
+<p style="font-size:.82rem;font-weight:700;color:#4f46e5;margin:0 0 .2rem">Q. 犬の年齢換算は1年=7歳で合っていますか？</p>
+<p style="font-size:.81rem;color:#6b7280;margin:0">旧来は「1年=7歳」とされていましたが、実際は成長ステージによって異なります。子犬期の成長は速く、成犬後は緩やかになります。</p>
+</div>
+<div style="padding:.65rem;background:#fff;border-left:3px solid #4f46e5;border-radius:0 .375rem .375rem 0">
+<p style="font-size:.82rem;font-weight:700;color:#4f46e5;margin:0 0 .2rem">Q. 猫と犬では換算方法が違いますか？</p>
+<p style="font-size:.81rem;color:#6b7280;margin:0">はい。猫は犬に比べて小型犬に近い老化ペースです。また大型犬は小型犬より老化が速い傾向があります。</p>
+</div>
+<div style="padding:.65rem;background:#fff;border-left:3px solid #4f46e5;border-radius:0 .375rem .375rem 0">
+<p style="font-size:.82rem;font-weight:700;color:#4f46e5;margin:0 0 .2rem">Q. シニアペットは何歳から気をつければ良いですか？</p>
+<p style="font-size:.81rem;color:#6b7280;margin:0">小型犬・猫は12歳以上、大型犬は8歳以上がシニア期の目安です。この時期から定期健診の頻度を上げることをおすすめします。</p>
+</div>
+</div>
+</section>
 </main>
 
     
 <script>
     // 選択中の犬サイズ
     let selectedSize = 'small';
+    let chartInstance = null;
+    let lastResult = null;
 
     // 年齢換算テーブル（0〜20歳）—— 獣医学会標準テーブルをベースに体格差補正
     const AGE_TABLE = {
@@ -385,13 +445,17 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     // 月齢換算テーブル（0〜11ヶ月）
     const MONTH_TABLE = [0, 1, 3, 5, 7, 9, 10, 11, 12, 13, 14, 14];
 
-    // 寿命目安
+    // 寿命目安・寿命値（グラフ用）
     const LIFESPAN = {
       dog_small:  '小型犬（〜10kg）: 約15〜16年',
       dog_medium: '中型犬（10〜25kg）: 約13〜14年',
       dog_large:  '大型犬（25〜45kg）: 約10〜12年',
       dog_giant:  '超大型犬（45kg〜）: 約7〜9年',
       cat:        '一般的な猫: 約15〜20年',
+    };
+
+    const LIFESPAN_MAX = {
+      dog_small:  16, dog_medium: 14, dog_large: 12, dog_giant: 9, cat: 20
     };
 
     // ライフステージの健康アドバイス
@@ -421,7 +485,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
       if (months === 0 || baseIdx >= table.length - 1) return base;
 
-      // 月数分だけ次の歳との間を線形補間
       const next = table[Math.min(baseIdx + 1, table.length - 1)];
       return Math.round(base + (next - base) * (months / 12));
     }
@@ -435,6 +498,140 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     }
 
     const STAGE_INDEX = { '子ども期': 0, '青年期': 1, '中年期': 2, 'シニア期': 3, '高齢期': 4 };
+
+    // localStorage に計算履歴を保存
+    function saveToHistory(data) {
+      const history = JSON.parse(localStorage.getItem('petCalculatorHistory') || '[]');
+      history.unshift({
+        timestamp: new Date().toISOString(),
+        ...data
+      });
+      if (history.length > 10) history.pop();
+      localStorage.setItem('petCalculatorHistory', JSON.stringify(history));
+      updateHistoryUI();
+      updateRestoreButton();
+    }
+
+    // 履歴UI更新
+    function updateHistoryUI() {
+      const history = JSON.parse(localStorage.getItem('petCalculatorHistory') || '[]');
+      const historySection = document.getElementById('history-section');
+      const historyList = document.getElementById('history-list');
+
+      if (history.length === 0) {
+        historySection.style.display = 'none';
+        return;
+      }
+
+      historySection.style.display = 'block';
+      historyList.innerHTML = history.slice(0, 3).map((item, idx) => {
+        const date = new Date(item.timestamp).toLocaleString('ja-JP');
+        const animal = item.animal === 'cat' ? '🐈 猫' : {
+          small: '🐕 小型犬', medium: '🐕 中型犬', large: '🦮 大型犬', giant: '🐻 超大型犬'
+        }[item.size];
+        return `
+          <button type="button" onclick="loadFromHistory(${idx})" style="text-align:left;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;cursor:pointer;font-size:12px;color:#374151;transition:all .2s;">
+            <div style="font-weight:600;">${animal} ${item.years}歳${item.months}ヶ月 → ${item.humanAge}歳</div>
+            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">${date}</div>
+          </button>
+        `;
+      }).join('');
+    }
+
+    // 履歴から復元
+    function loadFromHistory(index) {
+      const history = JSON.parse(localStorage.getItem('petCalculatorHistory') || '[]');
+      if (!history[index]) return;
+
+      const item = history[index];
+      document.getElementById('animal').value = item.animal;
+      document.getElementById('pet_age').value = item.years;
+      document.getElementById('pet_months').value = item.months;
+      if (item.animal === 'dog') {
+        selectedSize = item.size;
+        ['small','medium','large','giant'].forEach(s => {
+          document.getElementById(`btn-${s}`).classList.toggle('selected', s === item.size);
+        });
+      }
+      onAnimalChange();
+      calculate();
+    }
+
+    // 復元ボタン表示制御
+    function updateRestoreButton() {
+      const history = JSON.parse(localStorage.getItem('petCalculatorHistory') || '[]');
+      document.getElementById('restore-btn').style.display = history.length > 0 ? 'block' : 'none';
+    }
+
+    // 前回データ復元
+    function restorePreviousData() {
+      loadFromHistory(0);
+    }
+
+    // Chart.js グラフ表示
+    function renderChart(humanAge, key) {
+      const maxAge = LIFESPAN_MAX[key];
+      const ctx = document.getElementById('age-chart').getContext('2d');
+
+      if (chartInstance) {
+        chartInstance.destroy();
+      }
+
+      chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['現在の年齢', '平均寿命'],
+          datasets: [{
+            label: '年齢（歳）',
+            data: [humanAge, maxAge],
+            backgroundColor: ['#F97316', '#e5e7eb'],
+            borderRadius: 8,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              max: maxAge + 5
+            }
+          }
+        }
+      });
+    }
+
+    // コピー機能
+    function copyResultToClipboard() {
+      if (!lastResult) return;
+      const text = `${lastResult.animalLabel} ${lastResult.ageText}\n人間換算年齢: 約${lastResult.humanAge}歳\nライフステージ: ${lastResult.stage}`;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copy-result-btn');
+        const orig = btn.textContent;
+        btn.textContent = '✓ コピー完了';
+        setTimeout(() => { btn.textContent = orig; }, 2000);
+      });
+    }
+
+    // CSV ダウンロード機能
+    function downloadAsCSV() {
+      if (!lastResult) return;
+      const csv = [
+        ['動物の種類', 'ペット年齢', '人間換算年齢', 'ライフステージ', '平均寿命'],
+        [lastResult.animalLabel, lastResult.ageText, lastResult.humanAge, lastResult.stage, lastResult.lifespan]
+      ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `pet-age-calculator-${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+    }
 
     function onAnimalChange() {
       const animal = document.getElementById('animal').value;
@@ -475,6 +672,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }[selectedSize];
       const animalIcon = animal === 'cat' ? '🐈' : '🐕';
 
+      // 最後の結果を保存（コピー・エクスポート用）
+      lastResult = {
+        animal, ageText, animalLabel, animalIcon, humanAge, stage, key,
+        years, months, size: selectedSize,
+        lifespan: LIFESPAN[key]
+      };
+
       // 換算年齢表示
       document.getElementById('output').textContent =
         `${animalIcon} ${animalLabel} ${ageText} → 人間換算 約${humanAge}歳`;
@@ -485,7 +689,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         document.getElementById(`st-${i}`).classList.toggle('active', i === stageIdx);
       }
 
-      // 詳細グリッド（innerHTML で構造化表示）
+      // 詳細グリッド
       document.getElementById('detail').innerHTML = `
         <div class="detail-card">
           <h4>ライフステージ</h4>
@@ -501,7 +705,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
       `;
 
-      // 動的シェアボタン生成（計算結果を含むテキスト）
+      // グラフ表示
+      document.getElementById('chart-container').style.display = 'block';
+      renderChart(humanAge, key);
+
+      // 寿命進捗ゲージ
+      const gaugePercent = (humanAge / LIFESPAN_MAX[key]) * 100;
+      document.getElementById('lifespan-gauge').style.display = 'block';
+      document.getElementById('gauge-fill').style.width = Math.min(gaugePercent, 100) + '%';
+
+      // 動的シェアボタン生成
       const shareText = encodeURIComponent(
         `うちの${animalLabel}（${ageText}）は人間換算で約${humanAge}歳（${stage}）！\nペットの年齢換算ツール #無料ツール`
       );
@@ -518,12 +731,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
            style="background:#00B900;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">LINE</a>
       `;
 
+      // 履歴に保存
+      saveToHistory({
+        animal, years, months, size: selectedSize, humanAge, stage
+      });
+
       document.getElementById('result').classList.add('show');
       document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
-    // Enterキーで計算
+    // DOMContentLoaded時の初期化
     document.addEventListener('DOMContentLoaded', () => {
+      updateHistoryUI();
+      updateRestoreButton();
+
       ['pet_age','pet_months'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });

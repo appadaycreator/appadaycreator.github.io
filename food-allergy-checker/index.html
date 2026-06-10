@@ -6,6 +6,7 @@
     <title>食物アレルギー・除去食診断【無料】無料診断・アドバイス</title>
     <meta name="description" content="食物アレルギーの症状や食材を入力すると、除去すべき食材や代替食品、外食時の注意点を自動診断します。登録不要・完全無料。ブラウザ内で処理完結、個人情報は一切保存されません。">
     <meta name="theme-color" content="#6366F1">
+    <link rel="manifest" href="/food-allergy-checker/manifest.json">
     <link rel="canonical" href="https://appadaycreator.com/food-allergy-checker/">
     <meta property="og:title" content="食物アレルギー・除去食診断【無料】無料診断・アドバイス">
     <meta property="og:description" content="アレルギー症状・食材を入力して除去すべき食材と代替食品・外食時の注意点を診断。登録不要・完全無料でご利用いただけます。">
@@ -21,6 +22,7 @@
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- GTM -->
     <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
     <!-- Clarity -->
@@ -177,6 +179,26 @@
           <p id="q-text" style="font-size:16px;font-weight:600;margin-bottom:16px;"></p>
           <div id="q-options" class="space-y-2"></div>
         </div>
+
+        <div class="result" id="result">
+          <div class="card">
+            <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:16px;color:#6366F1;"></h3>
+            <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;margin-bottom:20px;"></p>
+            <div style="background:#f8fafc;border-radius:12px;padding:16px;margin-bottom:16px;">
+              <p style="font-size:13px;font-weight:600;color:#555;margin:0 0 12px;">📊 スコア分析</p>
+              <canvas id="result-chart" style="max-width:100%;height:250px;"></canvas>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn" style="flex:1;margin-top:0;margin-bottom:8px;background:#6366F1;" onclick="downloadResult()" aria-label="結果をダウンロード">📥 結果をコピー</button>
+              <button class="btn" style="flex:1;margin-top:0;margin-bottom:8px;background:#10b981;" onclick="printResult()" aria-label="結果を印刷">🖨️ 印刷する</button>
+              <button class="btn" style="flex:1;margin-top:0;background:#6366F1;" onclick="location.reload()" aria-label="もう一度診断">🔄 もう一度診断</button>
+            </div>
+          </div>
+          <div class="card" style="margin-top:16px;">
+            <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#374151;">📋 診断履歴</h3>
+            <div id="history-list" style="max-height:400px;overflow-y:auto;"></div>
+          </div>
+        </div>
         
     <div class="card p-6 mb-4">
       <h2 class="font-bold text-gray-800 mb-3">💡 使用例</h2>
@@ -291,10 +313,10 @@
 
     <script>
     const RESULTS = [
-      {title:'🌾 小麦アレルギータイプ — グルテンフリー生活のポイント',desc:'小麦アレルギーが疑われます。米・米粉・そば粉（そばアレルギーがなければ）・コーンスターチなどが代替主食になります。市販の「グルテンフリー」製品も増えており、楽天などで購入可能。外食では米粉麺やフォーを扱う店を探しましょう。確定診断は血液検査（特異的IgE検査）で行えます。必ず専門の医師に相談してください。'},
-      {title:'🥛 乳製品アレルギータイプ — 豆乳・アーモンドミルクへの切り替え',desc:'乳製品アレルギーが疑われます。牛乳→豆乳・アーモンドミルク・オーツミルク、チーズ→豆腐ベースのヴィーガンチーズなどが代替になります。カルシウムは小魚・緑葉野菜・豆類から補いましょう。市販のお菓子・パンにも乳成分が含まれるため、成分表示の「乳」「バター」「クリーム」の確認が必須です。'},
-      {title:'🥚 卵アレルギータイプ — 卵なし料理のコツ',desc:'卵アレルギーが疑われます。料理でのつなぎには「亜麻仁フラックスエッグ（亜麻仁粉+水）」、マヨネーズ代替には豆乳マヨが使えます。外食では「卵不使用」表記を確認しましょう。加工食品の「卵黄・全卵・卵白・マヨネーズ」表示に注意が必要です。症状が重い場合はエピペン処方について医師に相談することをお勧めします。'},
-      {title:'🦐 魚介・甲殻類アレルギータイプ — 外食時の注意点',desc:'魚介・甲殻類アレルギーが疑われます。えび・カニ・いか・たこなどは表示義務があるため、加工食品の確認が比較的しやすいです。だし・ソースに魚介エキスが含まれることがあるため外食時は調理方法を確認しましょう。タンパク質はチキン・豆類・大豆製品で十分補えます。必ず医師の診断を受け、アナフィラキシーのリスクがある場合はエピペンの携帯を検討してください。'}
+      {title:'🌾 小麦アレルギータイプ — グルテンフリー生活のポイント',desc:'小麦アレルギーが疑われます。米・米粉・そば粉（そばアレルギーがなければ）・コーンスターチなどが代替主食になります。市販の「グルテンフリー」製品も増えており、楽天などで購入可能。外食では米粉麺やフォーを扱う店を探しましょう。確定診断は血液検査（特異的IgE検査）で行えます。必ず専門の医師に相談してください。',emoji:'🌾',type:'小麦'},
+      {title:'🥛 乳製品アレルギータイプ — 豆乳・アーモンドミルクへの切り替え',desc:'乳製品アレルギーが疑われます。牛乳→豆乳・アーモンドミルク・オーツミルク、チーズ→豆腐ベースのヴィーガンチーズなどが代替になります。カルシウムは小魚・緑葉野菜・豆類から補いましょう。市販のお菓子・パンにも乳成分が含まれるため、成分表示の「乳」「バター」「クリーム」の確認が必須です。',emoji:'🥛',type:'乳製品'},
+      {title:'🥚 卵アレルギータイプ — 卵なし料理のコツ',desc:'卵アレルギーが疑われます。料理でのつなぎには「亜麻仁フラックスエッグ（亜麻仁粉+水）」、マヨネーズ代替には豆乳マヨが使えます。外食では「卵不使用」表記を確認しましょう。加工食品の「卵黄・全卵・卵白・マヨネーズ」表示に注意が必要です。症状が重い場合はエピペン処方について医師に相談することをお勧めします。',emoji:'🥚',type:'卵'},
+      {title:'🦐 魚介・甲殻類アレルギータイプ — 外食時の注意点',desc:'魚介・甲殻類アレルギーが疑われます。えび・カニ・いか・たこなどは表示義務があるため、加工食品の確認が比較的しやすいです。だし・ソースに魚介エキスが含まれることがあるため外食時は調理方法を確認しましょう。タンパク質はチキン・豆類・大豆製品で十分補えます。必ず医師の診断を受け、アナフィラキシーのリスクがある場合はエピペンの携帯を検討してください。',emoji:'🦐',type:'魚介'}
     ];
     const QUESTIONS = [
       {text:'Q1. アレルギー症状が出やすいのはどんな時？',opts:['特定の食べ物を食べた直後（30分以内）','食後数時間〜翌日にかけて','季節に関係なく慢性的に出る','まだはっきり分からない']},
@@ -316,25 +338,136 @@
       if(a[0]===0) { scores[2]+=1; scores[3]+=1; }
       if(a[0]===2) { scores[0]+=1; scores[1]+=1; }
       const best = scores.indexOf(Math.max(...scores));
-      return RESULTS[best];
+      return {...RESULTS[best], scores, index: best};
     }
-    // ★以下変更不要★
+    let resultChart = null;
+    function drawChart(scores) {
+      if(resultChart) resultChart.destroy();
+      const ctx = document.getElementById('result-chart')?.getContext('2d');
+      if(!ctx) return;
+      resultChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['小麦','乳製品','卵','魚介'],
+          datasets: [{
+            label: 'アレルゲンスコア',
+            data: scores,
+            backgroundColor: ['#FCD34D','#60A5FA','#F87171','#34D399'],
+            borderRadius: 6,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {legend: {display: false}},
+          scales: {x: {beginAtZero: true, max: 8, ticks: {stepSize: 2}}}
+        }
+      });
+    }
+    function loadHistory() {
+      const hist = JSON.parse(localStorage.getItem('allergyHistory') || '[]');
+      const list = document.getElementById('history-list');
+      if(hist.length === 0) {
+        list.innerHTML = '<p style="color:#999;font-size:13px;">診断履歴がありません</p>';
+        return;
+      }
+      list.innerHTML = hist.map((h,i) =>
+        `<div style="border-bottom:1px solid #e5e7eb;padding:12px 0;font-size:13px;cursor:pointer;" onclick="restoreResult(${i})" title="クリックで復元">
+          <p style="margin:0 0 4px;font-weight:600;color:#374151;">${h.date}</p>
+          <p style="margin:0;color:#6b7280;">${h.type} (スコア: ${Math.max(...h.scores)})</p>
+        </div>`
+      ).join('');
+    }
+    function saveResult(result, answers) {
+      const hist = JSON.parse(localStorage.getItem('allergyHistory') || '[]');
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('ja-JP', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+      hist.unshift({
+        date: dateStr,
+        type: result.type,
+        scores: result.scores,
+        answers: answers,
+        title: result.title,
+        desc: result.desc,
+        emoji: result.emoji,
+        index: result.index
+      });
+      if(hist.length > 20) hist.pop();
+      localStorage.setItem('allergyHistory', JSON.stringify(hist));
+      loadHistory();
+    }
+    function restoreResult(idx) {
+      const hist = JSON.parse(localStorage.getItem('allergyHistory') || '[]');
+      if(!hist[idx]) return;
+      const h = hist[idx];
+      document.getElementById('r-title').textContent = h.title;
+      document.getElementById('r-desc').textContent = h.desc;
+      drawChart(h.scores);
+      window.scrollTo({top: document.getElementById('result').offsetTop - 100, behavior:'smooth'});
+    }
+    function downloadResult() {
+      const title = document.getElementById('r-title').textContent;
+      const desc = document.getElementById('r-desc').textContent;
+      const text = `${title}\n\n${desc}\n\nアレルギー・除去食診断\nhttps://appadaycreator.com/food-allergy-checker/`;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('結果をクリップボードにコピーしました！');
+      }).catch(() => {
+        prompt('以下をコピーしてください:\n', text);
+      });
+    }
+    function printResult() {
+      const title = document.getElementById('r-title').textContent;
+      const desc = document.getElementById('r-desc').textContent;
+      const w = window.open('', '', 'width=800,height=600');
+      w.document.write(`
+        <html>
+        <head><meta charset="UTF-8"><title>${title}</title></head>
+        <body style="font-family:Arial;padding:20px;line-height:1.8;">
+        <h1>${title}</h1>
+        <p>${desc}</p>
+        <p style="color:#999;margin-top:40px;font-size:12px;">https://appadaycreator.com/food-allergy-checker/</p>
+        </body>
+        </html>
+      `);
+      w.print();
+      setTimeout(() => w.close(), 1000);
+    }
     const BTN='#6366F1'; let cur=0; const ans=[];
-    document.addEventListener('DOMContentLoaded',()=>{ document.getElementById('q-total').textContent=QUESTIONS.length; });
-    function startQuiz(){ cur=0;ans.length=0; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); renderQ(); }
-    function renderQ(){
-      const q=QUESTIONS[cur];
-      document.getElementById('q-num').textContent=cur+1;
-      document.getElementById('q-bar').style.width=((cur+1)/QUESTIONS.length*100)+'%';
-      document.getElementById('q-text').textContent=q.text;
-      document.getElementById('q-options').innerHTML=q.opts.map((o,i)=>`<button onclick="answer(${i})" style="width:100%;padding:12px;margin-bottom:8px;border:2px solid #e5e7eb;border-radius:10px;font-size:14px;cursor:pointer;background:#fff;text-align:left;">${o}</button>`).join('');
+    document.addEventListener('DOMContentLoaded',() => {
+      document.getElementById('q-total').textContent = QUESTIONS.length;
+      loadHistory();
+    });
+    function startQuiz() {
+      cur=0;ans.length=0;
+      document.getElementById('quiz-start').style.display='none';
+      document.getElementById('quiz-area').style.display='block';
+      document.getElementById('result').classList.remove('show');
+      renderQ();
     }
-    function answer(idx){ ans.push({idx}); cur++; if(cur>=QUESTIONS.length) showResult(); else renderQ(); }
-    function showResult(){
+    function renderQ(){
+      const q = QUESTIONS[cur];
+      document.getElementById('q-num').textContent = cur + 1;
+      document.getElementById('q-bar').style.width = ((cur + 1) / QUESTIONS.length * 100) + '%';
+      document.getElementById('q-text').textContent = q.text;
+      document.getElementById('q-options').innerHTML = q.opts.map((o,i) =>
+        `<button onclick="answer(${i})" style="width:100%;padding:12px;margin-bottom:8px;border:2px solid #e5e7eb;border-radius:10px;font-size:14px;cursor:pointer;background:#fff;text-align:left;">${o}</button>`
+      ).join('');
+    }
+    function answer(idx) {
+      ans.push({idx});
+      cur++;
+      if(cur >= QUESTIONS.length) showResult();
+      else renderQ();
+    }
+    function showResult() {
       document.getElementById('quiz-area').style.display='none';
-      const r=getResult(ans);
-      document.getElementById('r-title').textContent=r.title;
-      document.getElementById('r-desc').textContent=r.desc;
+      const r = getResult(ans);
+      document.getElementById('r-title').textContent = r.title;
+      document.getElementById('r-desc').textContent = r.desc;
+      drawChart(r.scores);
+      saveResult(r, ans);
       document.getElementById('result').classList.add('show');
     }
     </script>
@@ -359,6 +492,9 @@
     btn.style.display = window.scrollY > 400 ? 'block' : 'none';
   }, {passive:true});
 })();
+if('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/food-allergy-checker/sw.js').catch(e => {});
+}
 </script>
 </body>
 </html>

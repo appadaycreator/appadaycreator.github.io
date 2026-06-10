@@ -58,6 +58,14 @@
             .btn { font-size: 15px; padding: 13px 20px; }
             .result-value { font-size: 28px; }
         }
+        @media print {
+            body { background: white; }
+            .site-header, .site-footer, .btn, #quiz-area, #quiz-start, ins.adsbygoogle, [data-ad-client], .site-footer, footer { display: none !important; }
+            .result { display: block !important; }
+            .card { box-shadow: none; border: 1px solid #ddd; page-break-inside: avoid; }
+            #r-title { font-size: 18px; }
+            #r-desc { font-size: 13px; }
+        }
         /* ── サービス固有CSS ── */
 
     </style>
@@ -185,10 +193,23 @@
           <div class="card">
             <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;color:#6366F1;"></h3>
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
-            <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
-              <button class="btn" style="flex:1;min-height:48px;" onclick="copyResult()" aria-label="📋 結果をコピー">📋 結果をコピー</button>
-              <button class="btn" style="flex:1;min-height:48px;" onclick="location.reload()" aria-label="🔄 もう一度診断">🔄 もう一度診断</button>
+
+            <div id="score-section"></div>
+
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:12px 0;">
+              <label style="display:block;margin:0 0 8px;font-size:12px;font-weight:600;color:#555;">💰 月間掃除予算目標（円）</label>
+              <input type="number" id="budget-input" placeholder="例: 30000" onchange="saveBudget()" style="width:100%;padding:10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;min-height:44px;">
+              <p style="font-size:11px;color:#999;margin:6px 0 0;">目標値を設定するとデータが保存されます</p>
             </div>
+
+            <div id="history-section" style="display:none;margin:12px 0;"></div>
+
+            <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
+              <button class="btn" style="flex:1;min-height:48px;" onclick="copyResult()" aria-label="📋 結果をコピー">📋 コピー</button>
+              <button class="btn" style="flex:1;min-height:48px;" onclick="exportResult()" aria-label="📥 ダウンロード">📥 ダウンロード</button>
+              <button class="btn" style="flex:1;min-height:48px;" onclick="printResult()" aria-label="🖨️ 印刷">🖨️ 印刷</button>
+            </div>
+            <button class="btn" style="margin-top:8px;" onclick="location.reload()" aria-label="🔄 もう一度診断">🔄 もう一度診断</button>
             <div id="copy-feedback" style="display:none;margin-top:8px;padding:8px 12px;background:#dcfce7;border-radius:6px;font-size:13px;color:#166534;text-align:center;">✅ クリップボードにコピーしました</div>
           </div>
         </div>
@@ -307,32 +328,80 @@
       { text: '掃除でいちばん困っていることは？', opts: ['時間がない', 'やり方がわからない', '道具・洗剤選びが難しい', 'やる気が出ない'] }
     ];
     const RESULTS = [
-      { title: '🧹 DIY節約プラン — 自分でできる掃除術', desc: '費用を抑えつつ効果的に掃除するDIYプランがおすすめです。重曹・クエン酸・セスキ炭酸ソーダの3種類を揃えれば水回り・キッチン・浴室のほとんどに対応できます。エアコン内部フィルター掃除は市販のスプレーで年2回行いましょう。掃除道具への初期投資は3,000〜5,000円程度で十分です。' },
-      { title: '🏠 スポット依頼プラン — 気になる箇所だけプロへ', desc: 'エアコン1台（8,000〜15,000円）・浴室（15,000〜25,000円）など気になる場所だけプロに依頼するのがコスパ◎。楽天市場やじゃらんのクリーニング予約サービスを使うとクーポン割引も。自分でできる床・日常掃除は自力で分担することで費用を半減できます。' },
-      { title: '🌟 定期クリーニングプラン — プロに定期依頼', desc: '年1〜2回のプロクリーニングで住まいの価値を維持するプランです。2LDKの場合、相場は3〜5万円程度。「ダスキン」「おそうじ本舗」など大手チェーンは品質が安定していておすすめ。初回はキャンペーン価格を狙いましょう。汚れが蓄積する前に依頼することで費用も抑えられます。' },
-      { title: '✨ 徹底クリーニングプラン — 丸ごとお任せ', desc: '引越し前後や大掃除として、部屋全体をプロに丸ごと任せるプランです。3LDKの場合、相場は6〜12万円程度。「ベアーズ」「カジタク」など家事代行大手やリフォーム会社のハウスクリーニングサービスが選択肢。一度徹底的にきれいにすることで、その後の日常メンテナンスが格段に楽になります。' }
+      { title: '🧹 DIY節約プラン — 自分でできる掃除術', desc: '費用を抑えつつ効果的に掃除するDIYプランがおすすめです。重曹・クエン酸・セスキ炭酸ソーダの3種類を揃えれば水回り・キッチン・浴室のほとんどに対応できます。エアコン内部フィルター掃除は市販のスプレーで年2回行いましょう。掃除道具への初期投資は3,000〜5,000円程度で十分です。', budget: [3000, 5000] },
+      { title: '🏠 スポット依頼プラン — 気になる箇所だけプロへ', desc: 'エアコン1台（8,000〜15,000円）・浴室（15,000〜25,000円）など気になる場所だけプロに依頼するのがコスパ◎。楽天市場やじゃらんのクリーニング予約サービスを使うとクーポン割引も。自分でできる床・日常掃除は自力で分担することで費用を半減できます。', budget: [8000, 25000] },
+      { title: '🌟 定期クリーニングプラン — プロに定期依頼', desc: '年1〜2回のプロクリーニングで住まいの価値を維持するプランです。2LDKの場合、相場は3〜5万円程度。「ダスキン」「おそうじ本舗」など大手チェーンは品質が安定していておすすめ。初回はキャンペーン価格を狙いましょう。汚れが蓄積する前に依頼することで費用も抑えられます。', budget: [30000, 50000] },
+      { title: '✨ 徹底クリーニングプラン — 丸ごとお任せ', desc: '引越し前後や大掃除として、部屋全体をプロに丸ごと任せるプランです。3LDKの場合、相場は6〜12万円程度。「ベアーズ」「カジタク」など家事代行大手やリフォーム会社のハウスクリーニングサービスが選択肢。一度徹底的にきれいにすることで、その後の日常メンテナンスが格段に楽になります。', budget: [60000, 120000] }
     ];
-    function getResult(answers) {
+
+    function calcScores(answers) {
       const scores = [0,0,0,0];
       const a = answers.map(x => x.idx);
-      if(a[3]===0) scores[0]+=3;
-      if(a[3]===1) scores[1]+=3;
-      if(a[3]===2) scores[2]+=3;
-      if(a[3]===3) scores[3]+=3;
-      if(a[0]===0) { scores[0]+=1; scores[1]+=1; }
-      if(a[0]===1) { scores[1]+=1; scores[2]+=1; }
-      if(a[0]===2) { scores[2]+=1; scores[3]+=1; }
-      if(a[0]===3) { scores[3]+=2; }
-      if(a[2]===0) scores[0]+=1;
-      if(a[2]===1) scores[1]+=1;
-      if(a[2]===2) scores[2]+=1;
-      if(a[2]===3) scores[3]+=2;
-      const best = scores.indexOf(Math.max(...scores));
-      return RESULTS[best];
+      if(a[3]===0) scores[0]+=3; if(a[3]===1) scores[1]+=3; if(a[3]===2) scores[2]+=3; if(a[3]===3) scores[3]+=3;
+      if(a[0]===0) { scores[0]+=1; scores[1]+=1; } if(a[0]===1) { scores[1]+=1; scores[2]+=1; } if(a[0]===2) { scores[2]+=1; scores[3]+=1; } if(a[0]===3) { scores[3]+=2; }
+      if(a[2]===0) scores[0]+=1; if(a[2]===1) scores[1]+=1; if(a[2]===2) scores[2]+=1; if(a[2]===3) scores[3]+=2;
+      return scores;
     }
-    const BTN='#6366F1'; let cur=0; const ans=[];
-    document.addEventListener('DOMContentLoaded',()=>{ document.getElementById('q-total').textContent=QUESTIONS.length; });
-    function startQuiz(){ cur=0;ans.length=0; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); renderQ(); }
+
+    function getResult(answers) {
+      const scores = calcScores(answers);
+      const best = scores.indexOf(Math.max(...scores));
+      return { result: RESULTS[best], scores: scores, best: best };
+    }
+
+    function drawProgressBar(value, max=100, width=200) {
+      const pct = Math.min(value/max, 1)*100;
+      return `<div style="width:${width}px;height:20px;background:#e5e7eb;border-radius:10px;overflow:hidden;position:relative;"><div style="width:${pct}%;height:100%;background:#6366F1;transition:width .3s;"></div><span style="position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:11px;font-weight:600;color:#374151;white-space:nowrap;">${value.toLocaleString()}</span></div>`;
+    }
+
+    function drawRadarChart() {
+      return `<svg width="200" height="200" viewBox="0 0 200 200" style="margin:0 auto;display:block;">
+        <circle cx="100" cy="100" r="80" fill="none" stroke="#e5e7eb" stroke-width="1"/>
+        <circle cx="100" cy="100" r="53" fill="none" stroke="#e5e7eb" stroke-width="1"/>
+        <circle cx="100" cy="100" r="27" fill="none" stroke="#e5e7eb" stroke-width="1"/>
+        <polygon points="100,20 160,170 40,170" fill="none" stroke="#6366F1" stroke-width="2" opacity="0.7"/>
+        <text x="100" y="15" text-anchor="middle" font-size="11" fill="#666">効果</text>
+        <text x="170" y="175" text-anchor="middle" font-size="11" fill="#666">予算</text>
+        <text x="30" y="175" text-anchor="middle" font-size="11" fill="#666">手軽さ</text>
+      </svg>`;
+    }
+
+    function saveHistory(answers, result) {
+      try {
+        let history = JSON.parse(localStorage.getItem('cleaning_history') || '[]');
+        history.unshift({ date: new Date().toLocaleString('ja-JP'), answers, result, budget: '' });
+        history = history.slice(0, 5);
+        localStorage.setItem('cleaning_history', JSON.stringify(history));
+        localStorage.setItem('cleaning_answers', JSON.stringify(answers));
+      } catch(e) {
+        console.log('localStorage保存失敗:', e);
+      }
+    }
+
+    function loadLastAnswers() {
+      try { return JSON.parse(localStorage.getItem('cleaning_answers') || null); } catch(e) { return null; }
+    }
+
+    function loadHistory() {
+      try { return JSON.parse(localStorage.getItem('cleaning_history') || '[]'); } catch(e) { return []; }
+    }
+
+    const BTN='#6366F1'; let cur=0; let ans=[];
+    document.addEventListener('DOMContentLoaded',()=>{
+      document.getElementById('q-total').textContent=QUESTIONS.length;
+      const lastAnswers = loadLastAnswers();
+      if(lastAnswers) {
+        const restoreBtn = document.createElement('button');
+        restoreBtn.className = 'btn';
+        restoreBtn.style.marginBottom = '16px';
+        restoreBtn.textContent = '📂 前回のデータで再診断';
+        restoreBtn.onclick = () => { ans = lastAnswers; startQuiz(); document.getElementById('quiz-start').style.display='none'; showResult(); };
+        document.getElementById('quiz-start').insertBefore(restoreBtn, document.getElementById('quiz-start').firstChild);
+      }
+    });
+
+    function startQuiz(){ cur=0; ans=[]; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); document.getElementById('history-section').style.display='none'; renderQ(); }
+
     function renderQ(){
       const q=QUESTIONS[cur];
       document.getElementById('q-num').textContent=cur+1;
@@ -340,6 +409,7 @@
       document.getElementById('q-text').textContent=q.text;
       document.getElementById('q-options').innerHTML=q.opts.map((o,i)=>`<button onclick="answer(${i})" style="width:100%;padding:12px;margin-bottom:8px;border:2px solid #e5e7eb;border-radius:10px;font-size:14px;cursor:pointer;background:#fff;text-align:left;min-height:48px;transition:all .15s;" onmouseover="this.style.backgroundColor='#f0f4ff'" onmouseout="this.style.backgroundColor='#fff'">${o}</button>`).join('');
     }
+
     function answer(idx){
       const btn=event.target;
       btn.style.backgroundColor='#6366F122';
@@ -348,6 +418,7 @@
       cur++;
       setTimeout(()=>{ if(cur>=QUESTIONS.length) showResult(); else renderQ(); }, 220);
     }
+
     function copyResult(){
       const title=document.getElementById('r-title').textContent;
       const desc=document.getElementById('r-desc').textContent;
@@ -358,12 +429,74 @@
         setTimeout(()=>{ feedback.style.display='none'; }, 2000);
       });
     }
+
+    function exportResult() {
+      const title = document.getElementById('r-title').textContent;
+      const desc = document.getElementById('r-desc').textContent;
+      const budget = document.getElementById('budget-input').value || '未設定';
+      const text = `ハウスクリーニング費用診断\n診断日時: ${new Date().toLocaleString('ja-JP')}\n\n【診断結果】\n${title}\n\n【詳細】\n${desc}\n\n【設定予算】\n${budget}円`;
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `清掃費用診断_${new Date().getTime()}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function printResult() {
+      window.print();
+    }
+
+    function saveBudget() {
+      const budget = document.getElementById('budget-input').value;
+      if(budget) localStorage.setItem('cleaning_budget', budget);
+    }
+
     function showResult(){
       document.getElementById('quiz-area').style.display='none';
-      const r=getResult(ans);
-      document.getElementById('r-title').textContent=r.title;
-      document.getElementById('r-desc').textContent=r.desc;
+      const { result, scores, best } = getResult(ans);
+      document.getElementById('r-title').textContent=result.title;
+      document.getElementById('r-desc').textContent=result.desc;
+
+      saveHistory(ans, best);
+
+      const budget = localStorage.getItem('cleaning_budget') || '';
+      document.getElementById('budget-input').value = budget;
+      document.getElementById('score-section').innerHTML = `
+        <div style="background:#f0f4ff;border-radius:12px;padding:16px;margin:16px 0;">
+          <h4 style="font-size:13px;font-weight:700;color:#6366f1;margin-bottom:12px;">📊 あなたの掃除スタイルスコア</h4>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+            <div><p style="font-size:11px;color:#666;margin:0 0 4px;">DIY節約プラン</p>${drawProgressBar(scores[0], 10, 140)}</div>
+            <div><p style="font-size:11px;color:#666;margin:0 0 4px;">スポット依頼</p>${drawProgressBar(scores[1], 10, 140)}</div>
+            <div><p style="font-size:11px;color:#666;margin:0 0 4px;">定期クリーニング</p>${drawProgressBar(scores[2], 10, 140)}</div>
+            <div><p style="font-size:11px;color:#666;margin:0 0 4px;">徹底クリーニング</p>${drawProgressBar(scores[3], 10, 140)}</div>
+          </div>
+          <p style="font-size:12px;color:#666;text-align:center;margin:0;">推奨予算: ¥${result.budget[0].toLocaleString()} 〜 ¥${result.budget[1].toLocaleString()}</p>
+        </div>
+      `;
+
+      const history = loadHistory();
+      if(history.length > 1) {
+        let historyHtml = '<h4 style="font-size:13px;font-weight:700;color:#666;margin:12px 0 8px;">📂 過去の診断結果</h4><div style="display:flex;flex-direction:column;gap:6px;">';
+        history.slice(1, 4).forEach((h, i) => {
+          historyHtml += `<button onclick="loadHistoryResult(${i+1})" style="padding:8px;background:#f0f4ff;border:1px solid #dbeafe;border-radius:6px;cursor:pointer;font-size:12px;text-align:left;color:#0369a1;">${h.date}: ${RESULTS[h.result].title.substring(0,20)}...</button>`;
+        });
+        historyHtml += '</div>';
+        document.getElementById('history-section').innerHTML = historyHtml;
+        document.getElementById('history-section').style.display = 'block';
+      }
+
       document.getElementById('result').classList.add('show');
+    }
+
+    function loadHistoryResult(idx) {
+      const history = loadHistory();
+      if(history[idx]) {
+        const { result, scores } = getResult(history[idx].answers);
+        document.getElementById('r-title').textContent = result.title;
+        document.getElementById('r-desc').textContent = result.desc;
+      }
     }
     </script>
 <div style="text-align:center;padding:10px 16px 14px;background:#eef2ff;border-top:2px solid #c7d2fe;margin-top:8px">

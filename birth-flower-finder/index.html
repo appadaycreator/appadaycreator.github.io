@@ -21,6 +21,7 @@
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- GTM -->
     <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
     <!-- Clarity -->
@@ -57,6 +58,13 @@
             .card { padding: 16px; }
             .btn { font-size: 15px; padding: 13px 20px; }
             .result-value { font-size: 28px; }
+        }
+        @media print {
+            body { background: white; }
+            .site-header, footer, #quiz-start, .adsbygoogle, nav { display: none; }
+            .card { page-break-inside: avoid; border: 1px solid #ddd; }
+            .btn { display: none; }
+            @page { margin: 1cm; }
         }
         /* ── サービス固有CSS ── */
 
@@ -197,6 +205,16 @@
           <p style="font-size:12px;color:#6b7280;">結婚式・記念日・敬老の日など、特別な日に「その月の誕生花」を取り入れた演出。伝統と個性が融合します。</p>
         </div>
       </div>
+    </div>
+    
+    <div class="card p-6 mb-4">
+      <h2 class="font-bold text-gray-800 mb-3">💡 使用例</h2>
+      <ul class="text-sm text-gray-700 space-y-2">
+        <li>• 複数の選択肢から最適なものを選びたい場合</li>
+        <li>• 意思決定に客観的な基準が欲しい場合</li>
+        <li>• プロフェッショナルなアドバイスが必要な場合</li>
+        <li>• 予算やニーズに合わせた提案を受けたい場合</li>
+      </ul>
     </div>
     <div class="result" id="result">
           <div class="card">
@@ -348,7 +366,9 @@
       if(a[2]===2) { scores[4]+=2; }
       if(a[2]===3) { scores[1]+=1; }
       const best = scores.indexOf(Math.max(...scores));
-      return RESULTS[best];
+      const result = RESULTS[best];
+      result.scores = scores;
+      return result;
     }
     const BTN='#6366F1'; let cur=0; const ans=[];
     document.addEventListener('DOMContentLoaded',()=>{
@@ -413,7 +433,67 @@
       const relatedHtml=r.related ? `<div style="margin-top:12px;padding:12px;background:#f0f9ff;border:1px solid #bfdbfe;border-radius:8px;"><p style="font-size:12px;font-weight:600;color:#1e40af;margin:0 0 8px;">🔗 関連サービス</p><div style="display:grid;gap:6px;">${r.related.map(l=>`<a href="${l.url}" style="color:#4f46e5;font-size:12px;text-decoration:none;padding:6px 0;border-bottom:1px solid #e0e7ff;">→ ${l.name}</a>`).join('')}</div></div>` : '';
       const giftHtml=`<div id="gift-section" class="card" style="margin-top:12px;background:#f0fdf4;border:1px solid #86efac;"><h3 style="font-size:15px;font-weight:700;margin-bottom:10px;color:#059669;">🎁 この花を誕生日プレゼントに</h3><p style="font-size:13px;color:#6b7280;margin-bottom:12px;">花言葉「${r.title.split('「')[1]?.split('」')[0]||'ご確認ください'}」の誕生花を、プレゼント・ギフトとしてお探しですか？</p><div style="display:grid;gap:8px;grid-template-columns:1fr 1fr;"><a href="https://www.rakuten.co.jp/search/mall/${encodeURIComponent(flowerName)}?sid=353535" target="_blank" rel="noopener" style="background:#c84e00;color:white;padding:10px;border-radius:8px;text-align:center;font-size:13px;font-weight:600;text-decoration:none;display:flex;align-items:center;justify-content:center;min-height:44px;">🛍️ 楽天で探す</a><a href="https://www.amazon.co.jp/s?k=${encodeURIComponent(flowerName)}" target="_blank" rel="noopener" style="background:#FF9900;color:white;padding:10px;border-radius:8px;text-align:center;font-size:13px;font-weight:600;text-decoration:none;display:flex;align-items:center;justify-content:center;min-height:44px;">📦 Amazonで探す</a></div><button onclick="saveResult('${r.title}','${r.desc}')" style="margin-top:10px;width:100%;padding:10px;background:#e0e7ff;color:#4f46e5;border:1px solid #c7d2fe;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;">💾 この結果を保存</button>${relatedHtml}</div>`;
       resultDiv.insertAdjacentHTML('afterend',giftHtml);
+      renderDiagnosisCharts(r);
       saveResultToLocalStorage({title:r.title,desc:r.desc,timestamp:new Date().toLocaleString('ja-JP')});
+    }
+    function renderDiagnosisCharts(r){
+      const chartsHtml=`<div id="charts-section" class="card" style="margin-top:12px;background:#f9fafb;border:1px solid #e5e7eb;">
+        <h3 style="font-size:15px;font-weight:700;margin-bottom:16px;color:#374151;">📊 診断スコア分析</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div style="background:white;border-radius:10px;padding:12px;border:1px solid #e5e7eb;">
+            <canvas id="scoreChart" style="max-width:100%;"></canvas>
+          </div>
+          <div style="background:white;border-radius:10px;padding:12px;border:1px solid #e5e7eb;">
+            <h4 style="font-size:13px;font-weight:600;color:#6b7280;margin:0 0 10px;">花のタイプ別スコア</h4>
+            <div style="display:grid;gap:8px;">
+              ${['桜','バラ','ひまわり','コスモス','水仙','菊'].map((name,i)=>{
+                const score=r.scores[i]||0;
+                const percent=Math.round(score/10*100);
+                return `<div style="display:flex;align-items:center;gap:8px;">
+                  <div style="flex:1;"><div style="font-size:12px;font-weight:600;color:#374151;margin-bottom:4px;">${name}</div>
+                  <div style="height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden;">
+                    <div style="height:100%;background:#6366F1;width:${percent}%;transition:width .3s;"></div>
+                  </div></div>
+                  <div style="font-size:12px;font-weight:600;color:#6366F1;min-width:30px;text-align:right;">${score}</div>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
+          <button onclick="printResult()" style="background:#6366F1;color:white;padding:10px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;">🖨️ 印刷する</button>
+          <button onclick="copyResult()" style="background:#e5e7eb;color:#374151;padding:10px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;">📋 コピー</button>
+        </div>
+      </div>`;
+      const giftSection=document.getElementById('gift-section');
+      if(giftSection) giftSection.insertAdjacentHTML('afterend',chartsHtml);
+      setTimeout(()=>{
+        const ctx=document.getElementById('scoreChart');
+        if(ctx){
+          const scores=r.scores||[0,0,0,0,0,0];
+          new Chart(ctx,{
+            type:'doughnut',
+            data:{
+              labels:['🌸 桜','🌹 バラ','🌻 ひまわり','🍁 コスモス','❄️ 水仙','🌼 菊'],
+              datasets:[{data:scores,backgroundColor:['#ec4899','#f43f5e','#f97316','#a855f7','#0ea5e9','#06b6d4'],borderColor:'white',borderWidth:2}]
+            },
+            options:{responsive:true,plugins:{legend:{position:'bottom',labels:{font:{size:11},padding:10}}},maintainAspectRatio:true}
+          });
+        }
+      },100);
+    }
+    function printResult(){
+      window.print();
+    }
+    function copyResult(){
+      const title=document.getElementById('r-title').textContent;
+      const desc=document.getElementById('r-desc').textContent;
+      const text=`${title}\n\n${desc}`;
+      navigator.clipboard.writeText(text).then(()=>{
+        alert('✅ 診断結果をコピーしました！');
+      }).catch(()=>{
+        alert('❌ コピーに失敗しました');
+      });
     }
     function saveResult(title,desc){alert('✅ 結果を保存しました！\n\n'+title+'\n\n次回訪問時に「前回の結果」から確認できます。');saveResultToLocalStorage({title,desc,timestamp:new Date().toLocaleString('ja-JP')});}
     function saveResultToLocalStorage(result){const results=JSON.parse(localStorage.getItem('birthFlowerResults')||'[]');results.unshift(result);localStorage.setItem('birthFlowerResults',JSON.stringify(results.slice(0,5)));}

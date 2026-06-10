@@ -81,10 +81,12 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 @media print{
   header,footer,nav,button,.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
-  [id*="affiliate"],[id*="banner"],
+  [id*="affiliate"],[id*="banner"],#exportButtons,
   script,noscript{display:none!important}
   body{background:#fff!important;color:#000!important;font-size:12pt}
-  [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
+  [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"],#chartContainer{display:block!important}
+  #fermentationChart{max-width:100%!important}
+  .card{box-shadow:none!important;border:1px solid #ccc!important}
   a[href]::after{content:none!important}
 }
 
@@ -92,6 +94,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://appadaycreator.com/"},{"@type":"ListItem","position":2,"name":"生産性","item":"https://appadaycreator.com/category/productivity/"},{"@type":"ListItem","position":3,"name":"発酵・漬け物タイマー【無料】Webツール","item":"https://appadaycreator.com/fermentation-timer/"}]}</script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -159,7 +162,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="card">
             <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#7c3aed;">⏱️ 発酵タイムガイド</h3>
             <div id="output"></div>
-            <div style="display:flex;gap:8px;margin-top:12px;" id="timerButtons"></div>
+            <div id="chartContainer" style="margin-top:16px;display:none;">
+              <h4 style="font-size:13px;font-weight:600;color:#555;margin-bottom:8px;">📊 温度別発酵時間の比較</h4>
+              <div style="position:relative;height:240px;">
+                <canvas id="fermentationChart"></canvas>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;" id="timerButtons"></div>
+            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;" id="exportButtons"></div>
           </div>
         </div>
 
@@ -539,12 +549,145 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       startTimerUpdateInterval();
     });
 
+    let chartInstance = null;
+
+    function drawFermentationChart(inputs) {
+      const { food, temp, quantity } = inputs;
+      const f = FOODS[food];
+
+      const labels = f.temps.map(t => `${t[0]}℃`);
+      const qMult = quantity === 'small' ? 0.8 : quantity === 'large' ? 1.2 : 1;
+      const data = f.temps.map(t => Math.round(t[1] * qMult));
+
+      const ctx = document.getElementById('fermentationChart');
+      if(!ctx) return;
+
+      if(chartInstance) chartInstance.destroy();
+
+      chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: `${f.name}の発酵時間（${quantity === 'small' ? '少量' : quantity === 'large' ? '大量' : '標準'}）`,
+            data: data,
+            backgroundColor: [
+              temp <= 10 ? '#3b82f6' : '#dbeafe',
+              temp <= 20 ? '#3b82f6' : '#dbeafe',
+              temp <= 25 ? '#3b82f6' : '#dbeafe',
+              temp <= 30 ? '#3b82f6' : '#dbeafe',
+              temp <= 35 ? '#3b82f6' : '#dbeafe',
+            ],
+            borderColor: '#7c3aed',
+            borderWidth: 2,
+            borderRadius: 6,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          indexAxis: 'x',
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: 'rgba(0,0,0,0.8)',
+              padding: 8,
+              titleFont: { size: 13, weight: '600' },
+              bodyFont: { size: 13 },
+              callbacks: {
+                label: function(context) {
+                  return `${Math.round(context.parsed.y)}時間`;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { callback: function(v) { return v + 'h'; } },
+              grid: { color: '#f1f5f9' }
+            },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    function copyToClipboard(text) {
+      if(navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          alert('結果をコピーしました！');
+        }).catch(() => {
+          fallbackCopy(text);
+        });
+      } else {
+        fallbackCopy(text);
+      }
+    }
+
+    function fallbackCopy(text) {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        alert('結果をコピーしました！');
+      } catch(err) {
+        alert('コピーに失敗しました');
+      }
+      document.body.removeChild(textarea);
+    }
+
+    function exportAsText() {
+      if(!currentInputs) return;
+      const { food, temp, quantity } = currentInputs;
+      const f = FOODS[food];
+      let bestTime = f.temps[f.temps.length-1];
+      for(const t of f.temps) {
+        if(temp <= t[0]) { bestTime = t; break; }
+      }
+      const [,hours] = bestTime;
+      const qMult = quantity === 'small' ? 0.8 : quantity === 'large' ? 1.2 : 1;
+      const adjustedHours = Math.round(hours * qMult);
+      const now = new Date();
+      const done = new Date(now.getTime() + adjustedHours * 3600000);
+      const doneStr = `${done.getMonth()+1}/${done.getDate()} ${done.getHours()}:${String(done.getMinutes()).padStart(2,'0')}`;
+
+      let text = `発酵・漬け物タイマー 計算結果\n`;
+      text += `================\n\n`;
+      text += `食品: ${f.name}\n`;
+      text += `温度: ${temp}℃\n`;
+      text += `量: ${quantity === 'small' ? '少量' : quantity === 'large' ? '大量' : '標準'}\n`;
+      text += `\n発酵時間: ${adjustedHours}時間\n`;
+      text += `完成予定: ${doneStr}\n\n`;
+      text += `成功のコツ:\n`;
+      f.tips.forEach(tip => {
+        text += `• ${tip}\n`;
+      });
+      text += `\n⚠️ 注意: ${f.warning}\n`;
+
+      copyToClipboard(text);
+    }
+
     function generate() {
       const inputs = getInputs(); if(!inputs) return;
       currentInputs = inputs;
       saveInputs();
       document.getElementById('output').innerHTML = buildOutput(inputs);
+
+      setTimeout(() => {
+        document.getElementById('chartContainer').style.display = 'block';
+        drawFermentationChart(inputs);
+      }, 0);
+
       document.getElementById('timerButtons').innerHTML = `<button class="btn" style="margin:0;flex:1;background:#16a34a;" onclick="startTimer()">⏱️ タイマー開始</button>`;
+
+      document.getElementById('exportButtons').innerHTML = `
+        <button style="flex:1;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;padding:12px;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;min-height:48px;" onclick="exportAsText()">📋 テキストコピー</button>
+        <button style="flex:1;background:#f3f4f6;color:#374151;border:1px solid #d1d5db;padding:12px;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;min-height:48px;" onclick="window.print()">🖨️ 印刷</button>
+      `;
+
       document.getElementById('result').classList.add('show');
       document.getElementById('result').scrollIntoView({behavior:'smooth',block:'start'});
     }

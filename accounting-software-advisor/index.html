@@ -30,6 +30,7 @@
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"会計ソフト比較診断の使い方","description":"5問の質問に答えて最適な会計ソフトを診断する方法","step":[{"@type":"HowToStep","position":1,"name":"診断スタート","text":"「診断スタート」ボタンをタップする"},{"@type":"HowToStep","position":2,"name":"5問の質問に答える","text":"事業形態・経験・取引件数・口座数・インボイス対応の5問に答える"},{"@type":"HowToStep","position":3,"name":"結果を確認する","text":"おすすめの会計ソフトランキングと特徴を確認する"},{"@type":"HowToStep","position":4,"name":"無料試用を始める","text":"気に入ったソフトのリンクから無料トライアルを始める"},{"@type":"HowToStep","position":5,"name":"確定申告の準備をする","text":"選んだソフトで日々の記帳を始め、確定申告をスムーズに行う"}]}</script>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
 <script>(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 :root{
@@ -342,7 +343,10 @@ input,select{font-size:16px!important;}
   .hero{padding:36px 16px 52px;}
 }
 @media print{
-  .hdr,.share-row,.aff-wrap,.pr-wrap,button{display:none!important;}
+  .hdr,.share-row,.aff-wrap,.pr-wrap,button,.compare-btn,.back-to-top{display:none!important;}
+  body{background:#fff;}
+  .rank-card{box-shadow:none!important;border:1px solid #ddd!important;}
+  .wrap{padding:0!important;}
 }
 </style>
 </head>
@@ -452,6 +456,26 @@ input,select{font-size:16px!important;}
     </div>
 
     <div id="rank-list"></div>
+
+    <!-- グラフ化: M4 -->
+    <div style="background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,.06);padding:20px;margin-bottom:16px;">
+      <h3 style="font-size:.95rem;font-weight:800;color:var(--text);margin-bottom:14px;">📊 あなたの診断スコア</h3>
+      <canvas id="compatibilityChart" style="max-height:300px;"></canvas>
+    </div>
+
+    <!-- 履歴・エクスポート: M3・M10 -->
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+      <button onclick="exportAsText()" style="flex:1;min-width:120px;padding:12px;background:#f0fdf4;border:2px solid var(--g1);border-radius:12px;color:var(--g1);font-size:.9rem;font-weight:700;cursor:pointer;transition:.2s;" title="診断結果をテキストコピー">📋 結果をコピー</button>
+      <button onclick="downloadAsCSV()" style="flex:1;min-width:120px;padding:12px;background:#f0f9ff;border:2px solid #0ea5e9;border-radius:12px;color:#0369a1;font-size:.9rem;font-weight:700;cursor:pointer;transition:.2s;" title="CSVでダウンロード">📥 CSVダウンロード</button>
+      <button onclick="printResults()" style="flex:1;min-width:120px;padding:12px;background:#fef9e7;border:2px solid #fcd34d;border-radius:12px;color:#b45309;font-size:.9rem;font-weight:700;cursor:pointer;transition:.2s;" title="診断結果を印刷">🖨️ 印刷する</button>
+    </div>
+
+    <!-- 診断履歴 -->
+    <div id="history-section" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px;margin-bottom:16px;display:none;">
+      <div style="font-size:.85rem;font-weight:700;color:#1e293b;margin-bottom:10px;">📜 過去の診断履歴</div>
+      <div id="history-list" style="font-size:.8rem;color:#374151;max-height:120px;overflow-y:auto;"></div>
+      <button onclick="clearHistory()" style="width:100%;margin-top:10px;padding:8px;background:#fee2e2;border:1px solid #fecaca;border-radius:8px;color:#dc2626;font-size:.8rem;font-weight:600;cursor:pointer;">履歴をすべて削除</button>
+    </div>
 
     <!-- 1位 vs 2位 比較 -->
     <button class="compare-btn" onclick="toggleComparison()" id="compare-btn-text">📊 1位 vs 2位の詳細比較を見る</button>
@@ -766,7 +790,64 @@ var softwareMap={
   }
 };
 
-var cur=0, ans={}, rankKeysGlobal=[];
+var cur=0, ans={}, rankKeysGlobal=[], compatibilityChart=null;
+
+// M3: localStorage 関連ユーティリティ
+function saveResultToLocalStorage(rankKeys){
+  var top=softwareMap[rankKeys[0]];
+  var result={
+    timestamp:new Date().toISOString(),
+    topSoftware:top.name,
+    rankKeys:rankKeys,
+    answers:ans
+  };
+  try{
+    var history=JSON.parse(localStorage.getItem('diagnosisHistory')||'[]');
+    history.unshift(result);
+    if(history.length>10)history.pop();
+    localStorage.setItem('diagnosisHistory',JSON.stringify(history));
+    localStorage.setItem('lastDiagnosis',JSON.stringify(result));
+    showHistorySection();
+  }catch(e){console.log('localStorage error');}
+}
+
+function showHistorySection(){
+  try{
+    var history=JSON.parse(localStorage.getItem('diagnosisHistory')||'[]');
+    if(history.length>0){
+      var section=document.getElementById('history-section');
+      if(section){
+        section.style.display='block';
+        var list=document.getElementById('history-list');
+        list.innerHTML='';
+        history.forEach(function(h,idx){
+          var d=new Date(h.timestamp);
+          var dateStr=d.toLocaleDateString('ja-JP')+' '+d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+          var item=document.createElement('div');
+          item.style.cssText='padding:6px 0;border-bottom:1px solid #e2e8f0;cursor:pointer;color:#0369a1;';
+          item.textContent=(idx+1)+'回目: '+dateStr+' → '+h.topSoftware;
+          item.onclick=function(){restoreDiagnosis(h);};
+          list.appendChild(item);
+        });
+      }
+    }
+  }catch(e){console.log('history show error');}
+}
+
+function clearHistory(){
+  if(confirm('診断履歴をすべて削除しますか？')){
+    localStorage.removeItem('diagnosisHistory');
+    localStorage.removeItem('lastDiagnosis');
+    var section=document.getElementById('history-section');
+    if(section)section.style.display='none';
+  }
+}
+
+function restoreDiagnosis(result){
+  ans=result.answers;
+  rankKeysGlobal=result.rankKeys;
+  showResults();
+}
 
 function show(id){
   document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
@@ -917,6 +998,12 @@ function showResults(){
   rankKeysGlobal=rankKeys;
   initializeComparison(rankKeys);
 
+  // M3: localStorage に結果を保存
+  saveResultToLocalStorage(rankKeys);
+
+  // M4: グラフ描画
+  drawCompatibilityChart(rankKeys);
+
   show('results');
 }
 
@@ -944,6 +1031,122 @@ function toggleComparison(){
     wrap.classList.add('show');
     btn.textContent='📊 比較を閉じる';
   }
+}
+
+// M4: グラフ描画（Chart.js）
+function drawCompatibilityChart(rankKeys){
+  var typeIdx=ans.type?ans.type.i:1;
+  var expIdx=ans.exp?ans.exp.i:0;
+  var accIdx=ans.accounts?ans.accounts.i:1;
+  var invoiceIdx=ans.invoice?ans.invoice.i:1;
+
+  // スコア計算（0-100）
+  var scores={};
+  rankKeys.forEach(function(k){
+    var score=50;
+    if(k==='freee'){
+      if(expIdx<=1)score+=15;
+      if(typeIdx<=1)score+=15;
+      if(invoiceIdx>=1)score+=10;
+    }else if(k==='mf'){
+      if(accIdx>=2)score+=20;
+      if(typeIdx===2)score+=10;
+      if(invoiceIdx>=2)score+=10;
+    }else if(k==='yayoi'){
+      if(typeIdx<=1)score+=12;
+      if(invoiceIdx===0)score+=18;
+    }
+    scores[k]=Math.min(100,score);
+  });
+
+  var ctx=document.getElementById('compatibilityChart');
+  if(!ctx)return;
+
+  if(compatibilityChart){compatibilityChart.destroy();}
+
+  var labels=rankKeys.map(function(k){return softwareMap[k].name;});
+  var data=rankKeys.map(function(k){return scores[k];});
+  var bgColors=['rgba(5, 150, 105, 0.6)','rgba(14, 165, 233, 0.6)','rgba(148, 163, 184, 0.6)'];
+  var borderColors=['#059669','#0ea5e9','#94a3b8'];
+
+  compatibilityChart=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:labels,
+      datasets:[{
+        label:'相性スコア',
+        data:data,
+        backgroundColor:bgColors,
+        borderColor:borderColors,
+        borderWidth:2,
+        borderRadius:8
+      }]
+    },
+    options:{
+      indexAxis:'y',
+      responsive:true,
+      maintainAspectRatio:true,
+      plugins:{
+        legend:{display:false}
+      },
+      scales:{
+        x:{
+          beginAtZero:true,
+          max:100,
+          ticks:{callback:function(v){return v+'%';}}
+        }
+      }
+    }
+  });
+}
+
+// M10: テキストコピー
+function exportAsText(){
+  var top=softwareMap[rankKeysGlobal[0]];
+  var text='';
+  text+='【会計ソフト比較診断結果】\n';
+  text+='診断日時: '+new Date().toLocaleString('ja-JP')+'\n\n';
+  text+='あなたへのおすすめ: '+top.name+'\n';
+  text+='料金: '+top.cost+'\n';
+  text+='特徴: '+top.desc+'\n\n';
+  text+='ランキング:\n';
+  rankKeysGlobal.forEach(function(k,idx){
+    var s=softwareMap[k];
+    text+=(idx+1)+'. '+s.name+' - '+s.cost+'\n';
+  });
+  text+='\n※このツールの診断結果は参考情報です。重要な判断の際は公式サイトをご確認ください。';
+
+  navigator.clipboard.writeText(text).then(function(){
+    alert('診断結果をクリップボードにコピーしました！');
+  }).catch(function(){
+    alert('コピーに失敗しました。手動でコピーしてください。');
+  });
+}
+
+// M10: CSVダウンロード
+function downloadAsCSV(){
+  var top=softwareMap[rankKeysGlobal[0]];
+  var csv='項目,内容\n';
+  csv+='診断日時,'+new Date().toLocaleString('ja-JP')+'\n';
+  csv+='おすすめソフト,'+top.name+'\n';
+  csv+='料金,'+top.cost+'\n';
+  csv+='説明,'+top.desc.replace(/,/g,'・')+'\n\n';
+  csv+='ランキング\n';
+  rankKeysGlobal.forEach(function(k,idx){
+    var s=softwareMap[k];
+    csv+=(idx+1)+'位,'+s.name+','+s.cost+'\n';
+  });
+
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  var link=document.createElement('a');
+  link.href=URL.createObjectURL(blob);
+  link.download='accounting-diagnosis-'+new Date().toISOString().split('T')[0]+'.csv';
+  link.click();
+}
+
+// M10: 印刷
+function printResults(){
+  window.print();
 }
 
 function restart(){
@@ -986,6 +1189,31 @@ function restart(){
   window.addEventListener('scroll', function(){
     btn.style.display = window.scrollY > 400 ? 'block' : 'none';
   }, {passive:true});
+})();
+
+// M3: 前回の診断結果があれば復元ボタンを表示
+(function(){
+  try{
+    var lastDiagnosis=JSON.parse(localStorage.getItem('lastDiagnosis'));
+    if(lastDiagnosis){
+      var heroBtn=document.getElementById('hero-cta');
+      if(heroBtn){
+        var origText=heroBtn.textContent;
+        var d=new Date(lastDiagnosis.timestamp);
+        var dateStr=d.toLocaleDateString('ja-JP');
+        var restoreBtn=document.createElement('button');
+        restoreBtn.className='cta-btn';
+        restoreBtn.style.cssText='background:#f0fdf4;color:var(--g1);margin-left:10px;';
+        restoreBtn.textContent='🕐 '+dateStr+'の結果を見る';
+        restoreBtn.onclick=function(){
+          ans=lastDiagnosis.answers;
+          rankKeysGlobal=lastDiagnosis.rankKeys;
+          showResults();
+        };
+        heroBtn.parentNode.insertBefore(restoreBtn,heroBtn.nextSibling);
+      }
+    }
+  }catch(e){}
 })();
 </script>
 </body>

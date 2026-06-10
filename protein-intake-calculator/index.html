@@ -36,6 +36,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"タンパク質摂取量計算ツール","description":"体重・目的（筋肉増量・ダイエット・維持）から1日に必要なタンパク質量を計算。食品別の摂取目安も提示。登録不要・完全無料でご利用いただけます。","url":"https://appadaycreator.com/protein-intake-calculator/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"author":{"@type":"Organization","name":"AppADayCreator","url":"https://appadaycreator.com/"}}</script>
@@ -142,6 +143,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;">&#x1F4AA; タンパク質量を計算する</h2>
           <label for="weight">体重（kg）</label>
           <input type="number" id="weight" placeholder="例: 60" min="1" max="300" inputmode="decimal">
+          <small style="font-size:12px;color:#888;margin-top:4px;display:block;">18〜150kg の範囲で計算可能です。</small>
           <label for="goal">目標を選んでください</label>
           <select id="goal">
             <option value="maintain">体型維持</option>
@@ -149,6 +151,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <option value="diet">ダイエット</option>
             <option value="athlete">アスリート</option>
           </select>
+          <small style="font-size:12px;color:#888;margin-top:4px;display:block;">💡 筋トレを始めたなら「筋肉増量」、体脂肪を落としたいなら「ダイエット」を選んでください。</small>
           <label for="activity">運動頻度・活動レベル</label>
           <select id="activity">
             <option value="1.0">ほとんど運動しない（デスクワーク中心）</option>
@@ -157,6 +160,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <option value="1.3">週5〜6回の激しい運動</option>
             <option value="1.4">毎日ハードトレーニング（競技選手）</option>
           </select>
+          <small style="font-size:12px;color:#888;margin-top:4px;display:block;">💡 実際の運動習慣に最も近い選択肢を選んでください。迷う場合は 1 段階低めを選ぶのが安全です。</small>
           <button class="btn" style="margin-top:16px;" onclick="calculate()">タンパク質量を計算する</button>
         </div>
         <div class="result" id="result">
@@ -179,9 +183,19 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
                 <div class="lbl">g / kg（体重あたり係数）</div>
               </div>
             </div>
-            <div style="margin-top:16px;">
+            <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;">
               <button class="btn-copy" id="copyBtn" onclick="copyResult()">&#x1F4CB; 結果をコピー</button>
+              <button class="btn-copy" onclick="printResult()" style="background:#7c3aed;color:white;">🖨 印刷する</button>
+              <button class="btn-copy" onclick="downloadCSV()" style="background:#7c3aed;color:white;">📥 CSVダウンロード</button>
             </div>
+          </div>
+          <div class="card">
+            <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#374151;">📊 結果の可視化</h3>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+              <div style="position:relative;height:250px;"><canvas id="timingChart"></canvas></div>
+              <div style="position:relative;height:250px;"><canvas id="goalsChart"></canvas></div>
+            </div>
+            <div style="position:relative;height:200px;margin-top:16px;"><canvas id="progressChart"></canvas></div>
           </div>
           <div class="card">
             <h3 style="font-size:15px;font-weight:700;margin-bottom:4px;color:#374151;">&#x23F0; 食事タイミング別の目安</h3>
@@ -483,6 +497,77 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }).join('');
       document.getElementById('result').classList.add('show');
       document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      drawCharts(weight, goal, activity, totalG);
+    }
+    var chartInstances = {};
+    function drawCharts(weight, goal, activity, totalG) {
+      var timing = TIMING_ADVICE[goal];
+      var timingLabels = timing.slots.map(function(s) { return s.time; });
+      var timingData = timing.slots.map(function(s) { return Math.round(totalG * s.ratio); });
+      if (chartInstances.timing) chartInstances.timing.destroy();
+      chartInstances.timing = new Chart(document.getElementById('timingChart'), {
+        type: 'doughnut',
+        data: {
+          labels: timingLabels,
+          datasets: [{
+            data: timingData,
+            backgroundColor: ['#7c3aed', '#a855f7', '#d946ef', '#ec4899'],
+            borderColor: '#fff',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 12 } },
+            tooltip: { callbacks: { label: function(c) { return c.label + ': ' + c.parsed + 'g'; } } }
+          }
+        }
+      });
+      var goalLabels = Object.keys(GOALS).map(function(k) { return GOALS[k].emoji + ' ' + GOALS[k].label; });
+      var goalData = Object.keys(GOALS).map(function(k) { return Math.round(weight * (GOALS[k].coeff * activity)); });
+      if (chartInstances.goals) chartInstances.goals.destroy();
+      chartInstances.goals = new Chart(document.getElementById('goalsChart'), {
+        type: 'bar',
+        data: {
+          labels: goalLabels,
+          datasets: [{
+            label: '1日の目標量（g）',
+            data: goalData,
+            backgroundColor: ['#7c3aed', '#a855f7', '#d946ef', '#ec4899'],
+            borderRadius: 6
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true, max: Math.max.apply(null, goalData) * 1.2 } }
+        }
+      });
+      var progressData = [totalG, Math.max(0, 150 - totalG)];
+      if (chartInstances.progress) chartInstances.progress.destroy();
+      chartInstances.progress = new Chart(document.getElementById('progressChart'), {
+        type: 'bar',
+        data: {
+          labels: ['達成量', '目標まで'],
+          datasets: [{
+            label: 'g',
+            data: [Math.min(totalG, 150), Math.max(0, 150 - totalG)],
+            backgroundColor: ['#7c3aed', '#e2e8f0'],
+            borderRadius: 6
+          }]
+        },
+        options: {
+          indexAxis: 'x',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c) { return c.parsed.x + 'g'; } } } },
+          scales: { x: { stacked: true, max: 200 }, y: { stacked: true } }
+        }
+      });
     }
     function copyResult() {
       var total = document.getElementById('result-total').textContent;
@@ -496,6 +581,35 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         btn.classList.add('copied');
         setTimeout(function() { btn.textContent = '📋 結果をコピー'; btn.classList.remove('copied'); }, 2000);
       });
+    }
+    function printResult() {
+      window.print();
+    }
+    function downloadCSV() {
+      var weight = document.getElementById('weight').value;
+      var goalVal = document.getElementById('goal').value;
+      var goalLabel = GOALS[goalVal].label;
+      var total = document.getElementById('result-total').textContent;
+      var perMeal = document.getElementById('result-per-meal').textContent;
+      var coeff = document.getElementById('result-coeff').textContent;
+      var csv = 'タンパク質摂取量計算結果\n\n';
+      csv += '体重（kg）,' + weight + '\n';
+      csv += '目標,' + goalLabel + '\n';
+      csv += '1日の目標量（g）,' + total + '\n';
+      csv += '1食あたり（g）,' + perMeal + '\n';
+      csv += '体重あたり係数（g/kg）,' + coeff + '\n\n';
+      csv += '食品名,タンパク質含有量（g）,必要量\n';
+      FOODS.forEach(function(f) {
+        var servings = (total / f.pg).toFixed(1);
+        csv += '"' + f.name + '",' + f.pg + ',' + servings + '\n';
+      });
+      var element = document.createElement('a');
+      element.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv));
+      element.setAttribute('download', 'protein-intake-' + new Date().toISOString().slice(0, 10) + '.csv');
+      element.style.display = 'none';
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
     }
     document.addEventListener('DOMContentLoaded', function() {
       var w = localStorage.getItem('protein_weight');

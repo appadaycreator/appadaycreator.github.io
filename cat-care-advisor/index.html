@@ -35,6 +35,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -178,7 +179,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <p id="r-desc" style="font-size:14px;color:#475569;line-height:1.7;"></p>
             <div class="care-box" id="r-care"></div>
             <div id="r-points" style="margin-top:12px;"></div>
-            <button class="btn" style="margin-top:16px;" onclick="location.reload()">もう一度診断する</button>
+            <div id="chart-container" style="margin-top:20px;padding:16px;background:#f8fafc;border-radius:10px;display:none;">
+              <h4 style="font-size:14px;font-weight:600;color:#374151;margin-bottom:12px;">📊 月額費用の内訳</h4>
+              <canvas id="costChart" style="max-height:300px;"></canvas>
+            </div>
+            <div style="display:flex;gap:8px;flex-direction:column;margin-top:16px;">
+              <button class="btn" style="background:#4f46e5;" onclick="printResult()" title="結果を印刷します">🖨️ 結果を印刷</button>
+              <button class="btn" style="background:#10b981;" onclick="exportCSV()" title="CSV形式でダウンロード">📥 CSV形式でダウンロード</button>
+              <button class="btn" style="background:#F97316;" onclick="location.reload()">もう一度診断する</button>
+            </div>
           </div>
         </div>
 
@@ -225,7 +234,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             </div>
             <div style="border-bottom:1px solid #f1f5f9;padding-bottom:12px;">
               <p style="font-size:14px;font-weight:600;color:#374151;margin-bottom:4px;">Q: 診断結果は保存されますか？</p>
-              <p style="font-size:13px;color:#6b7280;line-height:1.7;">A: 結果はブラウザには保存されません。スクリーンショットやSNSシェアでご記録ください。</p>
+              <p style="font-size:13px;color:#6b7280;line-height:1.7;">A: はい、結果はブラウザのローカルストレージに自動保存されます。同じデバイスなら前回の結果を復元できます。また、CSV形式でダウンロードして管理することもできます。</p>
             </div>
             <div style="border-bottom:1px solid #f1f5f9;padding-bottom:12px;">
               <p style="font-size:14px;font-weight:600;color:#374151;margin-bottom:4px;">Q: 入力したデータはサーバーに送信されますか？</p>
@@ -408,8 +417,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if(resultKey && RESULTS[resultKey]) {
         document.getElementById('quiz-start').style.display='none';
         const r = RESULTS[resultKey];
+        currentResult = {key: resultKey, data: r, timestamp: new Date().toLocaleString('ja-JP')};
+
         const yearlyMin = r.monthlyMin * 12, yearlyMax = r.monthlyMax * 12;
-        const costCards = r.costs.map(c=>`<div class="cost-card"><div class="cost-card-label">${c.label}</div><div class="cost-card-amount">¥${c.min.toLocaleString()}</div><div style="font-size:11px;color:#888;">～¥${c.max.toLocaleString()}</div></div>`).join('');
+        const costTable = r.costs.map(c=>`<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px 0;font-size:13px;color:#555">${c.label}</td><td style="padding:6px 0;font-size:13px;color:#555;text-align:right">¥${c.min.toLocaleString()}-¥${c.max.toLocaleString()}</td></tr>`).join('');
         const shareUrl = window.location.origin + window.location.pathname + '?result=' + resultKey;
         const shareTxt = r.shareText + '\n' + shareUrl;
 
@@ -419,6 +430,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         document.getElementById('r-care').innerHTML    = r.care + '<br><span style="font-size:12px;">目安費用：</span><span class="cost-badge">月¥' + r.monthlyMin.toLocaleString() + '〜¥' + r.monthlyMax.toLocaleString() + '</span>';
         document.getElementById('r-points').innerHTML  = r.points.map(p=>`<p class="r-point">${p}</p>`).join('') + `<div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:12px"><h4 style="font-size:13px;font-weight:600;margin-bottom:8px;color:#374151">💰 費用内訳</h4><table style="width:100%;font-size:12px">${costTable}</table><div style="margin-top:10px;padding:8px;background:#f1f5f9;border-radius:6px;font-size:12px;color:#555"><p style="margin:4px 0"><strong>月額:</strong> ¥${r.monthlyMin.toLocaleString()}〜¥${r.monthlyMax.toLocaleString()}</p><p style="margin:4px 0"><strong>年額:</strong> ¥${yearlyMin.toLocaleString()}〜¥${yearlyMax.toLocaleString()}</p><p style="margin:4px 0;color:#9a3412"><strong>5年:</strong> ¥${(yearlyMin*5).toLocaleString()}〜¥${(yearlyMax*5).toLocaleString()}</p></div></div><div style="margin-top:12px;padding:12px;background:#f0fdf4;border-radius:8px;border:1px solid #86efac"><p style="font-size:12px;font-weight:600;color:#15803d;margin-bottom:8px">🔗 結果をシェア</p><div style="display:flex;gap:6px;flex-direction:column"><button style="background:#fff;border:1px solid #e2e8f0;padding:8px;border-radius:6px;font-size:12px;cursor:pointer;color:#555" onclick="navigator.clipboard.writeText('${shareTxt.replace(/'/g,"\\'")}'); alert('URLをコピーしました！')">📋 URLをコピー</button><a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(r.shareText)}&url=${encodeURIComponent(shareUrl)}" target="_blank" rel="noopener" style="background:#1DA1F2;color:white;padding:8px;border-radius:6px;font-size:12px;text-decoration:none;text-align:center;font-weight:600">𝕏 シェア</a><a href="https://line.me/R/msg/text/?${encodeURIComponent(shareTxt)}" target="_blank" rel="noopener" style="background:#00B900;color:white;padding:8px;border-radius:6px;font-size:12px;text-decoration:none;text-align:center;font-weight:600">LINE</a></div></div>`;
         document.getElementById('result').classList.add('show');
+
+        // グラフを描画
+        renderCostChart(r);
       }
     }
 
@@ -468,6 +482,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       renderQ();
     }
 
+    let currentResult = null;
+
     function showResult() {
       document.getElementById('quiz-area').style.display='none';
       const best = Object.entries(typeScore).sort((a,b)=>b[1]-a[1])[0][0];
@@ -475,6 +491,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       window.history.pushState({result:best},'',shareUrl);
 
       const r = RESULTS[best];
+      currentResult = {key: best, data: r, timestamp: new Date().toLocaleString('ja-JP')};
+      saveResultToStorage(currentResult);
+
       const yearlyMin = r.monthlyMin * 12, yearlyMax = r.monthlyMax * 12;
       const costTable = r.costs.map(c=>`<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:6px 0;font-size:13px;color:#555">${c.label}</td><td style="padding:6px 0;font-size:13px;color:#555;text-align:right">¥${c.min.toLocaleString()}-¥${c.max.toLocaleString()}</td></tr>`).join('');
       const shareTxt = r.shareText + '\n' + shareUrl;
@@ -485,6 +504,115 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('r-care').innerHTML    = r.care + '<br><span style="font-size:12px;">目安費用：</span><span class="cost-badge">月¥' + r.monthlyMin.toLocaleString() + '〜¥' + r.monthlyMax.toLocaleString() + '</span>';
       document.getElementById('r-points').innerHTML  = r.points.map(p=>`<p class="r-point">${p}</p>`).join('') + `<div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:12px"><h4 style="font-size:13px;font-weight:600;margin-bottom:8px;color:#374151">💰 費用内訳</h4><table style="width:100%;font-size:12px">${costTable}</table><div style="margin-top:10px;padding:8px;background:#f1f5f9;border-radius:6px;font-size:12px;color:#555"><p style="margin:4px 0"><strong>月額:</strong> ¥${r.monthlyMin.toLocaleString()}〜¥${r.monthlyMax.toLocaleString()}</p><p style="margin:4px 0"><strong>年額:</strong> ¥${yearlyMin.toLocaleString()}〜¥${yearlyMax.toLocaleString()}</p><p style="margin:4px 0;color:#9a3412"><strong>5年:</strong> ¥${(yearlyMin*5).toLocaleString()}〜¥${(yearlyMax*5).toLocaleString()}</p></div></div><div style="margin-top:12px;padding:12px;background:#f0fdf4;border-radius:8px;border:1px solid #86efac"><p style="font-size:12px;font-weight:600;color:#15803d;margin-bottom:8px">🔗 結果をシェア</p><div style="display:flex;gap:6px;flex-direction:column"><button style="background:#fff;border:1px solid #e2e8f0;padding:8px;border-radius:6px;font-size:12px;cursor:pointer;color:#555" onclick="navigator.clipboard.writeText('${shareTxt.replace(/'/g,"\\'")}'); alert('URLをコピーしました！')">📋 URLをコピー</button><a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(r.shareText)}&url=${encodeURIComponent(shareUrl)}" target="_blank" rel="noopener" style="background:#1DA1F2;color:white;padding:8px;border-radius:6px;font-size:12px;text-decoration:none;text-align:center;font-weight:600">𝕏 シェア</a><a href="https://line.me/R/msg/text/?${encodeURIComponent(shareTxt)}" target="_blank" rel="noopener" style="background:#00B900;color:white;padding:8px;border-radius:6px;font-size:12px;text-decoration:none;text-align:center;font-weight:600">LINE</a></div></div>`;
       document.getElementById('result').classList.add('show');
+
+      // グラフを描画
+      renderCostChart(r);
+    }
+
+    function saveResultToStorage(result) {
+      localStorage.setItem('cat_care_last_result', JSON.stringify(result));
+    }
+
+    function loadResultFromStorage() {
+      const saved = localStorage.getItem('cat_care_last_result');
+      return saved ? JSON.parse(saved) : null;
+    }
+
+    function renderCostChart(r) {
+      const chartContainer = document.getElementById('chart-container');
+      const costChartCanvas = document.getElementById('costChart');
+
+      if (!chartContainer || !costChartCanvas) return;
+
+      chartContainer.style.display = 'block';
+      const avgCosts = r.costs.map(c => ({
+        label: c.label,
+        value: Math.round((c.min + c.max) / 2)
+      }));
+
+      const ctx = costChartCanvas.getContext('2d');
+
+      // 既存のチャートがあればリセット
+      if (window.costChartInstance) {
+        window.costChartInstance.destroy();
+      }
+
+      window.costChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: avgCosts.map(c => c.label),
+          datasets: [{
+            data: avgCosts.map(c => c.value),
+            backgroundColor: ['#F97316', '#8B5CF6', '#06B6D4', '#10B981', '#EC4899'],
+            borderColor: '#fff',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                font: { size: 12, family: "'Noto Sans JP', sans-serif" },
+                color: '#555',
+                padding: 12
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function printResult() {
+      if (!currentResult) return;
+      window.print();
+    }
+
+    function exportCSV() {
+      if (!currentResult) return;
+
+      const r = currentResult.data;
+      const lines = [
+        ['猫の飼育・ケア診断 - 結果エクスポート'],
+        [''],
+        ['診断日時', currentResult.timestamp],
+        ['プラン', currentResult.key],
+        ['プランタイトル', r.title],
+        [''],
+        ['費用内訳'],
+        ['項目', '最小額（月）', '最大額（月）'],
+        ...r.costs.map(c => [c.label, `¥${c.min}`, `¥${c.max}`]),
+        [''],
+        ['合計費用'],
+        ['月額', `¥${r.monthlyMin.toLocaleString()}〜¥${r.monthlyMax.toLocaleString()}`],
+        ['年額', `¥${(r.monthlyMin*12).toLocaleString()}〜¥${(r.monthlyMax*12).toLocaleString()}`],
+        ['5年間', `¥${(r.monthlyMin*12*5).toLocaleString()}〜¥${(r.monthlyMax*12*5).toLocaleString()}`],
+      ];
+
+      const csv = lines.map(line => line.map(cell => `"${cell}"`).join(',')).join('\n');
+      const blob = new Blob(['﻿' + csv], {type: 'text/csv;charset=utf-8;'});
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+
+      link.setAttribute('href', url);
+      link.setAttribute('download', `cat-care-diagnosis-${new Date().getTime()}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function goBack() {
+      if (cur > 0) {
+        cur--;
+        renderQ();
+      }
+    }
+
+    function skipQuestion() {
+      answer(-1);
     }
     </script>
 

@@ -57,6 +57,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .btn:hover { opacity: 0.9; }
         .btn:active { transform: scale(0.98); }
         .btn:focus-visible { outline: 3px solid #4338CA; outline-offset: 3px; }
+        .btn-secondary { background: #e2e8f0; color: #4338CA; width: auto; display: inline-block; padding: 10px 20px; }
+        .btn-secondary:hover { opacity: 0.8; background: #cbd5e1; }
         input, select, textarea { width: 100%; padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 15px; margin-top: 4px; font-family: inherit; min-height: 44px; }
         input:focus, select:focus, textarea:focus { outline: none; border-color: #4338CA; box-shadow: 0 0 0 3px #4338CA22; }
         label { font-size: 13px; font-weight: 600; color: #555; display: block; margin-top: 14px; margin-bottom: 2px; }
@@ -66,6 +68,17 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .badge { display: inline-block; background: #4338CA20; color: #4338CA; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
         .related-links a { color:#4338CA; }
+        .toast { position:fixed;bottom:24px;right:20px;background:#10b981;color:white;padding:14px 20px;border-radius:8px;z-index:9999;animation:slideIn .3s ease;box-shadow:0 4px 12px rgba(0,0,0,.2); }
+        @keyframes slideIn { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .score-bar { background: #f1f5f9; border-radius: 8px; height: 24px; overflow: hidden; margin: 12px 0; }
+        .score-bar-fill { height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: 700; transition: width .3s ease; }
+        .score-fill-green { background: #10b981; }
+        .score-fill-blue { background: #3b82f6; }
+        .score-fill-yellow { background: #f59e0b; }
+        .score-fill-orange { background: #f97316; }
+        .score-fill-red { background: #ef4444; }
+        .history-item { padding: 10px 12px; background: #f8fafc; border-radius: 8px; border-left: 3px solid #4338CA; margin-bottom: 8px; font-size: 13px; cursor: pointer; transition: background .2s; }
+        .history-item:hover { background: #e2e8f0; }
         @media (max-width: 480px) {
             .site-header { padding: 24px 16px; }
             .site-header h1 { font-size: 20px; }
@@ -73,6 +86,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
             .card { padding: 16px; }
             .btn { font-size: 15px; padding: 13px 20px; }
             .result-value { font-size: 28px; }
+            .toast { bottom: 16px; right: 16px; }
         }
         /* ── サービス固有CSS ── */
         .option-btn { width:100%;padding:16px;border:2px solid #e2e8f0;border-radius:10px;
@@ -87,11 +101,13 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .road-icon { font-size:18px;flex-shrink:0;font-weight:700; }
     
 @media print{
-  header,footer,nav,button,.no-print,
+  header,footer,nav,.no-print,.btn-secondary,
   [class*="share"],[class*="affiliate"],[id*="share"],
-  [id*="affiliate"],[id*="banner"],
+  [id*="affiliate"],[id*="banner"],#history-section,#quiz-start,#quiz-area,.related-links,.card:not(.result .card),
   script,noscript{display:none!important}
   body{background:#fff!important;color:#000!important;font-size:12pt}
+  .result{display:block!important}
+  .result .card{display:block!important}
   [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
   a[href]::after{content:none!important}
 }
@@ -135,6 +151,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <ins class="adsbygoogle" style="display:block;min-height:90px;margin:12px 0" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
         <script>try{try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}}catch(e){}</script>
 
+        <div id="history-section" style="display:none;" class="card">
+          <h3 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#374151;">📊 過去の診断結果（最新5件）</h3>
+          <div id="history-list"></div>
+          <button class="btn-secondary" onclick="clearHistory()" style="display:block;width:100%;background:#fee2e2;color:#991b1b;margin-top:12px;">🗑️ 履歴をクリア</button>
+        </div>
+
         <div id="quiz-start" class="card">
           <h2 style="font-size:18px;font-weight:700;margin-bottom:12px;">📝 漢字検定レベル診断</h2>
           <p style="color:#666;font-size:14px;margin-bottom:8px;">漢字に関する10問に答えて、あなたの漢字力（漢検推定級）を診断します</p>
@@ -143,6 +165,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <li>所要時間：約2分</li>
             <li>完全無料・登録不要</li>
           </ul>
+          <label>🎯 目標級を設定（オプション）</label>
+          <select id="target-grade" style="margin-bottom:16px;">
+            <option value="">目標を設定しない</option>
+            <option value="10級">10級（小学1年相当）</option>
+            <option value="9級">9級（小学2年相当）</option>
+            <option value="8級">8級（小学3年相当）</option>
+            <option value="7級">7級（小学4年相当）</option>
+            <option value="6級">6級（小学5年相当）</option>
+            <option value="5級">5級（小学6年相当）</option>
+            <option value="4級">4級（中学相当）</option>
+            <option value="3級">3級（中学卒業相当）</option>
+            <option value="準2級">準2級（高校相当）</option>
+            <option value="2級">2級（高校卒業相当）</option>
+          </select>
           <button class="btn" onclick="startQuiz()">診断スタート →</button>
         </div>
 
@@ -163,9 +199,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <p style="font-size:13px;color:#64748b;margin-bottom:8px;">あなたの推定漢検レベル</p>
             <div class="grade-badge" id="r-grade"></div>
             <h3 id="r-title" style="font-size:16px;font-weight:700;color:#4338CA;margin-bottom:8px;"></h3>
-            <p id="r-score" style="font-size:13px;color:#64748b;margin-bottom:12px;"></p>
+            <div id="r-score" style="font-size:13px;color:#64748b;margin-bottom:12px;"></div>
+            <div id="score-bar-container"></div>
+            <div id="goal-section" style="display:none;background:#fef3c7;border:1px solid #fcd34d;border-radius:10px;padding:12px;margin-bottom:16px;text-align:left;">
+              <p style="font-size:13px;font-weight:600;color:#92400e;margin-bottom:8px;">🎯 目標達成度</p>
+              <div id="goal-progress"></div>
+            </div>
             <p id="r-desc" style="font-size:14px;color:#475569;line-height:1.7;text-align:left;margin-bottom:16px;"></p>
             <div id="r-roadmap" style="text-align:left;margin-bottom:16px;"></div>
+            <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+              <button class="btn-secondary" onclick="printResult()" style="flex:1;min-width:120px;">🖨️ 印刷</button>
+              <button class="btn-secondary" onclick="copyResult()" style="flex:1;min-width:120px;">📋 コピー</button>
+            </div>
             <div style="text-align:center;padding:12px;background:#E0E7FF30;border-radius:10px;margin-bottom:16px;">
               <p style="font-size:13px;font-weight:600;color:#374151;margin-bottom:10px;">📣 結果をシェアして友人と比べる</p>
               <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
@@ -332,36 +377,25 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     
 <script>
     // === 漢字検定レベル診断データ ===
-    // 各問題に正解と難易度（grade）を設定
     const QUESTIONS = [
-      // 10級レベル（小学1年生相当）
       { text:'「山」の読み方として正しいのは？', level:'10級レベル',
         opts:['やま','かわ','うみ','そら'], ans:0 },
-      // 9級レベル（小学2年生相当）
       { text:'「親切」の読み方は？', level:'9級レベル',
         opts:['おやきり','しんせつ','おやせつ','しんきり'], ans:1 },
-      // 8級レベル（小学3年生相当）
       { text:'「委員会」の読み方は？', level:'8級レベル',
         opts:['いいんかい','ゆいんかい','いいんえ','ゆいんえ'], ans:0 },
-      // 7級レベル（小学4年生相当）
       { text:'「努力」の読み方は？', level:'7級レベル',
         opts:['どりょく','ぬりょく','どりき','ぬりき'], ans:0 },
-      // 6級レベル（小学5年生相当）
       { text:'「複雑」の読み方は？', level:'6級レベル',
         opts:['ふくさつ','ふくざつ','ふうさつ','ふうざつ'], ans:1 },
-      // 5級レベル（小学6年生相当）
       { text:'「批判」の読み方は？', level:'5級レベル',
         opts:['ひはん','ひばん','びはん','びばん'], ans:0 },
-      // 4級レベル（中学在学程度）
       { text:'「漸次」の読み方は？', level:'4級レベル',
         opts:['ぜんじ','ぜんし','けんじ','けんし'], ans:0 },
-      // 3級レベル（中学卒業程度）
       { text:'「逡巡」の読み方は？', level:'3級レベル',
         opts:['しゅんじゅん','じゅんしゅん','しゅんじゅう','すんしゅん'], ans:0 },
-      // 準2級レベル（高校在学程度）
       { text:'「蹉跎」の読み方は？', level:'準2級レベル',
         opts:['さた','さだ','ざた','ざだ'], ans:0 },
-      // 2級レベル（高校卒業程度）
       { text:'「鷁首」の読み方は？', level:'2級レベル',
         opts:['げきしゅ','てきしゅ','ていしゅ','げいしゅ'], ans:0 },
     ];
@@ -374,10 +408,51 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       { minScore:0,  grade:'9〜10級',   title:'初心者レベル', desc:'漢検9〜10級相当の段階です。基礎的な漢字から丁寧に学習を積み重ねましょう。継続が最大の武器です！', road:['📖 10〜8級テキストで基礎から学習','🖊️ 毎日5〜10個の漢字練習を習慣化','📅 無理のないペースでコツコツと'] },
     ];
 
-    let cur = 0, correctCount = 0, selectedIdx = 0;
+    const GRADE_LEVELS = { '10級':0, '9級':1, '8級':2, '7級':3, '6級':4, '5級':5, '4級':6, '3級':7, '準2級':8, '2級':9 };
+    const GRADE_VALUES = ['9〜10級','7〜8級','5〜6級','3〜4級','2〜準2級'];
+    let cur = 0, correctCount = 0, selectedIdx = 0, targetGrade = null, lastResult = null;
+
+    function initializeApp() {
+      const hist = getHistory();
+      if (hist.length > 0) {
+        document.getElementById('history-section').style.display = 'block';
+        renderHistory();
+      }
+      const stored = localStorage.getItem('targetGrade');
+      if (stored) document.getElementById('target-grade').value = stored;
+    }
+
+    function getHistory() {
+      const h = localStorage.getItem('quizHistory');
+      return h ? JSON.parse(h) : [];
+    }
+
+    function saveHistory(score, grade) {
+      const hist = getHistory();
+      const newEntry = { date: new Date().toLocaleString('ja-JP'), score, grade };
+      hist.unshift(newEntry);
+      if (hist.length > 5) hist.pop();
+      localStorage.setItem('quizHistory', JSON.stringify(hist));
+    }
+
+    function renderHistory() {
+      const hist = getHistory();
+      const html = hist.map(h => `<div class="history-item">${h.date} | ${h.grade} | ${h.score}/10問</div>`).join('');
+      document.getElementById('history-list').innerHTML = html || '<p style="font-size:13px;color:#9ca3af;">履歴がありません</p>';
+    }
+
+    function clearHistory() {
+      if (confirm('履歴を全削除してもよろしいですか？')) {
+        localStorage.removeItem('quizHistory');
+        document.getElementById('history-section').style.display = 'none';
+        document.getElementById('history-list').innerHTML = '';
+      }
+    }
 
     function startQuiz() {
       cur = 0; correctCount = 0; selectedIdx = 0;
+      targetGrade = document.getElementById('target-grade').value;
+      if (targetGrade) localStorage.setItem('targetGrade', targetGrade);
       document.getElementById('quiz-start').style.display = 'none';
       document.getElementById('quiz-area').style.display = 'block';
       document.getElementById('result').classList.remove('show');
@@ -424,21 +499,75 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       renderQuestion();
     }
 
+    function getScoreColor(score) {
+      if (score === 10) return 'score-fill-green';
+      if (score >= 8) return 'score-fill-blue';
+      if (score >= 6) return 'score-fill-yellow';
+      if (score >= 4) return 'score-fill-orange';
+      return 'score-fill-red';
+    }
+
     function showResult() {
       document.getElementById('quiz-area').style.display = 'none';
       const gradeData = GRADES.find(g => correctCount >= g.minScore) || GRADES[GRADES.length - 1];
+      const percent = Math.round((correctCount / QUESTIONS.length) * 100);
+
+      lastResult = { score: correctCount, grade: gradeData.grade, percent, gradeData };
+
       document.getElementById('r-grade').textContent = gradeData.grade;
       document.getElementById('r-title').textContent = gradeData.title;
-      document.getElementById('r-score').textContent = `正解数：${correctCount} / ${QUESTIONS.length}問`;
+      document.getElementById('r-score').innerHTML = `<span style="font-weight:700;">${correctCount} / ${QUESTIONS.length}問 正解 (${percent}%)</span>`;
+
+      const colorClass = getScoreColor(correctCount);
+      document.getElementById('score-bar-container').innerHTML =
+        `<div class="score-bar"><div class="score-bar-fill ${colorClass}" style="width:${percent}%">${percent}%</div></div>`;
+
+      if (targetGrade) {
+        const targetVal = parseInt(targetGrade) || 8;
+        const currentGradeVal = correctCount >= 9 ? 2 : correctCount >= 7 ? 4 : correctCount >= 5 ? 6 : correctCount >= 3 ? 8 : 10;
+        const achievementPercent = Math.max(0, Math.min(100, 100 - (currentGradeVal - targetVal) * 5));
+        document.getElementById('goal-section').style.display = 'block';
+        document.getElementById('goal-progress').innerHTML =
+          `<p style="font-size:12px;margin-bottom:6px;">🎯 目標: ${targetGrade} | 現在: ${GRADE_VALUES[Math.max(0, Math.floor((10-correctCount)/2))]}</p>
+           <div class="score-bar"><div class="score-bar-fill score-fill-blue" style="width:${Math.max(achievementPercent, 0)}%">${Math.max(achievementPercent, 0).toFixed(0)}%</div></div>`;
+      }
+
       document.getElementById('r-desc').textContent = gradeData.desc;
       document.getElementById('r-roadmap').innerHTML =
         '<p style="font-size:13px;font-weight:700;color:#4338CA;margin-bottom:8px;">📚 おすすめ学習ロードマップ</p><ol style="padding:0;margin:0;">' +
         gradeData.road.map((r, idx) =>
           `<li style="list-style:none;margin:0;"><div class="road-item"><span class="road-icon">ステップ${idx + 1}</span><span>${r.slice(2)}</span></div></li>`
         ).join('') + '</ol>';
+
+      saveHistory(correctCount, gradeData.grade);
+      renderHistory();
+
       document.getElementById('result').classList.add('show');
       document.getElementById('result').scrollIntoView({behavior:'smooth', block:'start'});
     }
+
+    function printResult() {
+      if (!lastResult) return;
+      window.print();
+    }
+
+    function copyResult() {
+      if (!lastResult) return;
+      const text = `推定級: ${lastResult.grade} | 正解数: ${lastResult.score}/10 | 推定レベル: ${lastResult.gradeData.title}`;
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('✅ コピーしました');
+      });
+    }
+
+    function showToast(msg) {
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.textContent = msg;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 2000);
+    }
+
+    window.addEventListener('DOMContentLoaded', initializeApp);
     </script>
 
     <!-- Amazon アフィリエイト -->

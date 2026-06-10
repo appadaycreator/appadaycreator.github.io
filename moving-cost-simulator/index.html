@@ -48,6 +48,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   {"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"引越し費用の相場はどのくらいですか？","acceptedAnswer":{"@type":"Answer","text":"同市内の1Rなら3〜5万円、遠距離の3LDK以上なら30〜50万円が目安です。時期や梱包作業の有無でも大きく変わります。"}},{"@type":"Question","name":"引越し費用を安くする方法は？","acceptedAnswer":{"@type":"Answer","text":"閑散期（6〜8月・9〜12月）を選ぶ、複数業者に相見積もりを取る、梱包を自分で行う、平日・午後便を選ぶなどが効果的です。"}},{"@type":"Question","name":"繁忙期はいつですか？","acceptedAnswer":{"@type":"Answer","text":"1〜3月（特に3月末）が最も混雑する繁忙期です。この時期は費用が1.5〜2倍になることも。早期予約が重要です。"}},{"@type":"Question","name":"引越し業者はどうやって選べばいいですか？","acceptedAnswer":{"@type":"Answer","text":"複数の業者に相見積もりを取ることが基本です。同条件で3〜5社を比較すると平均30%以上の差が生まれることがあります。口コミや評判も参考にしましょう。"}},{"@type":"Question","name":"入力した情報はサーバーに送信されますか？","acceptedAnswer":{"@type":"Answer","text":"すべての計算はブラウザ内で完結します。サーバーへのデータ送信は一切行いません。"}}]}
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Hiragino Sans', 'Meiryo', sans-serif; background: #f0f9ff; color: #1e293b; line-height: 1.6; }
@@ -245,6 +246,33 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <div class="bg-white rounded-2xl shadow-md p-4 mb-4">
       <h3 class="font-bold text-sky-700 mb-3 flex items-center gap-2"><span>📋</span> 診断詳細</h3>
       <div id="detail-list" class="space-y-2 text-sm text-slate-700"></div>
+    </div>
+
+    <!-- Chart: Cost Breakdown -->
+    <div class="bg-white rounded-2xl shadow-md p-4 mb-4">
+      <h3 class="font-bold text-sky-700 mb-3 flex items-center gap-2"><span>📊</span> 費用影響度の比較</h3>
+      <canvas id="cost-chart" height="200"></canvas>
+      <p id="chart-note" class="text-xs text-slate-500 mt-2 text-center"></p>
+    </div>
+
+    <!-- Previous Comparison -->
+    <div id="prev-compare-section" class="bg-green-50 rounded-2xl shadow-md p-4 mb-4 border border-green-200" style="display:none;">
+      <h3 class="font-bold text-green-700 mb-3 flex items-center gap-2"><span>📈</span> 前回との比較</h3>
+      <div id="prev-compare-content" class="space-y-2 text-sm text-slate-700"></div>
+    </div>
+
+    <!-- Export Section -->
+    <div class="bg-white rounded-2xl shadow-md p-4 mb-4">
+      <h3 class="font-bold text-slate-800 mb-3 flex items-center gap-2"><span>💾</span> 結果をエクスポート</h3>
+      <div class="grid grid-cols-2 gap-2">
+        <button id="export-copy-btn" class="py-2 px-3 rounded-lg bg-sky-100 text-sky-700 font-bold text-sm hover:bg-sky-200 transition-colors" onclick="exportToClipboard()">
+          📋 コピー
+        </button>
+        <button id="export-csv-btn" class="py-2 px-3 rounded-lg bg-amber-100 text-amber-700 font-bold text-sm hover:bg-amber-200 transition-colors" onclick="downloadCSV()">
+          📥 CSV保存
+        </button>
+      </div>
+      <div id="export-feedback" class="text-xs text-green-600 mt-2 hidden text-center font-semibold"></div>
     </div>
 
     <!-- Advice -->
@@ -706,7 +734,184 @@ function showResult() {
     `<div class="flex gap-2 text-sm border-b border-sky-100 pb-2 last:border-0">${a}</div>`
   ).join('');
 
+  // M3: Save to localStorage
+  const currentResult = {
+    timestamp: new Date().toISOString(),
+    low,
+    high,
+    score,
+    answers: JSON.parse(JSON.stringify(answers))
+  };
+  const resultHistory = JSON.parse(localStorage.getItem('movingCostResults') || '[]');
+  resultHistory.unshift(currentResult);
+  if (resultHistory.length > 10) resultHistory.pop();
+  localStorage.setItem('movingCostResults', JSON.stringify(resultHistory));
+  localStorage.setItem('lastResult', JSON.stringify(currentResult));
+
+  // M6: Show previous comparison
+  showPreviousComparison(low, high, resultHistory);
+
+  // M4: Draw cost impact chart
+  setTimeout(() => drawCostChart(detailData), 100);
+
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// M4: Draw cost impact chart
+function drawCostChart(detailData) {
+  const ctx = document.getElementById('cost-chart');
+  if (!ctx) return;
+
+  const labels = detailData
+    .filter(d => d.coef !== null)
+    .map(d => d.label);
+  const data = detailData
+    .filter(d => d.coef !== null)
+    .map(d => d.coef);
+
+  if (window.costChartInstance) {
+    window.costChartInstance.destroy();
+  }
+
+  window.costChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: '費用係数（×）',
+        data,
+        backgroundColor: [
+          'rgba(6, 182, 212, 0.8)',
+          'rgba(34, 197, 94, 0.8)',
+          'rgba(247, 144, 9, 0.8)',
+          'rgba(168, 85, 247, 0.8)'
+        ],
+        borderColor: [
+          'rgb(6, 182, 212)',
+          'rgb(34, 197, 94)',
+          'rgb(247, 144, 9)',
+          'rgb(168, 85, 247)'
+        ],
+        borderWidth: 1,
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      indexAxis: 'y',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              return '係数: ×' + context.parsed.x.toFixed(1);
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          beginAtZero: true,
+          max: 3.5,
+          ticks: { callback: v => '×' + v.toFixed(1) }
+        }
+      }
+    }
+  });
+  document.getElementById('chart-note').textContent = '※係数が大きいほど費用に影響します。';
+}
+
+// M6: Show previous comparison
+function showPreviousComparison(currentLow, currentHigh, history) {
+  const section = document.getElementById('prev-compare-section');
+  if (!history || history.length < 2) {
+    section.style.display = 'none';
+    return;
+  }
+
+  const prev = history[1];
+  const prevLow = prev.low;
+  const prevHigh = prev.high;
+  const diffLow = currentLow - prevLow;
+  const diffHigh = currentHigh - prevHigh;
+
+  const prevDate = new Date(prev.timestamp).toLocaleDateString('ja-JP');
+  let html = `
+    <div class="text-sm space-y-2">
+      <div class="flex justify-between border-b border-green-200 pb-2">
+        <span>前回の計算日</span>
+        <span class="font-bold text-slate-700">${prevDate}</span>
+      </div>
+      <div class="flex justify-between border-b border-green-200 pb-2">
+        <span>前回の費用目安</span>
+        <span class="font-bold text-slate-700">${formatYen(prevLow)}〜${formatYen(prevHigh)}</span>
+      </div>
+      <div class="flex justify-between pb-2">
+        <span>今回との差分</span>
+        <span class="font-bold ${diffLow > 0 ? 'text-red-600' : 'text-green-600'}">
+          ${diffLow > 0 ? '↑' : '↓'} ${formatYen(Math.abs(diffLow))}
+        </span>
+      </div>
+    </div>
+  `;
+  document.getElementById('prev-compare-content').innerHTML = html;
+  section.style.display = 'block';
+}
+
+// M10: Export to clipboard
+function exportToClipboard() {
+  const lastResult = JSON.parse(localStorage.getItem('lastResult') || '{}');
+  if (!lastResult.low) {
+    alert('エクスポート対象の結果がありません');
+    return;
+  }
+
+  const text = `引越し費用シミュレーション結果
+===============================
+計算日時: ${new Date(lastResult.timestamp).toLocaleString('ja-JP')}
+費用目安: ${formatYen(lastResult.low)}〜${formatYen(lastResult.high)}
+診断結果: ${lastResult.score}
+
+詳細は以下をご確認ください:
+https://appadaycreator.com/moving-cost-simulator/`;
+
+  navigator.clipboard.writeText(text).then(() => {
+    const feedback = document.getElementById('export-feedback');
+    feedback.textContent = '✅ コピーしました';
+    feedback.classList.remove('hidden');
+    setTimeout(() => feedback.classList.add('hidden'), 3000);
+  }).catch(() => {
+    alert('コピーに失敗しました。お手数ですが手動でコピーしてください。');
+  });
+}
+
+// M10: Download CSV
+function downloadCSV() {
+  const history = JSON.parse(localStorage.getItem('movingCostResults') || '[]');
+  if (history.length === 0) {
+    alert('ダウンロード対象の履歴がありません');
+    return;
+  }
+
+  const headers = ['計算日時', '最低費用', '最高費用', '診断結果'];
+  const rows = history.map(r => [
+    new Date(r.timestamp).toLocaleString('ja-JP'),
+    r.low,
+    r.high,
+    r.score
+  ]);
+
+  let csv = headers.map(h => `"${h}"`).join(',') + '\n';
+  csv += rows.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.href = url;
+  link.download = 'moving-cost-results.csv';
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function resetQuiz() {
@@ -715,11 +920,27 @@ function resetQuiz() {
   answers = {};
   document.getElementById('quiz-section').classList.remove('hidden');
   document.getElementById('result-section').classList.add('hidden');
+  if (window.costChartInstance) {
+    window.costChartInstance.destroy();
+    window.costChartInstance = null;
+  }
   renderQuestion();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // Init
+// M3: Load previous results on page load
+document.addEventListener('DOMContentLoaded', function() {
+  const lastResult = JSON.parse(localStorage.getItem('lastResult') || 'null');
+  if (lastResult && lastResult.low) {
+    const resultSection = document.getElementById('result-section');
+    if (resultSection && !resultSection.classList.contains('hidden')) {
+      showPreviousComparison(lastResult.low, lastResult.high,
+        JSON.parse(localStorage.getItem('movingCostResults') || '[]'));
+    }
+  }
+});
+
 renderQuestion();
 </script>
 <!-- phase10-rakuten-updated -->

@@ -94,15 +94,32 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         @keyframes fadeIn { from{opacity:0;transform:translateX(-50%) translateY(8px);}to{opacity:1;transform:translateX(-50%) translateY(0);} }
         .random-btn { background:#f3f4f6;color:#555;border:1.5px solid #e2e8f0;padding:10px 14px;border-radius:10px;font-size:16px;cursor:pointer;min-height:44px;line-height:1;flex-shrink:0; }
         .random-btn:hover { background:#e5e7eb; }
-    
+        .tooltip-icon { display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;background:#e5e7eb;color:#555;border-radius:50%;font-size:11px;font-weight:700;cursor:help;position:relative; }
+        .tooltip-icon:hover::after { content:attr(title);position:absolute;bottom:125%;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:6px 10px;border-radius:6px;font-size:11px;white-space:nowrap;z-index:999;font-weight:400; }
+        .tooltip-icon:hover::before { content:'';position:absolute;bottom:115%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#333;z-index:999; }
+        @media (max-width:480px) { .tooltip-icon:hover::after { white-space:normal;max-width:120px; } }
+        .export-section { background:#f0f9ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px;margin:12px 0;text-align:center; }
+        .export-btn { background:#3b82f6;color:white;border:none;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin:4px;min-height:40px; }
+        .export-btn:hover { background:#2563eb; }
+        .saved-palettes-section { background:#f9fce4;border:1px solid #bcd4b3;border-radius:10px;padding:12px;margin:12px 0; }
+        .saved-palette-item { background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px;margin:8px 0;display:flex;justify-content:space-between;align-items:center; }
+        .palette-compare { display:flex;gap:12px;flex-wrap:wrap;margin-top:12px; }
+        .palette-compare-col { flex:1;min-width:200px;border:1px solid #e5e7eb;border-radius:8px;padding:10px; }
+
 @media print{
-  header,footer,nav,button,.no-print,
+  header,footer,nav,.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
   [id*="affiliate"],[id*="banner"],
+  .export-section,.saved-palettes-section,.copy-tip,.copy-all-btn,.random-btn,
   script,noscript{display:none!important}
+  .site-header{display:none!important}
   body{background:#fff!important;color:#000!important;font-size:12pt}
   [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
   a[href]::after{content:none!important}
+  .container{max-width:100%!important}
+  .card{box-shadow:none!important;border:1px solid #ccc!important}
+  .palette-label{font-weight:700!important}
+  .swatch{border:1px solid #999!important}
 }
 
 /* AdSense unfilled: collapse empty ad slots */
@@ -344,15 +361,55 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     let currentFormat='hex';
     let lastPalettes={};
 
+    // ツールチップ説明
+    const tooltipText={
+      'p-mono':'同一色の濃度を変えたパレット。ブランドカラーの濃淡で統一感を出すときに使用します。',
+      'p-comp':'色相環で反対の色を組み合わせ。コントラストが強く、CTAボタンや注目を集めたい要素に向いています。',
+      'p-anal':'隣同士の色を組み合わせ。まとまり感があり、落ち着いた印象。コーポレートサイトやリラックス系に最適。',
+      'p-tria':'均等に配置された3色。バランスが取れており活気的。子ども向けやエンターテイメントサイトに適しています。',
+      'p-splt':'補色と隣接色の組み合わせ。補色より柔らかい印象で、調和とコントラストの両立ができます。',
+      'p-neut':'彩度を抑えたニュートラルカラー。背景色やテキスト色、全体のトーンダウンに使用します。'
+    };
+    // コントラスト比計算（WCAG仕様）
+    function getRelativeLuminance(hex){
+      const [r,g,b]=hexToRgb(hex).map(v=>{
+        v=v/255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4);
+      });
+      return 0.2126*r+0.7152*g+0.0722*b;
+    }
+    function getContrastRatio(hex1,hex2){
+      const l1=getRelativeLuminance(hex1),l2=getRelativeLuminance(hex2);
+      const lighter=Math.max(l1,l2),darker=Math.min(l1,l2);
+      return (lighter+0.05)/(darker+0.05);
+    }
+    function getWCAGLevel(ratio){
+      if(ratio>=7)return{level:'AAA',color:'#10b981',text:'AAA'};
+      if(ratio>=4.5)return{level:'AA',color:'#f59e0b',text:'AA'};
+      return{level:'F',color:'#ef4444',text:'不適合'};
+    }
     // パレットHTMLを生成
     function makePalette(label, colors, id) {
       const swatches=colors.map(c=>{
         const display=formatColor(c,currentFormat);
         return `<div class="swatch-wrap"><div class="swatch" style="background:${c};" onclick="copyColor('${c}')" title="${display}" role="button" aria-label="${display}をコピー" tabindex="0" onkeydown="if(event.key==='Enter')copyColor('${c}')"></div><div class="swatch-code">${display}</div></div>`;
       }).join('');
+      // コントラスト比の計算（最初と最後の色）
+      const contrast=getContrastRatio(colors[0],colors[colors.length-1]);
+      const wcag=getWCAGLevel(contrast);
+      const tooltip=tooltipText[id]||'';
       return `<div class="palette-section" id="${id}">
-        <div class="palette-header"><span class="palette-label">${label}</span><button class="copy-all-btn" onclick="copyAllColors('${id}')">全色コピー</button></div>
+        <div class="palette-header">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="palette-label">${label}</span>
+            <span class="tooltip-icon" title="${tooltip}">?</span>
+          </div>
+          <button class="copy-all-btn" onclick="copyAllColors('${id}')">全色コピー</button>
+        </div>
         <div class="palette-row">${swatches}</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:6px;display:flex;gap:8px;align-items:center;">
+          <span>WCAG対応度:</span>
+          <span style="background:${wcag.color};color:white;padding:2px 8px;border-radius:4px;font-weight:600;font-size:10px;">${wcag.text} (${contrast.toFixed(2)}:1)</span>
+        </div>
       </div>`;
     }
     // 色コピー（現在のフォーマット）
@@ -372,6 +429,99 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if(!colors)return;
       const text=colors.map(c=>formatColor(c,currentFormat)).join('\n');
       navigator.clipboard.writeText(text).then(()=>showToast('全色をコピーしました（1行1色）'));
+    }
+    // CSV エクスポート
+    function downloadCSV() {
+      const hex=document.getElementById('base-color').value;
+      let csv='パレット名,HEX1,HEX2,HEX3,HEX4,HEX5,HEX6\n';
+      const paletteNames=['モノクロマティック','補色','類似色','トライアド','スプリット補色','ニュートラル'];
+      const paletteIds=['p-mono','p-comp','p-anal','p-tria','p-splt','p-neut'];
+      paletteIds.forEach((id,i)=>{
+        const colors=lastPalettes[id];
+        if(colors){
+          csv+=paletteNames[i]+','+colors.map(c=>c.toUpperCase()).join(',')+'\n';
+        }
+      });
+      const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+      const link=document.createElement('a');
+      link.href=URL.createObjectURL(blob);
+      link.download='color-palette-'+hex.replace('#','')+'.csv';
+      link.click();
+      showToast('CSVファイルをダウンロードしました');
+    }
+    // 印刷
+    function printPalette() {
+      window.print();
+    }
+    // パレット保存（localStorage）
+    function savePalette() {
+      const hex=document.getElementById('base-color').value;
+      const name=prompt('パレット名を入力（例：春の配色）:');
+      if(!name)return;
+      let saved=JSON.parse(localStorage.getItem('savedPalettes')||'[]');
+      const item={
+        name:name,
+        baseColor:hex,
+        palettes:lastPalettes,
+        savedAt:new Date().toLocaleString('ja-JP')
+      };
+      saved.unshift(item);
+      if(saved.length>10)saved.pop();
+      localStorage.setItem('savedPalettes',JSON.stringify(saved));
+      showToast(`「${name}」を保存しました`);
+      renderSavedPalettes();
+    }
+    // 保存済みパレット表示
+    function renderSavedPalettes() {
+      const saved=JSON.parse(localStorage.getItem('savedPalettes')||'[]');
+      const container=document.getElementById('saved-palettes-container');
+      if(!container)return;
+      if(saved.length===0){
+        container.innerHTML='<p style="color:#9ca3af;font-size:12px;">保存済みパレットはまだありません。</p>';
+        return;
+      }
+      container.innerHTML=saved.map((item,idx)=>`
+        <div class="saved-palette-item">
+          <div style="flex:1;text-align:left;">
+            <p style="margin:0;font-weight:600;font-size:13px;">${item.name}</p>
+            <p style="margin:0;font-size:11px;color:#9ca3af;">${item.savedAt}</p>
+            <div style="display:flex;gap:4px;margin-top:4px;">
+              ${Object.keys(item.palettes).map(id=>item.palettes[id][2]).map(c=>`<div style="width:20px;height:20px;background:${c};border:1px solid #e5e7eb;border-radius:4px;"></div>`).join('')}
+            </div>
+          </div>
+          <div style="display:flex;gap:4px;flex-direction:column;">
+            <button style="background:#9333ea;color:white;border:none;padding:4px 8px;border-radius:4px;font-size:11px;cursor:pointer;" onclick="loadPalette(${idx})">復元</button>
+            <button style="background:#ef4444;color:white;border:none;padding:4px 8px;border-radius:4px;font-size:11px;cursor:pointer;" onclick="deletePalette(${idx})">削除</button>
+          </div>
+        </div>
+      `).join('');
+    }
+    // パレット復元
+    function loadPalette(idx) {
+      const saved=JSON.parse(localStorage.getItem('savedPalettes')||'[]');
+      const item=saved[idx];
+      if(!item)return;
+      document.getElementById('base-color').value=item.baseColor;
+      document.getElementById('hex-input').value=item.baseColor;
+      lastPalettes=item.palettes;
+      document.getElementById('result').classList.add('show');
+      document.getElementById('palettes').innerHTML=
+        makePalette('🎯 モノクロマティック（濃淡） - 同一色の濃度変化',lastPalettes['p-mono'],'p-mono')+
+        makePalette('🔄 補色（コンプリメンタリー） - 対照的な2色',lastPalettes['p-comp'],'p-comp')+
+        makePalette('🌈 類似色（アナロガス） - 隣接した調和色',lastPalettes['p-anal'],'p-anal')+
+        makePalette('🔺 トライアド（三角配色） - 均等に配置された3色',lastPalettes['p-tria'],'p-tria')+
+        makePalette('✂️ スプリット補色 - 補色の隣接色との組み合わせ',lastPalettes['p-splt'],'p-splt')+
+        makePalette('⬜ ニュートラル（落ち着いた配色） - 彩度を抑えた色',lastPalettes['p-neut'],'p-neut');
+      showToast(`「${item.name}」を復元しました`);
+    }
+    // パレット削除
+    function deletePalette(idx) {
+      if(!confirm('本当に削除しますか？'))return;
+      let saved=JSON.parse(localStorage.getItem('savedPalettes')||'[]');
+      saved.splice(idx,1);
+      localStorage.setItem('savedPalettes',JSON.stringify(saved));
+      renderSavedPalettes();
+      showToast('パレットを削除しました');
     }
     // トースト通知
     function showToast(msg) {
@@ -424,8 +574,19 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         makePalette('🌈 類似色（アナロガス） - 隣接した調和色',lastPalettes['p-anal'],'p-anal')+
         makePalette('🔺 トライアド（三角配色） - 均等に配置された3色',lastPalettes['p-tria'],'p-tria')+
         makePalette('✂️ スプリット補色 - 補色の隣接色との組み合わせ',lastPalettes['p-splt'],'p-splt')+
-        makePalette('⬜ ニュートラル（落ち着いた配色） - 彩度を抑えた色',lastPalettes['p-neut'],'p-neut');
+        makePalette('⬜ ニュートラル（落ち着いた配色） - 彩度を抑えた色',lastPalettes['p-neut'],'p-neut')+
+        `<div class="export-section" style="margin-top:16px;">
+          <p style="font-size:13px;font-weight:600;margin-bottom:8px;color:#374151;">📥 エクスポート・保存</p>
+          <button class="export-btn" onclick="downloadCSV()" style="margin-right:4px;">📄 CSVダウンロード</button>
+          <button class="export-btn" onclick="printPalette()" style="margin-right:4px;">🖨️ 印刷</button>
+          <button class="export-btn" onclick="savePalette()" style="background:#10b981;">💾 このパレットを保存</button>
+        </div>
+        <div class="saved-palettes-section">
+          <p style="font-size:13px;font-weight:600;margin-bottom:8px;color:#374151;">📌 保存済みパレット</p>
+          <div id="saved-palettes-container"></div>
+        </div>`;
       document.getElementById('result').classList.add('show');
+      renderSavedPalettes();
       // localStorage に保存
       localStorage.setItem('baseColor',hex);
       // URL共有用パラメータ更新
@@ -450,6 +611,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         document.getElementById('hex-input').value=hex;
       }
       generate(false);
+      // 保存済みパレットを初期表示
+      setTimeout(()=>renderSavedPalettes(),100);
     });
     </script>
     <!-- rakuten-affiliate-block -->

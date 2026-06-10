@@ -21,6 +21,7 @@
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <!-- GTM -->
     <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
     <!-- Clarity -->
@@ -177,8 +178,17 @@
     <div class="result" id="result">
           <div class="card">
             <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;color:#6366F1;"></h3>
+            <div id="chart-container" style="position:relative;height:250px;margin:20px 0;">
+              <canvas id="resultChart"></canvas>
+            </div>
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
-            <button class="btn" style="margin-top:16px;" onclick="location.reload()" aria-label="もう一度診断">もう一度診断</button>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px;">
+              <button class="btn" style="background:#6366F1;grid-column:1/-1;" onclick="printResult()" aria-label="診断結果を印刷">🖨️ 印刷</button>
+              <button class="btn" style="background:#10b981;" onclick="copyResult()" aria-label="結果をコピー">📋 コピー</button>
+              <button class="btn" style="background:#f59e0b;" onclick="downloadCSV()" aria-label="CSVダウンロード">📥 CSV</button>
+            </div>
+            <hr style="margin:16px 0;border:none;border-top:1px solid #e5e7eb;">
+            <button class="btn" style="background:#6366F1;" onclick="location.reload()" aria-label="もう一度診断">もう一度診断</button>
           </div>
         </div>
 
@@ -305,6 +315,7 @@
       { title:'🎒 スマートウォレット・スマホケース一体型 — デジタルネイティブ向け', desc:'スマホケースに財布機能がついたスマートウォレットがおすすめ。カード2〜5枚+紙幣が収まり、財布とスマホを別々に持つ必要がありません。Spigenのウォレットケース（2,000〜5,000円）やApple MagSafeウォレット（7,000円）が人気。スマホと財布を一緒に忘れるリスクは高まるため、Apple Payなど電子マネーと組み合わせるのがベスト。' },
       { title:'🔮 L字ファスナー財布 — カード多め・スマートに整理', desc:'L字ファスナー型の薄型財布が最適です。カード8〜15枚を整理しやすく、小銭も一目でわかるL字ファスナーが使いやすい。AbrAsus・GANZO・土屋鞄などの国内ブランドが品質・デザイン共に優れています。予算1〜2万円で上質な革財布が手に入ります。薄型でもしっかり収納できるため、ミニマリストとオーソドックス派の中間的ポジションです。' }
     ];
+    const RESULT_LABELS = ['マネークリップ','二つ折り','長財布','スマートウォレット','L字ファスナー'];
     function getResult(answers) {
       const scores = [0,0,0,0,0];
       const a = answers.map(x => x.idx);
@@ -325,9 +336,25 @@
       if(a[3]===2) scores[3]+=2;
       if(a[3]===3) { scores[0]+=1; scores[4]+=1; }
       const best = scores.indexOf(Math.max(...scores));
-      return RESULTS[best];
+      return {result: RESULTS[best], scores, best};
     }
-    // ★以下変更不要★
+
+    // localStorage & 履歴管理
+    function saveToHistory(result, answers) {
+      const history = JSON.parse(localStorage.getItem('walletAdvisorHistory') || '[]');
+      const entry = {
+        date: new Date().toISOString().split('T')[0],
+        time: new Date().toLocaleTimeString('ja-JP'),
+        result: result.result.title,
+        answers: answers.map(a => a.idx),
+        scores: result.scores,
+        best: result.best
+      };
+      history.push(entry);
+      localStorage.setItem('walletAdvisorHistory', JSON.stringify(history.slice(-10)));
+    }
+
+    let currentResult = null;
     const BTN='#6366F1'; let cur=0; const ans=[];
     document.addEventListener('DOMContentLoaded',()=>{ document.getElementById('q-total').textContent=QUESTIONS.length; });
     function startQuiz(){ cur=0;ans.length=0; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); renderQ(); }
@@ -341,10 +368,89 @@
     function answer(idx){ ans.push({idx}); cur++; if(cur>=QUESTIONS.length) showResult(); else renderQ(); }
     function showResult(){
       document.getElementById('quiz-area').style.display='none';
-      const r=getResult(ans);
+      currentResult = getResult(ans);
+      const r = currentResult.result;
       document.getElementById('r-title').textContent=r.title;
       document.getElementById('r-desc').textContent=r.desc;
       document.getElementById('result').classList.add('show');
+      saveToHistory(currentResult, ans);
+      drawChart(currentResult.scores);
+    }
+
+    // M4: Chart.jsでグラフ化
+    function drawChart(scores) {
+      const ctx = document.getElementById('resultChart');
+      if(!ctx) return;
+      if(window.resultChartInstance) window.resultChartInstance.destroy();
+      window.resultChartInstance = new Chart(ctx, {
+        type: 'radar',
+        data: {
+          labels: RESULT_LABELS,
+          datasets: [{
+            label: 'マッチ度スコア',
+            data: scores,
+            borderColor: '#6366F1',
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            borderWidth: 2,
+            pointBackgroundColor: '#6366F1'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            r: {
+              beginAtZero: true,
+              max: 10,
+              ticks: { stepSize: 2 }
+            }
+          },
+          plugins: {
+            legend: { display: false }
+          }
+        }
+      });
+    }
+
+    // M10: 印刷機能
+    function printResult() {
+      const win = window.open('', '', 'width=800,height=600');
+      const title = document.getElementById('r-title').textContent;
+      const desc = document.getElementById('r-desc').textContent;
+      const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>診断結果</title><style>body{font-family:Arial,sans-serif;padding:20px;}h1{color:#6366F1;}p{line-height:1.6;}</style></head><body><h1>${title}</h1><p>${desc}</p><p style="margin-top:20px;font-size:12px;color:#999;">診断日時: ${new Date().toLocaleString('ja-JP')}</p></body></html>`;
+      win.document.write(html);
+      win.document.close();
+      setTimeout(()=>win.print(), 250);
+    }
+
+    // M10: クリップボードコピー
+    function copyResult() {
+      const title = document.getElementById('r-title').textContent;
+      const desc = document.getElementById('r-desc').textContent;
+      const text = `${title}\n\n${desc}\n\n診断日時: ${new Date().toLocaleString('ja-JP')}`;
+      navigator.clipboard.writeText(text).then(()=>{
+        alert('結果をコピーしました');
+      }).catch(e => console.error('Copy failed:', e));
+    }
+
+    // M10: CSVダウンロード
+    function downloadCSV() {
+      if(!currentResult) return;
+      const title = document.getElementById('r-title').textContent;
+      const date = new Date().toLocaleString('ja-JP');
+      let csv = '財布選び診断結果\n\n';
+      csv += `診断日時,${date}\n`;
+      csv += `結果,${title}\n\n`;
+      csv += 'スコア\n';
+      RESULT_LABELS.forEach((label, i) => {
+        csv += `${label},${currentResult.scores[i]}\n`;
+      });
+      const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `wallet-diagnosis-${new Date().toISOString().split('T')[0]}.csv`);
+      link.click();
     }
     </script>
 <div style="text-align:center;padding:10px 16px 14px;background:#eef2ff;border-top:2px solid #c7d2fe;margin-top:8px">

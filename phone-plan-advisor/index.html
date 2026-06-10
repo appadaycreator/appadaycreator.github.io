@@ -144,6 +144,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <p style="color:#666;font-size:14px;margin-bottom:8px;">月間データ使用量・通話頻度・予算からドコモ・au・ソフトバンク・格安SIMの最適プランを診断します</p>
           <ul style="font-size:13px;color:#94a3b8;margin:0 0 16px 16px;"><li>質問数：5問</li><li>所要時間：約1分</li></ul>
           <button class="btn" onclick="startQuiz()">診断スタート →</button>
+          <div id="start-history-section" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e5e7eb;">
+            <p style="font-size:13px;font-weight:600;color:#6b7280;margin-bottom:8px;">📋 最近の診断結果</p>
+            <div id="start-history-list"></div>
+          </div>
         </div>
         <div id="quiz-area" style="display:none;">
           <div id="q-back-wrap">
@@ -167,6 +171,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <div class="plan-price" id="r-price"></div>
               <div id="r-savings"></div>
             </div>
+            <div id="chart-container" style="margin:16px 0;"></div>
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
             <div id="r-share" class="result-share"></div>
             <div id="copy-notification" style="display:none;background:#dcfce7;color:#166534;padding:10px 12px;border-radius:8px;font-size:13px;font-weight:600;margin-top:10px;text-align:center;animation:fadeOut 2s ease-in-out forwards;">✓ コピーしました</div>
@@ -175,6 +180,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <button class="btn" style="flex:1;min-width:140px;background:#94a3b8;" onclick="location.reload()">🔄 もう一度診断</button>
             </div>
           </div>
+        </div>
+
+        <div class="card" id="history-section" style="display:none;margin-top:8px;">
+          <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#374151;">📋 診断履歴（最新10件）</h3>
+          <div id="history-list" style="border-radius:8px;overflow:hidden;"></div>
+          <button class="btn" style="background:#94a3b8;margin-top:10px;" onclick="clearHistory()">履歴をクリア</button>
         </div>
         <style>
           @keyframes fadeOut { 0% { opacity:1; } 85% { opacity:1; } 100% { opacity:0; } }
@@ -225,7 +236,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             </div>
             <div style="border-bottom:1px solid #f1f5f9;padding-bottom:12px;">
               <p style="font-size:14px;font-weight:600;color:#374151;margin-bottom:4px;">Q: 診断結果は保存されますか？</p>
-              <p style="font-size:13px;color:#6b7280;line-height:1.7;">A: 結果はブラウザには保存されません。スクリーンショットやSNSシェアでご記録ください。</p>
+              <p style="font-size:13px;color:#6b7280;line-height:1.7;">A: はい。診断結果は自動的にブラウザに保存されます（最新10件）。結果ページに表示される「診断履歴」から前回の結果をワンクリックで復元できます。</p>
             </div>
             <div style="border-bottom:1px solid #f1f5f9;padding-bottom:12px;">
               <p style="font-size:14px;font-weight:600;color:#374151;margin-bottom:4px;">Q: 入力したデータはサーバーに送信されますか？</p>
@@ -338,6 +349,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 </main>
 
     
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
 <script>
     const QUESTIONS = [
       { text:'Q1. 月間データ使用量は？', opts:['〜3GB','3〜10GB','10〜20GB','20GB以上','無制限希望'] },
@@ -416,8 +428,100 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     let cur = 0;
     const ans = [];
 
+    // localStorage key
+    const STORAGE_KEY_HISTORY = 'phone_plan_history';
+    const STORAGE_KEY_CURRENT = 'phone_plan_current';
+
+    function saveToHistory(result) {
+      const history = JSON.parse(localStorage.getItem(STORAGE_KEY_HISTORY) || '[]');
+      const newEntry = {
+        timestamp: new Date().toLocaleString('ja-JP'),
+        title: result.title,
+        monthlyPrice: result.monthlyPrice,
+        answers: ans
+      };
+      history.unshift(newEntry);
+      if (history.length > 10) history.pop();
+      localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(history));
+    }
+
+    function loadFromHistory(index) {
+      const history = JSON.parse(localStorage.getItem(STORAGE_KEY_HISTORY) || '[]');
+      if (index >= 0 && index < history.length) {
+        return history[index];
+      }
+      return null;
+    }
+
+    function getHistory() {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY_HISTORY) || '[]');
+    }
+
+    function clearHistory() {
+      localStorage.removeItem(STORAGE_KEY_HISTORY);
+      renderHistorySection();
+    }
+
+    function renderHistorySection() {
+      const history = getHistory();
+
+      // 結果ページの履歴セクション
+      const section = document.getElementById('history-section');
+      if (section) {
+        if (history.length === 0) {
+          section.style.display = 'none';
+        } else {
+          section.style.display = 'block';
+          const list = document.getElementById('history-list');
+          list.innerHTML = history.map((item, i) => `
+            <div style="padding:10px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;">
+              <div style="flex:1;">
+                <div style="font-size:13px;font-weight:600;color:#374151;">${item.title}</div>
+                <div style="font-size:12px;color:#6b7280;">月額${item.monthlyPrice.toLocaleString()}円〜 | ${item.timestamp}</div>
+              </div>
+              <button onclick="quickRestore(${i})" style="padding:6px 12px;background:#7c3aed;color:white;border:none;border-radius:6px;font-size:12px;cursor:pointer;">表示</button>
+            </div>
+          `).join('');
+        }
+      }
+
+      // スタート画面の履歴セクション
+      const startSection = document.getElementById('start-history-section');
+      if (startSection) {
+        if (history.length === 0) {
+          startSection.style.display = 'none';
+        } else {
+          startSection.style.display = 'block';
+          const startList = document.getElementById('start-history-list');
+          startList.innerHTML = history.slice(0, 3).map((item, i) => `
+            <div style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;">
+              <div style="flex:1;">
+                <div style="font-size:12px;font-weight:600;color:#374151;">${item.title}</div>
+                <div style="font-size:11px;color:#9ca3af;">月額${item.monthlyPrice.toLocaleString()}円〜</div>
+              </div>
+              <button onclick="quickRestore(${i})" style="padding:4px 10px;background:#7c3aed;color:white;border:none;border-radius:4px;font-size:11px;cursor:pointer;white-space:nowrap;">表示</button>
+            </div>
+          `).join('');
+        }
+      }
+    }
+
+    function quickRestore(index) {
+      const history = getHistory();
+      if (index >= 0 && index < history.length) {
+        const item = history[index];
+        cur = item.answers.length;
+        ans.length = 0;
+        ans.push(...item.answers);
+        showResult();
+        document.getElementById('quiz-start').style.display = 'none';
+        document.getElementById('quiz-area').style.display = 'none';
+      }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('q-total').textContent = QUESTIONS.length;
+      renderHistorySection();
     });
 
     function startQuiz() {
@@ -455,6 +559,61 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       renderQ();
     }
 
+    function renderComparisonChart(recommendedPrice, currentPrice, saving) {
+      const existingCanvas = document.getElementById('comparison-chart');
+      if (existingCanvas) {
+        existingCanvas.remove();
+      }
+
+      const chartDiv = document.getElementById('chart-container');
+      if (!chartDiv) return;
+
+      chartDiv.innerHTML = '<canvas id="comparison-chart" style="max-width:100%;max-height:300px;"></canvas>';
+
+      setTimeout(() => {
+        const ctx = document.getElementById('comparison-chart');
+        if (!ctx) return;
+
+        const carriers = ['推奨プラン', '大手キャリア平均'];
+        const prices = [recommendedPrice, currentPrice];
+        const colors = ['#7c3aed', '#ef4444'];
+
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: carriers,
+            datasets: [{
+              label: '月額料金（円）',
+              data: prices,
+              backgroundColor: colors,
+              borderRadius: 8,
+              borderSkipped: false
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            indexAxis: 'y',
+            scales: {
+              x: {
+                beginAtZero: true,
+                max: Math.max(...prices) * 1.2,
+                ticks: { callback: v => v.toLocaleString() + '円' }
+              }
+            },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: ctx => ctx.parsed.x.toLocaleString() + '円'
+                }
+              }
+            }
+          }
+        });
+      }, 100);
+    }
+
     function copyResult() {
       const title = document.getElementById('r-title').textContent;
       const price = document.getElementById('r-price').textContent;
@@ -490,6 +649,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }
       priceWrap.style.display = 'block';
 
+      // Chart.js グラフ追加
+      renderComparisonChart(r.monthlyPrice, currentMid, saving);
+
       // 結果内シェアボタン
       const planName = encodeURIComponent(r.title.replace(/^[^\s]+\s/, ''));
       const url = encodeURIComponent('https://appadaycreator.com/phone-plan-advisor/');
@@ -498,6 +660,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('r-share').innerHTML =
         `<a href="https://twitter.com/intent/tweet?text=${tweetText}&url=${url}" target="_blank" rel="noopener" style="background:#1DA1F2;color:white;">𝕏 結果をシェア</a>` +
         `<a href="https://line.me/R/msg/text/?${lineText}" target="_blank" rel="noopener" style="background:#00B900;color:white;">LINE</a>`;
+
+      // 履歴に保存
+      saveToHistory(r);
+      renderHistorySection();
 
       document.getElementById('result').classList.add('show');
       document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'start' });

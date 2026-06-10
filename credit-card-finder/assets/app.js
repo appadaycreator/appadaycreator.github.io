@@ -79,6 +79,68 @@ function clearSaved(){
   }catch(e){}
 }
 
+/* ===== M3: 診断履歴機能 ===== */
+function saveHistory(answers, ranking){
+  try{
+    let history = JSON.parse(localStorage.getItem('ccf_history')||'[]');
+    const topCard = ranking[0];
+    const entry = {
+      timestamp: Date.now(),
+      answers: answers,
+      topCard: topCard.key,
+      topScore: topCard.score,
+      ranking: ranking.slice(0,3).map(r=>r.key)
+    };
+    history.unshift(entry);
+    if(history.length > 10) history.pop();
+    localStorage.setItem('ccf_history', JSON.stringify(history));
+  }catch(e){}
+}
+function getHistory(){
+  try{ return JSON.parse(localStorage.getItem('ccf_history')||'[]'); }catch(e){ return []; }
+}
+function clearHistory(){
+  try{ localStorage.removeItem('ccf_history'); }catch(e){}
+}
+function deleteHistoryEntry(idx){
+  try{
+    let history = getHistory();
+    history.splice(idx, 1);
+    localStorage.setItem('ccf_history', JSON.stringify(history));
+  }catch(e){}
+}
+
+/* ===== M10: 印刷・エクスポート機能 ===== */
+function printResult(){
+  window.print();
+}
+function exportCSV(){
+  const ranking = getRanking().slice(0,3);
+  const qLabels = [
+    ['20代','30代','40代','50代以上'][answers.age??0],
+    questions[1].options[answers.scene??0]?.label||'−',
+    ['3万円未満','3〜5万円','5〜10万円','10万円以上'][answers.amount??0],
+    questions[3].options[answers.priority??0]?.label||'−',
+    questions[4].options[answers.lifestyle??0]?.label||'−'
+  ];
+  const rows = [
+    ['順位','カード名','年会費','還元率','マッチ度','年間試算','URL'].join(','),
+    ...ranking.map((r,i)=>{
+      const c = cardDatabase[r.key];
+      const maxScore = ranking[0].score || 1;
+      const pct = Math.round(r.score / maxScore * 100);
+      const annual = calcAnnualBonus ? calcAnnualBonus(answers, r.key) : 0;
+      return [i+1,c.name,c.annualFee,c.baseRate,pct+'%',annual+'円',c.affiliate?.url||''].map(v=>`"${v}"`).join(',');
+    })
+  ];
+  const csv = rows.join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `credit-card-finder-result-${new Date().toISOString().slice(0,10)}.csv`;
+  link.click();
+}
+
 /* ===== 診断状態 ===== */
 let currentStep = 0;
 let answers = {};
@@ -293,6 +355,7 @@ function showResult(){
 
     const ranking = getRanking();
     renderResult(ranking);
+    saveHistory(answers, ranking);
 
     document.getElementById('result-area').classList.add('show');
     updateStepper(questions.length);
@@ -353,6 +416,21 @@ function renderResult(ranking){
 
   // スポンサー
   renderSponsor(top3);
+
+  // M4: チャート可視化
+  setTimeout(()=>{
+    renderMatchChart(ranking);
+    renderRadarChart(ranking, answers);
+  }, 300);
+
+  // M6: 目標フィールド初期化
+  const goal = getGoal();
+  if(goal){
+    const monthlyEl = document.getElementById('goal-monthly');
+    const annualEl = document.getElementById('goal-annual');
+    if(monthlyEl) monthlyEl.value = goal.monthlyAmount || '';
+    if(annualEl) annualEl.value = goal.annualPoints || '';
+  }
 }
 
 function renderSummary(){
@@ -462,7 +540,119 @@ function copyShareText(){
   copyResult();
 }
 
-/* ===== アプリ起動 / LP戻り ===== */
+/* ===== M3: 履歴モーダル機能 ===== */
+function showHistoryModal(){
+  const modal = document.getElementById('history-modal');
+  const historyList = document.getElementById('history-list');
+  if(!modal || !historyList) return;
+
+  const history = getHistory();
+  if(history.length === 0){
+    historyList.innerHTML = '<p style="text-align:center;color:var(--muted);padding:2rem">まだ診断履歴がありません</p>';
+  } else {
+    historyList.innerHTML = history.map((entry, idx)=>{
+      const date = new Date(entry.timestamp);
+      const dateStr = date.toLocaleDateString('ja-JP', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+      const card = cardDatabase[entry.topCard];
+      const maxScore = entry.topScore || 1;
+      const pct = Math.round((entry.topScore / maxScore) * 100);
+      return `
+        <div class="history-item">
+          <div class="hi-head"><span class="hi-date">${dateStr}</span><button class="hi-del" onclick="deleteHistoryEntry(${idx}); showHistoryModal()">削除</button></div>
+          <div class="hi-card">${card?.name||'不明'}</div>
+          <div class="hi-score">マッチ度 ${pct}%</div>
+        </div>
+      `;
+    }).join('');
+  }
+  modal.classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+function closeHistoryModal(){
+  const modal = document.getElementById('history-modal');
+  if(modal) modal.classList.remove('show');
+  document.body.style.overflow = '';
+}
+
+/* ===== M6: 目標設定機能 ===== */
+function saveGoal(monthlyAmount, annualPoints){
+  try{
+    localStorage.setItem('ccf_goal', JSON.stringify({monthlyAmount, annualPoints, timestamp: Date.now()}));
+    Toast.show('目標を保存しました！', 'ok');
+  }catch(e){}
+}
+function getGoal(){
+  try{ return JSON.parse(localStorage.getItem('ccf_goal')||'null'); }catch(e){ return null; }
+}
+function clearGoal(){
+  try{ localStorage.removeItem('ccf_goal'); }catch(e){}
+}
+
+/* ===== M4: チャート可視化（Chart.js使用）===== */
+function renderMatchChart(ranking){
+  const canvasEl = document.getElementById('match-chart');
+  if(!canvasEl || typeof Chart === 'undefined') return;
+
+  const top3 = ranking.slice(0,3);
+  const maxScore = ranking[0].score || 1;
+  const labels = top3.map(r=>cardDatabase[r.key]?.name||'');
+  const data = top3.map(r=>Math.round((r.score/maxScore)*100));
+
+  new Chart(canvasEl, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'マッチ度',
+        data: data,
+        backgroundColor: ['#7c3aed','#a78bfa','#ddd6fe'],
+        borderRadius: 8
+      }]
+    },
+    options: {
+      responsive: true,
+      indexAxis: 'y',
+      plugins: {legend: {display: false}},
+      scales: {x: {max: 100, ticks: {callback: v=>v+'%'}}}
+    }
+  });
+}
+function renderRadarChart(ranking, answers){
+  const canvasEl = document.getElementById('radar-chart');
+  if(!canvasEl || typeof Chart === 'undefined') return;
+
+  const topCard = cardDatabase[ranking[0].key];
+  if(!topCard) return;
+
+  const labels = ['年齢層向け','シーン別','月間額最適','重視ポイント','ライフスタイル'];
+  const scores = [
+    (topCard.scores?.age || 0) * 2,
+    (topCard.scores?.retail || 0) * 2,
+    (topCard.scores?.cashback || 0) * 2,
+    (topCard.scores?.priority || 0) * 3,
+    (topCard.scores?.lifestyle || 0) * 2
+  ];
+
+  new Chart(canvasEl, {
+    type: 'radar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: topCard.name,
+        data: scores,
+        borderColor: '#7c3aed',
+        backgroundColor: 'rgba(124,58,237,0.1)',
+        borderWidth: 2,
+        pointRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {legend: {display: true}},
+      scales: {r: {beginAtZero: true, max: 10}}
+    }
+  });
+}
 function startApp(){
   const saved = getSavedAnswers();
   if(saved && Object.keys(saved).length > 0){

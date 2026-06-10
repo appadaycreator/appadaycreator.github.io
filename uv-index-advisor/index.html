@@ -37,6 +37,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <!-- Chart.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -129,6 +131,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <ins class="adsbygoogle" style="display:block;min-height:90px;margin:12px 0" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
         <script>try{try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}}catch(e){}</script>
 
+        <!-- 履歴復元セクション -->
+        <div id="history-alert" style="display:none;background:#dbeafe;border-left:4px solid #0066cc;border-radius:0 8px 8px 0;padding:16px;margin-bottom:16px;">
+          <p style="font-size:13px;color:#0c2340;margin:0 0 8px;"><strong>📅 前回の診断結果が見つかりました</strong></p>
+          <p style="font-size:12px;color:#1e3a8a;margin:0 0 10px;" id="history-date"></p>
+          <button onclick="restoreHistory()" style="display:inline-block;background:#0066cc;color:white;padding:8px 16px;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;margin-right:8px;">前回結果を復元</button>
+          <button onclick="clearHistory()" style="display:inline-block;background:transparent;color:#0c2340;padding:8px 16px;border:1px solid #0066cc;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">履歴を削除</button>
+        </div>
+
         <div class="card" id="quiz-start">
           <div id="tool-desc-box" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:1.5rem 1.75rem;margin:1.5rem 0">
   <p style="color:#374151;margin:0 0 .75rem;line-height:1.75;font-size:.92rem">紫外線対策レベル診断【無料】無料診断・アドバイスは、AppADayCreatorが提供する完全無料の診断・アドバイスツールです。登録・ログイン不要で、すぐにご利用いただけます。</p>
@@ -208,8 +218,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="result" id="result">
           <div class="card">
             <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;color:#DB2777;"></h3>
-            <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
-            <button class="btn" style="margin-top:16px;" onclick="location.reload()">もう一度診断</button>
+            <div style="margin:16px 0;">
+              <canvas id="resultChart" style="max-width:100%;height:200px;"></canvas>
+            </div>
+            <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;margin:12px 0;"></p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px;">
+              <button class="btn" onclick="printResult()" style="background:#0066cc;font-size:14px;padding:12px;">🖨️ 印刷</button>
+              <button class="btn" onclick="copyResult()" style="background:#666;font-size:14px;padding:12px;">📋 コピー</button>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+              <button class="btn" onclick="saveResult()" style="background:#16a34a;font-size:14px;padding:12px;">💾 保存</button>
+              <button class="btn" onclick="location.reload()" style="font-size:14px;padding:12px;">🔄 再診断</button>
+            </div>
           </div>
         </div>
 
@@ -339,10 +359,61 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function showResult(){
       document.getElementById('quiz-area').style.display='none';
       const r=getResult(ans);
+      const score=ans.reduce((s,a)=>s+a.idx,0);
       document.getElementById('r-title').textContent=r.title;
       document.getElementById('r-desc').textContent=r.desc;
       document.getElementById('result').classList.add('show');
+      drawChart(score);
+      saveToHistory({title:r.title,desc:r.desc,score:score,date:new Date().toLocaleString('ja-JP')});
     }
+    function drawChart(score){
+      const level=score<=4?1:score<=8?2:score<=12?3:4;
+      if(!document.getElementById('resultChart')) return;
+      if(window.resultChart && typeof window.resultChart.destroy==='function'){window.resultChart.destroy();}
+      const ctx=document.getElementById('resultChart').getContext('2d');
+      window.resultChart=new Chart(ctx,{type:'bar',data:{labels:['対策レベル'],datasets:[{label:'レベル',data:[level],backgroundColor:'#DB2777',borderColor:'#DB2777',borderWidth:0,borderRadius:6}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:true,scales:{x:{min:0,max:4,beginAtZero:true,ticks:{stepSize:1},grid:{display:false}}},plugins:{legend:{display:false},tooltip:{enabled:true,backgroundColor:'#333'}}}});
+    }
+    function saveToHistory(data){
+      localStorage.setItem('uvResult',JSON.stringify({result:data,answers:ans}));
+    }
+    function saveResult(){
+      if(!localStorage.getItem('uvResult')) return alert('結果を再度表示してください');
+      const h=JSON.parse(localStorage.getItem('uvResult')).result;
+      const text=`【紫外線対策レベル診断結果】\n\n${h.title}\n\nアドバイス:\n${h.desc}\n\n診断日: ${h.date}`;
+      navigator.clipboard.writeText(text).then(()=>alert('結果をコピーしました')).catch(()=>alert('コピーに失敗しました'));
+    }
+    function printResult(){
+      window.print();
+    }
+    function copyResult(){
+      saveResult();
+    }
+    function restoreHistory(){
+      const data=JSON.parse(localStorage.getItem('uvResult'));
+      document.getElementById('quiz-start').style.display='none';
+      document.getElementById('quiz-area').style.display='none';
+      const r=data.result;
+      const score=r.score;
+      document.getElementById('r-title').textContent=r.title;
+      document.getElementById('r-desc').textContent=r.desc;
+      document.getElementById('result').classList.add('show');
+      drawChart(score);
+    }
+    function clearHistory(){
+      if(confirm('履歴を削除してもよろしいですか？')){
+        localStorage.removeItem('uvResult');
+        document.getElementById('history-alert').style.display='none';
+        location.reload();
+      }
+    }
+    window.addEventListener('DOMContentLoaded',()=>{
+      document.getElementById('q-total').textContent=QUESTIONS.length;
+      if(localStorage.getItem('uvResult')){
+        const h=JSON.parse(localStorage.getItem('uvResult')).result;
+        document.getElementById('history-date').textContent=`最後の診断: ${h.date}`;
+        document.getElementById('history-alert').style.display='block';
+      }
+    });
     </script>
     <!-- rakuten-affiliate-block -->
     <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">

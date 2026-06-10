@@ -41,6 +41,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
+    <!-- Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"AI画像プロンプト生成ツール","description":"画像のスタイル・被写体・雰囲気を選ぶだけでMidjourney・DALL-E・Stable Diffusion向けの最適なプロンプトを日英両対応で自動生成します。","url":"https://appadaycreator.com/ai-image-prompt-generator/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"author":{"@type":"Organization","name":"AppADayCreator","url":"https://appadaycreator.com/"}}</script>
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "AI画像プロンプト生成ツールは無料で使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、完全無料・登録不要でご利用いただけます。"}}, {"@type": "Question", "name": "Midjourneyで使う場合は特別な設定が必要ですか？", "acceptedAnswer": {"@type": "Answer", "text": "不要です。生成されたプロンプトをそのままMidjourneyの/imagineコマンドに貼り付けてご利用ください。"}}, {"@type": "Question", "name": "DALL-E 3で使う場合はどうすればいいですか？", "acceptedAnswer": {"@type": "Answer", "text": "プラットフォーム選択で「DALL-E」を選ぶと、Midjourney専用パラメータを除いた形式で自動生成されます。"}}, {"@type": "Question", "name": "日本語の被写体（例：侍、桜）を入力できますか？", "acceptedAnswer": {"@type": "Answer", "text": "被写体フィールドに日本語で入力いただけます。AIの処理精度を上げるため、英語に翻訳してから入力することをおすすめします。"}}, {"@type": "Question", "name": "プロンプトをカスタマイズできますか？", "acceptedAnswer": {"@type": "Answer", "text": "生成後のテキストエリアを直接編集できます。品質タグやスタイルを追加・削除して微調整してください。"}}]}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"AI画像プロンプト生成ツール【無料】Midjourney・DALL-E対応の使い方","step":[{"@type":"HowToStep","position":1,"name":"スタイルを選択する","text":"写真リアリズム・アニメ風・油絵風・水彩画風など8種類の画風から選ぶ"},{"@type":"HowToStep","position":2,"name":"被写体・テーマを入力する","text":"生成したい被写体やメインテーマを入力する（例：猫、サムライ、宇宙飛行士）"},{"@type":"HowToStep","position":3,"name":"雰囲気・照明・品質を選択する","text":"雰囲気・ライティング・品質タグ・構図を選択してプロンプトを最適化する"},{"@type":"HowToStep","position":4,"name":"「プロンプト生成」ボタンをクリックする","text":"プラットフォームを選んでプロンプト生成ボタンを押すと英語プロンプトが自動生成される"},{"@type":"HowToStep","position":5,"name":"プロンプトをコピーしてAIに貼り付ける","text":"生成されたプロンプトをコピーしてMidjourney・DALL-E・Stable Diffusionに貼り付ける"}]}</script>
@@ -253,6 +255,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <button onclick="printPrompt()" class="btn-secondary" style="flex:1;">🖨️ 印刷</button>
               <button onclick="exportPromptAsText()" class="btn-secondary" style="flex:1;">📄 エクスポート</button>
             </div>
+            <!-- グラフセクション -->
+            <div style="margin-top:16px;padding:12px;background:#0f0f2a;border-radius:8px;">
+              <h4 style="font-size:13px;font-weight:700;color:#a5b4fc;margin-bottom:12px;">📊 プロンプト構成</h4>
+              <canvas id="prompt-chart" style="max-height:250px;"></canvas>
+            </div>
+
             <div id="platform-hint" style="margin-top:12px;padding:12px;background:#0f0f2a;border-radius:8px;font-size:13px;color:#94a3b8;line-height:1.7;"></div>
 
             <!-- 履歴セクション -->
@@ -517,6 +525,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       updateCharCount();
       saveHistory(lastPrompt);
       renderHistory();
+      renderPromptChart(parts);
     }
 
     // P2改善: 文字数カウント表示
@@ -645,6 +654,74 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function clearHistory() {
       try { localStorage.removeItem(HISTORY_KEY); } catch(e) {}
       document.getElementById('history-section').style.display = 'none';
+    }
+
+    // M4: グラフで構成を可視化
+    let promptChartInstance = null;
+    function renderPromptChart(parts) {
+      const categories = ['品質タグ', 'スタイル', '被写体', '構図', 'ムード', '照明', 'パラメータ'];
+      const colors = ['#e2e8f0', '#7c3aed', '#a5b4fc', '#6b7280', '#4f46e5', '#818cf8', '#c7d2fe'];
+      const labelMap = {
+        '品質タグ': QUALITY_MAP,
+        'スタイル': STYLE_MAP,
+        'ムード': MOOD_MAP,
+        '照明': LIGHT_MAP,
+        '構図': COMP_MAP
+      };
+
+      const data = { 品質タグ: 0, スタイル: 0, 被写体: 0, 構図: 0, ムード: 0, 照明: 0, パラメータ: 0 };
+      parts.forEach(part => {
+        const text = part.toString();
+        if (text.startsWith('--')) data.パラメータ += text.length;
+        else if (Object.values(QUALITY_MAP).some(v => text === v)) data.品質タグ += text.length;
+        else if (Object.values(STYLE_MAP).some(v => text === v)) data.スタイル += text.length;
+        else if (Object.values(MOOD_MAP).some(v => text === v)) data.ムード += text.length;
+        else if (Object.values(LIGHT_MAP).some(v => text === v)) data.照明 += text.length;
+        else if (Object.values(COMP_MAP).some(v => text === v)) data.構図 += text.length;
+        else data.被写体 += text.length;
+      });
+
+      const labels = categories.filter(c => data[c] > 0);
+      const values = labels.map(c => data[c]);
+      const labelColors = labels.map(c => colors[categories.indexOf(c)]);
+
+      const ctx = document.getElementById('prompt-chart').getContext('2d');
+      if (promptChartInstance) promptChartInstance.destroy();
+      promptChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: values,
+            backgroundColor: labelColors,
+            borderColor: '#1e1e3f',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: '#a5b4fc',
+                font: { size: 12, family: "'Inter', 'Noto Sans JP', sans-serif" },
+                padding: 12,
+                generateLabels(chart) {
+                  const data = chart.data;
+                  return data.labels.map((label, i) => ({
+                    text: `${label}: ${values[i]} 文字`,
+                    fillStyle: data.datasets[0].backgroundColor[i],
+                    hidden: false,
+                    index: i
+                  }));
+                }
+              }
+            }
+          }
+        }
+      });
     }
 
     // ページ読み込み時に履歴を復元表示

@@ -37,6 +37,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -97,6 +98,26 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
           background: #dbeafe;
           color: #1e40af;
           margin-right: 4px;
+        }
+
+        .week-score-gauge {
+          text-align: center;
+          padding: 16px;
+          background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+          border-radius: 12px;
+          margin-top: 12px;
+          border: 2px solid #bfdbfe;
+        }
+        .week-score-value {
+          font-size: 48px;
+          font-weight: 800;
+          color: #1D4ED8;
+          line-height: 1;
+        }
+        .week-score-label {
+          font-size: 13px;
+          color: #64748b;
+          margin-top: 4px;
         }
 
         .log-row { display:flex; justify-content:space-between; align-items:flex-start; padding:10px; border-bottom:1px solid #f1f5f9; }
@@ -333,6 +354,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <h2 style="font-size:16px;font-weight:700;margin-bottom:10px;">📊 言語別統計</h2>
           <div class="lang-stats-wrap" id="lang-stats">
             <p style="font-size:13px;color:#bbb;padding:6px 0;">まだ記録がありません</p>
+          </div>
+          <div style="margin-top:16px;position:relative;height:300px;display:none;" id="lang-chart-container">
+            <canvas id="langChart"></canvas>
           </div>
         </div>
         <div class="card" style="margin-top:12px;">
@@ -686,6 +710,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div class="week-goal-bar-fill" style="width:${weekPct}%;"></div>
           </div>
           <div class="week-goal-select" aria-label="週間目標日数">${goalBtns}</div>
+        </div>
+        <div class="week-score-gauge">
+          <div class="week-score-value">${weekPct}%</div>
+          <div class="week-score-label">週間進捗スコア（${weekDays}/${weekGoal}日）</div>
         </div>`;
     }
 
@@ -746,8 +774,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     // 言語別統計を描画
     function renderLangStats() {
       const container = document.getElementById('lang-stats');
+      const chartContainer = document.getElementById('lang-chart-container');
       if (entries.length === 0) {
         container.innerHTML = '<p style="font-size:13px;color:#bbb;padding:6px 0;">まだ記録がありません</p>';
+        chartContainer.style.display = 'none';
         return;
       }
       const langMap = {};
@@ -767,6 +797,59 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="lang-stat-sub">${stat.days.size}日</div>
         </div>`;
       }).join('');
+
+      // グラフを描画
+      if (sorted.length > 0) {
+        chartContainer.style.display = 'block';
+        renderLangChart(sorted);
+      } else {
+        chartContainer.style.display = 'none';
+      }
+    }
+
+    // 言語別統計チャート（過去30日の言語別学習時間）
+    function renderLangChart(langStats) {
+      const ctx = document.getElementById('langChart').getContext('2d');
+      const labels = langStats.map(([lang]) => lang);
+      const data = langStats.map(([, stat]) => Math.round(stat.minutes / 60 * 10) / 10); // 時間に変換
+
+      // グローバル Chart インスタンス確認
+      if (window.langChartInstance) {
+        window.langChartInstance.destroy();
+      }
+
+      window.langChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '学習時間（時間）',
+            data: data,
+            backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'],
+            borderColor: '#fff',
+            borderWidth: 2,
+            borderRadius: 8
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: true, position: 'top', labels: { font: { size: 12 }, padding: 12 } }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { font: { size: 11 }, color: '#666' },
+              grid: { color: '#f0f0f0' }
+            },
+            x: {
+              ticks: { font: { size: 11 }, color: '#666' },
+              grid: { display: false }
+            }
+          }
+        }
+      });
     }
 
     // 言語フィルターボタンを描画

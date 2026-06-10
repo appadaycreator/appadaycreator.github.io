@@ -41,6 +41,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
+    <!-- Chart.js for M4 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"学習スタイル診断","description":"得意な学び方・目的から最適な勉強法（ポモドーロ・マインドマップ等）を診断提案。登録不要・完全無料でご利用いただけます。","url":"https://appadaycreator.com/study-method-advisor/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"author":{"@type":"Organization","name":"AppADayCreator","url":"https://appadaycreator.com/"}}</script>
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "学習スタイル診断は無料で使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、完全無料でご利用いただけます。登録・ログイン・アプリのインストールも不要です。"}}, {"@type": "Question", "name": "何回でも診断できますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、何度でもご利用いただけます。条件を変えて繰り返し診断してみてください。"}}, {"@type": "Question", "name": "スマートフォンでも使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、スマートフォン・タブレット・PCすべてのデバイスに対応しています。"}}, {"@type": "Question", "name": "診断結果は保存されますか？", "acceptedAnswer": {"@type": "Answer", "text": "結果はブラウザには保存されません。スクリーンショットやSNSシェアでご記録ください。"}}, {"@type": "Question", "name": "入力したデータはサーバーに送信されますか？", "acceptedAnswer": {"@type": "Answer", "text": "いいえ。すべての処理はブラウザ内で完結し、個人情報・入力データのサーバー送信は行いません。"}}]}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"学習スタイル診断【無料】無料診断・アドバイスの使い方","step":[{"@type":"HowToStep","position":1,"name":"必要事項を入力する","text":"フォームに必要な情報（数値・選択肢・条件）を入力または選択する"},{"@type":"HowToStep","position":2,"name":"診断・計算を実行する","text":"「診断する」「計算する」または「確認する」ボタンを押して結果を取得する"},{"@type":"HowToStep","position":3,"name":"結果・分析を確認する","text":"表示された診断結果・計算結果・グラフをじっくり確認する"},{"@type":"HowToStep","position":4,"name":"アドバイスを活用する","text":"結果に基づくアドバイスや提案を日常生活に取り入れる"},{"@type":"HowToStep","position":5,"name":"定期的に再チェックする","text":"生活変化に応じて定期的に再診断して進捗を追跡する"}]}</script>
@@ -214,7 +216,23 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="card">
             <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;color:#7c3aed;"></h3>
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
-            <button class="btn" style="margin-top:16px;" onclick="location.reload()">もう一度診断</button>
+            <!-- M4: グラフ可視化 -->
+            <div id="chart-container" style="margin:20px 0;display:none;">
+              <p style="font-size:12px;color:#666;margin-bottom:12px;">📊 学習スタイル親和性スコア</p>
+              <canvas id="styleChart" style="max-width:100%;height:250px;"></canvas>
+            </div>
+            <!-- M10: 印刷・エクスポート機能 -->
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid #e5e7eb;">
+              <button class="btn" style="flex:1;min-width:140px;background:#10b981;font-size:14px;" onclick="printResult()">🖨️ 印刷する</button>
+              <button class="btn" style="flex:1;min-width:140px;background:#3b82f6;font-size:14px;" onclick="copyResult()">📋 コピー</button>
+              <button class="btn" style="flex:1;min-width:140px;background:#f59e0b;font-size:14px;" onclick="downloadCSV()">📥 CSVダウンロード</button>
+            </div>
+            <button class="btn" style="margin-top:12px;" onclick="location.reload()">もう一度診断</button>
+          </div>
+          <!-- M3: 診断履歴 -->
+          <div class="card" id="history-section" style="display:none;margin-top:16px;">
+            <h3 style="font-size:16px;font-weight:700;margin-bottom:12px;color:#374151;">📋 診断履歴</h3>
+            <div id="history-list" style="max-height:300px;overflow-y:auto;"></div>
           </div>
         </div>
 
@@ -313,20 +331,128 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       { text:'Q5. 記憶の定着法として好みは？', opts:['書いて覚える（ノート・単語帳）','読んで・聞いて覚える（音読・ポッドキャスト）','問題を解いて覚える（アウトプット重視）','図解・マインドマップで視覚的に整理'] },
     ];
     const RESULTS = [
-      { title:'⏱️ ポモドーロ集中型 — タイマーで集中力を最大化', desc:'「25分集中→5分休憩」を1ポモドーロとして繰り返す学習法が最適です。集中力が途切れやすい方に科学的に効果が実証されています。道具：スマホのタイマー or 「Forest」アプリ。4ポモドーロ後は15〜30分の長い休憩を取る。学習環境の整備（スマホは別室・SNS通知オフ・机の上を整理）と組み合わせると効果倍増です。' },
-      { title:'🔄 間隔反復型 — エビングハウス忘却曲線を逆利用する', desc:'暗記が苦手な方には「間隔反復学習（スペースド・レペティション）」が最強です。AnkiやAnaboxなどのフラッシュカードアプリが自動で最適な復習タイミングを管理します。覚えた翌日・3日後・1週間後・2週間後と間隔を広げながら復習することで長期記憶に定着。TOEIC・資格試験の単語暗記に特に効果的です。' },
-      { title:'🎤 アウトプット重視型 — 人に教えるつもりで学ぶ', desc:'「ファインマン・テクニック（小学生でもわかるように説明できるまで理解する）」が向いています。①学んだ内容をノートに自分の言葉でまとめる ②家族や友人に説明してみる ③ブログ・SNSでアウトプットして質問に答える。問題演習・過去問を中心に据えた「インプット3：アウトプット7」の比率で学ぶのが資格試験の最短ルートです。' },
-      { title:'🗺️ 視覚的整理型 — マインドマップと図解で理解を深める', desc:'マインドマップ・図解・カラーノートを活用した視覚的な学習法が合っています。MindMeister・XMindなどのデジタルツール、または大きな紙に手書きで概念を整理。色分けノート（赤=重要・青=補足・緑=例）で情報を構造化することで記憶定着率が上がります。YouTube・TED等の動画学習と組み合わせると理解が深まります。' },
+      { title:'⏱️ ポモドーロ集中型 — タイマーで集中力を最大化', desc:'「25分集中→5分休憩」を1ポモドーロとして繰り返す学習法が最適です。集中力が途切れやすい方に科学的に効果が実証されています。道具：スマホのタイマー or 「Forest」アプリ。4ポモドーロ後は15〜30分の長い休憩を取る。学習環境の整備（スマホは別室・SNS通知オフ・机の上を整理）と組み合わせると効果倍増です。', styles:[95,30,45,55,60] },
+      { title:'🔄 間隔反復型 — エビングハウス忘却曲線を逆利用する', desc:'暗記が苦手な方には「間隔反復学習（スペースド・レペティション）」が最強です。AnkiやAnaboxなどのフラッシュカードアプリが自動で最適な復習タイミングを管理します。覚えた翌日・3日後・1週間後・2週間後と間隔を広げながら復習することで長期記憶に定着。TOEIC・資格試験の単語暗記に特に効果的です。', styles:[40,95,70,50,85] },
+      { title:'🎤 アウトプット重視型 — 人に教えるつもりで学ぶ', desc:'「ファインマン・テクニック（小学生でもわかるように説明できるまで理解する）」が向いています。①学んだ内容をノートに自分の言葉でまとめる ②家族や友人に説明してみる ③ブログ・SNSでアウトプットして質問に答える。問題演習・過去問を中心に据えた「インプット3：アウトプット7」の比率で学ぶのが資格試験の最短ルートです。', styles:[65,75,90,75,55] },
+      { title:'🗺️ 視覚的整理型 — マインドマップと図解で理解を深める', desc:'マインドマップ・図解・カラーノートを活用した視覚的な学習法が合っています。MindMeister・XMindなどのデジタルツール、または大きな紙に手書きで概念を整理。色分けノート（赤=重要・青=補足・緑=例）で情報を構造化することで記憶定着率が上がります。YouTube・TED等の動画学習と組み合わせると理解が深まります。', styles:[50,50,60,95,90] },
     ];
+    const STYLE_NAMES = ['ポモドーロ型','間隔反復型','アウトプット型','視覚的整理型','その他'];
     function getResult(answers) {
       const total = answers.reduce((s,a) => s+a.idx, 0);
       const max = (QUESTIONS.length * 3);
       const idx = Math.min(Math.floor(total / max * RESULTS.length), RESULTS.length-1);
       return RESULTS[idx];
     }
+    function saveToHistory(result,answers) {
+      const history = JSON.parse(localStorage.getItem('quizHistory') || '[]');
+      const entry = {
+        id: Date.now(),
+        date: new Date().toLocaleString('ja-JP'),
+        title: result.title,
+        answers: answers,
+        styles: result.styles || [50,50,50,50,50]
+      };
+      history.unshift(entry);
+      if(history.length>10) history.pop();
+      localStorage.setItem('quizHistory', JSON.stringify(history));
+      return entry;
+    }
+    function showHistory() {
+      const history = JSON.parse(localStorage.getItem('quizHistory') || '[]');
+      if(history.length===0) return;
+      const sec = document.getElementById('history-section');
+      sec.style.display='block';
+      const list = document.getElementById('history-list');
+      list.innerHTML = history.map((h,i) => `
+        <div style="padding:10px;border-bottom:1px solid #f1f5f9;cursor:pointer;background:#f9fafb;border-radius:6px;margin-bottom:6px;" onclick="restoreHistory(${i})">
+          <p style="margin:0 0 4px;font-size:12px;color:#999;">${h.date}</p>
+          <p style="margin:0;font-size:14px;font-weight:600;color:#374151;">${h.title}</p>
+        </div>
+      `).join('');
+    }
+    function restoreHistory(idx) {
+      const history = JSON.parse(localStorage.getItem('quizHistory') || '[]');
+      if(history[idx]) {
+        ans = history[idx].answers;
+        const result = RESULTS.find(r=>r.title===history[idx].title) || getResult(ans);
+        showResultWithData(result);
+      }
+    }
+    function drawChart(styles) {
+      if(!document.getElementById('styleChart')) return;
+      const ctx = document.getElementById('styleChart').getContext('2d');
+      if(window.styleChartInstance) window.styleChartInstance.destroy();
+      window.styleChartInstance = new Chart(ctx, {
+        type: 'radar',
+        data: {
+          labels: ['ポモドーロ型','間隔反復型','アウトプット型','視覚的整理型'],
+          datasets: [{
+            label: 'あなたの学習スタイル親和性',
+            data: styles.slice(0,4),
+            borderColor: '#7c3aed',
+            backgroundColor: '#7c3aed33',
+            borderWidth: 2,
+            pointRadius: 5,
+            pointBackgroundColor: '#7c3aed',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            r: {
+              min: 0,
+              max: 100,
+              ticks: { color: '#999', font: { size: 11 } },
+              grid: { color: '#e5e7eb' }
+            }
+          },
+          plugins: {
+            legend: { labels: { color: '#374151', font: { size: 12 } } }
+          }
+        }
+      });
+    }
+    function printResult() {
+      window.print();
+    }
+    function copyResult() {
+      const title = document.getElementById('r-title').textContent;
+      const desc = document.getElementById('r-desc').textContent;
+      const text = `${title}\n\n${desc}\n\n診断結果シェア: https://appadaycreator.com/study-method-advisor/`;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('結果をコピーしました！');
+      });
+    }
+    function downloadCSV() {
+      const history = JSON.parse(localStorage.getItem('quizHistory') || '[]');
+      const title = document.getElementById('r-title').textContent;
+      const latestEntry = history[0];
+      const csv = [
+        '診断日時,診断結果,スタイル親和性',
+        `${latestEntry.date},"${title}","${(latestEntry.styles||[]).join(',')}"`
+      ].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `study-diagnosis-${Date.now()}.csv`;
+      link.click();
+    }
+    function showResultWithData(result) {
+      document.getElementById('quiz-area').style.display='none';
+      document.getElementById('r-title').textContent=result.title;
+      document.getElementById('r-desc').textContent=result.desc;
+      const styles = result.styles || [50,50,50,50,50];
+      document.getElementById('chart-container').style.display='block';
+      setTimeout(()=>drawChart(styles), 100);
+      document.getElementById('result').classList.add('show');
+      showHistory();
+    }
     const BTN='#7c3aed'; let cur=0; const ans=[];
     document.addEventListener('DOMContentLoaded',()=>{ document.getElementById('q-total').textContent=QUESTIONS.length; });
-    function startQuiz(){ cur=0;ans.length=0; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); renderQ(); }
+    function startQuiz(){ cur=0;ans.length=0; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); document.getElementById('history-section').style.display='none'; renderQ(); }
     function renderQ(){
       const q=QUESTIONS[cur];
       document.getElementById('q-num').textContent=cur+1;
@@ -336,11 +462,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     }
     function answer(idx){ ans.push({idx}); cur++; if(cur>=QUESTIONS.length) showResult(); else renderQ(); }
     function showResult(){
-      document.getElementById('quiz-area').style.display='none';
-      const r=getResult(ans);
-      document.getElementById('r-title').textContent=r.title;
-      document.getElementById('r-desc').textContent=r.desc;
-      document.getElementById('result').classList.add('show');
+      const result = getResult(ans);
+      saveToHistory(result,ans);
+      showResultWithData(result);
     }
     </script>
 

@@ -35,6 +35,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -81,11 +82,14 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 @media print{
   header,footer,nav,button,.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
-  [id*="affiliate"],[id*="banner"],
+  [id*="affiliate"],[id*="banner"],[id*="modal"],
+  [id="back-to-top"],
   script,noscript{display:none!important}
   body{background:#fff!important;color:#000!important;font-size:12pt}
   [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
+  #r-score,#nutrient-chart{display:block!important;margin:20px 0}
   a[href]::after{content:none!important}
+  .card{box-shadow:none!important;border:1px solid #ddd!important;page-break-inside:avoid}
 }
 
 /* AdSense unfilled: collapse empty ad slots */
@@ -206,9 +210,26 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="result" id="result">
           <div class="card">
             <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;color:#7c3aed;"></h3>
+            <div id="r-score" style="margin:16px 0;padding:16px;background:#f0f4ff;border-radius:8px;text-align:center;"></div>
+            <canvas id="nutrient-chart" style="max-height:300px;margin:16px 0;"></canvas>
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
             <div id="r-share" style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;"></div>
+            <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+              <button class="btn" style="flex:1;min-width:120px;background:#7c3aed;" onclick="printResult()">🖨️ 印刷する</button>
+              <button class="btn" style="flex:1;min-width:120px;background:#10b981;" onclick="downloadCSV()">📊 CSVで保存</button>
+            </div>
             <button class="btn" style="margin-top:12px;" onclick="location.reload()">もう一度診断</button>
+          </div>
+        </div>
+
+        <!-- 診断履歴モーダル -->
+        <div id="history-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:9999;overflow-y:auto;">
+          <div style="background:white;max-width:600px;margin:40px auto;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,0.3);padding:24px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+              <h3 style="margin:0;font-size:18px;font-weight:700;">📋 診断履歴</h3>
+              <button onclick="closeHistoryModal()" style="background:none;border:none;font-size:24px;cursor:pointer;">✕</button>
+            </div>
+            <div id="history-list" style="max-height:500px;overflow-y:auto;"></div>
           </div>
         </div>
 
@@ -295,68 +316,199 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <dd style="margin-left:16px;color:#374151;">すべての処理はブラウザ内で完結します。入力データがサーバーに送信されることはなく、プライバシーが守られます。</dd>
   </dl>
 </section>
+<!-- r30-tool-guide -->
+<section style="margin:2rem 0;padding:1.5rem;background:#f8fafc;border-radius:.75rem;border:1px solid #e2e8f0">
+<h2 style="font-size:1.05rem;font-weight:700;color:#1e293b;margin:0 0 .75rem">ビタミン不足チェッカーの使い方ガイド</h2>
+<p style="font-size:.88rem;line-height:1.85;color:#374151">現代人の多くは食生活の偏りからビタミン不足に陥っています。倦怠感・肌荒れ・口内炎・免疫力低下など、ビタミン不足のサインを見逃さないためのチェッカーです。このツールでは日常的な症状・食生活・生活習慣を質問形式で確認し、不足しているビタミンの種類を推定します。各ビタミンを多く含む食品や、サプリメントを活用する際の注意点も合わせて案内します。</p>
+<h3 style="font-size:.9rem;font-weight:700;color:#1e293b;margin:1rem 0 .4rem">このツールが役立つシーン</h3>
+<ul style="font-size:.85rem;line-height:2;color:#374151;padding-left:1.2rem">
+<li>なんとなくだるい・疲れやすいと感じているとき</li>
+<li>肌荒れ・口内炎が繰り返しているとき</li>
+<li>偏食や食事制限中で栄養バランスが心配なとき</li>
+<li>サプリメントを始めたいが何を選べばよいかわからないとき</li>
+</ul>
+<h3 style="font-size:.9rem;font-weight:700;color:#1e293b;margin:1rem 0 .4rem">よくある質問</h3>
+<div style="display:grid;gap:.5rem">
+<div style="padding:.65rem;background:#fff;border-left:3px solid #4f46e5;border-radius:0 .375rem .375rem 0">
+<p style="font-size:.82rem;font-weight:700;color:#4f46e5;margin:0 0 .2rem">Q. ビタミンは食事で補うべきですか、サプリで補うべきですか？</p>
+<p style="font-size:.81rem;color:#6b7280;margin:0">基本的には食事から補うことを優先してください。食事での補充が難しい場合の補助としてサプリメントを活用するのが理想的です。</p>
+</div>
+<div style="padding:.65rem;background:#fff;border-left:3px solid #4f46e5;border-radius:0 .375rem .375rem 0">
+<p style="font-size:.82rem;font-weight:700;color:#4f46e5;margin:0 0 .2rem">Q. ビタミン過剰摂取は危険ですか？</p>
+<p style="font-size:.81rem;color:#6b7280;margin:0">水溶性ビタミン（B群・C）は過剰分が排出されますが、脂溶性ビタミン（A・D・E・K）は蓄積するため過剰摂取に注意が必要です。</p>
+</div>
+<div style="padding:.65rem;background:#fff;border-left:3px solid #4f46e5;border-radius:0 .375rem .375rem 0">
+<p style="font-size:.82rem;font-weight:700;color:#4f46e5;margin:0 0 .2rem">Q. 診断結果は医療的な判断ですか？</p>
+<p style="font-size:.81rem;color:#6b7280;margin:0">医療的な診断ではありません。症状が深刻な場合や改善しない場合は、医療機関での血液検査を受けてください。</p>
+</div>
+</div>
+</section>
 </main>
 
     
 <script>
-
-    const QUESTIONS = [
-      { text:'Q1. 最近、体の疲れやだるさを感じますか？', opts:['ほぼ毎日感じる','週に数回感じる','たまに感じる','ほとんど感じない'] },
-      { text:'Q2. 肌荒れ・口内炎・唇の荒れはありますか？', opts:['よく起こる','時々起こる','めったにない','まったくない'] },
-      { text:'Q3. 野菜・果物をどのくらい食べますか？', opts:['ほぼ食べない','週に数回','ほぼ毎日食べる','毎食食べる'] },
-      { text:'Q4. 日光を浴びる機会はありますか？', opts:['ほぼなし（室内作業）','週1〜2回程度','ほぼ毎日外出','毎日30分以上'] },
-      { text:'Q5. 骨・関節が痛む、または筋肉がつることはありますか？', opts:['よくある','時々ある','めったにない','まったくない'] },
-      { text:'Q6. 最近、気分の落ち込みや集中力の低下を感じますか？', opts:['ほぼ毎日','時々ある','めったにない','まったくない'] },
-    ];
-    const RESULTS = [
-      { title:'💊 ビタミンB群不足の可能性', desc:'疲労感・だるさ・肌荒れ・口内炎はビタミンB1・B2・B6・B12不足のサインです。豚肉・レバー・納豆・卵・乳製品を意識して摂りましょう。マルチビタミンBサプリも効果的です。' },
-      { title:'🌿 ビタミンC不足の可能性', desc:'肌荒れ・免疫低下・疲れやすさはビタミンC不足のサインです。ピーマン・ブロッコリー・キウイ・いちごに多く含まれます。1日100mgを目安に摂取しましょう。' },
-      { title:'☀️ ビタミンD不足の可能性', desc:'日光に当たる機会が少ない方はビタミンD不足になりがちです。骨・筋肉・免疫機能に重要で、特に冬や室内作業が多い方は不足しやすいです。サーモン・いわし・きのこ類を摂りましょう。' },
-      { title:'🦴 カルシウム・マグネシウム不足の可能性', desc:'骨や筋肉の痛み・こむら返りはカルシウムとマグネシウム不足のサインです。牛乳・チーズ・小魚・大豆製品・ナッツ類を意識して摂りましょう。' },
-      { title:'🧠 鉄分・葉酸不足の可能性', desc:'気分の落ち込み・集中力低下・疲れやすさは鉄分や葉酸不足でも起こります。レバー・ほうれん草・あさり・ブロッコリーを積極的に摂りましょう。特に女性は不足しやすいです。' },
-      { title:'✅ 栄養バランスは比較的良好', desc:'現在の食生活や生活習慣は比較的バランスが取れています。このまま野菜・タンパク質・適度な日光浴を継続しましょう。念のため定期的な健康診断で血液検査を受けることをおすすめします。' },
-    ];
-    function getResult(answers){
-      const a=answers.map(x=>x.idx);
-      const scores=[0,0,0,0,0,0];
-      if(a[0]<=1){ scores[0]+=2; scores[4]+=1; }
-      if(a[1]<=1){ scores[0]+=1; scores[1]+=2; }
-      if(a[2]<=1){ scores[1]+=2; scores[0]+=1; }
-      if(a[3]<=1){ scores[2]+=3; }
-      if(a[4]<=1){ scores[3]+=3; }
-      if(a[5]<=1){ scores[4]+=2; }
-      if(Math.max(...scores)<=1){ return RESULTS[5]; }
-      return RESULTS[scores.indexOf(Math.max(...scores))];
+const QUESTIONS = [
+  { text:'Q1. 最近、体の疲れやだるさを感じますか？', opts:['ほぼ毎日感じる','週に数回感じる','たまに感じる','ほとんど感じない'] },
+  { text:'Q2. 肌荒れ・口内炎・唇の荒れはありますか？', opts:['よく起こる','時々起こる','めったにない','まったくない'] },
+  { text:'Q3. 野菜・果物をどのくらい食べますか？', opts:['ほぼ食べない','週に数回','ほぼ毎日食べる','毎食食べる'] },
+  { text:'Q4. 日光を浴びる機会はありますか？', opts:['ほぼなし（室内作業）','週1〜2回程度','ほぼ毎日外出','毎日30分以上'] },
+  { text:'Q5. 骨・関節が痛む、または筋肉がつることはありますか？', opts:['よくある','時々ある','めったにない','まったくない'] },
+  { text:'Q6. 最近、気分の落ち込みや集中力の低下を感じますか？', opts:['ほぼ毎日','時々ある','めったにない','まったくない'] },
+];
+const RESULTS = [
+  { title:'💊 ビタミンB群不足の可能性', desc:'疲労感・だるさ・肌荒れ・口内炎はビタミンB1・B2・B6・B12不足のサインです。豚肉・レバー・納豆・卵・乳製品を意識して摂りましょう。マルチビタミンBサプリも効果的です。' },
+  { title:'🌿 ビタミンC不足の可能性', desc:'肌荒れ・免疫低下・疲れやすさはビタミンC不足のサインです。ピーマン・ブロッコリー・キウイ・いちごに多く含まれます。1日100mgを目安に摂取しましょう。' },
+  { title:'☀️ ビタミンD不足の可能性', desc:'日光に当たる機会が少ない方はビタミンD不足になりがちです。骨・筋肉・免疫機能に重要で、特に冬や室内作業が多い方は不足しやすいです。サーモン・いわし・きのこ類を摂りましょう。' },
+  { title:'🦴 カルシウム・マグネシウム不足の可能性', desc:'骨や筋肉の痛み・こむら返りはカルシウムとマグネシウム不足のサインです。牛乳・チーズ・小魚・大豆製品・ナッツ類を意識して摂りましょう。' },
+  { title:'🧠 鉄分・葉酸不足の可能性', desc:'気分の落ち込み・集中力低下・疲れやすさは鉄分や葉酸不足でも起こります。レバー・ほうれん草・あさり・ブロッコリーを積極的に摂りましょう。特に女性は不足しやすいです。' },
+  { title:'✅ 栄養バランスは比較的良好', desc:'現在の食生活や生活習慣は比較的バランスが取れています。このまま野菜・タンパク質・適度な日光浴を継続しましょう。念のため定期的な健康診断で血液検査を受けることをおすすめします。' },
+];
+const NUTRIENTS = ['ビタミンB群','ビタミンC','ビタミンD','カルシウム・マグネシウム','鉄分・葉酸'];
+const NUTRIENT_COLORS = ['#f87171','#fbbf24','#60a5fa','#34d399','#c084fc'];
+let cur=0, ans=[], chartInstance=null, lastScores=null;
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('q-total').textContent=QUESTIONS.length;
+  loadHistoryButton();
+});
+function getScores(answers){
+  const a=answers.map(x=>x.idx);
+  const scores=[0,0,0,0,0];
+  if(a[0]<=1){ scores[0]+=2; scores[4]+=1; }
+  if(a[1]<=1){ scores[0]+=1; scores[1]+=2; }
+  if(a[2]<=1){ scores[1]+=2; scores[0]+=1; }
+  if(a[3]<=1){ scores[2]+=3; }
+  if(a[4]<=1){ scores[3]+=3; }
+  if(a[5]<=1){ scores[4]+=2; }
+  return scores;
+}
+function getResult(answers){
+  const scores=getScores(answers);
+  if(Math.max(...scores)<=1){ return {resultIdx:5, title:RESULTS[5].title, desc:RESULTS[5].desc, scores}; }
+  const resultIdx=scores.indexOf(Math.max(...scores));
+  return {resultIdx, title:RESULTS[resultIdx].title, desc:RESULTS[resultIdx].desc, scores};
+}
+function loadHistoryButton(){
+  const data=JSON.parse(localStorage.getItem('vitaminHistory')||'{}');
+  if(!data.history || data.history.length===0) return;
+  const btn=document.createElement('button');
+  btn.className='btn';
+  btn.textContent='📋 診断履歴を見る';
+  btn.style.marginTop='8px';
+  btn.onclick=openHistoryModal;
+  document.getElementById('quiz-start').appendChild(btn);
+}
+function openHistoryModal(){
+  const data=JSON.parse(localStorage.getItem('vitaminHistory')||'{"history":[]}');
+  const html=data.history.map((h,i)=>{
+    const d=new Date(h.timestamp);
+    const dateStr=d.toLocaleDateString('ja-JP')+' '+d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+    return`<div onclick="restoreHistoryItem(${i})" style="padding:12px;border-bottom:1px solid #e5e7eb;cursor:pointer;hover:background:#f8fafc;border-radius:8px;margin-bottom:8px;background:#f8fafc;transition:background .2s;">
+      <div style="font-weight:600;color:#7c3aed;font-size:14px;">${h.title}</div>
+      <div style="font-size:12px;color:#999;margin-top:4px;">${dateStr}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('history-list').innerHTML=html||'<p style="color:#999;">診断履歴はまだありません</p>';
+  document.getElementById('history-modal').style.display='block';
+}
+function closeHistoryModal(){
+  document.getElementById('history-modal').style.display='none';
+}
+function restoreHistoryItem(idx){
+  const data=JSON.parse(localStorage.getItem('vitaminHistory')||'{"history":[]}');
+  const h=data.history[idx];
+  ans=h.answers.map(a=>({idx:a}));
+  lastScores=getScores(ans);
+  showResultDirect(h.resultIdx);
+  closeHistoryModal();
+}
+function startQuiz(){ cur=0;ans.length=0; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); renderQ(); }
+function renderQ(){
+  const q=QUESTIONS[cur];
+  const pct=Math.round((cur+1)/QUESTIONS.length*100);
+  document.getElementById('q-num').textContent=cur+1;
+  const bar=document.getElementById('q-bar');
+  bar.style.width=pct+'%';
+  const prog=document.getElementById('q-progress');
+  prog.setAttribute('aria-valuenow',pct);
+  document.getElementById('q-text').textContent=q.text;
+  document.getElementById('q-options').innerHTML=q.opts.map((o,i)=>`<button class="choice-btn" onclick="answer(${i})">${o}</button>`).join('');
+}
+function answer(idx){ ans.push({idx}); cur++; if(cur>=QUESTIONS.length) showResult(); else renderQ(); }
+function showResult(){
+  document.getElementById('quiz-area').style.display='none';
+  const r=getResult(ans);
+  lastScores=r.scores;
+  showResultDirect(r.resultIdx);
+  saveHistory(r.resultIdx, r.title, ans);
+}
+function showResultDirect(resultIdx){
+  const r=RESULTS[resultIdx];
+  document.getElementById('r-title').textContent=r.title;
+  document.getElementById('r-desc').textContent=r.desc;
+  renderChart();
+  renderScore();
+  const shareText=encodeURIComponent('私の診断結果: '+r.title+' #ビタミン不足チェッカー');
+  const shareUrl=encodeURIComponent('https://appadaycreator.com/vitamin-deficiency-checker/');
+  document.getElementById('r-share').innerHTML=
+    `<a href="https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}" target="_blank" rel="noopener" aria-label="結果をXでシェア" style="background:#1DA1F2;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">𝕏 結果をシェア</a>`+
+    `<a href="https://line.me/R/msg/text/?${shareText}%0A${shareUrl}" target="_blank" rel="noopener" aria-label="結果をLINEでシェア" style="background:#00B900;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">LINE</a>`;
+  document.getElementById('result').classList.add('show');
+  setTimeout(()=>document.getElementById('result').scrollIntoView({behavior:'smooth',block:'start'}),50);
+}
+function saveHistory(resultIdx, title, answers){
+  const data=JSON.parse(localStorage.getItem('vitaminHistory')||'{"history":[]}');
+  data.history.unshift({resultIdx, title, timestamp:new Date().toISOString(), answers});
+  data.history=data.history.slice(0,10);
+  localStorage.setItem('vitaminHistory',JSON.stringify(data));
+}
+function renderChart(){
+  if(!lastScores) return;
+  const ctx=document.getElementById('nutrient-chart').getContext('2d');
+  if(chartInstance) chartInstance.destroy();
+  chartInstance=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:NUTRIENTS,
+      datasets:[{label:'不足スコア',data:lastScores,backgroundColor:NUTRIENT_COLORS,borderRadius:6,borderSkipped:false}]
+    },
+    options:{
+      indexAxis:'y',responsive:true,maintainAspectRatio:true,
+      plugins:{legend:{display:false}},
+      scales:{x:{beginAtZero:true,max:5}}
     }
-    let cur=0; const ans=[];
-    document.addEventListener('DOMContentLoaded',()=>{ document.getElementById('q-total').textContent=QUESTIONS.length; });
-    function startQuiz(){ cur=0;ans.length=0; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); renderQ(); }
-    function renderQ(){
-      const q=QUESTIONS[cur];
-      const pct=Math.round((cur+1)/QUESTIONS.length*100);
-      document.getElementById('q-num').textContent=cur+1;
-      const bar=document.getElementById('q-bar');
-      bar.style.width=pct+'%';
-      const prog=document.getElementById('q-progress');
-      prog.setAttribute('aria-valuenow',pct);
-      document.getElementById('q-text').textContent=q.text;
-      document.getElementById('q-options').innerHTML=q.opts.map((o,i)=>`<button class="choice-btn" onclick="answer(${i})">${o}</button>`).join('');
-    }
-    function answer(idx){ ans.push({idx}); cur++; if(cur>=QUESTIONS.length) showResult(); else renderQ(); }
-    function showResult(){
-      document.getElementById('quiz-area').style.display='none';
-      const r=getResult(ans);
-      document.getElementById('r-title').textContent=r.title;
-      document.getElementById('r-desc').textContent=r.desc;
-      const shareText=encodeURIComponent('私の診断結果: '+r.title+' #ビタミン不足チェッカー');
-      const shareUrl=encodeURIComponent('https://appadaycreator.com/vitamin-deficiency-checker/');
-      document.getElementById('r-share').innerHTML=
-        `<a href="https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}" target="_blank" rel="noopener" aria-label="結果をXでシェア" style="background:#1DA1F2;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">𝕏 結果をシェア</a>`+
-        `<a href="https://line.me/R/msg/text/?${shareText}%0A${shareUrl}" target="_blank" rel="noopener" aria-label="結果をLINEでシェア" style="background:#00B900;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">LINE</a>`;
-      document.getElementById('result').classList.add('show');
-      setTimeout(()=>document.getElementById('result').scrollIntoView({behavior:'smooth',block:'start'}),50);
-    }
-    </script>
+  });
+}
+function renderScore(){
+  const total=lastScores.reduce((a,b)=>a+b,0);
+  const level=total<=2?'良好':(total<=4?'中程度':'高い');
+  const color=total<=2?'#10b981':(total<=4?'#f59e0b':'#ef4444');
+  document.getElementById('r-score').innerHTML=`
+    <div style="font-size:28px;font-weight:700;color:${color};">${total}/25</div>
+    <div style="font-size:13px;color:#666;margin-top:4px;">総合不足スコア：${level}</div>
+  `;
+}
+function printResult(){
+  window.print();
+}
+function downloadCSV(){
+  const r=document.getElementById('r-title').textContent;
+  const d=new Date();
+  const rows=[
+    ['ビタミン不足チェッカー - 診断結果'],
+    ['診断日時',d.toLocaleString('ja-JP')],
+    ['診断結果',r],
+    [''],
+    ['栄養素','スコア'],
+    ...NUTRIENTS.map((n,i)=>[n,lastScores[i]])
+  ];
+  const csv=rows.map(r=>r.map(c=>`"${c}"`).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const link=document.createElement('a');
+  link.href=URL.createObjectURL(blob);
+  link.download='vitamin-diagnosis-'+d.getTime()+'.csv';
+  link.click();
+}
+</script>
     <!-- rakuten-affiliate-block -->
     <div style="border:1px solid #BF0000;background:#fff9f9;border-radius:10px;padding:14px;margin:12px auto;max-width:480px;text-align:center;">
       <p style="font-size:0.85rem;color:#4b5563;margin-bottom:8px;">🛒 関連商品を楽天市場で探す</p>

@@ -27,6 +27,7 @@
   <!-- Google AdSense -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
   <script>
     window.onerror = function(msg, src, line, col, err) { console.error('Global error:', msg, src, line, col, err); return false; };
     window.addEventListener('unhandledrejection', function(e) { console.error('Unhandled rejection:', e.reason); });
@@ -56,10 +57,16 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
   header,footer,nav,button,.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
   [id*="affiliate"],[id*="banner"],
+  .choice-btn, .ec-card:nth-child(n+4),
   script,noscript{display:none!important}
-  body{background:#fff!important;color:#000!important;font-size:12pt}
+  body{background:#fff!important;color:#000!important;font-size:11pt;margin:0;padding:0}
   [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
   a[href]::after{content:none!important}
+  canvas{page-break-inside:avoid}
+  .ec-card{page-break-inside:avoid;border-color:#000!important}
+  .bg-white{background:#fff!important}
+  .shadow-lg{box-shadow:none!important}
+  h2,h3{page-break-after:avoid}
 }
 
 .card{background:#fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.08);overflow:hidden;}
@@ -149,6 +156,17 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     <!-- Top Screen -->
     <div id="topScreen" class="bg-white rounded-2xl shadow-lg p-6 mb-4">
+      <!-- Resume Banner -->
+      <div id="resumeBanner" class="hidden mb-4 bg-green-50 border-l-4 border-green-500 p-4 rounded">
+        <div class="flex justify-between items-center">
+          <div>
+            <p class="font-bold text-green-800">前回の診断を再開できます</p>
+            <p class="text-sm text-green-700">途中から続行して結果を確認しましょう</p>
+          </div>
+          <button onclick="resumeDiagnosis()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg text-sm">再開</button>
+        </div>
+      </div>
+
       <div class="text-center mb-5">
         <div class="text-5xl mb-3">🛍️</div>
         <h2 class="text-lg font-bold mb-2">どのECサイトをどう使い分ける？</h2>
@@ -193,6 +211,28 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div id="ecRanking" class="grid gap-3"></div>
         </div>
 
+        <!-- Visualization: Score Cards -->
+        <div class="mb-5">
+          <h3 class="font-bold text-gray-700 mb-3">📊 スコア詳細（上位3社）</h3>
+          <div id="scoreCards" class="grid gap-3 mb-4"></div>
+        </div>
+
+        <!-- Visualization: Score Bar Chart -->
+        <div class="mb-5">
+          <h3 class="font-bold text-gray-700 mb-3">📈 ECサイトスコア比較</h3>
+          <div style="max-width:100%;overflow:hidden">
+            <canvas id="scoreChart" height="200"></canvas>
+          </div>
+        </div>
+
+        <!-- Visualization: Attributes Comparison -->
+        <div class="mb-5">
+          <h3 class="font-bold text-gray-700 mb-3">🎯 特性別スコア（1位企業）</h3>
+          <div style="max-width:100%;overflow:hidden">
+            <canvas id="attributeChart" height="150"></canvas>
+          </div>
+        </div>
+
         <!-- Usage Rules -->
         <div class="mb-4">
           <h3 class="font-bold text-gray-700 mb-2">📋 用途別 使い分けルール</h3>
@@ -228,6 +268,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               </tbody>
             </table>
           </div>
+        </div>
+
+        <!-- Export Buttons -->
+        <div class="grid grid-cols-4 gap-2 mb-3">
+          <button onclick="printResult()" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-2 rounded-lg text-xs sm:text-sm transition">🖨️ 印刷</button>
+          <button onclick="copyToClipboard()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-2 rounded-lg text-xs sm:text-sm transition">📋 コピー</button>
+          <button onclick="downloadCSV()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-2 rounded-lg text-xs sm:text-sm transition">💾 CSV</button>
+          <button onclick="downloadText()" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-2 rounded-lg text-xs sm:text-sm transition">📄 TXT</button>
         </div>
 
         <button onclick="restart()" class="w-full bg-gradient-to-r from-sky-500 to-blue-600 text-white font-bold py-3 rounded-xl transition hover:from-sky-400 hover:to-blue-500 mb-3">🔄 もう一度診断する</button>
@@ -368,6 +416,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if(answers[0]===1) { scores[0].score+=3; } // 家電
       if(answers[0]===2) { scores[3].score+=3; scores[4].score+=1; } // ファッション
       if(answers[0]===3) { scores[0].score+=2; scores[1].score+=1; } // 本
+      // Q1: 月間利用額
+      if(answers[1]===0) { scores[2].score+=1; scores[3].score+=1; } // 〜5k: 小額購入向け
+      if(answers[1]===1) { scores[1].score+=1; } // 5-20k
+      if(answers[1]===2) { scores[0].score+=1; scores[1].score+=1; } // 20-50k
+      if(answers[1]===3) { scores[0].score+=2; scores[1].score+=2; } // 50k+: 大型購入
       // Q2: 重視
       if(answers[2]===0) { scores[2].score+=2; scores[3].score+=2; } // 安さ
       if(answers[2]===1) { scores[0].score+=3; } // 速さ
@@ -470,6 +523,249 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           𝕏 Xでシェア
         </a>
       `;
+
+      // グラフをレンダリング
+      setTimeout(() => {
+        renderScoreCards(ranked);
+        renderScoreChart(ranked);
+        renderAttributeChart(ranked);
+      }, 100);
+    }
+
+    function renderScoreCards(ranked) {
+      const container = document.getElementById('scoreCards');
+      const colors = ['#3b82f6', '#10b981', '#f59e0b'];
+      const emoji = ['🥇', '🥈', '🥉'];
+
+      container.innerHTML = ranked.slice(0, 3).map((r, i) => {
+        const ec = ecSites[r.idx];
+        const maxScore = Math.max(...ranked.map(x => x.score)) + 5;
+        const percentage = Math.round((r.score / maxScore) * 100);
+
+        return `
+          <div class="bg-gradient-to-r rounded-xl p-4" style="background:linear-gradient(135deg, ${colors[i]}11, ${colors[i]}22); border:2px solid ${colors[i]}">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-lg font-bold" style="color:${colors[i]}">${emoji[i]} ${ec.name}</span>
+              <span class="text-sm font-bold" style="color:${colors[i]}">${r.score}pts</span>
+            </div>
+            <div class="bg-gray-200 rounded-full h-3 overflow-hidden mb-2">
+              <div class="h-3 rounded-full transition-all duration-500" style="width:${percentage}%;background:${colors[i]}"></div>
+            </div>
+            <p class="text-xs text-gray-600 font-medium">${ec.bestFor}</p>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderScoreChart(ranked) {
+      const ctx = document.getElementById('scoreChart');
+      if(!ctx) return;
+
+      const labels = ranked.map(r => ecSites[r.idx].name);
+      const data = ranked.map(r => r.score);
+      const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#f59e0b'];
+
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '総合スコア',
+            data: data,
+            backgroundColor: colors.slice(0, data.length),
+            borderColor: colors.slice(0, data.length),
+            borderWidth: 1,
+            borderRadius: 6,
+            barThickness: Math.min(40, ctx.parentElement.offsetWidth / 3)
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { display: false } },
+          scales: { x: { beginAtZero: true, max: Math.max(...data) + 5 } }
+        }
+      });
+    }
+
+    function renderAttributeChart(ranked) {
+      const ctx = document.getElementById('attributeChart');
+      if(!ctx) return;
+
+      const topEC = ecSites[ranked[0].idx];
+      const scoreData = topEC.score;
+      const attributes = ['配送速度', '品揃え', '家電', '食品', 'ファッション', '書籍'];
+      const scores = [scoreData.speed || 0, scoreData.variety || 0, scoreData.electronics || 0, scoreData.food || 0, scoreData.fashion || 0, scoreData.books || 0];
+      const maxScore = 3;
+
+      new Chart(ctx, {
+        type: 'radar',
+        data: {
+          labels: attributes,
+          datasets: [{
+            label: topEC.name,
+            data: scores,
+            borderColor: '#3b82f6',
+            backgroundColor: '#3b82f620',
+            borderWidth: 2,
+            pointBackgroundColor: '#3b82f6',
+            pointRadius: 4,
+            pointHoverRadius: 5
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          scales: { r: { beginAtZero: true, max: maxScore, ticks: { stepSize: 1 } } },
+          plugins: { legend: { display: true, position: 'bottom' } }
+        }
+      });
+    }
+
+    function printResult() {
+      const printWindow = window.open('', '', 'width=800,height=600');
+      const ranked = calcECScores();
+      const now = new Date().toLocaleString('ja-JP');
+
+      let html = '<html><head><meta charset="utf-8"><title>EC診断結果</title><style>';
+      html += 'body{font-family:Arial,sans-serif;margin:20px;color:#333;background:#fff}';
+      html += 'h1{font-size:1.8em;color:#1e40af;text-align:center;border-bottom:2px solid #3b82f6;padding-bottom:10px}';
+      html += 'h2{font-size:1.3em;color:#1e40af;margin-top:20px;border-left:4px solid #3b82f6;padding-left:10px}';
+      html += 'table{width:100%;border-collapse:collapse;margin:10px 0}';
+      html += 'th,td{border:1px solid #ddd;padding:8px;text-align:left}';
+      html += 'th{background:#e0e7ff;font-weight:bold;color:#1e40af}';
+      html += '.ec-item{margin:15px 0;padding:15px;border:1px solid #ccc;border-radius:5px;page-break-inside:avoid}';
+      html += '.ec-name{font-size:1.1em;font-weight:bold;color:#1e40af}';
+      html += '.ec-score{color:#3b82f6;font-weight:bold}';
+      html += '.timestamp{text-align:center;color:#666;font-size:0.9em;margin:20px 0}';
+      html += '@media print{body{margin:0}h1{page-break-after:avoid}h2{page-break-after:avoid}.ec-item{page-break-inside:avoid}}';
+      html += '</style></head><body>';
+
+      html += '<h1>🛒 ネット通販・ECサイト使い分け診断 結果</h1>';
+      html += `<div class="timestamp">診断実施日時: ${now}</div>`;
+
+      html += '<h2>おすすめEC サイト（ランキング）</h2>';
+      ranked.slice(0, 3).forEach((r, i) => {
+        const ec = ecSites[r.idx];
+        const rank = ['第1位🥇', '第2位🥈', '第3位🥉'][i];
+        html += `<div class="ec-item">`;
+        html += `<div class="ec-name">${rank}: ${ec.emoji} ${ec.name}</div>`;
+        html += `<div>スコア: <span class="ec-score">${r.score}点</span></div>`;
+        html += `<div>推奨用途: ${ec.bestFor}</div>`;
+        html += `<div>強み:<ul>`;
+        ec.strengths.forEach(s => html += `<li>${s}</li>`);
+        html += `</ul></div></div>`;
+      });
+
+      html += '<h2>診断回答内容</h2>';
+      html += '<table><tr><th>質問</th><th>回答</th></tr>';
+      questions.forEach((q, i) => {
+        html += `<tr><td>${q.q}</td><td>${q.choices[answers[i]]}</td></tr>`;
+      });
+      html += '</table>';
+
+      html += '<div class="timestamp" style="margin-top:30px">詳細: https://appadaycreator.com/online-shopping-advisor/</div>';
+      html += '</body></html>';
+
+      printWindow.document.write(html);
+      printWindow.document.close();
+      setTimeout(() => printWindow.print(), 500);
+    }
+
+    function copyToClipboard() {
+      const ranked = calcECScores();
+      const topEC = ecSites[ranked[0].idx];
+      const secondEC = ecSites[ranked[1].idx];
+
+      let text = '=== ECサイト使い分け診断 結果 ===\n\n';
+      text += `🥇 1位: ${topEC.emoji} ${topEC.name}\n`;
+      text += `   用途: ${topEC.bestFor}\n`;
+      text += `   スコア: ${ranked[0].score}点\n\n`;
+      text += `🥈 2位: ${secondEC.emoji} ${secondEC.name}\n`;
+      text += `   用途: ${secondEC.bestFor}\n`;
+      text += `   スコア: ${ranked[1].score}点\n\n`;
+      text += `📊 診断はこちら:\n`;
+      text += `https://appadaycreator.com/online-shopping-advisor/`;
+
+      navigator.clipboard.writeText(text).then(() => {
+        alert('結果をコピーしました！SNSやメールにペーストしてシェアできます。');
+      }).catch(() => {
+        alert('コピーに失敗しました。ブラウザの設定をご確認ください。');
+      });
+    }
+
+    function downloadCSV() {
+      const ranked = calcECScores();
+      const now = new Date().toLocaleString('ja-JP');
+
+      let csv = '診断結果,EC使い分け診断\n';
+      csv += `実施日時,${now}\n\n`;
+      csv += `順位,EC名,スコア,推奨用途\n`;
+
+      ranked.slice(0, 5).forEach((r, i) => {
+        const ec = ecSites[r.idx];
+        csv += `${i+1},${ec.name},${r.score},${ec.bestFor}\n`;
+      });
+
+      csv += `\n質問への回答内容\n`;
+      csv += `質問,選択肢\n`;
+      questions.forEach((q, i) => {
+        csv += `${q.q},"${q.choices[answers[i]]}"\n`;
+      });
+
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `ec-diagnosis-${Date.now()}.csv`;
+      link.click();
+    }
+
+    function downloadText() {
+      const ranked = calcECScores();
+      const topEC = ecSites[ranked[0].idx];
+      const now = new Date().toLocaleString('ja-JP');
+
+      let text = '========================================\n';
+      text += 'ネット通販・ECサイト使い分け診断 結果\n';
+      text += '========================================\n\n';
+      text += `診断実施日時: ${now}\n\n`;
+
+      text += '【あなたへのおすすめEC サイト】\n';
+      text += '─────────────────────────────────\n\n';
+
+      ranked.slice(0, 3).forEach((r, i) => {
+        const ec = ecSites[r.idx];
+        const rank = ['第1位', '第2位', '第3位'][i];
+        text += `${rank}: ${ec.emoji} ${ec.name} (スコア: ${r.score})\n`;
+        text += `推奨用途: ${ec.bestFor}\n`;
+        text += `強み:\n`;
+        ec.strengths.forEach(s => text += `  • ${s}\n`);
+        text += '\n';
+      });
+
+      text += '【あなたの診断回答】\n';
+      text += '─────────────────────────────────\n\n';
+      questions.forEach((q, i) => {
+        text += `Q${i+1}. ${q.q}\n`;
+        text += `→ ${q.choices[answers[i]]}\n\n`;
+      });
+
+      text += '========================================\n';
+      text += 'このツール: https://appadaycreator.com/online-shopping-advisor/\n';
+      text += '========================================\n';
+
+      const blob = new Blob([text], {type:'text/plain;charset=utf-8;'});
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `ec-diagnosis-${Date.now()}.txt`;
+      link.click();
+    }
+
+    function resumeDiagnosis() {
+      document.getElementById('topScreen').classList.add('hidden');
+      document.getElementById('quizScreen').classList.remove('hidden');
+      showQ();
     }
 
     function restart() {
@@ -480,9 +776,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     // Initialize on page load
     window.addEventListener('DOMContentLoaded', () => {
       if(loadState() && current < TOTAL) {
-        document.getElementById('topScreen').classList.add('hidden');
-        document.getElementById('quizScreen').classList.remove('hidden');
-        showQ();
+        // 前回の診断データがある場合
+        document.getElementById('resumeBanner').classList.remove('hidden');
       }
     });
   </script>

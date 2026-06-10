@@ -454,6 +454,13 @@ button:focus-visible,[class*=btn]:focus-visible,.option-card:focus-visible{
             </button>
         </div>
     </nav>
+    <!-- P1-1: 診断進捗バー -->
+    <div id="kaf-progress-bar" style="position:sticky;top:52px;z-index:199;height:6px;background:#e5e7eb;width:100%;box-shadow:0 2px 4px rgba(0,0,0,.04);">
+        <div id="kaf-progress-fill" style="height:100%;width:0%;background:linear-gradient(90deg,#10b981,#34d399);transition:width 0.3s ease;border-radius:999px;"></div>
+    </div>
+    <div id="kaf-progress-label" style="position:sticky;top:58px;z-index:198;padding:4px 16px;background:#f3f4f6;font-size:12px;color:#6b7280;text-align:center;display:none;">
+        <span id="kaf-progress-text">1/7 ステップ完了</span>
+    </div>
     <!-- Header -->
     <!-- Hero Section -->
     <header class="gradient-bg kaf-dots-bg text-gray-900 py-10 md:py-16 relative overflow-hidden mb-8" role="banner">
@@ -1145,6 +1152,27 @@ button:focus-visible,[class*=btn]:focus-visible,.option-card:focus-visible{
             <p id="kaf-result-announce" aria-live="assertive" aria-atomic="true" class="sr-only"></p>
             <!-- P2: タイプ名ファーストビュー（診断完了直後に最初に見せる） -->
             <div id="kaf-type-headline" style="display:none;margin-bottom:16px;"></div>
+            <!-- P0: 結果ツールバー（印刷・CSV・シェア） -->
+            <div id="kaf-result-actions" class="hidden mb-6 flex flex-wrap gap-2 justify-center sticky top-20 z-40 bg-white rounded-lg p-3 shadow-lg md:flex-row md:gap-3 sm:flex-col">
+                <button id="kaf-print-btn"
+                    onclick="if(typeof printDiagnosisResult==='function'){printDiagnosisResult();}"
+                    class="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-green-50 text-green-700 text-sm font-bold hover:bg-green-100 active:bg-green-200 transition-colors border border-green-200 min-h-11 min-w-max"
+                    aria-label="診断結果を印刷する">
+                    <span>🖨️</span> <span>印刷</span>
+                </button>
+                <button id="kaf-export-csv-btn"
+                    onclick="if(typeof exportDiagnosisAsCSV==='function'){exportDiagnosisAsCSV(window.appState?.result);}"
+                    class="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-blue-50 text-blue-700 text-sm font-bold hover:bg-blue-100 active:bg-blue-200 transition-colors border border-blue-200 min-h-11 min-w-max"
+                    aria-label="診断結果をCSVでダウンロードする">
+                    <span>📥</span> <span>CSV</span>
+                </button>
+                <button id="kaf-share-trigger"
+                    onclick="document.getElementById('share-section').scrollIntoView({behavior:'smooth',block:'center'})"
+                    class="flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-purple-50 text-purple-700 text-sm font-bold hover:bg-purple-100 active:bg-purple-200 transition-colors border border-purple-200 min-h-11 min-w-max"
+                    aria-label="診断結果をシェアする">
+                    <span>🔗</span> <span>シェア</span>
+                </button>
+            </div>
             <!-- P3(Round12): 前回診断との比較バナー -->
             <div id="kaf-prev-compare" class="hidden mb-3"></div>
             <!-- TOP1・TOP3カード（結果最重要情報を最初に表示） -->
@@ -1221,6 +1249,37 @@ button:focus-visible,[class*=btn]:focus-visible,.option-card:focus-visible{
                     </div>
                 </div>
 
+                <!-- M4: カテゴリ別スコア可視化チャート（レーダーチャート） -->
+                <div class="mb-8">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">
+                        <span class="mr-2">📈</span>カテゴリ別スコア比較（10カテゴリ分析）
+                    </h3>
+                    <div class="bg-green-50 rounded-lg p-6">
+                        <canvas id="kaf-category-chart" width="400" height="300" aria-label="10カテゴリのスコア比較チャート"></canvas>
+                        <p class="text-xs text-gray-600 mt-4 text-center">各カテゴリでのお子様の適合度を視覚化。複数のカテゴリで高いスコアはお子様が多才型である可能性を示します。</p>
+                    </div>
+                </div>
+
+                <!-- M4: TOP3スコアゲージ -->
+                <div class="mb-8">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">
+                        <span class="mr-2">🎯</span>TOP3適合度ゲージ
+                    </h3>
+                    <div id="kaf-top-gauges" class="bg-blue-50 rounded-lg p-6">
+                        <!-- 動的にレンダリング -->
+                    </div>
+                </div>
+
+                <!-- M4: 診断信頼度スコア（診断精度） -->
+                <div class="mb-8">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">
+                        <span class="mr-2">✅</span>この診断結果の信頼度
+                    </h3>
+                    <div id="kaf-confidence-gauge" class="bg-yellow-50 rounded-lg p-6">
+                        <!-- 動的にレンダリング -->
+                    </div>
+                </div>
+
                 <!-- Category-based Recommendations -->
                 <div class="mb-8">
                     <h3 class="text-xl font-bold text-gray-800 mb-4">
@@ -1236,6 +1295,24 @@ button:focus-visible,[class*=btn]:focus-visible,.option-card:focus-visible{
                         <button class="kaf-filter-btn text-xs font-bold px-3 py-1.5 rounded-full border transition-colors" data-group="art" aria-label="アートの習い事を表示する" onclick="window._kafFilter('art')">🎨 アート</button>
                     </div>
                     <div id="category-recommendations"></div>
+                </div>
+
+                <!-- P0: [1] 診断メダル生成セクション -->
+                <div class="mb-8 rounded-xl p-5 text-center" style="background:linear-gradient(135deg,#ffd700,#ffed4e);border:2px solid #ffd700;">
+                    <p class="text-sm font-bold mb-1" style="color:#333;">🥇 診断メダルを作成</p>
+                    <p class="text-xs text-gray-700 mb-3">診断結果をメダル画像で作成して共有しよう</p>
+                    <button onclick="generateDiagnosisMedalImage(window.appState.result)"
+                        class="bg-yellow-500 text-white px-6 py-3 rounded-2xl text-sm font-bold hover:bg-yellow-600 transition focus-visible:ring-2 focus-visible:ring-yellow-400">
+                        ✨ メダルを生成
+                    </button>
+                </div>
+
+                <!-- P1: [3] 習い事体験記録・フィードバック機能 -->
+                <div class="mb-8 rounded-xl p-5" style="background:#f5f3ff;border:1.5px solid #d8ccff;">
+                    <p class="text-sm font-bold mb-1" style="color:#7c3aed;">📝 この習い事を体験した？</p>
+                    <p class="text-xs text-gray-600 mb-4">診断後の体験状況をお記録いただくと、今後の診断がより正確になります</p>
+                    <div id="experience-tracking-container"></div>
+                    <div id="experience-summary" style="margin-top:12px;padding-top:12px;border-top:1px solid #e9d5ff;"></div>
                 </div>
 
                 <!-- SNSシェアボタン（カテゴリ推薦確認後に表示） -->
@@ -1704,13 +1781,20 @@ button:focus-visible,[class*=btn]:focus-visible,.option-card:focus-visible{
                 </div>
                 <p class="text-xs text-gray-400 text-center mt-4">※まずは無料体験から。合わなければ変更してOKです</p>
             </div>
-            <!-- P1(Round11): 印刷・PDF出力ボタン -->
+            <!-- M10: 印刷・CSVエクスポートボタン -->
             <div class="text-center mt-4 mb-2 no-print">
-                <button onclick="window.print()" id="kaf-print-btn"
-                        aria-label="診断結果を印刷またはPDFとして保存する"
-                        class="bg-white border-2 border-gray-300 text-gray-600 font-bold px-5 py-2 rounded-xl text-sm hover:bg-gray-50 transition-colors shadow-sm">
-                    🖨 印刷・PDF保存
-                </button>
+                <div class="flex justify-center gap-2 flex-wrap">
+                    <button onclick="window.print()" id="kaf-print-btn"
+                            aria-label="診断結果を印刷またはPDFとして保存する"
+                            class="bg-white border-2 border-gray-300 text-gray-600 font-bold px-5 py-2 rounded-xl text-sm hover:bg-gray-50 transition-colors shadow-sm">
+                        🖨️ 印刷・PDF保存
+                    </button>
+                    <button id="kaf-export-csv-btn"
+                            aria-label="診断結果をCSVファイルでダウンロードする"
+                            class="bg-white border-2 border-blue-300 text-blue-600 font-bold px-5 py-2 rounded-xl text-sm hover:bg-blue-50 transition-colors shadow-sm">
+                        📥 結果をCSVで保存
+                    </button>
+                </div>
             </div>
             <!-- フィードバックボタン -->
             <div class="text-center mt-4 mb-2 no-print">
@@ -2108,23 +2192,7 @@ button:focus-visible,[class*=btn]:focus-visible,.option-card:focus-visible{
                     class="mt-4 w-full text-xs text-gray-400 hover:text-gray-600 underline">閉じる</button>
         </div>
     </div>
-    <div id="kaf-exit-modal" style="display:none;" class="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 px-4">
-        <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full text-center relative">
-            <button onclick="document.getElementById('kaf-exit-modal').style.display='none';try{sessionStorage.setItem('kaf_exit_shown','1');}catch(e){}"
-                    class="absolute top-3 right-3 text-gray-400 hover:text-gray-600 text-xl font-bold leading-none">×</button>
-            <div class="text-3xl mb-2">🎯</div>
-            <p class="text-base font-bold text-gray-800 mb-1">ちょっと待って！</p>
-            <p class="text-sm text-gray-600 mb-4" id="kaf-exit-modal-text">診断結果の習い事、まずは<strong>無料体験（¥0）</strong>から試してみませんか？</p>
-            <a id="kaf-exit-modal-link" href="https://px.a8.net/svt/ejp?a8mat=4AXFOD+98THCA+5FO6+BWVTE"
-               target="_blank" rel="nofollow sponsored noopener"
-               class="block w-full bg-gradient-to-r from-pink-500 to-orange-400 text-white font-bold py-3 rounded-xl text-sm mb-2 hover:opacity-90 transition-opacity"
-               onclick="if(window.dataLayer){window.dataLayer.push({event:'affiliate_click',position:'exit_intent',platform:'A8.net'});}try{sessionStorage.setItem('kaf_exit_shown','1');}catch(e){}">
-                ✨ 今すぐ無料体験を申込む →
-            </a>
-            <button onclick="document.getElementById('kaf-exit-modal').style.display='none';try{sessionStorage.setItem('kaf_exit_shown','1');}catch(e){}"
-                    class="text-xs text-gray-400 hover:text-gray-600 underline">今は必要ない</button>
-        </div>
-    </div>
+
     <div id="kaf-delete-modal" style="display:none;" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/50">
         <div class="bg-white rounded-2xl p-6 max-w-sm mx-4 shadow-2xl">
             <h3 class="text-base font-bold text-gray-900 mb-3">⚠️ 全データを削除しますか？</h3>
@@ -2925,6 +2993,24 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else { init(); }
+})();
+
+// M3拡張: restore=1 パラメータで過去診断を自動復元
+(function checkRestoreParam() {
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('restore') === '1') {
+    document.addEventListener('DOMContentLoaded', function() {
+      // データファイルの読み込みを待つ
+      var waitForData = function() {
+        if (typeof checkAndRestorePreviousDiagnosis === 'function') {
+          checkAndRestorePreviousDiagnosis();
+        } else {
+          setTimeout(waitForData, 100);
+        }
+      };
+      waitForData();
+    });
+  }
 })();
 </script>
 

@@ -37,6 +37,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -90,6 +91,12 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
+
+/* Toast animation */
+@keyframes slideUp{
+  from{opacity:0;transform:translateX(-50%) translateY(20px)}
+  to{opacity:1;transform:translateX(-50%) translateY(0)}
+}
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://appadaycreator.com/"},{"@type":"ListItem","position":2,"name":"診断/アドバイス","item":"https://appadaycreator.com/category/advisor/"},{"@type":"ListItem","position":3,"name":"ワイン×料理ペアリング診断無料Webツール","item":"https://appadaycreator.com/wine-food-pairing/"}]}</script>
 </head>
@@ -228,6 +235,17 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="card">
             <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#7c3aed;">🍾 おすすめペアリング</h3>
             <div id="output"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px;">
+              <button class="btn" onclick="printResult()" style="background:#757575;font-size:14px;">🖨️ 印刷</button>
+              <button class="btn" onclick="copyResultToClipboard()" style="background:#6366f1;font-size:14px;">📋 コピー</button>
+              <button class="btn" onclick="downloadAsCSV()" style="background:#10b981;font-size:14px;">📥 CSV</button>
+            </div>
+            <button class="btn" onclick="clearHistory()" style="margin-top:8px;background:#9e9e9e;">🗑️ 履歴をクリア</button>
+          </div>
+
+          <div class="card" style="margin-top:12px;">
+            <h3 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#555;">📋 過去の診断</h3>
+            <div id="history-list"></div>
           </div>
         </div>
 
@@ -320,25 +338,209 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <script>
     const BTN_COLOR = '#7c3aed';
     let mode = 'food';
+    let chartInstance = null;
+
     const FOOD_DATA = {
-      wafood: {wines:['ピノ・ノワール（軽め赤）','辛口白ワイン（シャルドネ）','スパークリング（辛口）'], tips:'繊細な和食には軽やかなワインが好相性。魚料理には白、肉料理には軽め赤を。'},
-      italian:{wines:['サンジョヴェーゼ（赤）','キャンティ','ピノ・グリージョ（白）'], tips:'トマト系にはサンジョヴェーゼ、クリーム系にはシャルドネが定番。'},
-      french: {wines:['ボルドー（赤）','ブルゴーニュ白','シャンパーニュ'], tips:'フレンチはテロワールを合わせるのが王道。産地×産地で楽しんで。'},
-      chinese:{wines:['リースリング（辛口）','ゲヴュルツトラミネール','ロゼ'], tips:'香辛料に負けないアロマティック系白やロゼがおすすめ。'},
-      bbq:    {wines:['カベルネ・ソーヴィニヨン','シラー','マルベック'], tips:'タンニン豊富なフルボディ赤が焼肉の脂と絶妙にマッチ。'},
-      seafood:{wines:['シャブリ','ソーヴィニヨン・ブラン','スパークリング'], tips:'魚介には酸味のある辛口白。牡蠣にはシャブリが鉄板。'},
-      cheese: {wines:['ポートワイン','ソーテルヌ','シャンパーニュ'], tips:'チーズの種類で変えるのがプロ流。熟成チーズには甘口ワインも◎。'},
-      spicy:  {wines:['モスカート（甘口）','ロゼ','低アルコール白'], tips:'辛さを和らげる甘口・低アルコールがベスト。辛さを増すフルボディ赤は避けて。'}
+      wafood: {wines:[{name:'ピノ・ノワール（軽め赤）',score:5,reason:'繊細な和食との完璧な相性'},{name:'辛口白ワイン（シャルドネ）',score:4,reason:'魚系和食に最適'},{name:'スパークリング（辛口）',score:4,reason:'清涼感が和食を引き立てる'}], tips:'繊細な和食には軽やかなワインが好相性。魚料理には白、肉料理には軽め赤を。'},
+      italian:{wines:[{name:'サンジョヴェーゼ（赤）',score:5,reason:'イタリアンの定番'},{name:'キャンティ',score:5,reason:'トマト系料理と相性抜群'},{name:'ピノ・グリージョ（白）',score:4,reason:'軽いパスタに最適'}], tips:'トマト系にはサンジョヴェーゼ、クリーム系にはシャルドネが定番。'},
+      french: {wines:[{name:'ボルドー（赤）',score:5,reason:'フレンチ肉料理の王道'},{name:'ブルゴーニュ白',score:5,reason:'フレンチ白の最高峰'},{name:'シャンパーニュ',score:4,reason:'フレンチの優雅さを表現'}], tips:'フレンチはテロワールを合わせるのが王道。産地×産地で楽しんで。'},
+      chinese:{wines:[{name:'リースリング（辛口）',score:5,reason:'辛味に対応する高い酸度'},{name:'ゲヴュルツトラミネール',score:4,reason:'香りが中華スパイスと調和'},{name:'ロゼ',score:4,reason:'甘味が辛さを緩和'}], tips:'香辛料に負けないアロマティック系白やロゼがおすすめ。'},
+      bbq:    {wines:[{name:'カベルネ・ソーヴィニヨン',score:5,reason:'焼肉の脂と最高の調和'},{name:'シラー',score:5,reason:'焼肉の香ばしさと共鳴'},{name:'マルベック',score:4,reason:'南米発祥・BBQの友'}], tips:'タンニン豊富なフルボディ赤が焼肉の脂と絶妙にマッチ。'},
+      seafood:{wines:[{name:'シャブリ',score:5,reason:'牡蠣との完璧な相性'},{name:'ソーヴィニヨン・ブラン',score:5,reason:'海の香りと調和'},{name:'スパークリング',score:4,reason:'海鮮を爽やかに引き立てる'}], tips:'魚介には酸味のある辛口白。牡蠣にはシャブリが鉄板。'},
+      cheese: {wines:[{name:'ポートワイン',score:5,reason:'チーズとの深い相性'},{name:'ソーテルヌ',score:5,reason:'甘口がチーズを引き立てる'},{name:'シャンパーニュ',score:4,reason:'全てのチーズと調和'}], tips:'チーズの種類で変えるのがプロ流。熟成チーズには甘口ワインも◎。'},
+      spicy:  {wines:[{name:'モスカート（甘口）',score:5,reason:'辛さを優しく緩和'},{name:'ロゼ',score:4,reason:'甘味が辛さと調和'},{name:'低アルコール白',score:4,reason:'舌を冷やしリセット'}], tips:'辛さを和らげる甘口・低アルコールがベスト。辛さを増すフルボディ赤は避けて。'}
     };
+
     const PRICE_NOTE = {low:'〜2,000円台：チリ・スペイン産コスパワインがおすすめ。',mid:'2,000〜5,000円：フランス・イタリアの地方ワインを探してみて。',high:'5,000円〜：産地・ヴィンテージにこだわった本格派ワインを。'};
+
     const WINE_DATA = {
-      red_light:  {foods:['鶏肉料理','サーモン料理','和食（肉系）','キノコ料理'], tips:'軽めの赤は素材の味を邪魔しません。'},
-      red_full:   {foods:['ビーフステーキ','焼肉','ラム料理','熟成チーズ'], tips:'フルボディ赤は赤身肉と最高の相性。'},
-      white_dry:  {foods:['魚介料理','サラダ','パスタ（白ソース）','鶏料理'], tips:'辛口白は幅広い料理に合わせやすい万能選手。'},
-      white_sweet:{foods:['デザート','フォアグラ','ブルーチーズ','スパイシー料理'], tips:'甘口白はスパイシーさや甘味の強い料理に。'},
-      rose:       {foods:['プロバンス料理','エビ料理','冷製パスタ','ピクニックフード'], tips:'ロゼはどんな料理にも合わせやすい万能ワイン。'},
-      sparkling:  {foods:['前菜全般','揚げ物','寿司・刺身','お祝い料理'], tips:'スパークリングの泡が口をリフレッシュ。揚げ物にも◎。'}
+      red_light:  {foods:[{name:'鶏肉料理',score:5,reason:'素材の味を邪魔しない'},{name:'サーモン料理',score:4,reason:'ピノの優しさが活きる'},{name:'和食（肉系）',score:4,reason:'日本の味わいと調和'},{name:'キノコ料理',score:4,reason:'アースィな香りが共鳴'}], tips:'軽めの赤は素材の味を邪魔しません。'},
+      red_full:   {foods:[{name:'ビーフステーキ',score:5,reason:'最高の相性'},{name:'焼肉',score:5,reason:'脂とタンニンが相互作用'},{name:'ラム料理',score:5,reason:'風味を引き出す'},{name:'熟成チーズ',score:4,reason:'深い複雑性の組み合わせ'}], tips:'フルボディ赤は赤身肉と最高の相性。'},
+      white_dry:  {foods:[{name:'魚介料理',score:5,reason:'海の香りが調和'},{name:'サラダ',score:4,reason:'爽やかさが引き立つ'},{name:'パスタ（白ソース）',score:5,reason:'クリームと相互作用'},{name:'鶏料理',score:4,reason:'軽い肉と調和'}], tips:'辛口白は幅広い料理に合わせやすい万能選手。'},
+      white_sweet:{foods:[{name:'デザート',score:5,reason:'甘味が共鳴'},{name:'フォアグラ',score:5,reason:'濃厚さが調和'},{name:'ブルーチーズ',score:5,reason:'塩辛さを緩和'},{name:'スパイシー料理',score:4,reason:'辛さが調和'}], tips:'甘口白はスパイシーさや甘味の強い料理に。'},
+      rose:       {foods:[{name:'プロバンス料理',score:5,reason:'風土が一致'},{name:'エビ料理',score:5,reason:'甘海老と相互作用'},{name:'冷製パスタ',score:4,reason:'夏の爽やかさ'},{name:'ピクニックフード',score:5,reason:'野外の相棒'}], tips:'ロゼはどんな料理にも合わせやすい万能ワイン。'},
+      sparkling:  {foods:[{name:'前菜全般',score:5,reason:'泡立ちが料理を活かす'},{name:'揚げ物',score:5,reason:'こってり感を解消'},{name:'寿司・刺身',score:4,reason:'日本食との調和'},{name:'お祝い料理',score:5,reason:'祝いの場を演出'}], tips:'スパークリングの泡が口をリフレッシュ。揚げ物にも◎。'}
     };
+
+    function loadFromLocalStorage() {
+      const saved = localStorage.getItem('pairingData');
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.mode) {
+          mode = data.mode;
+          document.getElementById('tab-food').classList.toggle('active', data.mode==='food');
+          document.getElementById('tab-wine').classList.toggle('active', data.mode==='wine');
+          document.getElementById('pane-food').style.display = data.mode==='food' ? '' : 'none';
+          document.getElementById('pane-wine').style.display = data.mode==='wine' ? '' : 'none';
+        }
+        if (data.genre && document.getElementById('genre')) document.getElementById('genre').value = data.genre;
+        if (data.price && document.getElementById('price')) document.getElementById('price').value = data.price;
+        if (data.wtype && document.getElementById('wtype')) document.getElementById('wtype').value = data.wtype;
+      }
+    }
+
+    function saveToLocalStorage() {
+      const data = {
+        mode: mode,
+        genre: document.getElementById('genre')?.value,
+        price: document.getElementById('price')?.value,
+        wtype: document.getElementById('wtype')?.value,
+        timestamp: Date.now()
+      };
+      localStorage.setItem('pairingData', JSON.stringify(data));
+    }
+
+    function getRelativeTime(timestamp) {
+      const now = Date.now();
+      const diff = now - timestamp;
+      const minutes = Math.floor(diff / 60000);
+      const hours = Math.floor(diff / 3600000);
+      const days = Math.floor(diff / 86400000);
+      if (minutes < 60) return minutes + '分前';
+      if (hours < 24) return hours + '時間前';
+      return days + '日前';
+    }
+
+    function formatDateTime(timestamp) {
+      const d = new Date(timestamp);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const h = String(d.getHours()).padStart(2, '0');
+      const min = String(d.getMinutes()).padStart(2, '0');
+      return `${y}-${m}-${day} ${h}:${min}`;
+    }
+
+    function saveHistoryEntry(resultText) {
+      const history = JSON.parse(localStorage.getItem('pairingHistory') || '[]');
+      const entry = {
+        mode: mode,
+        genre: document.getElementById('genre')?.value,
+        price: document.getElementById('price')?.value,
+        wtype: document.getElementById('wtype')?.value,
+        result: resultText,
+        timestamp: Date.now()
+      };
+      history.unshift(entry);
+      if (history.length > 5) history.pop();
+      localStorage.setItem('pairingHistory', JSON.stringify(history));
+      renderHistoryList();
+    }
+
+    function renderHistoryList() {
+      const history = JSON.parse(localStorage.getItem('pairingHistory') || '[]');
+      const historyList = document.getElementById('history-list');
+      if (!historyList) return;
+
+      if (history.length === 0) {
+        historyList.innerHTML = '<p style="font-size:13px;color:#999;margin:0;">過去の診断はまだありません</p>';
+        return;
+      }
+
+      let html = '<div style="display:flex;flex-direction:column;gap:8px;">';
+      history.forEach((entry, idx) => {
+        const label = entry.mode === 'food'
+          ? `料理→ワイン: ${entry.genre} / ${entry.price}`
+          : `ワイン→料理: ${entry.wtype}`;
+        const relTime = getRelativeTime(entry.timestamp);
+        html += `<div style="background:#f8f4ff;border-left:3px solid #d8b4fe;padding:8px 12px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;">
+          <div style="flex:1;cursor:pointer;" onclick="restoreFromHistory(${idx})">
+            <p style="font-size:13px;font-weight:600;margin:0 0 2px;color:#7c3aed;">${label}</p>
+            <p style="font-size:11px;color:#999;margin:0;">⏰ ${relTime}</p>
+          </div>
+          <button style="background:none;border:none;color:#d8b4fe;cursor:pointer;font-size:16px;padding:4px 8px;min-height:auto;" onclick="deleteHistoryEntry(${idx})" title="この履歴を削除">✕</button>
+        </div>`;
+      });
+      html += '</div>';
+      historyList.innerHTML = html;
+    }
+
+    function restoreFromHistory(idx) {
+      const history = JSON.parse(localStorage.getItem('pairingHistory') || '[]');
+      if (idx < 0 || idx >= history.length) return;
+      const entry = history[idx];
+      mode = entry.mode;
+      document.getElementById('tab-food').classList.toggle('active', entry.mode==='food');
+      document.getElementById('tab-wine').classList.toggle('active', entry.mode==='wine');
+      document.getElementById('pane-food').style.display = entry.mode==='food' ? '' : 'none';
+      document.getElementById('pane-wine').style.display = entry.mode==='wine' ? '' : 'none';
+      if (document.getElementById('genre')) document.getElementById('genre').value = entry.genre;
+      if (document.getElementById('price')) document.getElementById('price').value = entry.price;
+      if (document.getElementById('wtype')) document.getElementById('wtype').value = entry.wtype;
+      document.getElementById('output').innerHTML = entry.result;
+      document.getElementById('result').classList.add('show');
+      document.getElementById('result').scrollIntoView({behavior:'smooth', block:'start'});
+    }
+
+    function deleteHistoryEntry(idx) {
+      if (!confirm('この履歴を削除しますか？')) return;
+      const history = JSON.parse(localStorage.getItem('pairingHistory') || '[]');
+      history.splice(idx, 1);
+      localStorage.setItem('pairingHistory', JSON.stringify(history));
+      renderHistoryList();
+    }
+
+    function copyResultToClipboard() {
+      const output = document.getElementById('output').innerText;
+      if (!output) {
+        alert('コピーする結果がありません');
+        return;
+      }
+      navigator.clipboard.writeText(output).then(() => {
+        showToast('✓ コピーしました！');
+      }).catch(() => {
+        alert('コピーに失敗しました');
+      });
+    }
+
+    function downloadAsCSV() {
+      const output = document.getElementById('output');
+      const wines = output.querySelectorAll('.wine-card');
+
+      if (wines.length === 0) {
+        alert('ダウンロードするデータがありません');
+        return;
+      }
+
+      const header = mode === 'food' ? '品種,相性度,理由' : '料理,相性度,理由';
+      const rows = [header];
+
+      wines.forEach(card => {
+        const nameElem = card.querySelector('strong') || card.querySelector('[style*="font-size:13px"]');
+        const reasonElem = card.querySelector('p[style*="color:#666"]');
+        const scoreElem = card.querySelector('[style*="color:#7c3aed"]');
+
+        const name = nameElem ? nameElem.textContent.trim().replace('🍽️ ', '') : '';
+        const stars = scoreElem ? scoreElem.textContent.match(/★/g)?.length || 0 : 0;
+        const reason = reasonElem ? reasonElem.textContent.trim() : '';
+
+        if (name) {
+          rows.push(`"${name.replace(/"/g, '""')}",${stars},"${reason.replace(/"/g, '""')}"`);
+        }
+      });
+
+      const csv = rows.join('\r\n');
+      const blob = new Blob(['﻿' + csv], {type: 'text/csv;charset=utf-8;'});
+      const link = document.createElement('a');
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      link.setAttribute('href', URL.createObjectURL(blob));
+      link.setAttribute('download', `wine-pairing-${dateStr}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('✓ ダウンロードしました！');
+    }
+
+    function showToast(msg) {
+      const toast = document.createElement('div');
+      toast.textContent = msg;
+      toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#7c3aed;color:#fff;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:9999;animation:slideUp .3s ease-out;';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
     function switchTab(t) {
       mode = t;
       document.getElementById('tab-food').classList.toggle('active', t==='food');
@@ -346,27 +548,146 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('pane-food').style.display = t==='food' ? '' : 'none';
       document.getElementById('pane-wine').style.display = t==='wine' ? '' : 'none';
       document.getElementById('result').classList.remove('show');
+      saveToLocalStorage();
     }
-    document.addEventListener('DOMContentLoaded', () => {});
+
+    function createChart(labels, scores) {
+      const ctx = document.createElement('canvas');
+      ctx.id = 'compatibilityChart';
+      ctx.style.maxWidth = '400px';
+      ctx.style.margin = '16px auto';
+      document.getElementById('output').appendChild(ctx);
+
+      if (chartInstance) chartInstance.destroy();
+      chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: '相性度スコア',
+            data: scores,
+            backgroundColor: ['#7c3aed', '#6d28d9', '#5b21b6', '#4c1d95', '#2d1047'].slice(0, labels.length),
+            borderRadius: 8,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          height: 150,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: 'rgba(124, 58, 237, 0.9)',
+              padding: 12,
+              titleFont: { size: 13 },
+              bodyFont: { size: 12 },
+              callbacks: {
+                label: function(context) {
+                  return '相性度: ★' + context.parsed.x.toFixed(1) + '/5.0';
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              min: 0,
+              max: 5,
+              ticks: { stepSize: 1 },
+              grid: { color: '#f1f5f9' }
+            },
+            y: { grid: { display: false } }
+          }
+        }
+      });
+    }
+
     function generate() {
       let html = '';
       if (mode === 'food') {
         const d = FOOD_DATA[document.getElementById('genre').value];
         const p = PRICE_NOTE[document.getElementById('price').value];
-        html = d.wines.map(w => `<div class="wine-card">🍾 <strong>${w}</strong></div>`).join('')
-          + `<p style="font-size:13px;color:#555;margin-top:10px;">${d.tips}</p>`
+        const labels = d.wines.map(w => w.name);
+        const scores = d.wines.map(w => w.score);
+
+        html = '<div style="background:#f8f4ff;border-left:4px solid #7c3aed;padding:12px;margin-bottom:14px;border-radius:6px;">'
+          + '<p style="font-size:13px;font-weight:600;color:#7c3aed;margin:0;display:flex;align-items:center;gap:6px;"><span>✨ 相性度スコア（最大5★）</span></p>'
+          + '</div>';
+
+        html += d.wines.map(w => {
+          const stars = '★'.repeat(w.score) + '☆'.repeat(5-w.score);
+          return `<div class="wine-card" style="border-left:4px solid #7c3aed;padding-left:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <strong style="font-size:13px;">${w.name}</strong>
+              <span style="color:#7c3aed;font-weight:600;font-size:12px;">${stars}</span>
+            </div>
+            <p style="font-size:12px;color:#666;margin:0;">${w.reason}</p>
+          </div>`;
+        }).join('');
+
+        html += `<p style="font-size:13px;color:#555;margin-top:10px;">${d.tips}</p>`
           + `<p style="font-size:12px;color:#888;margin-top:6px;">💰 ${p}</p>`;
+
+        createChart(labels, scores);
       } else {
         const d = WINE_DATA[document.getElementById('wtype').value];
-        html = '<p style="font-size:13px;font-weight:600;margin-bottom:8px;">おすすめ料理：</p>'
-          + d.foods.map(f => `<div class="wine-card">🍽️ ${f}</div>`).join('')
+        const labels = d.foods.map(f => f.name);
+        const scores = d.foods.map(f => f.score);
+
+        html = '<p style="font-size:13px;font-weight:600;margin-bottom:8px;">📋 おすすめ料理（相性度スコア）</p>'
+          + d.foods.map(f => {
+            const stars = '★'.repeat(f.score) + '☆'.repeat(5-f.score);
+            return `<div class="wine-card" style="border-left:4px solid #7c3aed;padding-left:12px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="font-size:13px;">🍽️ ${f.name}</span>
+                <span style="color:#7c3aed;font-weight:600;font-size:12px;">${stars}</span>
+              </div>
+              <p style="font-size:12px;color:#666;margin:0;">${f.reason}</p>
+            </div>`;
+          }).join('')
           + `<p style="font-size:13px;color:#555;margin-top:10px;">${d.tips}</p>`;
+
+        createChart(labels, scores);
       }
+
       document.getElementById('output').innerHTML = html;
       document.getElementById('result').classList.add('show');
+      saveToLocalStorage();
+      saveHistoryEntry(html);
       document.getElementById('result').scrollIntoView({behavior:'smooth', block:'start'});
     }
-    </script>
+
+    function printResult() {
+      window.print();
+    }
+
+    function clearHistory() {
+      if (confirm('すべての履歴をクリアしますか？')) {
+        localStorage.removeItem('pairingData');
+        localStorage.removeItem('pairingHistory');
+        document.getElementById('genre').value = 'wafood';
+        document.getElementById('price').value = 'low';
+        document.getElementById('wtype').value = 'red_light';
+        document.getElementById('result').classList.remove('show');
+        mode = 'food';
+        document.getElementById('tab-food').classList.add('active');
+        document.getElementById('tab-wine').classList.remove('active');
+        document.getElementById('pane-food').style.display = '';
+        document.getElementById('pane-wine').style.display = 'none';
+        renderHistoryList();
+        showToast('✓ 履歴をクリアしました');
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadFromLocalStorage();
+      renderHistoryList();
+      document.getElementById('genre')?.addEventListener('change', saveToLocalStorage);
+      document.getElementById('price')?.addEventListener('change', saveToLocalStorage);
+      document.getElementById('wtype')?.addEventListener('change', saveToLocalStorage);
+    });
+</script>
 
     <!-- Amazon アフィリエイト -->
     <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px;margin:16px auto;max-width:500px;text-align:center;">

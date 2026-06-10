@@ -41,6 +41,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"カメラ設定アドバイザー","description":"撮影シーン・光量・被写体から最適なカメラ設定（F値・SS・ISO）を提案。登録不要・完全無料でご利用いただけます。","url":"https://appadaycreator.com/photography-settings-advisor/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"author":{"@type":"Organization","name":"AppADayCreator","url":"https://appadaycreator.com/"}}</script>
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "カメラ設定アドバイザーは無料で使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、完全無料でご利用いただけます。登録・ログイン・アプリのインストールも不要です。"}}, {"@type": "Question", "name": "何回でも診断できますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、何度でもご利用いただけます。条件を変えて繰り返し診断してみてください。"}}, {"@type": "Question", "name": "スマートフォンでも使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、スマートフォン・タブレット・PCすべてのデバイスに対応しています。"}}, {"@type": "Question", "name": "診断結果は保存されますか？", "acceptedAnswer": {"@type": "Answer", "text": "結果はブラウザには保存されません。スクリーンショットやSNSシェアでご記録ください。"}}, {"@type": "Question", "name": "入力したデータはサーバーに送信されますか？", "acceptedAnswer": {"@type": "Answer", "text": "いいえ。すべての処理はブラウザ内で完結し、個人情報・入力データのサーバー送信は行いません。"}}]}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"カメラ設定アドバイザー【無料】無料診断・アドバイスの使い方","step":[{"@type":"HowToStep","position":1,"name":"必要事項を入力する","text":"フォームに必要な情報（数値・選択肢・条件）を入力または選択する"},{"@type":"HowToStep","position":2,"name":"診断・計算を実行する","text":"「診断する」「計算する」または「確認する」ボタンを押して結果を取得する"},{"@type":"HowToStep","position":3,"name":"結果・分析を確認する","text":"表示された診断結果・計算結果・グラフをじっくり確認する"},{"@type":"HowToStep","position":4,"name":"アドバイスを活用する","text":"結果に基づくアドバイスや提案を日常生活に取り入れる"},{"@type":"HowToStep","position":5,"name":"定期的に再チェックする","text":"生活変化に応じて定期的に再診断して進捗を追跡する"}]}</script>
@@ -148,6 +150,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <li>一眼・ミラーレス対応</li>
           </ul>
           <button class="btn" onclick="startQuiz()">診断スタート →</button>
+          <button id="restore-btn" class="btn" style="display:none;background:#64748b;margin-top:8px;" onclick="restoreState()">📥 前回のデータから再開する</button>
         </div>
 
         <div id="quiz-area" style="display:none;" class="card">
@@ -169,6 +172,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <p id="r-subtitle" style="font-size:13px;color:#94a3b8;text-align:center;margin-bottom:16px;"></p>
             <div id="r-settings" style="margin-bottom:12px;"></div>
             <div id="r-tips"></div>
+            <div id="r-charts" style="margin:16px 0;"></div>
             <div id="r-share-buttons"></div>
             <button class="btn" style="margin-top:16px;" onclick="location.reload()">もう一度診断する</button>
           </div>
@@ -459,9 +463,38 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     let cur = 0;
     let sceneIdx = 0, lightIdx = 0, distanceIdx = 0, styleIdx = 0, tripodIdx = 0;
+    const STORAGE_KEY = 'photo_settings_advisor_state';
+
+    function saveState() {
+      const state = { sceneIdx, lightIdx, distanceIdx, styleIdx, tripodIdx };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function loadState() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : null;
+    }
+
+    function checkSavedState() {
+      const saved = loadState();
+      if (saved) {
+        const restoreBtn = document.getElementById('restore-btn');
+        if (restoreBtn) restoreBtn.style.display = 'block';
+      }
+    }
+
+    function restoreState() {
+      const saved = loadState();
+      if (!saved) return;
+      sceneIdx = saved.sceneIdx;
+      lightIdx = saved.lightIdx;
+      distanceIdx = saved.distanceIdx;
+      styleIdx = saved.styleIdx;
+      tripodIdx = saved.tripodIdx;
+      startQuiz();
+    }
 
     function startQuiz() {
-      cur = 0; sceneIdx = 0; lightIdx = 0; distanceIdx = 0; styleIdx = 0; tripodIdx = 0;
       document.getElementById('quiz-start').style.display = 'none';
       document.getElementById('quiz-area').style.display = 'block';
       document.getElementById('result').classList.remove('show');
@@ -510,6 +543,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if (cur === 2) distanceIdx = idx;
       if (cur === 3) styleIdx = idx;
       if (cur === 4) tripodIdx = idx;
+      saveState();
       cur++;
       if (cur >= QUESTIONS.length) { showResult(); return; }
       renderQ();
@@ -579,8 +613,81 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;background:#1DA1F2;color:white;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;">𝕏 シェア</a>
             <a href="https://line.me/R/msg/text/?${encodeURIComponent(shareText + '\n' + shareUrl)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;background:#00B900;color:white;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;">LINE</a>
           </div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+          <button onclick="(function(){cur=0;sceneIdx=0;lightIdx=0;distanceIdx=0;styleIdx=0;tripodIdx=0;localStorage.removeItem(STORAGE_KEY);document.getElementById('result').classList.remove('show');document.getElementById('quiz-start').style.display='block';checkSavedState()})()" style="background:#64748b;color:white;padding:8px 16px;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;min-height:36px;">🔄 別の条件で診断</button>
         </div>`;
       document.getElementById('result').classList.add('show');
+
+      // グラフ描画（非同期）
+      setTimeout(() => drawCharts(r), 100);
+    }
+
+    function drawCharts(result) {
+      const chartsContainer = document.getElementById('r-charts');
+      chartsContainer.innerHTML = `
+        <div style="margin-bottom:24px;">
+          <h3 style="font-size:14px;font-weight:700;color:#1f2937;margin-bottom:12px;">📊 設定値の可視化</h3>
+          <canvas id="settingChart" style="max-width:100%;height:240px;"></canvas>
+        </div>
+        <div>
+          <canvas id="radarChart" style="max-width:100%;height:240px;"></canvas>
+        </div>
+      `;
+
+      const apertureMap = { 'f/1.4': 1.4, 'f/1.8': 1.8, 'f/2.0': 2.0, 'f/2.8': 2.8, 'f/4.0': 4.0, 'f/5.6': 5.6, 'f/8.0': 8.0, 'f/11': 11, 'f/16': 16 };
+      const shutterMap = { '1/8000': 8000, '1/4000': 4000, '1/2000': 2000, '1/1000': 1000, '1/500': 500, '1/250': 250, '1/125': 125, '1/60': 60, '1秒': 1, '8秒': 0.125, '15秒': 0.067, '30秒': 0.033 };
+      const isoMap = { 'ISO 100': 100, 'ISO 200': 200, 'ISO 400': 400, 'ISO 800': 800, 'ISO 1600': 1600, 'ISO 3200': 3200, 'ISO 6400': 6400 };
+
+      const apertureVal = Math.max(...result.aperture.split('〜').map(s => apertureMap[s.trim()] || 2.8));
+      const shutterVal = Math.max(...result.shutter.split('〜').map(s => shutterMap[s.trim()] || 500));
+      const isoVal = Math.max(...result.iso.split('〜').map(s => isoMap[s.trim()] || 400));
+
+      // 棒グラフ
+      const ctx1 = document.getElementById('settingChart').getContext('2d');
+      new Chart(ctx1, {
+        type: 'bar',
+        data: {
+          labels: ['絞り\n(F値)', 'シャッタースピード\n(1/xx)', 'ISO感度'],
+          datasets: [{
+            label: '現在の設定',
+            data: [apertureVal, shutterVal / 100, isoVal / 100],
+            backgroundColor: ['#D97706', '#4F46E5', '#10B981'],
+            borderRadius: 8,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, ticks: { callback: function(v) { return v; } } } }
+        }
+      });
+
+      // レーダーチャート
+      const ctx2 = document.getElementById('radarChart').getContext('2d');
+      new Chart(ctx2, {
+        type: 'radar',
+        data: {
+          labels: ['明るさ(絞り)', 'シャッター速度', 'ISO感度', '深度', '手ブレ耐性'],
+          datasets: [{
+            label: '現在設定',
+            data: [apertureVal / 16 * 100, Math.min(shutterVal / 80, 100), Math.min(isoVal / 64, 100), 75, 80],
+            borderColor: '#D97706',
+            backgroundColor: '#D9770620',
+            borderWidth: 2,
+            pointBackgroundColor: '#D97706',
+            tension: 0.2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: true, position: 'bottom' } },
+          scales: { r: { min: 0, max: 100, ticks: { stepSize: 25 } } }
+        }
+      });
     }
     </script>
 
@@ -647,6 +754,8 @@ AI導入・業務自動化・Webサービス開発のご相談はこちら。</p
     btn.style.display = window.scrollY > 400 ? 'block' : 'none';
   }, {passive:true});
 })();
+// ページ読み込み時に保存済みデータをチェック
+checkSavedState();
 </script>
 </body>
 </html>

@@ -37,6 +37,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -138,10 +139,22 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <option value="cost">節約・コスパ重視</option>
           </select>
           <button class="btn" style="margin-top:20px;" onclick="calculate()">プランを作成する</button>
+          <div id="history-section" style="margin-top:16px;padding:12px;background:#f0f9ff;border:1px solid #bfdbfe;border-radius:8px;display:none;">
+            <p style="font-size:12px;font-weight:600;color:#0c4a6e;margin-bottom:8px;">📚 計算履歴</p>
+            <div id="history-list" style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;"></div>
+          </div>
           <div class="result" id="result" style="margin-top:16px;">
             <div class="card">
               <div id="output"></div>
               <p id="detail" style="color:#666;font-size:13px;margin-top:8px;"></p>
+              <div id="chart-container" style="margin-top:16px;display:none;">
+                <h3 style="font-size:14px;font-weight:700;color:#EA580C;margin-bottom:12px;">📊 調理時間の配分</h3>
+                <canvas id="timeChart" style="max-height:200px;"></canvas>
+              </div>
+              <div id="ingredient-chart-container" style="margin-top:16px;display:none;">
+                <h3 style="font-size:14px;font-weight:700;color:#EA580C;margin-bottom:12px;">🛒 食材数の内訳</h3>
+                <canvas id="ingredientChart" style="max-height:200px;"></canvas>
+              </div>
               <div id="export-buttons" style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
                 <button class="btn" style="background:#10b981;flex:1;min-width:140px;padding:10px;font-size:14px;" onclick="copyShoppingList()">📋 買い出しリストをコピー</button>
                 <button class="btn" style="background:#3b82f6;flex:1;min-width:140px;padding:10px;font-size:14px;" onclick="downloadShoppingList()">💾 テキスト保存</button>
@@ -378,6 +391,51 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     };
     let lastRecipeList = [];
     let lastIngredients = {};
+    let timeChart = null;
+    let ingredientChart = null;
+
+    function saveToLocalStorage(data) {
+      try {
+        let history = JSON.parse(localStorage.getItem('mealPrepHistory') || '[]');
+        history.unshift({...data, timestamp: new Date().toLocaleString('ja-JP')});
+        history = history.slice(0, 20);
+        localStorage.setItem('mealPrepHistory', JSON.stringify(history));
+      } catch(e) { console.error('Storage error:', e); }
+    }
+
+    function loadFromLocalStorage() {
+      try {
+        const history = JSON.parse(localStorage.getItem('mealPrepHistory') || '[]');
+        if(history.length > 0) {
+          const last = history[0];
+          document.getElementById('val1').value = last.people;
+          document.getElementById('val2').value = last.minutes;
+          document.getElementById('val3').value = last.style;
+        }
+        updateHistoryUI(history);
+      } catch(e) { console.error('Load error:', e); }
+    }
+
+    function updateHistoryUI(history) {
+      const section = document.getElementById('history-section');
+      const list = document.getElementById('history-list');
+      if(!history.length) { section.style.display = 'none'; return; }
+      section.style.display = 'block';
+      list.innerHTML = '';
+      history.slice(0, 5).forEach((h, idx) => {
+        const btn = document.createElement('button');
+        btn.style.cssText = 'padding:8px 10px;background:#fff;border:1px solid #bfdbfe;border-radius:6px;font-size:12px;text-align:left;cursor:pointer;color:#0c4a6e;';
+        btn.innerHTML = `${h.timestamp} | ${h.people}人・${h.minutes}分・${['栄養','時短','節約'][['balance','quick','cost'].indexOf(h.style)]}`;
+        btn.onclick = () => {
+          document.getElementById('val1').value = h.people;
+          document.getElementById('val2').value = h.minutes;
+          document.getElementById('val3').value = h.style;
+          calculate();
+        };
+        list.appendChild(btn);
+      });
+    }
+
     function calcLogic(vals) {
       const people = vals[0]; const minutes = vals[1];
       const style = document.getElementById('val3').value;
@@ -393,7 +451,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       selected.forEach(r => { html += `<li style="margin-bottom:6px;font-size:13px;"><b>${r.name}</b>（約${r.time}分）<br><span style="color:#888;font-size:12px;">材料：${r.ing}</span></li>`; });
       html += `</ul><p style="font-size:13px;font-weight:700;margin-bottom:4px;">🛒 買い出しリスト</p><p style="font-size:13px;color:#555;background:#FFEDD5;padding:10px;border-radius:8px;" id="shopping-list">${Object.keys(ingSet).join('・')}</p>`;
       const detail = `合計調理時間：約${used}分 ／ ${selected.length}品 ／ 残り${minutes - used}分で後片付けも余裕あり`;
-      return {result: html, detail};
+      return {result: html, detail, recipes: selected, ingredients: Object.keys(ingSet), used, people, minutes, style};
     }
     function copyShoppingList(){
       const text = document.getElementById('shopping-list')?.textContent || '';
@@ -431,17 +489,103 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       });
       container.innerHTML += `</div>`;
     }
+    function renderCharts(data) {
+      const chartContainer = document.getElementById('chart-container');
+      const ingredientContainer = document.getElementById('ingredient-chart-container');
+      if(!data.recipes || !data.recipes.length) return;
+
+      chartContainer.style.display = 'block';
+      ingredientContainer.style.display = 'block';
+
+      if(timeChart) timeChart.destroy();
+      const timeCtx = document.getElementById('timeChart').getContext('2d');
+      timeChart = new Chart(timeCtx, {
+        type: 'doughnut',
+        data: {
+          labels: data.recipes.map(r => r.name),
+          datasets: [{
+            data: data.recipes.map(r => r.time),
+            backgroundColor: ['#EA580C', '#F97316', '#FB923C', '#FDBA74', '#FED7AA'],
+            borderColor: '#fff',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                font: {size: 11},
+                padding: 8,
+                boxWidth: 10
+              }
+            }
+          }
+        }
+      });
+
+      if(ingredientChart) ingredientChart.destroy();
+      const ingCtx = document.getElementById('ingredientChart').getContext('2d');
+      const ingCounts = {};
+      data.recipes.forEach(r => {
+        r.ing.split('・').forEach(i => {
+          const ing = i.trim();
+          ingCounts[ing] = (ingCounts[ing] || 0) + 1;
+        });
+      });
+      const topIngs = Object.entries(ingCounts).sort((a,b)=>b[1]-a[1]).slice(0, 8);
+      ingredientChart = new Chart(ingCtx, {
+        type: 'bar',
+        data: {
+          labels: topIngs.map(x => x[0]),
+          datasets: [{
+            label: '使用回数',
+            data: topIngs.map(x => x[1]),
+            backgroundColor: '#3b82f6',
+            borderColor: '#1e40af',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            x: {
+              ticks: {stepSize: 1},
+              beginAtZero: true
+            }
+          }
+        }
+      });
+    }
+
     document.addEventListener('DOMContentLoaded',()=>{
       CFG.inputs.forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') calculate(); }); });
+      loadFromLocalStorage();
     });
+
     function calculate(){
       const vals=CFG.inputs.map(id=>parseFloat(document.getElementById(id)?.value)||0);
       if(!vals[0]){ alert(CFG.error); return; }
-      const {result,detail}=calcLogic(vals);
-      document.getElementById('output').innerHTML=typeof result==='number'?result.toLocaleString():result;
-      const d=document.getElementById('detail'); if(d) d.textContent=detail||'';
+      const data=calcLogic(vals);
+      if(typeof data.result === 'string' && !data.recipes) {
+        document.getElementById('output').innerHTML = data.result;
+        const d=document.getElementById('detail'); if(d) d.textContent=data.detail||'';
+        document.getElementById('result').classList.add('show');
+        return;
+      }
+      document.getElementById('output').innerHTML=typeof data.result==='number'?data.result.toLocaleString():data.result;
+      const d=document.getElementById('detail'); if(d) d.textContent=data.detail||'';
       document.getElementById('result').classList.add('show');
+      renderCharts(data);
       generateShoppingLinks();
+      saveToLocalStorage({people: data.people, minutes: data.minutes, style: data.style});
     }
     </script>
 <!-- A8アフィリエイト: RIZAP COOK -->

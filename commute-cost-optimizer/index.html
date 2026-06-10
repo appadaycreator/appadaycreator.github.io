@@ -39,6 +39,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"通勤コスト最適化診断","description":"電車・バス・車・自転車の通勤コストを比較して最適な通勤方法を診断。登録不要・完全無料でご利用いただけます。","url":"https://appadaycreator.com/commute-cost-optimizer/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"author":{"@type":"Organization","name":"AppADayCreator","url":"https://appadaycreator.com/"}}</script>
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "通勤コスト最適化診断は無料で使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、完全無料・登録不要でご利用いただけます。"}}, {"@type": "Question", "name": "何回でも使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、回数制限なく何度でもご利用いただけます。"}}, {"@type": "Question", "name": "入力したデータはサーバーに送信されますか？", "acceptedAnswer": {"@type": "Answer", "text": "いいえ。すべての処理はブラウザ内で完結し、入力内容はサーバーへ送信されません。"}}, {"@type": "Question", "name": "スマートフォンでも使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、スマートフォン・タブレット・PCすべてに最適化されています。"}}, {"@type": "Question", "name": "結果を保存・共有できますか？", "acceptedAnswer": {"@type": "Answer", "text": "スクリーンショットでの保存またはSNSシェアボタンからご共有いただけます。"}}]}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"通勤コスト最適化診断【無料】簡単・無料計算の使い方","step":[{"@type":"HowToStep","position":1,"name":"必要事項を入力する","text":"フォームに必要な情報（数値・選択肢・条件）を入力または選択する"},{"@type":"HowToStep","position":2,"name":"診断・計算を実行する","text":"「診断する」「計算する」または「確認する」ボタンを押して結果を取得する"},{"@type":"HowToStep","position":3,"name":"結果・分析を確認する","text":"表示された診断結果・計算結果・グラフをじっくり確認する"},{"@type":"HowToStep","position":4,"name":"アドバイスを活用する","text":"結果に基づくアドバイスや提案を日常生活に取り入れる"},{"@type":"HowToStep","position":5,"name":"定期的に再チェックする","text":"生活変化に応じて定期的に再診断して進捗を追跡する"}]}</script>
@@ -210,7 +212,22 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="card">
             <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#16A34A;">✅ 診断結果</h3>
             <div id="output"></div>
+            <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn" style="flex:1;background:#4f46e5;font-size:13px;padding:10px;min-height:auto;" onclick="copyResultToClipboard()">📋 結果をコピー</button>
+              <button class="btn" style="flex:1;background:#6b7280;font-size:13px;padding:10px;min-height:auto;" onclick="window.print()">🖨️ 印刷する</button>
+            </div>
+            <canvas id="costChart" style="margin-top:16px;"></canvas>
+            <div id="scoreGauge" style="margin-top:12px;text-align:center;"></div>
           </div>
+        </div>
+
+        <!-- 履歴セクション -->
+        <div class="card" style="margin-top:8px;">
+          <h3 style="font-size:14px;font-weight:700;margin-bottom:10px;color:#374151;">📜 計算履歴</h3>
+          <div id="history-list" style="display:flex;flex-direction:column;gap:8px;">
+            <p style="font-size:12px;color:#999;text-align:center;">まだ履歴がありません</p>
+          </div>
+          <button class="btn" style="background:#ef4444;font-size:13px;padding:10px;min-height:auto;margin-top:8px;" onclick="clearHistory()">🗑️ 履歴をクリア</button>
         </div>
 
         <!-- 関連サービス -->
@@ -325,9 +342,142 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     
 <script>
     const BTN_COLOR = '#16A34A';
+    let chart = null;
+
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('days').value = 20;
+      loadHistory();
+      loadLastData();
     });
+
+    function saveData(dist, days, currentCost, modes) {
+      const data = {
+        dist: parseFloat(dist),
+        days: parseInt(days),
+        currentCost: parseInt(currentCost) || 0,
+        modes: modes,
+        timestamp: new Date().toLocaleString('ja-JP')
+      };
+      let history = JSON.parse(localStorage.getItem('commuteHistory')) || [];
+      history.unshift(data);
+      if (history.length > 10) history.pop();
+      localStorage.setItem('commuteHistory', JSON.stringify(history));
+      loadHistory();
+    }
+
+    function loadLastData() {
+      const history = JSON.parse(localStorage.getItem('commuteHistory')) || [];
+      if (history.length > 0) {
+        const last = history[0];
+        document.getElementById('dist').value = last.dist;
+        document.getElementById('days').value = last.days;
+        document.getElementById('current-cost').value = last.currentCost;
+        document.getElementById('c-train').checked = last.modes.includes('train');
+        document.getElementById('c-car').checked = last.modes.includes('car');
+        document.getElementById('c-bike').checked = last.modes.includes('bike');
+        document.getElementById('c-walk').checked = last.modes.includes('walk');
+      }
+    }
+
+    function loadHistory() {
+      const history = JSON.parse(localStorage.getItem('commuteHistory')) || [];
+      const list = document.getElementById('history-list');
+
+      if (history.length === 0) {
+        list.innerHTML = '<p style="font-size:12px;color:#999;text-align:center;">まだ履歴がありません</p>';
+        return;
+      }
+
+      list.innerHTML = history.map((item, i) => `
+        <div style="padding:8px;background:#f9fafb;border-radius:6px;border-left:3px solid #4f46e5;cursor:pointer;" onclick="restoreData(${i})">
+          <p style="font-size:12px;font-weight:600;color:#1f2937;margin:0 0 4px;">距離: ${item.dist}km | 出勤: ${item.days}日</p>
+          <p style="font-size:11px;color:#6b7280;margin:0;">${item.timestamp}</p>
+        </div>
+      `).join('');
+    }
+
+    function restoreData(index) {
+      const history = JSON.parse(localStorage.getItem('commuteHistory')) || [];
+      if (index < 0 || index >= history.length) return;
+      const item = history[index];
+      document.getElementById('dist').value = item.dist;
+      document.getElementById('days').value = item.days;
+      document.getElementById('current-cost').value = item.currentCost;
+      document.getElementById('c-train').checked = item.modes.includes('train');
+      document.getElementById('c-car').checked = item.modes.includes('car');
+      document.getElementById('c-bike').checked = item.modes.includes('bike');
+      document.getElementById('c-walk').checked = item.modes.includes('walk');
+      generate();
+    }
+
+    function clearHistory() {
+      if (confirm('履歴をすべて削除しますか？')) {
+        localStorage.removeItem('commuteHistory');
+        loadHistory();
+      }
+    }
+
+    function drawChart(costs) {
+      const ctx = document.getElementById('costChart').getContext('2d');
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: costs.map(c => c.name),
+          datasets: [{
+            label: '月額コスト（円）',
+            data: costs.map(c => c.monthly),
+            backgroundColor: costs.map((c, i) => i === 0 ? '#16A34A' : '#cbd5e1'),
+            borderRadius: 6,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: true, position: 'top' },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => `¥${ctx.parsed.y.toLocaleString()}/月`
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                callback: (val) => `¥${val.toLocaleString()}`
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function drawScoreGauge(best, costs) {
+      const minCost = best.monthly;
+      const maxCost = Math.max(...costs.map(c => c.monthly)) || 1;
+      const score = Math.max(0, Math.round(100 * (1 - minCost / (maxCost + 1))));
+      const gaugeColor = score >= 80 ? '#16A34A' : score >= 50 ? '#f59e0b' : '#ef4444';
+
+      document.getElementById('scoreGauge').innerHTML = `
+        <div style="text-align:center;padding:16px;">
+          <p style="font-size:12px;color:#666;margin:0 0 8px;">最適度スコア</p>
+          <div style="width:120px;height:120px;margin:0 auto;border-radius:50%;background:conic-gradient(${gaugeColor} 0deg ${score*3.6}deg, #e5e7eb ${score*3.6}deg);display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:700;color:${gaugeColor};text-shadow:0 0 10px rgba(0,0,0,0.1);">${score}</div>
+          <p style="font-size:13px;font-weight:600;color:${gaugeColor};margin:8px 0 0;">最も効率的な通勤方法です</p>
+        </div>
+      `;
+    }
+
+    function copyResultToClipboard() {
+      const output = document.getElementById('output').innerText;
+      navigator.clipboard.writeText(output).then(() => {
+        alert('結果をコピーしました');
+      }).catch(() => {
+        alert('コピーに失敗しました');
+      });
+    }
 
     function generate() {
       const dist = parseFloat(document.getElementById('dist').value);
@@ -336,22 +486,27 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if (isNaN(dist) || dist <= 0) { alert('片道距離を入力してください'); return; }
       if (isNaN(days) || days < 1) { alert('出勤日数を入力してください'); return; }
 
+      const modes = [];
       const costs = [];
       if (document.getElementById('c-train').checked) {
         const one = Math.round(dist * 15 + 150);
         costs.push({name:'電車・バス', monthly: one * 2 * days, icon:'🚃', note:'IC運賃概算'});
+        modes.push('train');
       }
       if (document.getElementById('c-car').checked) {
         const gas = Math.round(dist * 2 * days * 15 / 15);
         const parking = dist > 10 ? 10000 : 5000;
         costs.push({name:'自家用車', monthly: gas + parking, icon:'🚗', note:`ガソリン代+駐車場代目安`});
+        modes.push('car');
       }
       if (document.getElementById('c-bike').checked) {
         const maint = Math.round(dist > 20 ? 3000 : dist > 10 ? 1500 : 800);
         costs.push({name:'自転車', monthly: maint, icon:'🚲', note:'メンテナンス費のみ'});
+        modes.push('bike');
       }
       if (document.getElementById('c-walk').checked) {
         costs.push({name:'徒歩', monthly: 0, icon:'🚶', note: dist > 5 ? '※5km超は現実的でない場合も' : '体にも節約にも最適'});
+        modes.push('walk');
       }
       if (costs.length === 0) { alert('交通手段を選択してください'); return; }
 
@@ -373,6 +528,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       html += `<p style="font-size:12px;color:#999;margin-top:12px;">※概算値です。実際の運賃・費用は各機関にご確認ください。</p>`;
 
       document.getElementById('output').innerHTML = html;
+      drawChart(costs);
+      drawScoreGauge(best, costs);
+      saveData(dist, days, current, modes);
       document.getElementById('result').classList.add('show');
       document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }

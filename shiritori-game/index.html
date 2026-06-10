@@ -20,6 +20,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
+  <!-- Chart.js for M4 visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
   <!-- Google Tag Manager -->
   <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-ZDPNYD2875"></script>
@@ -247,6 +249,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="score-display" style="margin-top:1rem;">
       <div class="score-box"><div class="sv player-score" id="resultPlayerWin">0</div><div class="sl">あなたの勝利数</div></div>
       <div class="score-box"><div class="sv cpu-score" id="resultCpuWin">0</div><div class="sl">CPUの勝利数</div></div>
+    </div>
+    <!-- M4: Chart.js 勝敗グラフ -->
+    <div id="sh-chart-container" style="margin-top:1.2rem;background:rgba(255,255,255,0.05);border-radius:12px;padding:1rem;display:none;">
+      <div style="font-size:.85rem;color:#b0bec5;margin-bottom:.75rem;font-weight:600;">📊 勝敗分析</div>
+      <canvas id="sh-result-chart" style="max-height:250px;"></canvas>
     </div>
     <!-- 横展開#13: ランキング表示 -->
     <div id="sh-ranking-display" style="margin-top:.75rem;font-size:.85rem;background:rgba(255,255,255,0.05);border-radius:10px;padding:.6rem .8rem;"></div>
@@ -684,6 +691,74 @@ function endGame(reason) {
   document.getElementById('resultDesc').textContent = m.desc;
   saveShiritoriRanking(playerWins, cpuWins);
   renderShiritoriRanking();
+  renderShiritoriChart(); // M4: Chart.js グラフを描画
+}
+
+// M4: Chart.js グラフ描画
+function renderShiritoriChart() {
+  const playerWins = parseInt(document.getElementById('resultPlayerWin')?.textContent || '0');
+  const cpuWins = parseInt(document.getElementById('resultCpuWin')?.textContent || '0');
+  const container = document.getElementById('sh-chart-container');
+  const canvas = document.getElementById('sh-result-chart');
+  if (!canvas || !container) return;
+
+  // 既存のチャートがあれば破棄
+  if (window.shResultChart) {
+    window.shResultChart.destroy();
+  }
+
+  // 現在のゲーム結果グラフ
+  const total = playerWins + cpuWins || 1;
+  const playerPercent = Math.round((playerWins / total) * 100);
+  const cpuPercent = Math.round((cpuWins / total) * 100);
+
+  window.shResultChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: ['あなた', 'CPU'],
+      datasets: [{
+        label: '勝利数',
+        data: [playerWins, cpuWins],
+        backgroundColor: ['rgba(128,203,196,0.7)', 'rgba(206,147,216,0.7)'],
+        borderColor: ['#80cbc4', '#ce93d8'],
+        borderWidth: 2,
+        borderRadius: 8,
+        barThickness: 'flex',
+        maxBarThickness: 100
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      indexAxis: 'y',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          titleColor: '#fff',
+          bodyColor: '#fff',
+          padding: 12,
+          displayColors: false,
+          callbacks: {
+            label: ctx => `${ctx.parsed.x}勝 (${Math.round((ctx.parsed.x / total) * 100)}%)`
+          }
+        }
+      },
+      scales: {
+        x: {
+          beginAtZero: true,
+          ticks: { color: '#b0bec5', font: { size: 12 } },
+          grid: { color: 'rgba(255,255,255,0.05)' }
+        },
+        y: {
+          ticks: { color: '#b0bec5', font: { size: 13, weight: 'bold' } },
+          grid: { display: false }
+        }
+      }
+    }
+  });
+
+  container.style.display = 'block';
 }
 
 // 横展開#13: ランキング機能

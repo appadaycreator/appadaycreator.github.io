@@ -60,6 +60,7 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e)
                     
     <!-- CDNライブラリ -->
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     
     <!-- Google Tag Manager -->
     <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
@@ -327,13 +328,16 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 }
 
 @media print{
-  header,footer,nav,button,.no-print,
+  header,footer,nav,.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
   [id*="affiliate"],[id*="banner"],
   script,noscript{display:none!important}
   body{background:#fff!important;color:#000!important;font-size:12pt}
   [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
   a[href]::after{content:none!important}
+  #cq-endgame-modal{position:static!important;background:none!important;align-items:unset!important;justify-content:unset!important;inset:unset!important;padding:0!important;display:block!important}
+  #cq-endgame-modal > div{border:none!important;box-shadow:none!important;padding:0!important;max-width:100%!important;width:100%!important}
+  #cq-copy-result-btn{display:none!important}
 }
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;}
 /* カードコンポーネント共通スタイル */
@@ -2142,6 +2146,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 // P2: ステージクリア時は正解表示を非表示
                 const lastAnsElSC = document.getElementById('cq-last-answer');
                 if (lastAnsElSC) lastAnsElSC.style.display = 'none';
+                // M4: スコアグラフ表示
+                renderScoreChart(accuracy, gameState.score, prevBest);
                 // F9: 正解グラフ表示
                 renderAttemptGraph();
                 // F18: ランキング表示
@@ -2997,6 +3003,83 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             dots.innerHTML = history.map((h, i) =>
                 `<span class="attempt-dot ${h ? 'correct' : 'incorrect'}" title="問題${i+1}: ${h ? '正解' : '不正解'}">${h ? '○' : '×'}</span>`
             ).join('');
+        }
+
+        // M4: スコアグラフ表示（Chart.js）
+        function renderScoreChart(accuracy, score, prevBest) {
+            const container = document.getElementById('cq-score-chart-container');
+            const canvas = document.getElementById('cq-score-chart');
+            if (!container || !canvas || typeof Chart === 'undefined') return;
+
+            container.style.display = 'block';
+
+            // 前回スコアを取得（localStorage）
+            const prevScore = localStorage.getItem('cq_last_score_' + gameState.difficulty) || 0;
+
+            // グラフ内容: 今回スコア vs 前回スコア vs ベストスコア
+            const ctx = canvas.getContext('2d');
+
+            // 既存チャートがあれば破棄
+            if (window.cqScoreChartInstance) {
+                window.cqScoreChartInstance.destroy();
+            }
+
+            window.cqScoreChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['今回', '前回', 'ベスト'],
+                    datasets: [{
+                        label: 'スコア',
+                        data: [score, prevScore, prevBest],
+                        backgroundColor: ['#22d3ee', '#94a3b8', '#fbbf24'],
+                        borderRadius: 6,
+                        borderSkipped: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            max: Math.max(score, prevBest) * 1.1
+                        }
+                    }
+                }
+            });
+
+            // 今回スコアを保存
+            localStorage.setItem('cq_last_score_' + gameState.difficulty, score);
+        }
+
+        // M10: スコアをクリップボードにコピー
+        function cqCopyScoreToClipboard() {
+            const accuracy = gameState.totalAttempts > 0
+                ? Math.round((gameState.correctAnswers / gameState.totalAttempts) * 100) : 0;
+            const clearSecs = gameState.gameStartTime ? Math.floor((Date.now() - gameState.gameStartTime) / 1000) : 0;
+            const clearTimeStr = clearSecs >= 60 ? `${Math.floor(clearSecs/60)}分${clearSecs%60}秒` : `${clearSecs}秒`;
+            const diffLabel = { easy: '初級', medium: '中級', hard: '上級' }[gameState.difficulty] || gameState.difficulty;
+
+            const text = `🧪 ケミカルクエスト - スコア報告\n難易度: ${diffLabel}\nスコア: ${gameState.score}点\n正解率: ${accuracy}%\nクリアタイム: ${clearTimeStr}\nhttps://appadaycreator.com/chemical-quest/`;
+
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => {
+                    const btn = document.getElementById('cq-copy-result-btn');
+                    if (btn) {
+                        const original = btn.textContent;
+                        btn.textContent = '✅ コピーしました';
+                        setTimeout(() => { btn.textContent = original; }, 2000);
+                    }
+                }).catch(() => {
+                    alert('コピーに失敗しました');
+                });
+            } else {
+                alert('このブラウザではコピー機能に対応していません');
+            }
         }
 
         // ━━━ F10: プレイ回数バッジ ━━━
@@ -3977,6 +4060,11 @@ document.addEventListener('click', function(e) {
         <div id="cq-modal-best" style="font-size:.8rem;color:#6b7280;margin-bottom:12px;"></div>
         <!-- F18: ランキング -->
         <div id="cq-ranking-display" style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;margin-bottom:14px;"></div>
+        <!-- M4: スコア・正解率グラフ（Chart.js） -->
+        <div id="cq-score-chart-container" style="margin-bottom:16px;display:none;">
+            <p style="font-size:.72rem;color:#6b7280;margin-bottom:8px;font-weight:600;">📈 成績グラフ</p>
+            <canvas id="cq-score-chart" style="max-height:200px;"></canvas>
+        </div>
         <!-- F9: 正解グラフ -->
         <div id="cq-attempt-graph" style="margin-bottom:16px;display:none;">
             <p style="font-size:.72rem;color:#6b7280;margin-bottom:6px;font-weight:600;">📊 正解パターン</p>
@@ -3998,6 +4086,13 @@ document.addEventListener('click', function(e) {
           </div>
         </div>
         <div id="cq-modal-next-diff"></div>
+        <!-- M10: 印刷・エクスポート機能 -->
+        <div style="background:#e0f2fe;border:1px solid #bae6fd;border-radius:12px;padding:12px;margin-bottom:12px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <button onclick="window.print()" style="background:#0369a1;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;font-size:.85rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;">🖨️ 印刷</button>
+            <button onclick="cqCopyScoreToClipboard()" id="cq-copy-result-btn" style="background:#0369a1;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:700;font-size:.85rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;">📋 コピー</button>
+          </div>
+        </div>
         <!-- Next Steps Navigation -->
         <div style="background:#f3e8ff;border:1px solid #e9d5ff;border-radius:12px;padding:12px;margin-bottom:12px;">
           <p style="font-size:.75rem;font-weight:700;color:#6d28d9;margin:0 0 8px;text-align:center;">🎯 次は何をする？</p>

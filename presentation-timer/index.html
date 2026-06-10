@@ -103,9 +103,12 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
   [class*="share"],[class*="affiliate"],[id*="share"],
   [id*="affiliate"],[id*="banner"],
   script,noscript{display:none!important}
-  body{background:#fff!important;color:#000!important;font-size:12pt}
+  body{background:#fff!important;color:#000!important;font-size:11pt;margin:0;padding:10mm}
   [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
   a[href]::after{content:none!important}
+  #timer-card{box-shadow:none!important;border:1px solid #ccc!important;page-break-inside:avoid}
+  #phase-label,#slide-info{display:block!important}
+  .card{box-shadow:none!important;border:1px solid #ddd!important}
 }
 
 /* AdSense unfilled: collapse empty ad slots */
@@ -190,6 +193,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <button id="pause-btn" onclick="togglePause()" style="background:#0284C7;color:white;border:none;padding:12px 24px;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;min-height:48px;">一時停止 ⏸</button>
               <button onclick="resetTimer()" style="background:#e2e8f0;color:#333;border:none;padding:12px 24px;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;min-height:48px;">リセット 🔄</button>
               <button id="restart-btn" onclick="restartTimer()" style="display:none;background:#10b981;color:white;border:none;padding:12px 24px;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;min-height:48px;">もう一度実行 ▶</button>
+            </div>
+            <div id="result-actions" style="margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0;display:none;">
+              <p style="font-size:13px;font-weight:600;color:#555;margin-bottom:10px;text-align:center;">📤 結果の保存・共有</p>
+              <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+                <button onclick="copyResult(this)" style="background:#8b5cf6;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;min-height:44px;">📋 コピー</button>
+                <button onclick="window.print()" style="background:#6366f1;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;min-height:44px;">🖨️ 印刷</button>
+                <button onclick="downloadCSV()" style="background:#06b6d4;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;min-height:44px;">📥 履歴DL</button>
+              </div>
             </div>
             <div id="result-graph" style="margin-top:20px;"></div>
           </div>
@@ -422,6 +433,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const card = document.getElementById('timer-card');
       card.classList.remove('timer-warn', 'timer-critical');
       document.getElementById('result').classList.add('show');
+      document.getElementById('result-actions').style.display = 'none';
       document.getElementById('result').scrollIntoView({behavior: 'smooth'});
       updateDisplay();
       acquireWakeLock();
@@ -449,6 +461,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         document.getElementById('phase-label').style.color = '#EF4444';
         document.getElementById('pause-btn').style.display = 'none';
         document.getElementById('restart-btn').style.display = 'inline-block';
+        document.getElementById('result-actions').style.display = 'block';
         /* 終了ビープ（3回） */
         beep(880, 0.2);
         setTimeout(() => beep(880, 0.2), 300);
@@ -477,6 +490,63 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('pause-btn').textContent = paused ? '再開 ▶' : '一時停止 ⏸';
       if (paused) releaseWakeLock(); else acquireWakeLock();
     }
+    /* M10: 結果テキストコピー機能 */
+    function copyResult(btn) {
+      const m = currentConfig.min, s = currentConfig.sec;
+      const slides = currentConfig.slides || 0;
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}年${String(now.getMonth()+1).padStart(2,'0')}月${String(now.getDate()).padStart(2,'0')}日 ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+      let text = `【プレゼンタイマー実行結果】\n`;
+      text += `━━━━━━━━━━━━━━━━━━━━━\n\n`;
+      text += `📊 設定時間\n`;
+      text += `  合計: ${m}分${s}秒\n`;
+      if (slides > 0) {
+        const perSlide = Math.floor((m * 60 + s) / slides);
+        text += `\n📑 スライド配分\n`;
+        text += `  枚数: ${slides}枚\n`;
+        text += `  1枚あたり: 約${Math.floor(perSlide/60)}分${perSlide%60}秒\n`;
+      }
+      text += `\n⏰ 実行日時\n`;
+      text += `  ${dateStr}\n\n`;
+      text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+      text += `このテキストを使用してメモ・資料に貼り付けることができます。\n`;
+
+      navigator.clipboard.writeText(text).then(() => {
+        if (btn) {
+          const orig = btn.textContent;
+          btn.textContent = '✅ コピー完了！';
+          setTimeout(() => { btn.textContent = orig; }, 2000);
+        }
+      }).catch(err => alert('コピーに失敗しました'));
+    }
+    /* M10: 履歴CSVダウンロード機能 */
+    function downloadCSV() {
+      if (history.length === 0) { alert('履歴がありません'); return; }
+      const now = new Date();
+      const exportDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+
+      let csv = `プレゼンタイマー実行履歴\n`;
+      csv += `エクスポート日時: ${now.getFullYear()}年${String(now.getMonth()+1).padStart(2,'0')}月${String(now.getDate()).padStart(2,'0')}日\n`;
+      csv += `\n`;
+      csv += `実行日時,設定時間(分),設定時間(秒),スライド枚数,1枚あたり目安(秒)\n`;
+
+      history.forEach(h => {
+        const perSlide = h.slides > 0 ? Math.floor((h.mins * 60 + h.secs) / h.slides) : 0;
+        csv += `"${h.date}",${h.mins},${h.secs},${h.slides||0},"${h.slides > 0 ? perSlide : '-'}"\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `presentation-timer-${exportDate}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
     function resetTimer() {
       clearInterval(timer);
       timer = null;
@@ -489,6 +559,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('pause-btn').textContent = '一時停止 ⏸';
       document.getElementById('pause-btn').style.display = 'block';
       document.getElementById('restart-btn').style.display = 'none';
+      document.getElementById('result-actions').style.display = 'none';
       document.getElementById('result-graph').innerHTML='';
       updateDisplay();
     }
@@ -501,6 +572,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('pause-btn').style.display = 'block';
       document.getElementById('restart-btn').style.display = 'none';
       document.getElementById('pause-btn').textContent = '一時停止 ⏸';
+      document.getElementById('result-actions').style.display = 'none';
       document.getElementById('result-graph').innerHTML='';
       updateDisplay();
       acquireWakeLock();

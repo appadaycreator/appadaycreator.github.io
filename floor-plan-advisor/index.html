@@ -35,6 +35,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <!-- Chart.js: グラフ・可視化用 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -128,6 +130,22 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
+/* M3: 履歴セクション */
+.history-section { background: #f0f9ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+.history-item { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; transition: background .15s, border-color .15s; }
+.history-item:hover { background: #f8fafc; border-color: #7c3aed; }
+.history-item-time { font-size: 11px; color: #94a3b8; margin-bottom: 2px; }
+.history-item-title { font-size: 13px; font-weight: 600; color: #1f2937; }
+/* M4: グラフコンテナ */
+#characteristic-chart-container { margin: 16px 0; padding: 14px; background: #f8fafc; border-radius: 10px; }
+#characteristic-chart { max-height: 250px; }
+/* M10: 印刷・エクスポートボタン */
+.export-button-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 12px 0; }
+.export-btn { background: #10b981; color: white; border: none; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; gap: 6px; transition: opacity .2s; }
+.export-btn:hover { opacity: 0.9; }
+.export-btn:active { transform: scale(0.98); }
+.export-btn.print-btn { background: #6366f1; }
+.export-btn.copy-btn { background: #f59e0b; }
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://appadaycreator.com/"},{"@type":"ListItem","position":2,"name":"診断/アドバイス","item":"https://appadaycreator.com/category/advisor/"},{"@type":"ListItem","position":3,"name":"間取り選び診断【無料】無料診断・アドバイス","item":"https://appadaycreator.com/floor-plan-advisor/"}]}</script>
 </head>
@@ -171,6 +189,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <p style="color:#666;font-size:14px;margin-bottom:8px;">家族構成・ライフスタイル・予算から、あなたに最適な間取りタイプ（1K〜4LDK以上）と具体的な注意点を診断します。</p>
           <ul style="font-size:13px;color:#94a3b8;margin:0 0 16px 16px;"><li>質問数：6問</li><li>所要時間：約1〜2分</li><li>登録・ログイン不要</li></ul>
           <button class="btn" onclick="startQuiz()">診断スタート →</button>
+        </div>
+
+        <!-- M3: 診断履歴セクション -->
+        <div class="card history-section" id="history-section" style="display:none;">
+          <h3 style="font-size:14px;font-weight:700;color:#1e3a5f;margin-bottom:10px;display:flex;align-items:center;gap:6px;">📋 前回までの診断結果</h3>
+          <div id="history-list" style="margin-bottom:10px;"></div>
+          <button class="btn-ghost" onclick="clearHistory()" style="width:100%;">履歴をクリア</button>
         </div>
 
         <!-- 診断エリア -->
@@ -220,6 +245,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
             <!-- 予算注釈（必要時のみ表示） -->
             <div id="r-budget-note" class="budget-note" style="display:none;"></div>
+
+            <!-- M4: 特性を視覚化したチャート -->
+            <div id="characteristic-chart-container" style="display:none;">
+              <p style="font-size:13px;font-weight:600;color:#374151;margin-bottom:10px;">🎯 この間取りの特性（5段階）</p>
+              <canvas id="characteristic-chart"></canvas>
+            </div>
+
+            <!-- M10: 印刷・エクスポートボタン -->
+            <div class="export-button-row">
+              <button class="export-btn print-btn" onclick="printResult()" aria-label="診断結果を印刷">🖨️ 印刷</button>
+              <button class="export-btn copy-btn" onclick="copyResultToClipboard()" aria-label="診断結果をコピー">📋 コピー</button>
+            </div>
 
             <!-- 再診断ボタン -->
             <button class="btn" style="margin-top:18px;" onclick="location.reload()">もう一度診断する</button>
@@ -518,6 +555,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('q-total').textContent = QUESTIONS.length;
+      // M3: ページ読み込み時に履歴を表示
+      renderHistoryUI();
     });
 
     function startQuiz() {
@@ -615,6 +654,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       // 使用例セクションを生成（P2）
       renderUsageExamples();
 
+      // M4: グラフを描画
+      renderCharacteristicChart(key);
+
+      // M3: 履歴に保存
+      saveResultToHistory(key);
+
       document.getElementById('result').classList.add('show');
       // 結果にスムーズスクロール
       document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -696,6 +741,264 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if (examplesEl) {
         examplesEl.innerHTML = html;
       }
+    }
+
+    // M3: localStorage - 診断結果を保存
+    function saveResultToHistory(resultKey) {
+      try {
+        const timestamp = new Date().toLocaleString('ja-JP');
+        const historyKey = 'floorPlanHistory';
+        let history = [];
+
+        const stored = localStorage.getItem(historyKey);
+        if (stored) {
+          try {
+            history = JSON.parse(stored);
+          } catch (e) {
+            history = [];
+          }
+        }
+
+        // 新しい結果を先頭に追加（最大10件保存）
+        history.unshift({
+          resultKey: resultKey,
+          title: RESULTS[resultKey].title,
+          timestamp: timestamp
+        });
+        history = history.slice(0, 10);
+
+        localStorage.setItem(historyKey, JSON.stringify(history));
+        renderHistoryUI();
+      } catch (e) {
+        console.log('localStorage unavailable:', e);
+      }
+    }
+
+    // M3: 履歴UIを描画
+    function renderHistoryUI() {
+      try {
+        const historyKey = 'floorPlanHistory';
+        const stored = localStorage.getItem(historyKey);
+        let history = [];
+
+        if (stored) {
+          try {
+            history = JSON.parse(stored);
+          } catch (e) {
+            history = [];
+          }
+        }
+
+        const historySection = document.getElementById('history-section');
+        const historyList = document.getElementById('history-list');
+
+        if (!historyList) return;
+
+        if (history.length === 0) {
+          historySection.style.display = 'none';
+          return;
+        }
+
+        historySection.style.display = 'block';
+        historyList.innerHTML = history.map((item, i) => `
+          <div class="history-item" onclick="restoreFromHistory('${item.resultKey}')">
+            <div class="history-item-time">${item.timestamp}</div>
+            <div class="history-item-title">${item.title}</div>
+          </div>
+        `).join('');
+      } catch (e) {
+        console.log('履歴表示エラー:', e);
+      }
+    }
+
+    // M3: 履歴から復元
+    function restoreFromHistory(resultKey) {
+      // 該当する回答スコアを再現（簡略版：結果キーから逆算）
+      document.getElementById('quiz-area').style.display = 'none';
+      document.getElementById('quiz-start').style.display = 'none';
+
+      // 結果を直接表示
+      const r = RESULTS[resultKey];
+      const budgetNote = '';
+      const pageUrl = 'https://appadaycreator.com/floor-plan-advisor/';
+
+      document.getElementById('r-budget').textContent = r.budgetLabel;
+      document.getElementById('r-title').textContent = r.title;
+      document.getElementById('r-subtitle').textContent = r.subtitle;
+      document.getElementById('r-desc').textContent = r.desc;
+      document.getElementById('r-pros').innerHTML = r.pros.map(p => `<li>${p}</li>`).join('');
+
+      const consList = document.getElementById('r-cons');
+      if (consList) consList.innerHTML = r.cons.map(c => `<li>${c}</li>`).join('');
+      const consSection = document.getElementById('cons-section');
+      if (consSection) consSection.style.display = 'none';
+
+      const checkpointsList = document.getElementById('r-checkpoints');
+      if (checkpointsList) checkpointsList.innerHTML = r.checkpoints.map(c => `<li>${c}</li>`).join('');
+      const checkpointsSection = document.getElementById('checkpoints-section');
+      if (checkpointsSection) checkpointsSection.style.display = 'none';
+
+      document.getElementById('r-budget-note').style.display = 'none';
+
+      const prosSummary = r.pros[0] || '最適な間取りが見つかりました';
+      const shareText = `間取り診断で「${r.title}」が最適！👉${prosSummary} #間取り診断 #無料ツール`;
+      document.getElementById('share-x').href =
+        `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(pageUrl)}`;
+      document.getElementById('share-line').href =
+        `https://line.me/R/msg/text/?${encodeURIComponent(shareText + '\n' + pageUrl)}`;
+
+      renderComparisonTable(resultKey);
+      renderUsageExamples();
+      renderCharacteristicChart(resultKey);
+
+      document.getElementById('result').classList.add('show');
+      document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // M3: 履歴をクリア
+    function clearHistory() {
+      if (confirm('履歴をすべてクリアしますか？')) {
+        try {
+          localStorage.removeItem('floorPlanHistory');
+          renderHistoryUI();
+        } catch (e) {
+          console.log('履歴削除エラー:', e);
+        }
+      }
+    }
+
+    // M4: 特性チャートを描画（Chart.js）
+    function renderCharacteristicChart(resultKey) {
+      const chartData = getCharacteristicData(resultKey);
+
+      const container = document.getElementById('characteristic-chart-container');
+      const canvas = document.getElementById('characteristic-chart');
+
+      if (!container || !canvas) return;
+
+      container.style.display = 'block';
+
+      // 既存のチャートが있으면 破棄
+      if (window.floorPlanChart && typeof window.floorPlanChart.destroy === 'function') {
+        window.floorPlanChart.destroy();
+      }
+
+      const ctx = canvas.getContext('2d');
+      window.floorPlanChart = new Chart(ctx, {
+        type: 'radar',
+        data: {
+          labels: chartData.labels,
+          datasets: [{
+            label: resultKey,
+            data: chartData.scores,
+            borderColor: '#7c3aed',
+            backgroundColor: 'rgba(124, 58, 237, 0.15)',
+            borderWidth: 2,
+            pointBackgroundColor: '#7c3aed',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          scales: {
+            r: {
+              beginAtZero: true,
+              max: 5,
+              ticks: {
+                stepSize: 1,
+                font: { size: 11 },
+                color: '#9ca3af'
+              },
+              grid: { color: '#e5e7eb' },
+              angleLines: { color: '#e5e7eb' }
+            }
+          },
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              bodyFont: { size: 13 },
+              padding: 10,
+              backgroundColor: 'rgba(31, 41, 55, 0.8)',
+              titleFont: { size: 13 }
+            }
+          }
+        }
+      });
+    }
+
+    // M4: 間取りタイプごとの特性スコア（1-5）
+    function getCharacteristicData(resultKey) {
+      const characteristicsMap = {
+        '1K': { コンパクト: 5, 予算安: 5, 独立性: 2, 拡張性: 1, 収納: 2 },
+        '1LDK': { コンパクト: 4, 予算安: 4, 独立性: 4, 拡張性: 2, 収納: 3 },
+        '2LDK': { コンパクト: 3, 予算安: 3, 独立性: 4, 拡張性: 3, 収納: 4 },
+        '3LDK': { コンパクト: 2, 予算安: 2, 独立性: 5, 拡張性: 4, 収納: 5 },
+        '4LDK': { コンパクト: 1, 予算安: 1, 独立性: 5, 拡張性: 5, 収納: 5 }
+      };
+
+      const data = characteristicsMap[resultKey] || characteristicsMap['2LDK'];
+      return {
+        labels: Object.keys(data),
+        scores: Object.values(data)
+      };
+    }
+
+    // M10: 診断結果を印刷
+    function printResult() {
+      window.print();
+    }
+
+    // M10: 診断結果をクリップボードにコピー
+    function copyResultToClipboard() {
+      try {
+        const r = RESULTS[lastResultKey];
+        if (!r) return alert('結果が見つかりません');
+
+        let text = `【間取り選び診断結果】\n\n`;
+        text += `推奨間取り: ${r.title}\n`;
+        text += `${r.subtitle}\n\n`;
+        text += `予算目安: ${r.budgetLabel}\n\n`;
+        text += `説明:\n${r.desc}\n\n`;
+        text += `こんな方に向いている:\n${r.pros.map(p => '・' + p).join('\n')}\n\n`;
+        text += `注意点:\n${r.cons.map(c => '・' + c).join('\n')}\n\n`;
+        text += `内見チェックポイント:\n${r.checkpoints.map(c => '・' + c).join('\n')}\n\n`;
+        text += `---\n間取り選び診断\nhttps://appadaycreator.com/floor-plan-advisor/`;
+
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(text).then(() => {
+            alert('診断結果をクリップボードにコピーしました！');
+          }).catch(() => {
+            fallbackCopy(text);
+          });
+        } else {
+          fallbackCopy(text);
+        }
+      } catch (e) {
+        alert('コピーに失敗しました');
+      }
+    }
+
+    // M10: Clipboard API が使えない場合の代替案
+    function fallbackCopy(text) {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        alert('診断結果をクリップボードにコピーしました！');
+      } catch (e) {
+        alert('コピーに失敗しました');
+      }
+      document.body.removeChild(textarea);
     }
     </script>
     <!-- rakuten-affiliate-block -->

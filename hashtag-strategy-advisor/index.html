@@ -191,10 +191,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <h2 style="font-size:18px;font-weight:700;margin-bottom:12px;">#️⃣ ハッシュタグ戦略診断</h2>
           <p style="color:#666;font-size:14px;margin-bottom:20px;">Instagram・Twitter(X)での拡散を最大化するハッシュタグ戦略を、6つの質問で診断・提案します！</p>
           <button class="btn" onclick="startQuiz()">診断スタート →</button>
+          <div id="history-area" style="margin-top:20px;"></div>
         </div>
         <div id="quiz-area" style="display:none;">
-          <div style="font-size:12px;color:#999;margin-bottom:8px;">
-            質問 <span id="q-num">1</span> / <span id="q-total">5</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="font-size:12px;color:#999;">質問 <span id="q-num">1</span> / <span id="q-total">5</span></div>
+            <button onclick="goBack()" style="background:none;border:none;color:#06B6D4;font-size:12px;cursor:pointer;padding:4px 8px;text-decoration:underline;">← 戻る</button>
           </div>
           <div id="q-progress" style="height:4px;background:#e5e7eb;border-radius:2px;margin-bottom:16px;">
             <div id="q-bar" style="height:100%;background:#06B6D4;border-radius:2px;transition:width .3s;width:20%;"></div>
@@ -205,6 +207,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="result" id="result">
           <div class="card">
             <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;color:#06B6D4;"></h3>
+            <div id="result-chart"></div>
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
             <button class="btn" style="margin-top:16px;" onclick="location.reload()">もう一度診断</button>
           </div>
@@ -296,8 +299,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 </main>
 
     
-<script>
-    // ★ここだけ実装（約15行）★
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+    <script>
+    // M3: localStorage + 履歴機能 / M4: Chart.js可視化
     const QUESTIONS = [
       { text:'主に投稿するSNSはどれですか？', opts:['Instagram メイン','Twitter(X) メイン','両方使う','これから始める'] },
       { text:'アカウントのジャンルは？', opts:['ライフスタイル・日常','グルメ・旅行','ビジネス・スキル','趣味・エンタメ'] },
@@ -306,8 +310,42 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       { text:'1投稿あたりのハッシュタグ数は？', opts:['3個以下','5〜10個','15〜20個','30個（上限）'] },
       { text:'ハッシュタグのサイズ（投稿数）の使い分けは？', opts:['大・中・小をバランスよく使う','大きいものだけ使う','小さいニッチなものだけ使う','あまり考えていない'] },
     ];
+
+    function calcScore(answers){
+      let score=0;
+      const sns=answers[0].idx;
+      const genre=answers[1].idx;
+      const size=answers[2].idx;
+      const goal=answers[3].idx;
+      const tagCount=answers[4].idx;
+      const tagBalance=answers[5].idx;
+      score+=(sns<3?25:15);
+      score+=(genre<2?20:15);
+      score+=(size>1?20:10);
+      score+=(goal<2?25:15);
+      score+=(tagCount>=1?20:10);
+      score+=(tagBalance===0?25:15);
+      return Math.min(100,score);
+    }
+    function calcCategoryScores(answers){
+      const sns=answers[0].idx;
+      const genre=answers[1].idx;
+      const size=answers[2].idx;
+      const goal=answers[3].idx;
+      const tagCount=answers[4].idx;
+      const tagBalance=answers[5].idx;
+      return {
+        platform:(sns<3?25:15),
+        genre:(genre<2?20:15),
+        reach:(size>1?20:10),
+        goal:(goal<2?25:15),
+        tactics:(tagCount>=1?20:10),
+        balance:(tagBalance===0?25:15)
+      };
+    }
+
     function getResult(answers){
-      const sns=answers[0].idx; // 0=IG,1=Twitter,2=both,3=new
+      const sns=answers[0].idx;
       const genre=answers[1].idx;
       const size=answers[2].idx;
       const goal=answers[3].idx;
@@ -329,14 +367,67 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }
       if(sns===3) strategy='まずはInstagramで15個前後から試しましょう。大中小を5個ずつ組み合わせるのが基本です。';
       const tips=useSmall?'ニッチなハッシュタグは競合が少なく上位表示しやすいため、引き続き活用してください。':'大タグだけでは埋もれやすいです。1万投稿以下のニッチタグを3〜5個混ぜると発見率が上がります。';
+      const catScores=calcCategoryScores(answers);
       return {
         title:`#️⃣ ${genreStr}×${goalStr}に最適なハッシュタグ戦略`,
-        desc:`${strategy} ${tips} 投稿後24時間のエンゲージメントが高いほど、次の投稿でハッシュタグが効きやすくなります。定期的にインサイトを確認しながら最適なタグを見つけていきましょう！`
+        desc:`${strategy} ${tips} 投稿後24時間のエンゲージメントが高いほど、次の投稿でハッシュタグが効きやすくなります。定期的にインサイトを確認しながら最適なタグを見つけていきましょう！`,
+        score:calcScore(answers),
+        categoryScores:catScores,
+        answers:answers
       };
     }
-    // ★以下変更不要★
+
+    function saveHistory(result){
+      let history=JSON.parse(localStorage.getItem('hashtag_history')||'[]');
+      const historyItem={timestamp:new Date().toLocaleString('ja-JP'),result,answers:result.answers};
+      history.unshift(historyItem);
+      history=history.slice(0,10);
+      localStorage.setItem('hashtag_history',JSON.stringify(history));
+      // 最後の入力値も単独で保存（簡単復元用）
+      localStorage.setItem('hashtag_last_answers',JSON.stringify(result.answers));
+    }
+
+    function restoreHistory(idx){
+      const history=JSON.parse(localStorage.getItem('hashtag_history')||'[]');
+      if(history[idx]){
+        const result=history[idx].result;
+        ans.length=0;
+        result.answers.forEach(a=>ans.push(a));
+        cur=QUESTIONS.length;
+        showResult();
+      }
+    }
+
+    function showHistoryList(){
+      const history=JSON.parse(localStorage.getItem('hashtag_history')||'[]');
+      if(history.length===0){
+        document.getElementById('history-area').innerHTML='<p style="color:#999;font-size:13px;text-align:center;padding:10px;">前回の診断履歴はありません</p>';
+        return;
+      }
+      let html='<div style="margin-bottom:10px;"><button onclick="restoreLast()" style="width:100%;background:#dbeafe;border:2px solid #06B6D4;border-radius:8px;padding:12px;cursor:pointer;font-size:13px;font-weight:700;color:#06B6D4;transition:all .2s">⚡ 前回の入力から復元</button></div>';
+      html+=history.map((h,i)=>`
+        <button onclick="restoreHistory(${i})" style="width:100%;background:#f0f9ff;border:1px solid #86c7f3;border-radius:8px;padding:10px 12px;margin-bottom:6px;text-align:left;cursor:pointer;font-size:13px;transition:all .2s">
+          <div style="color:#06B6D4;font-weight:600;">${h.result.title}</div>
+          <div style="color:#999;font-size:11px;margin-top:3px;">スコア: ${h.result.score}点 | ${h.timestamp}</div>
+        </button>
+      `).join('');
+      document.getElementById('history-area').innerHTML=html;
+    }
+    function restoreLast(){
+      const answers=JSON.parse(localStorage.getItem('hashtag_last_answers')||'null');
+      if(!answers){alert('前回の入力データがありません');return;}
+      ans.length=0;
+      answers.forEach(a=>ans.push(a));
+      cur=QUESTIONS.length;
+      document.getElementById('quiz-start').style.display='none';
+      document.getElementById('quiz-area').style.display='none';
+      showResult();
+    }
     const BTN='#06B6D4'; let cur=0; const ans=[];
-    document.addEventListener('DOMContentLoaded',()=>{ document.getElementById('q-total').textContent=QUESTIONS.length; });
+    document.addEventListener('DOMContentLoaded',()=>{
+      document.getElementById('q-total').textContent=QUESTIONS.length;
+      showHistoryList();
+    });
     function startQuiz(){ cur=0;ans.length=0; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); renderQ(); }
     function renderQ(){
       const q=QUESTIONS[cur];
@@ -344,14 +435,61 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('q-bar').style.width=((cur+1)/QUESTIONS.length*100)+'%';
       document.getElementById('q-text').textContent=q.text;
       document.getElementById('q-options').innerHTML=q.opts.map((o,i)=>`<button class="quiz-opt" onclick="answer(${i})">${o}</button>`).join('');
+      document.querySelectorAll('.quiz-opt')[0]?.focus();
+    }
+    function goBack(){
+      if(cur>0){ans.pop();cur--;renderQ();}else{location.reload();}
     }
     function answer(idx){ ans.push({idx}); cur++; if(cur>=QUESTIONS.length) showResult(); else renderQ(); }
     function showResult(){
       document.getElementById('quiz-area').style.display='none';
       const r=getResult(ans);
+      saveHistory(r);
       document.getElementById('r-title').textContent=r.title;
       document.getElementById('r-desc').textContent=r.desc;
       document.getElementById('result').classList.add('show');
+      setTimeout(()=>{
+        const chartContainer=document.getElementById('result-chart');
+        if(chartContainer&&typeof Chart!=='undefined'){
+          // スコアゲージ + カテゴリ別棒グラフ
+          const gaugeColor=r.score>=80?'#22c55e':r.score>=50?'#eab308':'#ef4444';
+          chartContainer.innerHTML=`
+            <div style="text-align:center;margin:20px 0;">
+              <div style="font-size:48px;font-weight:700;color:${gaugeColor};margin-bottom:4px;">${r.score}</div>
+              <div style="font-size:12px;color:#666;margin-bottom:12px;">総合スコア / 100点</div>
+              <div style="background:#e5e7eb;border-radius:10px;height:12px;width:100%;overflow:hidden;margin-bottom:20px;">
+                <div style="background:${gaugeColor};height:100%;width:${r.score}%;transition:width .5s;"></div>
+              </div>
+            </div>
+            <canvas id="categoryChart" style="max-width:280px;margin:20px auto;display:block;"></canvas>
+            <div style="font-size:12px;color:#666;text-align:center;margin-top:16px;">
+              <span style="display:inline-block;background:#06B6D4;color:white;padding:2px 8px;border-radius:4px;margin:2px;">プラットフォーム</span>
+              <span style="display:inline-block;background:#7c3aed;color:white;padding:2px 8px;border-radius:4px;margin:2px;">ジャンルマッチ</span>
+              <span style="display:inline-block;background:#06b6d4;color:white;padding:2px 8px;border-radius:4px;margin:2px;">リーチ</span>
+            </div>
+          `;
+          const scores=r.categoryScores;
+          new Chart(document.getElementById('categoryChart'),{
+            type:'bar',
+            data:{
+              labels:['プラ\\nットフォーム','ジャンル\\nマッチ','リーチ','目的\\nマッチ','戦術\\nポイント','バランス度'],
+              datasets:[{
+                label:'カテゴリスコア',
+                data:[scores.platform,scores.genre,scores.reach,scores.goal,scores.tactics,scores.balance],
+                backgroundColor:['#06B6D4','#7c3aed','#06b6d4','#f59e0b','#ec4899','#10b981'],
+                borderRadius:4,
+                borderSkipped:false
+              }]
+            },
+            options:{
+              indexAxis:'x',
+              responsive:true,
+              plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'スコア: '+c.parsed.y+'点'}}},
+              scales:{y:{max:30,ticks:{stepSize:10,color:'#999',font:{size:11}}}}
+            }
+          });
+        }
+      },100);
     }
     </script>
     <!-- rakuten-affiliate-block -->

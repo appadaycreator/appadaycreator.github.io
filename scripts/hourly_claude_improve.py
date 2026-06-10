@@ -991,7 +991,7 @@ def _restore_missing_a8_pairs(idx: Path, saved: list[dict], repo: str) -> int:
     return len(missing)
 
 
-def run_improve(service: dict, pre_issues: list[str]) -> tuple[bool, str]:
+def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> tuple[bool, str]:
     """指定サービスに /improve_auto を実行。(成功フラグ, stdout) を返す。"""
     no = service["no"]
     repo = service["repo"]
@@ -1044,6 +1044,8 @@ def run_improve(service: dict, pre_issues: list[str]) -> tuple[bool, str]:
     if pre_issues:
         sorted_issues = sorted(pre_issues, key=lambda x: int(_re2.search(r'M(\d+)', x).group(1)) if _re2.search(r'M(\d+)', x) else 99)
         cmd += f"\n\n事前スキャン済み問題（優先度順）: {', '.join(sorted_issues)}"
+    if retry_hint:
+        cmd += f"\n\n【リトライ指示】前回の改善後チェックで以下が未反映でした。これらを最優先で実装してください:\n{retry_hint}"
     if saved_af:
         cmd += (
             f"\n\n⚠️ このページには{len(saved_af)}件のA8.netアフィリエイトリンク（px.a8.net）が"
@@ -1052,35 +1054,45 @@ def run_improve(service: dict, pre_issues: list[str]) -> tuple[bool, str]:
     pending_high = [i for i in pre_issues if _re2.match(r'\[M(1[0-3]|[1-9])\]', i)]
     log(f"実行: /improve_auto {no} {repo} (未実施高優先: {pending_high or 'なし'}, 全:{len(pre_issues)}件, AF保護:{len(saved_af)}件)")
 
-    try:
-        env = os.environ.copy()
-        env["HOURLY_IMPROVE"] = "1"  # Telegram通知を/improve_auto側でスキップさせる
-        result = subprocess.run(
-            [str(CLAUDE_BIN), "--dangerously-skip-permissions", "-p", cmd,
-             "--model", CLAUDE_MODEL,
-             "--output-format", "text",
-             "--max-turns", "35"],
-            cwd=str(WORKSPACE / repo),
-            capture_output=True,
-            text=True,
-            timeout=TIMEOUT_SEC,
-            env=env,
-        )
-        if result.returncode == 0:
-            # アフィリエイトリンク保護チェック（消えていれば自動復元）
-            if saved_af:
-                _restore_missing_a8_pairs(idx, saved_af, repo)
-            log(f"✓ {repo}: 完了")
-            return True, result.stdout
-        else:
-            log(f"✗ {repo}: 失敗 (code={result.returncode})\n{result.stderr[:300]}")
-            return False, ""
-    except subprocess.TimeoutExpired:
-        log(f"✗ {repo}: タイムアウト({TIMEOUT_SEC}s)")
-        return False, ""
-    except Exception as e:
-        log(f"✗ {repo}: エラー: {e}")
-        return False, ""
+    _cmd_args = [str(CLAUDE_BIN), "--dangerously-skip-permissions", "-p", cmd,
+                 "--model", CLAUDE_MODEL,
+                 "--output-format", "text",
+                 "--max-turns", "35"]
+
+    for attempt in range(1, 3):  # 最大2回試行（初回 + 1リトライ）
+        try:
+            env = os.environ.copy()
+            env["HOURLY_IMPROVE"] = "1"  # Telegram通知を/improve_auto側でスキップさせる
+            result = subprocess.run(
+                _cmd_args,
+                cwd=str(WORKSPACE / repo),
+                capture_output=True,
+                text=True,
+                timeout=TIMEOUT_SEC,
+                env=env,
+            )
+            if result.returncode == 0:
+                # アフィリエイトリンク保護チェック（消えていれば自動復元）
+                if saved_af:
+                    _restore_missing_a8_pairs(idx, saved_af, repo)
+                log(f"✓ {repo}: 完了" + (f" (attempt={attempt})" if attempt > 1 else ""))
+                return True, result.stdout
+            else:
+                stderr_snippet = result.stderr.strip()[:200]
+                log(f"✗ {repo}: 失敗 (code={result.returncode}, attempt={attempt}){' ' + stderr_snippet if stderr_snippet else ''}")
+                if attempt < 2:
+                    log(f"  → 60秒後にリトライします...")
+                    time.sleep(60)
+        except subprocess.TimeoutExpired:
+            log(f"✗ {repo}: タイムアウト({TIMEOUT_SEC}s, attempt={attempt})")
+            if attempt < 2:
+                time.sleep(30)
+        except Exception as e:
+            log(f"✗ {repo}: エラー: {e} (attempt={attempt})")
+            if attempt < 2:
+                time.sleep(30)
+
+    return False, ""
 
 
 SLEEP_BETWEEN = 300   # 改善完了後の次サービスまでの待機秒数（5分）
@@ -1331,8 +1343,34 @@ def _worker(worker_id: int, stop_event, sheets_factory):
                 time.sleep(3)  # ファイル反映の待機
                 v_ok, v_detail, v_html = verify_deployed_url(svc["repo"])
                 if v_ok:
-                    v_markers = check_improvement_markers(pre_issues, v_html)
+                    v_markers, v_failed = check_improvement_markers(pre_issues, v_html)
                     log(f"[W{worker_id}]   ✅ URL確認OK: {v_detail}  {v_markers}")
+                    initial_v_markers = v_markers  # リトライ前の結果を保存
+                    # ❌マーカーがある場合: 原因特定して再改善 → 再確認
+                    if v_failed:
+                        log(f"[W{worker_id}]   ❌ 未反映マーカー: {v_failed} → リトライ実行")
+                        retry_hint = "前回改善後チェックで未反映だった施策: " + ", ".join(v_failed)
+                        ok_r, stdout_r = run_improve(svc, v_failed, retry_hint=retry_hint)
+                        if ok_r:
+                            stdout = stdout_r
+                            time.sleep(3)
+                            v_ok2, v_detail2, v_html2 = verify_deployed_url(svc["repo"])
+                            if v_ok2:
+                                v_markers, v_failed2 = check_improvement_markers(v_failed, v_html2)
+                                v_detail = v_detail2
+                                if v_failed2:
+                                    log(f"[W{worker_id}]   ❌ リトライ後も未反映: {v_failed2} → 失敗扱い")
+                                    v_markers = f"{initial_v_markers} → 🔄リトライ → {v_markers}"
+                                    ok = False
+                                else:
+                                    log(f"[W{worker_id}]   ✅ リトライ後全チェック通過")
+                                    v_markers = f"{initial_v_markers} → 🔄リトライ → ✅全チェック通過"
+                            else:
+                                log(f"[W{worker_id}]   ⚠️ リトライ後URL確認失敗: {v_detail2}")
+                                ok = False
+                        else:
+                            log(f"[W{worker_id}]   ❌ リトライ実行失敗 → 失敗扱い")
+                            ok = False
                 else:
                     log(f"[W{worker_id}]   ⚠️ URL確認失敗: {v_detail}")
                     send_telegram(
