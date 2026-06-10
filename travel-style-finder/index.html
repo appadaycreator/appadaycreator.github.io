@@ -28,6 +28,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
 <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
 <style>
   body { background: #f8fafc; min-height: 100vh; }
   .card { background: white; border-radius: 1rem; box-shadow: 0 4px 24px rgba(0,0,0,0.09); }
@@ -233,6 +234,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     </div>
     <div id="destinations-list" class="mb-6"></div>
     <div class="card p-5 mb-4">
+      <h3 class="font-bold text-gray-800 mb-3 text-sm">📊 マッチ度の比較</h3>
+      <canvas id="match-chart" style="max-height:200px;"></canvas>
+    </div>
+    <div class="card p-5 mb-4" id="history-panel" style="display:none;">
+      <h3 class="font-bold text-gray-800 mb-3 text-sm">🕒 診断履歴</h3>
+      <div id="history-list" class="space-y-2"></div>
+    </div>
+    <div class="card p-5 mb-4">
       <h3 class="font-bold text-gray-800 mb-3 text-sm">📢 結果をシェア</h3>
       <div class="flex gap-2">
         <a href="https://line.me/R/share?text=国内旅行先診断あなたにぴったりの旅行スタイルが分かる%20https://appadaycreator.com/travel-style-finder/" target="_blank" rel="noopener"
@@ -317,7 +326,19 @@ function calcScore(d, a) {
   var bS = a.budget ? d.b[a.budget.i] : 3;
   var sS = a.season ? d.s[a.season.i] : 3;
   var dS = a.distance ? d.d[a.distance.i] : 3;
-  return styleBonus + cS + bS + sS + dS;
+  var rawScore = styleBonus + cS + bS + sS + dS;
+  return { score: rawScore, styleBonus: styleBonus, companion: cS, budget: bS, season: sS, distance: dS };
+}
+
+function saveToHistory(data) {
+  var hist = JSON.parse(localStorage.getItem('travelHistory') || '[]');
+  hist.unshift({ timestamp: new Date().toISOString(), data: data });
+  if (hist.length > 10) hist.pop();
+  localStorage.setItem('travelHistory', JSON.stringify(hist));
+}
+
+function loadHistory() {
+  return JSON.parse(localStorage.getItem('travelHistory') || '[]');
 }
 
 function startDiagnosis() { show('questions'); renderQ(); }
@@ -365,7 +386,10 @@ function showResults() {
   var seasonLabels = ['春','夏','秋','冬'];
   var styleIdx = ans.style ? ans.style.i : 0;
 
-  var scored = allDests.map(function(d){ return { dest:d, score:calcScore(d,ans) }; });
+  var scored = allDests.map(function(d){
+    var scoreObj = calcScore(d,ans);
+    return { dest:d, scoreObj:scoreObj, score:scoreObj.score };
+  });
   scored.sort(function(a,b){ return b.score - a.score; });
   var top3 = scored.slice(0, 3);
 
@@ -379,12 +403,94 @@ function showResults() {
   var medals = ['🥇','🥈','🥉'];
   top3.forEach(function(item, i) {
     var d = item.dest;
+    var score = item.score;
+    var pct = Math.round((score / 26) * 100);
     var div = document.createElement('div');
     div.className = 'destination-card';
-    div.innerHTML = '<div class="flex items-center gap-2 mb-1"><span class="text-xl">'+d.emoji+'</span><div><div class="font-bold text-gray-800">'+medals[i]+' '+d.name+'</div><span class="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full">'+d.tag+'</span></div></div><p class="text-sm text-gray-600">'+d.desc+'</p>';
+    div.innerHTML = '<div class="flex items-center gap-2 mb-2"><span class="text-xl">'+d.emoji+'</span><div><div class="font-bold text-gray-800">'+medals[i]+' '+d.name+'</div><span class="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full">'+d.tag+'</span></div></div><div class="mb-2"><div class="text-xs text-gray-600 mb-1">マッチ度: '+pct+'% ('+score+'/26)</div><div style="background:#e0f2fe;border-radius:4px;height:6px;overflow:hidden"><div style="background:#0284c7;height:100%;width:'+pct+'%"></div></div></div><p class="text-sm text-gray-600">'+d.desc+'</p>';
     list.appendChild(div);
   });
+
+  // グラフ表示
+  renderMatchChart(top3);
+
+  // 履歴表示
+  renderHistory();
+
+  // 履歴データを保存
+  saveToHistory({ answers: ans, results: top3.map(function(t){ return {name:t.dest.name, score:t.score}; }) });
+
   show('results');
+}
+
+function renderMatchChart(top3) {
+  var ctx = document.getElementById('match-chart');
+  if (!ctx) return;
+
+  var labels = top3.map(function(t){ return t.dest.name; });
+  var data = top3.map(function(t){ return t.score; });
+
+  // グラフ再作成（前のグラフを破棄）
+  if (window.matchChartInstance) window.matchChartInstance.destroy();
+
+  window.matchChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'マッチ度スコア',
+        data: data,
+        backgroundColor: ['#fbbf24','#60a5fa','#34d399'],
+        borderRadius: 6,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true, max: 26, ticks: {stepSize:5} } }
+    }
+  });
+}
+
+function renderHistory() {
+  var hist = loadHistory();
+  var panel = document.getElementById('history-panel');
+  var list = document.getElementById('history-list');
+
+  if (hist.length <= 1) {
+    panel.style.display = 'none';
+    return;
+  }
+
+  panel.style.display = 'block';
+  list.innerHTML = '';
+
+  // 最新1件を除いた過去3件を表示
+  for (var i = 1; i < Math.min(4, hist.length); i++) {
+    var h = hist[i];
+    var d = new Date(h.timestamp);
+    var dateStr = (d.getMonth()+1) + '/' + d.getDate() + ' ' + ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
+    var topDest = h.data.results[0] ? h.data.results[0].name : '?';
+
+    var btn = document.createElement('button');
+    btn.style.cssText = 'display:block;width:100%;text-align:left;padding:10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;cursor:pointer;font-size:13px;margin-bottom:8px;transition:background 0.15s';
+    btn.innerHTML = '<div style="font-weight:600;color:#0369a1">'+dateStr+'</div><div style="color:#64748b;font-size:12px">おすすめ: '+topDest+'</div>';
+    btn.onclick = function(idx){ return function(){ restoreHistory(idx); }; }(i);
+    list.appendChild(btn);
+  }
+}
+
+function restoreHistory(idx) {
+  var hist = loadHistory();
+  if (idx < hist.length) {
+    ans = hist[idx].data.answers;
+    cur = Qs.length;
+    show('loading');
+    setTimeout(showResults, 800);
+  }
 }
 
 function restart() { cur=0; ans={}; show('intro'); }

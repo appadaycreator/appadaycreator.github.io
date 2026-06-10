@@ -772,6 +772,19 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                 <div class="balance-meter-wrap">
                                     <div class="balance-meter-bar" id="balanceMeterBar" style="width:0%"></div>
                                 </div>
+                                <div class="text-xs text-gray-500 mt-1" id="balanceDetail">傾き：計測中...</div>
+                            </div>
+
+                            <!-- スコア達成度メーター（ゲーム中は非表示） -->
+                            <div id="achievementMeter" class="hidden mb-3">
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-xs font-semibold text-gray-600">スコア達成度</span>
+                                    <span id="achievementPercent" class="text-xs font-bold text-blue-600">—%</span>
+                                </div>
+                                <div class="balance-meter-wrap">
+                                    <div class="balance-meter-bar" id="achievementBar" style="width:0%;background:#3b82f6;"></div>
+                                </div>
+                                <div class="text-xs text-gray-500 mt-1" id="achievementDetail"></div>
                             </div>
 
                             <!-- コンボ表示 -->
@@ -1242,6 +1255,16 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     </div>
                 </div>
                 <div id="goNewBest" class="hidden text-yellow-500 font-bold text-sm mb-3">🏆 新記録達成！</div>
+                <div id="achievementSection" class="hidden mb-3 bg-blue-50 rounded-lg p-3">
+                    <div class="text-xs text-gray-600 mb-1">スコア達成度</div>
+                    <div class="flex items-center justify-between mb-1">
+                        <div class="h-2 bg-gray-200 rounded flex-1" style="margin-right:8px;">
+                            <div id="goAchievementBar" class="h-2 bg-blue-500 rounded" style="width:0%"></div>
+                        </div>
+                        <span id="goAchievementPercent" class="text-sm font-bold text-blue-600">0%</span>
+                    </div>
+                    <div id="goAchievementText" class="text-xs text-gray-600"></div>
+                </div>
                 <div class="flex gap-2">
                     <button data-ux="1" onclick="closeGameOver(); resetGame();" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg font-semibold transition-colors" aria-label="ゲームをもう一度プレイ">もう一度</button>
                     <button data-ux="1" onclick="downloadBlockCard();" class="bg-indigo-500 hover:bg-indigo-600 text-white py-2 px-3 rounded-lg font-semibold transition-colors" aria-label="スコアカードを画像として保存">📸</button>
@@ -2473,16 +2496,33 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         function updateBalanceMeter(stability) {
             const bar = document.getElementById('balanceMeterBar');
             const label = document.getElementById('balancePercent');
+            const detail = document.getElementById('balanceDetail');
             if (!bar) return;
             if (gameState.placedBlocks.length === 0) {
                 bar.style.width = '0%';
                 bar.className = 'balance-meter-bar';
                 if (label) label.textContent = '—';
+                if (detail) detail.textContent = '傾き：計測中...';
                 return;
             }
             const pct = Math.round(stability * 100);
             bar.style.width = pct + '%';
             if (label) label.textContent = pct + '%';
+
+            // 重心計算で傾きを判定
+            let totalX = 0, totalMass = 0;
+            gameState.placedBlocks.forEach(block => {
+                const mass = block.width * block.height;
+                totalX += (block.x + block.width / 2) * mass;
+                totalMass += mass;
+            });
+            const centerX = canvas.width / 2;
+            const totalCenterX = totalMass > 0 ? totalX / totalMass : centerX;
+            const tilt = (totalCenterX - centerX) / (canvas.width / 2);
+            const tiltPct = Math.round(Math.abs(tilt) * 100);
+            const tiltDir = tilt > 0.05 ? '右' : tilt < -0.05 ? '左' : '中央';
+            if (detail) detail.textContent = `傾き：${tiltDir}${tiltPct}% | 安定度：${pct}%`;
+
             bar.classList.remove('warn', 'danger');
             if (stability < 0.5) bar.classList.add('danger');
             else if (stability < 0.75) bar.classList.add('warn');
@@ -3037,6 +3077,30 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             document.getElementById('goHeight').textContent = gameState.height;
             document.getElementById('goBlocks').textContent = gameState.blocksUsed;
             document.getElementById('goNewBest').classList.toggle('hidden', !isNewBest);
+
+            // スコア達成度メーター表示
+            const currentScore = finalScore !== undefined ? finalScore : gameState.score;
+            if (finalBest > 0 && currentScore > 0) {
+                const achievementPct = Math.round((currentScore / finalBest) * 100);
+                const achievementBar = document.getElementById('goAchievementBar');
+                const achievementPercent = document.getElementById('goAchievementPercent');
+                const achievementText = document.getElementById('goAchievementText');
+                const achievementSection = document.getElementById('achievementSection');
+                if (achievementBar) achievementBar.style.width = Math.min(achievementPct, 100) + '%';
+                if (achievementPercent) achievementPercent.textContent = achievementPct + '%';
+                if (achievementText) {
+                    if (currentScore >= finalBest) {
+                        achievementText.textContent = '🎉 ベストスコア達成！';
+                    } else {
+                        achievementText.textContent = `あと ${finalBest - currentScore} 点でベスト更新！`;
+                    }
+                }
+                if (achievementSection) achievementSection.classList.remove('hidden');
+            } else {
+                const achievementSection = document.getElementById('achievementSection');
+                if (achievementSection) achievementSection.classList.add('hidden');
+            }
+
             document.getElementById('gameOverModal').classList.remove('hidden');
             updateBalanceMeter(0);
         }

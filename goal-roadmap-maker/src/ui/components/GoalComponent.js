@@ -367,9 +367,44 @@ class GoalComponent {
                     </div>
                 ` : ''}
 
+                <!-- シェア機能セクション -->
+                <div class="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <h3 class="font-semibold text-blue-800 mb-3">📤 このロードマップをシェア</h3>
+                    <div class="space-y-2">
+                        <button
+                            onclick="goalComponents.copyToClipboard(${goal.id})"
+                            class="w-full py-2 px-3 bg-white border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-50 transition-colors text-sm flex items-center justify-center"
+                        >
+                            <i class="fas fa-copy mr-2"></i>クリップボードにコピー
+                        </button>
+                        <div class="flex gap-2">
+                            <a href="https://twitter.com/intent/tweet?text=${encodeURIComponent('目標: ' + goal.title + ' | 進捗: ' + progress + '% | 目標達成ロードマップ')}&url=${encodeURIComponent('https://appadaycreator.com/goal-roadmap-maker/')}"
+                               target="_blank" rel="noopener"
+                               class="flex-1 py-2 px-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm flex items-center justify-center"
+                            >
+                                <i class="fas fa-twitter mr-1"></i>Twitter
+                            </a>
+                            <a href="https://line.me/R/msg/text/?${encodeURIComponent('目標: ' + goal.title + ' | 進捗: ' + progress + '% | https://appadaycreator.com/goal-roadmap-maker/')}"
+                               target="_blank" rel="noopener"
+                               class="flex-1 py-2 px-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm flex items-center justify-center"
+                            >
+                                <i class="fas fa-line mr-1"></i>LINE
+                            </a>
+                        </div>
+                        ${typeof navigator !== 'undefined' && navigator.share ? `
+                            <button
+                                onclick="goalComponents.shareViaAPI(${goal.id})"
+                                class="w-full py-2 px-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm"
+                            >
+                                <i class="fas fa-share-alt mr-2"></i>その他のアプリにシェア
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+
                 <div class="border-t pt-4">
-                    <button 
-                        onclick="goalComponents.showDeleteConfirm(${goal.id})" 
+                    <button
+                        onclick="goalComponents.showDeleteConfirm(${goal.id})"
                         class="w-full py-2 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
                     >
                         <i class="fas fa-trash mr-2"></i>この目標を削除
@@ -377,6 +412,67 @@ class GoalComponent {
                 </div>
             </div>
         `;
+    }
+
+    /**
+     * 目標をクリップボードにコピー
+     * @param {number} goalId - 目標ID
+     */
+    copyToClipboard(goalId) {
+        const goal = this.goalService.get(goalId);
+        if (!goal) return;
+
+        const progress = goal.calculateProgress();
+        const deadline = new Date(goal.deadline).toLocaleDateString('ja-JP');
+
+        const text = `【目標達成ロードマップ】
+目標: ${goal.title}
+進捗: ${progress}%
+期限: ${deadline}
+タイプ: ${this._getTypeLabel(goal.type)}
+
+${goal.description ? `説明:\n${goal.description}\n` : ''}
+完了ステップ: ${goal.customSteps.filter(s => s.completed).length}/${goal.customSteps.length}
+
+👉 目標達成ロードマップで進捗管理中！
+https://appadaycreator.com/goal-roadmap-maker/`;
+
+        navigator.clipboard.writeText(text).then(() => {
+            this.uiManager.showToast('ロードマップをコピーしました ✓', 'success');
+        }).catch(() => {
+            // Fallback for older browsers
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            this.uiManager.showToast('ロードマップをコピーしました ✓', 'success');
+        });
+    }
+
+    /**
+     * Navigator Share API でシェア
+     * @param {number} goalId - 目標ID
+     */
+    async shareViaAPI(goalId) {
+        const goal = this.goalService.get(goalId);
+        if (!goal) return;
+
+        const progress = goal.calculateProgress();
+
+        try {
+            await navigator.share({
+                title: '目標達成ロードマップ',
+                text: `目標: ${goal.title} | 進捗: ${progress}%`,
+                url: 'https://appadaycreator.com/goal-roadmap-maker/'
+            });
+            this.uiManager.showToast('シェアしました！', 'success');
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                this.uiManager.showToast('シェアに失敗しました', 'error');
+            }
+        }
     }
 
     /**

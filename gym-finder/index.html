@@ -28,6 +28,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
 <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   body { background: #f8fafc; min-height: 100vh; }
   .card { background: white; border-radius: 1rem; box-shadow: 0 4px 24px rgba(0,0,0,0.09); }
@@ -230,11 +231,22 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="text-sm text-gray-500 mt-1" id="res-cost"></div>
       </div>
       <p class="text-sm text-gray-600 mb-3" id="res-desc"></p>
-      <div class="bg-orange-50 rounded-lg p-3 text-sm text-gray-700" id="res-merit"></div>
+      <div class="bg-orange-50 rounded-lg p-3 text-sm text-gray-700 mb-4" id="res-merit"></div>
+      <div style="text-align:center;margin:20px 0;">
+        <canvas id="scores-chart" width="300" height="250" style="max-width:100%;"></canvas>
+      </div>
     </div>
     <div class="card p-6 mb-4">
       <h3 class="font-bold text-gray-800 mb-3">🎯 おすすめサービス</h3>
       <div id="affiliate-area"></div>
+    </div>
+    <div class="card p-6 mb-4">
+      <h3 class="font-bold text-gray-800 mb-3">📥 結果をエクスポート</h3>
+      <div class="flex gap-2 flex-col">
+        <button onclick="printResults()" class="text-center bg-blue-500 text-white font-bold py-3 rounded-lg text-sm hover:bg-blue-600 transition" aria-label="結果を印刷する">🖨️ 印刷する</button>
+        <button onclick="copyResultsToClipboard()" class="text-center bg-purple-500 text-white font-bold py-3 rounded-lg text-sm hover:bg-purple-600 transition" aria-label="結果をクリップボードにコピー">📋 結果をコピー</button>
+        <button onclick="downloadHistoryCSV()" class="text-center bg-teal-500 text-white font-bold py-3 rounded-lg text-sm hover:bg-teal-600 transition" aria-label="診断履歴をCSVでダウンロード">📊 履歴をCSV出力</button>
+      </div>
     </div>
     <div class="card p-6 mb-4">
       <h3 class="font-bold text-gray-800 mb-3">📤 結果をシェア</h3>
@@ -298,7 +310,7 @@ var gymTypes = {
   }
 };
 
-var cur=0,ans={};
+var cur=0,ans={},scoresChartInstance=null;
 
 function startDiagnosis() { show('questions'); renderQ(); }
 
@@ -338,21 +350,14 @@ function showHistoryResult(gymKey){
   document.getElementById('res-type').textContent=gym.type;
   document.getElementById('res-cost').textContent=gym.cost;
   document.getElementById('res-desc').textContent=gym.desc;
-  var scoresHtml='<div class="mb-4"><div class="font-bold text-gray-800 mb-2 text-sm">📊 診断スコア</div><div class="space-y-2 text-sm">';
-  var scoreLabels={goal:'目的達成度',cost:'コスパ',equipment:'設備充実度',time:'時間柔軟性',support:'サポート'};
-  for(var k in scoreLabels){
-    var sc=gym.scores[k];
-    var bar='';for(var i=0;i<5;i++)bar+=(i<sc?'█':'░');
-    scoresHtml+='<div><div class="flex justify-between mb-1"><span>'+scoreLabels[k]+'</span><span class="font-bold">'+sc+'/5</span></div><div class="text-xs text-gray-500">'+bar+'</div></div>';
-  }
-  scoresHtml+='</div></div>';
   var examplesHtml='<div class="mb-4"><div class="font-bold text-gray-800 mb-2 text-sm">💡 実際の施設例</div><div class="flex gap-2 flex-wrap text-xs">';
   gym.examples.forEach(function(ex){examplesHtml+='<span class="bg-orange-100 text-orange-800 px-3 py-1 rounded-full">'+ex+'</span>';});
   examplesHtml+='</div></div>';
   var demeritHtml='<div class="mb-4"><div class="font-bold text-gray-800 mb-2 text-sm">⚠️ 注意点</div><ul class="text-xs text-gray-700 space-y-1">';
   gym.demerits.forEach(function(d){demeritHtml+='<li>• '+d+'</li>';});
   demeritHtml+='</ul></div>';
-  document.getElementById('res-merit').innerHTML=gym.merit.replace(/\n/g,'<br>')+scoresHtml+examplesHtml+demeritHtml;
+  document.getElementById('res-merit').innerHTML=gym.merit.replace(/\n/g,'<br>')+examplesHtml+demeritHtml;
+  drawScoresChart(gym.scores);
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -426,7 +431,10 @@ function showResults() {
   gym.demerits.forEach(function(d){demeritHtml+='<li>• '+d+'</li>';});
   demeritHtml+='</ul></div>';
 
-  document.getElementById('res-merit').innerHTML=gym.merit.replace(/\n/g,'<br>')+scoresHtml+examplesHtml+demeritHtml;
+  document.getElementById('res-merit').innerHTML=gym.merit.replace(/\n/g,'<br>')+examplesHtml+demeritHtml;
+
+  // スコアレーダーチャート描画
+  drawScoresChart(gym.scores);
 
   // 比較表（固定divに上書きで重複なし）
   var compareHtml='<div class="card p-6 mb-4"><h3 class="font-bold text-gray-800 mb-3">📋 ジムタイプ比較表</h3><div style="overflow-x:auto;"><table style="width:100%;font-size:13px;border-collapse:collapse;"><tr style="background:#f8fafc;"><th style="border:1px solid #e2e8f0;padding:8px;text-align:left;">タイプ</th><th style="border:1px solid #e2e8f0;padding:8px;text-align:center;">月額</th><th style="border:1px solid #e2e8f0;padding:8px;text-align:center;">設備</th><th style="border:1px solid #e2e8f0;padding:8px;text-align:center;">時間</th><th style="border:1px solid #e2e8f0;padding:8px;text-align:center;">サポート</th></tr>';
@@ -493,7 +501,68 @@ function showResults() {
   window.scrollTo({top:0,behavior:'auto'});
 }
 
-function restart() { cur=0; ans={}; show('intro'); }
+function restart() {
+  cur=0; ans={};
+  if(scoresChartInstance) { scoresChartInstance.destroy(); scoresChartInstance=null; }
+  show('intro');
+}
+
+var currentGymKey=null;
+
+function drawScoresChart(scores){
+  if(scoresChartInstance){ scoresChartInstance.destroy(); }
+  var ctx=document.getElementById('scores-chart').getContext('2d');
+  scoresChartInstance=new Chart(ctx,{
+    type:'radar',
+    data:{
+      labels:['目的達成度','コスパ','設備充実度','時間柔軟性','サポート'],
+      datasets:[{
+        label:'スコア',
+        data:[scores.goal,scores.cost,scores.equipment,scores.time,scores.support],
+        borderColor:'#ea580c',backgroundColor:'rgba(234,88,12,0.2)',borderWidth:2,fill:true,
+        pointBackgroundColor:'#ea580c',pointBorderColor:'#fff',pointBorderWidth:2,pointRadius:5,pointHoverRadius:7
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:true,
+      plugins:{legend:{display:false}},
+      scales:{r:{min:0,max:5,ticks:{stepSize:1,font:{size:11}},grid:{color:'rgba(0,0,0,0.1)'}}}
+    }
+  });
+}
+
+function printResults(){
+  window.print();
+}
+
+function copyResultsToClipboard(){
+  var gymType=document.getElementById('res-type').textContent;
+  var cost=document.getElementById('res-cost').textContent;
+  var desc=document.getElementById('res-desc').textContent;
+  var url='https://appadaycreator.com/gym-finder/';
+  var text='【ジム選び診断結果】\n\nタイプ: '+gymType+'\n月額: '+cost+'\n説明: '+desc+'\n\n詳細: '+url;
+  navigator.clipboard.writeText(text).then(function(){
+    alert('結果をクリップボードにコピーしました！');
+  }).catch(function(){
+    alert('コピーに失敗しました。');
+  });
+}
+
+function downloadHistoryCSV(){
+  var history=JSON.parse(localStorage.getItem('gym_finder_history')||'[]');
+  if(history.length===0){alert('診断履歴がありません。');return;}
+  var csv='日時,ジムタイプ,目的,経験,予算,頻度,優先事項\n';
+  history.forEach(function(h){
+    var g=gymTypes[h.gymKey];
+    var date=new Date(h.timestamp).toLocaleString('ja-JP');
+    csv+='"'+date+'","'+g.type+'","'+h.answers.goal.val+'","'+h.answers.exp.val+'","'+h.answers.budget.val+'","'+h.answers.freq.val+'","'+h.answers.priority.val+'"\n';
+  });
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  var link=document.createElement('a');
+  link.href=URL.createObjectURL(blob);
+  link.download='gym-finder-history.csv';
+  link.click();
+}
 </script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"ジム選び診断【無料】目的・予算別おすすめフィットネスクラブ","description":"ダイエット・筋トレ・健康維持の目的と予算から最適なジムを無料診断。月謝・設備・立地で比較。","url":"https://appadaycreator.com/gym-finder/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"}}</script>
 

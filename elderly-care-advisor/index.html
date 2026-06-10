@@ -28,6 +28,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
 <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   body { background: #f8fafc; min-height: 100vh; }
   .card { background: white; border-radius: 1rem; box-shadow: 0 4px 24px rgba(0,0,0,0.09); }
@@ -314,6 +315,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     </div>
 
     <div class="card p-6 mb-4">
+      <h3 class="font-bold text-gray-800 mb-3">📊 月額費用の比較（全施設タイプ）</h3>
+      <div style="position:relative;height:300px;margin-bottom:16px;">
+        <canvas id="costComparisonChart"></canvas>
+      </div>
+    </div>
+
+    <div class="card p-6 mb-4">
       <h3 class="font-bold text-gray-800 mb-3">📊 施設タイプの比較</h3>
       <div style="overflow-x:auto;">
         <table style="width:100%;border-collapse:collapse;font-size:12px;">
@@ -374,6 +382,18 @@ var Qs = [
   { text:"最も重視することは？", opts:["費用を抑えたい","自宅に近い施設","医療ケアの充実","レクリエーション等の充実"], key:"priority" }
 ];
 var cur=0,ans={};
+
+// localStorage から復元
+var saved = localStorage.getItem('elderly-care-diag-answers');
+if(saved) {
+  try {
+    var data = JSON.parse(saved);
+    if(data.cur !== undefined && data.ans !== undefined) {
+      cur = data.cur;
+      ans = data.ans;
+    }
+  } catch(e) {}
+}
 
 var facilityMap = {
   "low-low": {
@@ -480,6 +500,7 @@ function renderQ() {
 
 function pick(i,val,key) {
   ans[key]={i:i,val:val};
+  localStorage.setItem('elderly-care-diag-answers', JSON.stringify({cur:cur,ans:ans}));
   document.querySelectorAll('.option-btn').forEach(function(b,j){ b.classList.toggle('selected',j===i); });
   setTimeout(function(){
     cur++;
@@ -489,6 +510,48 @@ function pick(i,val,key) {
 
 function goBack() {
   if(cur > 0){ cur--; renderQ(); }
+}
+
+function drawCostComparisonChart(selectedType) {
+  var ctx = document.getElementById('costComparisonChart');
+  if(!ctx) return;
+
+  var facilities = [
+    {name:'デイサービス',min:2,max:5,type:'デイサービス（通所介護）'},
+    {name:'グループホーム',min:13,max:18,type:'グループホーム（認知症対応）'},
+    {name:'老健',min:8,max:15,type:'介護老人保健施設（老健）'},
+    {name:'特養',min:6,max:15,type:'特別養護老人ホーム（特養）'}
+  ];
+
+  var colors = facilities.map(function(f){
+    var c = facilityMap[f.type.indexOf('デイ')>=0?'low-low':f.type.indexOf('グループ')>=0?'low-high':f.type.indexOf('老健')>=0?'high-low':'high-high'];
+    return selectedType === c.type ? c.color : '#d1d5db';
+  });
+
+  var chart = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels:facilities.map(function(f){return f.name;}),
+      datasets:[{
+        label:'月額費用幅（万円）',
+        data:facilities.map(function(f){return {min:f.min,max:f.max,x:f.name};}),
+        backgroundColor:colors,
+        borderColor:colors,
+        borderWidth:2,
+        borderRadius:6
+      }]
+    },
+    options:{
+      indexAxis:'y',
+      responsive:true,
+      maintainAspectRatio:true,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{beginAtZero:true,max:20,title:{display:true,text:'月額費用（万円）'}},
+        y:{title:{display:false}}
+      }
+    }
+  });
 }
 
 function showResults() {
@@ -563,10 +626,30 @@ function showResults() {
     '<a href="https://line.me/R/share?text=' + encodeURIComponent(shareText + ' ' + shareUrl) + '" target="_blank" rel="noopener" style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:10px;border-radius:8px;font-size:13px;font-weight:bold;text-decoration:none;">LINEでシェア</a>' +
     '<a href="https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText) + '&url=' + encodeURIComponent(shareUrl) + '&via=appadaycreator" target="_blank" rel="noopener" style="flex:1;display:block;text-align:center;background:#000;color:white;padding:10px;border-radius:8px;font-size:13px;font-weight:bold;text-decoration:none;">Xでシェア</a>';
 
+  // グラフ描画（診断結果画面表示後に実行）
+  setTimeout(function(){ drawCostComparisonChart(facility.type); }, 100);
+
   show('results');
 }
 
-function restart() { cur=0; ans={}; show('intro'); }
+function restart() { cur=0; ans={}; localStorage.removeItem('elderly-care-diag-answers'); show('intro'); }
+</script>
+<script>
+// ページロード時に保存状態を復元
+window.addEventListener('DOMContentLoaded', function(){
+  var saved = localStorage.getItem('elderly-care-diag-answers');
+  if(saved) {
+    try {
+      var data = JSON.parse(saved);
+      if(data.cur > 0 && data.cur < Qs.length) {
+        cur = data.cur;
+        ans = data.ans || {};
+        show('questions');
+        renderQ();
+      }
+    } catch(e) {}
+  }
+});
 </script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"介護費用診断【無料】親の介護 月いくかかる？施設選びガイド","description":"要介護度・地域・希望から介護施設の種類と費用相場を無料シミュレーション。在宅・施設比較付き。","url":"https://appadaycreator.com/elderly-care-advisor/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"}}</script>
 

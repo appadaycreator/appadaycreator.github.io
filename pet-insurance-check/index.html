@@ -24,6 +24,9 @@
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 
+  <!-- Chart.js for visualization (P1: M4) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+
   <!-- Font Awesome 6.4.0 -->
 
   <!-- Schema.org Structured Data -->
@@ -257,6 +260,25 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         無料診断スタート！
         <span aria-hidden="true">→</span>
       </button>
+
+      <!-- 前回の診断を復元（M3: localStorage） -->
+      <div id="restore-section" class="hidden mt-4 bg-blue-50 rounded-2xl p-4 border border-blue-200">
+        <p class="text-sm font-semibold text-blue-900 mb-3 flex items-center gap-2">
+          <span aria-hidden="true">⏮️</span>前回の診断記録が見つかりました
+        </p>
+        <button
+          onclick="restoreQuizState()"
+          class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-xl text-sm mb-2 transition-colors"
+        >
+          前回の診断から再開
+        </button>
+        <button
+          onclick="showHistory()"
+          class="w-full bg-white border border-blue-200 text-blue-600 font-bold py-2 px-4 rounded-xl text-sm transition-colors hover:bg-blue-50"
+        >
+          診断履歴を確認
+        </button>
+      </div>
     </section>
 
     <!-- Quiz Section -->
@@ -329,13 +351,31 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="px-4 py-3" id="result-summary"></div>
         </details>
 
-        <!-- Recommended Plan -->
+        <!-- Recommended Plan with Charts (P1: M4) -->
         <div class="bg-white rounded-2xl shadow-sm p-5 mb-4 border border-gray-100">
           <h3 class="font-bold text-gray-800 mb-3 flex items-center gap-2">
             <span aria-hidden="true">⭐</span>
             おすすめ保険タイプ
           </h3>
           <div id="result-plan" class="space-y-3"></div>
+
+          <!-- Result Score Gauge (M4: グラフ可視化) -->
+          <div id="result-charts" class="mt-6 space-y-6">
+            <div class="bg-gray-50 rounded-xl p-4">
+              <p class="text-xs font-semibold text-gray-600 mb-3">診断スコア</p>
+              <canvas id="scoreGauge" height="100"></canvas>
+            </div>
+
+            <div class="bg-gray-50 rounded-xl p-4 hidden" id="coverage-chart-container">
+              <p class="text-xs font-semibold text-gray-600 mb-3">補償割合の比較</p>
+              <canvas id="coverageChart" height="100"></canvas>
+            </div>
+
+            <div class="bg-gray-50 rounded-xl p-4 hidden" id="price-chart-container">
+              <p class="text-xs font-semibold text-gray-600 mb-3">おすすめプランの保険料イメージ</p>
+              <canvas id="priceChart" height="100"></canvas>
+            </div>
+          </div>
         </div>
 
         <!-- Affiliate Links -->
@@ -429,15 +469,30 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <span aria-hidden="true">📣</span>
             診断結果をシェアする
           </h3>
-          <div class="flex gap-2">
+          <div class="flex gap-2 flex-wrap">
             <a id="share-line" href="#" target="_blank" rel="noopener"
-               class="flex-1 text-center bg-[#06C755] text-white py-2.5 rounded-xl text-sm font-bold cta-btn">LINEでシェア</a>
+               class="flex-1 min-w-24 text-center bg-[#06C755] text-white py-2.5 rounded-xl text-sm font-bold cta-btn">LINEでシェア</a>
             <a id="share-x" href="#" target="_blank" rel="noopener"
-               class="flex-1 text-center bg-black text-white py-2.5 rounded-xl text-sm font-bold cta-btn">Xでシェア</a>
+               class="flex-1 min-w-24 text-center bg-black text-white py-2.5 rounded-xl text-sm font-bold cta-btn">Xでシェア</a>
             <button id="copy-btn" onclick="copyResult()"
-               class="flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors" aria-label="結果をコピー">
+               class="flex-1 min-w-24 bg-gray-100 text-gray-700 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-200 transition-colors" aria-label="結果をコピー">
               結果をコピー
             </button>
+          </div>
+
+          <!-- 印刷・エクスポート (P2: M10) -->
+          <div class="border-t border-gray-200 mt-4 pt-4">
+            <p class="text-xs font-semibold text-gray-600 mb-3">その他のアクション</p>
+            <div class="flex gap-2 flex-wrap">
+              <button onclick="printResult()"
+                 class="flex-1 min-w-24 bg-blue-100 text-blue-700 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-200 transition-colors" aria-label="診断結果を印刷">
+                <span aria-hidden="true">🖨️</span> 印刷
+              </button>
+              <button onclick="downloadResultCSV()"
+                 class="flex-1 min-w-24 bg-green-100 text-green-700 py-2.5 rounded-xl text-sm font-bold hover:bg-green-200 transition-colors" aria-label="診断結果をダウンロード">
+                <span aria-hidden="true">📥</span> CSV
+              </button>
+            </div>
           </div>
         </div>
 
@@ -738,6 +793,65 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 </section></div>
 <script>
     // ===========================
+    // Storage Management (P1: M3)
+    // ===========================
+    const STORAGE_KEY = 'petInsuranceQuiz';
+    const HISTORY_KEY = 'petInsuranceHistory';
+    const MAX_HISTORY = 5;
+
+    function saveQuizState() {
+      const state = { answers, currentQuestion };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function loadQuizState() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? JSON.parse(saved) : null;
+      } catch (e) {
+        console.error('Failed to load quiz state:', e);
+        return null;
+      }
+    }
+
+    function saveToHistory() {
+      if (answers.length !== questions.length) return;
+      try {
+        let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+        const resultKey = calcResult();
+        const result = results[resultKey];
+        const historyEntry = {
+          id: Date.now(),
+          date: new Date().toLocaleString('ja-JP'),
+          answers: [...answers],
+          resultKey,
+          resultTitle: result.title
+        };
+        history.unshift(historyEntry);
+        history = history.slice(0, MAX_HISTORY);
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+      } catch (e) {
+        console.error('Failed to save to history:', e);
+      }
+    }
+
+    function getHistory() {
+      try {
+        return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function clearStorage() {
+      if (confirm('診断履歴をすべて削除しますか？この操作は取り消せません。')) {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(HISTORY_KEY);
+        alert('診断履歴を削除しました');
+      }
+    }
+
+    // ===========================
     // Quiz Data
     // ===========================
 
@@ -942,6 +1056,39 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       renderQuestion();
     }
 
+    function initRestoreButton() {
+      const saved = loadQuizState();
+      const restoreSection = document.getElementById('restore-section');
+      if (saved && saved.answers && saved.answers.length > 0) {
+        restoreSection.classList.remove('hidden');
+      } else {
+        restoreSection.classList.add('hidden');
+      }
+    }
+
+    function restoreQuizState() {
+      const saved = loadQuizState();
+      if (saved) {
+        answers = saved.answers;
+        currentQuestion = saved.currentQuestion || 0;
+        startQuiz();
+      }
+    }
+
+    function showHistory() {
+      const history = getHistory();
+      if (history.length === 0) {
+        alert('診断履歴がありません');
+        return;
+      }
+      let historyText = '【診断履歴】\n\n';
+      history.forEach((entry, idx) => {
+        historyText += `${idx + 1}. ${entry.date}\n結果: ${entry.resultTitle}\n\n`;
+      });
+      historyText += '\n※ 過去の診断記録です。結果から再開するには「前回の診断から再開」をクリックしてください。';
+      alert(historyText);
+    }
+
     function renderQuestion() {
       const q = questions[currentQuestion];
       document.getElementById('current-q').textContent = currentQuestion + 1;
@@ -1001,6 +1148,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'));
       btn.classList.add('selected');
       document.getElementById('next-btn').classList.remove('hidden');
+      saveQuizState(); // M3: localStorage保存
 
       // Auto advance after short delay
       setTimeout(() => {
@@ -1155,6 +1303,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('share-line').href = 'https://line.me/R/share?text=' + shareText + '%20' + shareUrl;
       document.getElementById('share-x').href = 'https://twitter.com/intent/tweet?text=' + shareText + '&url=' + shareUrl + '&via=appadaycreator';
 
+      // M3: 履歴に保存
+      saveToHistory();
+
+      // M4: グラフレンダリング
+      setTimeout(() => {
+        renderResultCharts(resultKey);
+      }, 100);
+
       // Scroll to result
       document.getElementById('result-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
@@ -1198,9 +1354,113 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function resetQuiz() {
       currentQuestion = 0;
       answers = [];
+      localStorage.removeItem(STORAGE_KEY);
       document.getElementById('result-section').classList.add('hidden');
       document.getElementById('intro-section').classList.remove('hidden');
+      initRestoreButton();
       window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // M4: グラフレンダリング関数
+    function renderResultCharts(resultKey) {
+      if (typeof Chart === 'undefined') return;
+
+      const result = results[resultKey];
+      const scoreMap = { value: 40, standard: 60, rich: 80 };
+      const score = scoreMap[resultKey] || 60;
+
+      // スコアゲージチャート
+      const gaugeCtx = document.getElementById('scoreGauge');
+      if (gaugeCtx && gaugeCtx.getContext) {
+        new Chart(gaugeCtx, {
+          type: 'doughnut',
+          data: {
+            labels: ['診断スコア', '残り'],
+            datasets: [{
+              data: [score, 100 - score],
+              backgroundColor: ['#10b981', '#e5e7eb'],
+              borderWidth: 0
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: { display: false },
+              tooltip: { enabled: false }
+            }
+          }
+        });
+        gaugeCtx.style.display = 'block';
+      }
+
+      // 補償割合比較チャート（複数プランがある場合）
+      if (result.plans && result.plans.length > 1) {
+        const coverageLabels = result.plans.map(p => p.name);
+        const coverageValues = result.plans.map(p => parseInt(p.coverage));
+        const coverageCtx = document.getElementById('coverageChart');
+        if (coverageCtx && coverageCtx.getContext) {
+          new Chart(coverageCtx, {
+            type: 'bar',
+            data: {
+              labels: coverageLabels,
+              datasets: [{
+                label: '補償割合(%)',
+                data: coverageValues,
+                backgroundColor: ['#10b981', '#14b8a6', '#0891b2'],
+                borderRadius: 6
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: true,
+              indexAxis: 'y',
+              plugins: { legend: { display: false } },
+              scales: { x: { max: 100, ticks: { callback: (v) => v + '%' } } }
+            }
+          });
+          document.getElementById('coverage-chart-container').classList.remove('hidden');
+        }
+      }
+    }
+
+    // M10: 印刷関数
+    function printResult() {
+      window.print();
+    }
+
+    // M10: CSV ダウンロード関数
+    function downloadResultCSV() {
+      const resultKey = calcResult();
+      const result = results[resultKey];
+      let csv = 'ペット保険診断 - 回答サマリー\n\n';
+      csv += '診断結果,' + result.title + '\n\n';
+      csv += 'Q,質問,回答\n';
+
+      questions.forEach((q, idx) => {
+        let opts = q.options;
+        if (idx === 1) {
+          const petType = answers[0];
+          opts = q2OptionsByPet[petType] || q2OptionsByPet.other;
+        }
+        const selectedOpt = opts.find(o => o.value === answers[idx]);
+        const answerText = selectedOpt ? selectedOpt.label : '（未回答）';
+        csv += `${idx + 1},"${q.text}","${answerText}"\n`;
+      });
+
+      csv += '\n診断日時,' + new Date().toLocaleString('ja-JP') + '\n';
+      csv += 'URL,https://appadaycreator.com/pet-insurance-check/\n';
+
+      const bom = '﻿';
+      const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', 'pet-insurance-diagnosis-' + new Date().getTime() + '.csv');
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     }
   </script>
 <div class="max-w-2xl mx-auto px-4 mb-4">
@@ -1259,6 +1519,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     btn.style.display = window.scrollY > 400 ? 'block' : 'none';
   }, {passive:true});
 })();
+
+// M3: ページ読み込み時に復元ボタンを表示
+document.addEventListener('DOMContentLoaded', initRestoreButton);
 </script>
 </body>
 </html>

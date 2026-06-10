@@ -47,7 +47,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 
 
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
+
     <noscript>
 </noscript>
 
@@ -99,6 +100,19 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;}
 .related-link{padding:10px;text-align:center;border:1px solid #ddd;border-radius:4px;text-decoration:none;color:#333;display:block;transition:background 0.15s;}
 .related-link:hover{background:#f5f5f5;}
+.question-wrapper{position:relative;}
+.hint-icon{display:inline-block;width:20px;height:20px;border-radius:50%;background:#7c3aed;color:#fff;font-size:12px;font-weight:bold;line-height:20px;text-align:center;cursor:help;margin-left:4px;vertical-align:middle;}
+.hint-text{display:none;position:absolute;bottom:125%;left:0;background:#374151;color:#fff;padding:8px 12px;border-radius:6px;font-size:12px;white-space:normal;width:200px;z-index:10;box-shadow:0 4px 8px rgba(0,0,0,0.2);}
+.hint-text::after{content:'';position:absolute;top:100%;left:12px;border:6px solid transparent;border-top-color:#374151;}
+.question-wrapper .hint-icon:hover~.hint-text{display:block;}
+.hint-text:hover{display:block;}
+.option-hint{font-size:0.8rem;color:#6b7280;margin-top:2px;font-style:italic;}
+#scoreChart{max-width:300px;margin:20px auto;}
+.export-buttons{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+.btn-export{flex:1;min-width:100px;padding:10px 12px;border-radius:8px;border:1px solid #d1d5db;background:#f9fafb;color:#374151;font-size:12px;font-weight:bold;cursor:pointer;transition:all 0.2s;}
+.btn-export:hover{background:#f3f4f6;border-color:#9ca3af;}
+.prev-score-section{background:#f9fafb;border-left:4px solid #7c3aed;padding:12px;border-radius:6px;margin:12px 0;font-size:0.9rem;}
+@media(max-width:640px){.hint-text{width:180px;}.export-buttons{flex-direction:column;}.btn-export{min-width:auto;}}
 
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
@@ -232,6 +246,16 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             <p class="text-sm text-gray-500 mt-2" id="result-bar-label"></p>
         </div>
 
+        <div id="scoreChartWrapper" style="background:white;border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+            <h3 class="font-bold text-gray-800 text-sm mb-3">📊 あなたのスコア分布</h3>
+            <canvas id="scoreChart" width="200" height="200" style="max-width:100%;height:auto;"></canvas>
+        </div>
+
+        <div id="prevScoreWrapper" class="prev-score-section hidden">
+            <div class="font-bold text-gray-700 mb-2">📈 前回診断との比較</div>
+            <div id="prevScoreContent" style="font-size:0.85rem;color:#4b5563;"></div>
+        </div>
+
         <div id="result-main" class="mb-6">
             <h3 class="text-lg font-bold mb-3" id="result-headline"></h3>
             <p class="text-gray-700 leading-relaxed mb-4" id="result-desc"></p>
@@ -276,7 +300,11 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             <div id="action-list" class="space-y-2 text-sm text-gray-700"></div>
         </div>
 
-        <button onclick="shareResult()" class="w-full mb-3 py-3 rounded-xl border-2 border-gray-200 text-gray-700 font-bold bg-white hover:border-green-400 transition">📤 結果をXでシェアする</button>
+        <div class="export-buttons">
+            <button onclick="printResult()" class="btn-export">📄 印刷</button>
+            <button onclick="copyResultText()" class="btn-export">📋 テキストコピー</button>
+            <button onclick="shareResult()" class="btn-export" style="flex:2;">📤 Xでシェア</button>
+        </div>
         <button onclick="restart()" class="w-full py-2 text-gray-400 text-sm underline bg-transparent">もう一度診断する</button>
 
         <!-- クロスリンク（マネークラスター） -->
@@ -309,70 +337,70 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
 
 <script>
 const Q = [
-    {emoji:'👨‍👩‍👧‍👦', text:'現在のライフステージは？', opts:[
-        {text:'独身（扶養家族なし）', s:{ok:2}},
-        {text:'既婚・子供なし（共働き）', s:{partial:2}},
-        {text:'既婚・子供あり（小学生以下）', s:{urgent:3}},
-        {text:'子供が中高生・大学生', s:{partial:2}},
-        {text:'子供が独立済み・定年前後', s:{partial:1}},
+    {emoji:'👨‍👩‍👧‍👦', text:'現在のライフステージは？', tooltip:'子どもの有無や年齢によって、必要な保障額が大きく変わります。', opts:[
+        {text:'独身（扶養家族なし）', hint:'配偶者や子どもがいない場合', s:{ok:2}},
+        {text:'既婚・子供なし（共働き）', hint:'2人の収入で生活している場合', s:{partial:2}},
+        {text:'既婚・子供あり（小学生以下）', hint:'子どもの教育費と最も保障が必要な時期', s:{urgent:3}},
+        {text:'子供が中高生・大学生', hint:'教育費がピークで保障が重要な時期', s:{partial:2}},
+        {text:'子供が独立済み・定年前後', hint:'扶養者がいないため必要保障額が低下', s:{partial:1}},
     ]},
-    {emoji:'🛡️', text:'現在の生命保険（死亡保障）への加入状況は？', opts:[
-        {text:'加入していない', s:{urgent:3}},
-        {text:'職場の団体保険のみ', s:{partial:2}},
-        {text:'個人で生命保険に加入している', s:{ok:1}},
-        {text:'複数の保険に加入している', s:{partial:1}},
+    {emoji:'🛡️', text:'現在の生命保険（死亡保障）への加入状況は？', tooltip:'万が一の際に遺族が生活できる保障の有無を確認します。', opts:[
+        {text:'加入していない', hint:'扶養者がいる場合、重大なリスク', s:{urgent:3}},
+        {text:'職場の団体保険のみ', hint:'退職時に保障が失われるため、個人保険の検討が必要', s:{partial:2}},
+        {text:'個人で生命保険に加入している', hint:'ライフステージに合った保障額の確認が重要', s:{ok:1}},
+        {text:'複数の保険に加入している', hint:'重複がないか、内容を見直す価値あり', s:{partial:1}},
     ]},
-    {emoji:'💊', text:'医療保険・入院保険への加入状況は？', opts:[
-        {text:'未加入', s:{urgent:2}},
-        {text:'健康保険の高額療養費制度は知っている', s:{ok:1}},
-        {text:'医療保険に加入している', s:{ok:2}},
-        {text:'よく分からない', s:{partial:2}},
+    {emoji:'💊', text:'医療保険・入院保険への加入状況は？', tooltip:'入院時の医療費に対する備えを確認します。', opts:[
+        {text:'未加入', hint:'公的保険があっても、自己負担の不安がある場合は加入推奨', s:{urgent:2}},
+        {text:'健康保険の高額療養費制度は知っている', hint:'基礎知識があり、保障不足のリスクが低い可能性', s:{ok:1}},
+        {text:'医療保険に加入している', hint:'入院日額や手術給付金を確認することが大切', s:{ok:2}},
+        {text:'よく分からない', hint:'保険証券を確認し、内容を把握することが重要', s:{partial:2}},
     ]},
-    {emoji:'🏡', text:'住宅ローンはありますか？', opts:[
-        {text:'持ち家で住宅ローンあり（団信加入済み）', s:{ok:1}},
-        {text:'持ち家で住宅ローンあり（団信の内容を知らない）', s:{partial:2}},
-        {text:'賃貸住まい', s:{ok:1}},
-        {text:'持ち家だがローンはない', s:{ok:2}},
+    {emoji:'🏡', text:'住宅ローンはありますか？', tooltip:'団信（団体信用生命保険）による保障有無を確認します。', opts:[
+        {text:'持ち家で住宅ローンあり（団信加入済み）', hint:'団信で死亡時のローン返済が保障されている', s:{ok:1}},
+        {text:'持ち家で住宅ローンあり（団信の内容を知らない）', hint:'団信の内容を確認する必要あり', s:{partial:2}},
+        {text:'賃貸住まい', hint:'住宅関連の保障の心配は少ない', s:{ok:1}},
+        {text:'持ち家だがローンはない', hint:'他の債務がなければ住宅関連の保障は不要', s:{ok:2}},
     ]},
-    {emoji:'💰', text:'現在支払っている保険料の月額合計は？', opts:[
-        {text:'5,000円未満', s:{partial:1}},
-        {text:'5,000〜15,000円', s:{ok:1}},
-        {text:'15,000〜30,000円', s:{ok:1}},
-        {text:'30,000〜50,000円', s:{partial:2}},
-        {text:'50,000円以上', s:{urgent:2}},
-        {text:'よく分からない', s:{urgent:2}},
+    {emoji:'💰', text:'現在支払っている保険料の月額合計は？', tooltip:'手取り収入の5〜10%が目安です。月収30万円なら月1.5〜3万円。', opts:[
+        {text:'5,000円未満', hint:'保障が不足している可能性', s:{partial:1}},
+        {text:'5,000〜15,000円', hint:'適正な保険料の範囲内', s:{ok:1}},
+        {text:'15,000〜30,000円', hint:'適正な保険料の範囲内', s:{ok:1}},
+        {text:'30,000〜50,000円', hint:'手取りの10%を超える可能性。見直し検討を', s:{partial:2}},
+        {text:'50,000円以上', hint:'過剰加入の可能性が高い。即見直しを推奨', s:{urgent:2}},
+        {text:'よく分からない', hint:'保険料額を確認し、収入に対する割合を計算すること', s:{urgent:2}},
     ]},
-    {emoji:'📅', text:'今の保険を最後に見直したのはいつ？', opts:[
-        {text:'1年以内', s:{ok:2}},
-        {text:'1〜3年前', s:{ok:1}},
-        {text:'3〜5年前', s:{partial:2}},
-        {text:'5年以上前', s:{urgent:2}},
-        {text:'見直したことがない', s:{urgent:3}},
+    {emoji:'📅', text:'今の保険を最後に見直したのはいつ？', tooltip:'ライフステージの変化に合わせて3〜5年ごとの見直しが理想です。', opts:[
+        {text:'1年以内', hint:'最近見直ししているため、概ね適切な可能性が高い', s:{ok:2}},
+        {text:'1〜3年前', hint:'ライフイベントがなければ定期見直しペース内', s:{ok:1}},
+        {text:'3〜5年前', hint:'そろそろ見直しの検討時期', s:{partial:2}},
+        {text:'5年以上前', hint:'大きな変化がなくても見直し推奨', s:{urgent:2}},
+        {text:'見直したことがない', hint:'初回の見直しは大きな効果が期待できる', s:{urgent:3}},
     ]},
-    {emoji:'👶', text:'子供の教育費のための備えは？', opts:[
-        {text:'学資保険に加入している', s:{ok:2}},
-        {text:'NISAや貯蓄で準備している', s:{ok:2}},
-        {text:'何も準備していない', s:{urgent:2}},
-        {text:'子供はいない', s:{ok:2}},
+    {emoji:'👶', text:'子供の教育費のための備えは？', tooltip:'大学までの教育費は平均で1,000万円以上必要です。', opts:[
+        {text:'学資保険に加入している', hint:'計画的な備えができている', s:{ok:2}},
+        {text:'NISAや貯蓄で準備している', hint:'柔軟な貯蓄で対応している', s:{ok:2}},
+        {text:'何も準備していない', hint:'親の収入に万が一があれば教育費が途絶えるリスク', s:{urgent:2}},
+        {text:'子供はいない', hint:'教育費備えの検討は不要', s:{ok:2}},
     ]},
-    {emoji:'🏥', text:'もし3ヶ月入院したとき、生活費の不安は？', opts:[
-        {text:'貯蓄で対応できる（緊急資金100万円以上）', s:{ok:3}},
-        {text:'何とかなるが不安がある', s:{partial:2}},
-        {text:'かなり困る', s:{urgent:3}},
-        {text:'全く対応できない', s:{urgent:4}},
+    {emoji:'🏥', text:'もし3ヶ月入院したとき、生活費の不安は？', tooltip:'医療費に加えて、入院中の生活費の不安を測ります。', opts:[
+        {text:'貯蓄で対応できる（緊急資金100万円以上）', hint:'十分な資金があり、医療保険の必要性が低い可能性', s:{ok:3}},
+        {text:'何とかなるが不安がある', hint:'医療保険で不安を解消することが効果的', s:{partial:2}},
+        {text:'かなり困る', hint:'医療保険加入の検討が急務', s:{urgent:3}},
+        {text:'全く対応できない', hint:'緊急時の資金計画と医療保険が不可欠', s:{urgent:4}},
     ]},
-    {emoji:'📋', text:'保険証券（契約内容）を最近確認しましたか？', opts:[
-        {text:'最近確認した', s:{ok:2}},
-        {text:'数年確認していない', s:{partial:2}},
-        {text:'どこにあるか分からない', s:{urgent:2}},
-        {text:'内容を覚えていない', s:{urgent:2}},
+    {emoji:'📋', text:'保険証券（契約内容）を最近確認しましたか？', tooltip:'保険内容の把握は見直しの第一歩です。', opts:[
+        {text:'最近確認した', hint:'保険内容の把握ができている', s:{ok:2}},
+        {text:'数年確認していない', hint:'変更や新しい商品発売がないか確認すること', s:{partial:2}},
+        {text:'どこにあるか分からない', hint:'まずは保険証券を探して内容を確認しましょう', s:{urgent:2}},
+        {text:'内容を覚えていない', hint:'保険証券と一緒に内容を整理することが大切', s:{urgent:2}},
     ]},
-    {emoji:'😟', text:'保険・老後・お金で一番不安なことは？', opts:[
-        {text:'病気・入院時の医療費', s:{partial:1}},
-        {text:'家族が死亡した後の生活費', s:{urgent:1}},
-        {text:'老後の資金', s:{partial:1}},
-        {text:'子供の教育費', s:{partial:1}},
-        {text:'特に不安はない', s:{ok:2}},
+    {emoji:'😟', text:'保険・老後・お金で一番不安なことは？', tooltip:'最も不安なリスクに対して重点的に備えることが大切です。', opts:[
+        {text:'病気・入院時の医療費', hint:'医療保険の充実が解決策', s:{partial:1}},
+        {text:'家族が死亡した後の生活費', hint:'生命保険の保障額を重視すべき', s:{urgent:1}},
+        {text:'老後の資金', hint:'貯蓄と保険のバランスが重要', s:{partial:1}},
+        {text:'子供の教育費', hint:'学資保険やNISAでの準備が効果的', s:{partial:1}},
+        {text:'特に不安はない', hint:'現在の保障が生活に合致している', s:{ok:2}},
     ]},
 ];
 
@@ -417,14 +445,25 @@ function render() {
     document.getElementById('progress-pct').textContent=pct+'%';
     document.getElementById('progress-fill').style.width=pct+'%';
     document.getElementById('q-emoji').textContent=q.emoji;
-    document.getElementById('q-text').textContent=q.text;
+    let qText = q.text;
+    if(q.tooltip) qText += '<span class="hint-icon" title="'+q.tooltip+'">?</span>';
+    document.getElementById('q-text').innerHTML=qText;
     const c=document.getElementById('options-container'); c.innerHTML='';
     q.opts.forEach((o,i)=>{
+        const btn=document.createElement('div');
+        btn.style.marginBottom='10px';
         const b=document.createElement('button');
         b.className='option-btn'+(st.ans[st.q]===i?' selected':'');
         b.textContent=o.text;
         b.onclick=()=>{st.ans[st.q]=i;render();};
-        c.appendChild(b);
+        btn.appendChild(b);
+        if(o.hint) {
+            const hint=document.createElement('div');
+            hint.className='option-hint';
+            hint.textContent='💡 '+o.hint;
+            btn.appendChild(hint);
+        }
+        c.appendChild(btn);
     });
     const nb=document.getElementById('next-btn'), pb=document.getElementById('prev-btn');
     const has=st.ans[st.q]!==undefined;
@@ -472,7 +511,70 @@ function renderResult(){
     document.getElementById('result-desc').textContent=r.desc;
     document.getElementById('result-points').innerHTML=r.points.map(p=>`<div class="flex gap-2"><span class="text-amber-500 flex-shrink-0">▶</span><span>${p}</span></div>`).join('');
     document.getElementById('action-list').innerHTML=r.actions.map(a=>`<div class="flex gap-2 items-start"><span class="text-green-600 font-bold flex-shrink-0">✓</span><span>${a}</span></div>`).join('');
-    localStorage.setItem('insurance_result',JSON.stringify({result:top,urgency:urgentPct,date:new Date().toISOString()}));
+
+    const resultData={result:top,urgency:urgentPct,scores:st.scores,date:new Date().toISOString()};
+    localStorage.setItem('insurance_result',JSON.stringify(resultData));
+
+    renderScoreChart(st.scores);
+    showPrevScore(urgentPct);
+}
+
+function renderScoreChart(scores){
+    try{
+        const ctx=document.getElementById('scoreChart');
+        if(!ctx||!window.Chart)return;
+        const colors=['#dc2626','#d97706','#16a34a'];
+        const labels=['緊急度','部分見直し','適切'];
+        const data=[scores.urgent,scores.partial,scores.ok];
+
+        if(window.insuranceChart) window.insuranceChart.destroy();
+        window.insuranceChart=new Chart(ctx,{
+            type:'doughnut',
+            data:{
+                labels:labels,
+                datasets:[{
+                    data:data,
+                    backgroundColor:colors,
+                    borderWidth:0
+                }]
+            },
+            options:{
+                responsive:true,
+                maintainAspectRatio:true,
+                plugins:{legend:{position:'bottom',labels:{font:{size:12},padding:15}}},
+                cutout:'60%'
+            }
+        });
+    }catch(e){console.log('Chart err:',e);}
+}
+
+function showPrevScore(currentUrgency){
+    const hist=JSON.parse(localStorage.getItem('insurance_result')||'null');
+    if(!hist||!hist.urgency)return;
+    const wrapper=document.getElementById('prevScoreWrapper');
+    const content=document.getElementById('prevScoreContent');
+    const diff=currentUrgency-hist.urgency;
+    const status=diff<0?'✅ 改善':'⬆️ 上昇';
+    const absVal=Math.abs(diff);
+    content.innerHTML=`前回診断: ${hist.urgency}% → 今回: ${currentUrgency}%<br/>変化: ${status} (${absVal}%ポイント)`;
+    wrapper.classList.remove('hidden');
+}
+
+function printResult(){
+    window.print();
+    showSuccess('印刷プレビューを表示しました');
+}
+
+function copyResultText(){
+    const d=JSON.parse(localStorage.getItem('insurance_result')||'{}');
+    const resultType=d.result==='urgent'?'緊急見直し必要':'urgent'===undefined?'不明':(d.result==='partial'?'一部見直し':'適切');
+    const text=`[保険見直し診断結果]\n\n診断日時: ${new Date(d.date).toLocaleString('ja-JP')}\n診断結果: ${resultType}\n見直し緊急度: ${d.urgency}%\n\nスコア内訳:\n- 緊急度: ${d.scores?.urgent||0}点\n- 部分見直し: ${d.scores?.partial||0}点\n- 適切: ${d.scores?.ok||0}点\n\n詳細は https://appadaycreator.com/insurance-check/ をご確認ください`;
+    navigator.clipboard.writeText(text).then(()=>{
+        showSuccess('テキストをコピーしました！');
+    }).catch(()=>{
+        const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
+        showSuccess('テキストをコピーしました！');
+    });
 }
 
 function shareResult(){

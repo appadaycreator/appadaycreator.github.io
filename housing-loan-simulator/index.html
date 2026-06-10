@@ -119,6 +119,18 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 }
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;}
 
+/* ツールチップスタイル */
+.tooltip-icon{position:relative;display:inline-block;cursor:help;font-size:0.9em;color:#d97706;margin-left:4px;}
+.tooltip-icon:hover::after,.tooltip-icon:focus::after{content:attr(data-tooltip);position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:6px 10px;border-radius:6px;font-size:0.75em;white-space:nowrap;z-index:10;margin-bottom:6px;font-weight:400;}
+.tooltip-icon:hover::before,.tooltip-icon:focus::before{content:'';position:absolute;bottom:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#1e293b;z-index:10;margin-bottom:-4px;}
+@media(max-width:640px){.tooltip-icon:hover::after,.tooltip-icon:focus::after{white-space:normal;width:200px;left:50%;transform:translateX(-50%);}}
+
+/* 目標達成ゲージ */
+.goal-section{background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:12px;margin:12px 0;}
+.goal-result{font-size:0.85em;margin-top:8px;display:flex;align-items:center;gap:6px;}
+.goal-result.achieved{color:#166534;font-weight:600;}
+.goal-result.exceeded{color:#dc2626;font-weight:600;}
+
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
 </style>
@@ -199,37 +211,45 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="card">
         <div class="card-title">🏠 ローン条件を入力</div>
         <div id="preset-area" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px;align-items:center;"></div>
-        <label>🏠 物件価格（万円）</label>
-        <input type="range" id="loan-amount" min="500" max="15000" step="50" value="3000" oninput="updateBasic()">
+        <label>🏠 物件価格（万円）<span class="tooltip-icon" data-tooltip="購入予定の物件の総価格（500万〜15,000万円）">?</span></label>
+        <input type="range" id="loan-amount" min="500" max="15000" step="50" value="3000" oninput="updateBasic()" aria-label="物件価格（500万〜15,000万円）" title="スライダーで物件価格を選択">
         <div class="val-display" id="loan-amount-disp">3,000万円</div>
         <div id="loan-calc-disp" style="font-size:0.78em;color:#64748b;text-align:center;margin-top:-2px;">頭金 600万円 → 実際の借入額: 2,400万円</div>
-        <label>📅 返済期間</label>
-        <input type="range" id="loan-years" min="5" max="35" step="5" value="35" oninput="updateBasic()">
+        <label>📅 返済期間<span class="tooltip-icon" data-tooltip="ローンを返済する期間（5年〜35年）。短いほど総利息が少なくなり、長いほど毎月の返済額が減ります">?</span></label>
+        <input type="range" id="loan-years" min="5" max="35" step="5" value="35" oninput="updateBasic()" aria-label="返済期間（5〜35年）" title="スライダーで返済期間を選択">
         <div class="val-display" id="loan-years-disp">35年</div>
-        <label>📈 金利（年率）</label>
+        <label>📈 金利（年率）<span class="tooltip-icon" data-tooltip="変動金利と固定金利の2種類があります。変動は現在低いが将来上昇リスク、固定は安定">?</span></label>
         <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
-            <button class="rate-btn" onclick="setLoanRate(0.5,this)" style="flex:1;min-width:70px;padding:7px 4px;border:2px solid #fcd34d;border-radius:8px;font-size:0.78em;font-weight:700;cursor:pointer;background:#fff;color:#92400e;">0.5%<br><span style="font-size:0.75em;font-weight:400;">変動低め</span></button>
-            <button class="rate-btn active" onclick="setLoanRate(1.0,this)" style="flex:1;min-width:70px;padding:7px 4px;border:2px solid #d97706;border-radius:8px;font-size:0.78em;font-weight:700;cursor:pointer;background:#fffbeb;color:#92400e;">1.0%<br><span style="font-size:0.75em;font-weight:400;">変動標準</span></button>
-            <button class="rate-btn" onclick="setLoanRate(1.5,this)" style="flex:1;min-width:70px;padding:7px 4px;border:2px solid #fcd34d;border-radius:8px;font-size:0.78em;font-weight:700;cursor:pointer;background:#fff;color:#92400e;">1.5%<br><span style="font-size:0.75em;font-weight:400;">固定低め</span></button>
-            <button class="rate-btn" onclick="setLoanRate(2.0,this)" style="flex:1;min-width:70px;padding:7px 4px;border:2px solid #fcd34d;border-radius:8px;font-size:0.78em;font-weight:700;cursor:pointer;background:#fff;color:#92400e;">2.0%<br><span style="font-size:0.75em;font-weight:400;">固定標準</span></button>
-            <button class="rate-btn" onclick="setLoanRate(3.0,this)" style="flex:1;min-width:70px;padding:7px 4px;border:2px solid #fcd34d;border-radius:8px;font-size:0.78em;font-weight:700;cursor:pointer;background:#fff;color:#92400e;">3.0%<br><span style="font-size:0.75em;font-weight:400;">固定高め</span></button>
+            <button class="rate-btn" onclick="setLoanRate(0.5,this)" style="flex:1;min-width:70px;padding:7px 4px;border:2px solid #fcd34d;border-radius:8px;font-size:0.78em;font-weight:700;cursor:pointer;background:#fff;color:#92400e;" title="変動金利（低め） 0.5%">0.5%<br><span style="font-size:0.75em;font-weight:400;">変動低め</span></button>
+            <button class="rate-btn active" onclick="setLoanRate(1.0,this)" style="flex:1;min-width:70px;padding:7px 4px;border:2px solid #d97706;border-radius:8px;font-size:0.78em;font-weight:700;cursor:pointer;background:#fffbeb;color:#92400e;" title="変動金利（標準） 1.0%">1.0%<br><span style="font-size:0.75em;font-weight:400;">変動標準</span></button>
+            <button class="rate-btn" onclick="setLoanRate(1.5,this)" style="flex:1;min-width:70px;padding:7px 4px;border:2px solid #fcd34d;border-radius:8px;font-size:0.78em;font-weight:700;cursor:pointer;background:#fff;color:#92400e;" title="固定金利（低め） 1.5%">1.5%<br><span style="font-size:0.75em;font-weight:400;">固定低め</span></button>
+            <button class="rate-btn" onclick="setLoanRate(2.0,this)" style="flex:1;min-width:70px;padding:7px 4px;border:2px solid #fcd34d;border-radius:8px;font-size:0.78em;font-weight:700;cursor:pointer;background:#fff;color:#92400e;" title="固定金利（標準） 2.0%">2.0%<br><span style="font-size:0.75em;font-weight:400;">固定標準</span></button>
+            <button class="rate-btn" onclick="setLoanRate(3.0,this)" style="flex:1;min-width:70px;padding:7px 4px;border:2px solid #fcd34d;border-radius:8px;font-size:0.78em;font-weight:700;cursor:pointer;background:#fff;color:#92400e;" title="固定金利（高め） 3.0%">3.0%<br><span style="font-size:0.75em;font-weight:400;">固定高め</span></button>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
             <span style="font-size:0.8em;color:#64748b;">カスタム:</span>
-            <input type="number" id="custom-rate" placeholder="例: 1.2" min="0.1" max="10" step="0.1" style="width:100px;" oninput="setLoanRateCustom(this.value)" aria-label="例: 1.2">
+            <input type="number" id="custom-rate" placeholder="例: 1.2" min="0.1" max="10" step="0.1" style="width:100px;" oninput="setLoanRateCustom(this.value)" aria-label="カスタム金利（0.1〜10%）" title="任意の金利を入力">
             <span style="font-size:0.8em;color:#64748b;">%</span>
         </div>
-        <label>💳 返済方式</label>
-        <select id="repay-type" onchange="updateBasic()">
+        <label>💳 返済方式<span class="tooltip-icon" data-tooltip="元利均等：毎月同額で払いやすい。元金均等：初期負担が大きいが総利息が少ない">?</span></label>
+        <select id="repay-type" onchange="updateBasic()" aria-label="返済方式を選択" title="元利均等または元金均等を選択">
             <option value="equal-payment">元利均等返済（毎月同額・一般的）</option>
             <option value="equal-principal">元金均等返済（初期負担大・利息少）</option>
         </select>
-        <label>🏦 頭金（物件価格の何%）</label>
-        <input type="range" id="down-payment" min="0" max="50" step="5" value="20" oninput="updateBasic()">
+        <label>🏦 頭金（物件価格の何%）<span class="tooltip-icon" data-tooltip="購入時に用意する自己資金。大きいほど毎月の返済が楽になります">?</span></label>
+        <input type="range" id="down-payment" min="0" max="50" step="5" value="20" oninput="updateBasic()" aria-label="頭金（0〜50%）" title="スライダーで頭金の割合を選択">
         <div class="val-display" id="down-payment-disp">20%（600万円）</div>
-        <label>🎁 ボーナス払い（年2回・1回あたり）</label>
-        <input type="range" id="bonus-amount" min="0" max="200" step="10" value="0" oninput="updateBasic()">
+        <label>🎁 ボーナス払い（年2回・1回あたり）<span class="tooltip-icon" data-tooltip="夏冬のボーナス月に追加返済。月々の返済を減らしたい人向け">?</span></label>
+        <input type="range" id="bonus-amount" min="0" max="200" step="10" value="0" oninput="updateBasic()" aria-label="ボーナス払い額（0〜200万円）" title="スライダーでボーナス払い額を選択">
         <div class="val-display" id="bonus-amount-disp">なし</div>
+
+        <!-- 目標設定 -->
+        <div style="margin-top:16px;border-top:1px solid #fef3c7;padding-top:12px;">
+            <label>🎯 目標の月々返済額（万円）<span class="tooltip-icon" data-tooltip="目安として月々の返済額の上限を設定。計算結果がこの額を超えているか確認できます">?</span></label>
+            <input type="number" id="goal-monthly" placeholder="例: 15" min="1" max="100" style="width:100px;" oninput="saveGoal(this.value)" aria-label="目標月々返済額（1〜100万円）" title="目標の月々返済額を万円単位で入力">
+            <button onclick="clearGoal()" style="margin-left:8px;padding:6px 12px;background:#fff;border:1px solid #fca5a5;border-radius:6px;font-size:0.8em;color:#dc2626;cursor:pointer;">クリア</button>
+            <div id="goal-result" style="margin-top:8px;"></div>
+        </div>
     </div>
 
     <!-- 結果 -->
@@ -241,14 +261,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="card">
         <div class="card-title">⚡ 繰り上げ返済シミュレーション</div>
         <div class="info" id="prepay-base-info">💡 基本計算タブの条件を引き継いでいます。</div>
-        <label>📅 繰り上げ返済のタイミング（経過年数）</label>
-        <input type="range" id="prepay-timing" min="1" max="30" step="1" value="10" oninput="updatePrepay()">
+        <label>📅 繰り上げ返済のタイミング（経過年数）<span class="tooltip-icon" data-tooltip="ローン開始から何年後に繰り上げ返済するかを指定。早いほど利息削減効果が大きい">?</span></label>
+        <input type="range" id="prepay-timing" min="1" max="30" step="1" value="10" oninput="updatePrepay()" aria-label="繰上返済タイミング（1〜30年後）" title="スライダーで繰上返済のタイミングを選択">
         <div class="val-display" id="prepay-timing-disp">10年後</div>
-        <label>💴 繰り上げ返済額</label>
-        <input type="range" id="prepay-amount" min="10" max="2000" step="10" value="100" oninput="updatePrepay()">
+        <label>💴 繰り上げ返済額<span class="tooltip-icon" data-tooltip="一度に返済する額。大きいほど利息削減効果が大きくなります">?</span></label>
+        <input type="range" id="prepay-amount" min="10" max="2000" step="10" value="100" oninput="updatePrepay()" aria-label="繰上返済額（10〜2000万円）" title="スライダーで繰上返済額を選択">
         <div class="val-display" id="prepay-amount-disp">100万円</div>
-        <label>🎯 繰り上げ返済の方式</label>
-        <select id="prepay-type" onchange="updatePrepay()">
+        <label>🎯 繰り上げ返済の方式<span class="tooltip-icon" data-tooltip="期間短縮型：完済を早める。返済額軽減型：月々の返済を減らす">?</span></label>
+        <select id="prepay-type" onchange="updatePrepay()" aria-label="繰上返済の方式を選択" title="期間短縮型または返済額軽減型を選択">
             <option value="shorten">期間短縮型（返済期間を短くする・利息削減効果大）</option>
             <option value="reduce">返済額軽減型（月々の返済額を下げる）</option>
         </select>
@@ -261,8 +281,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="card">
         <div class="card-title">📊 金利上昇リスクシミュレーション</div>
         <p style="font-size:0.82em;color:#64748b;margin-bottom:12px;">変動金利選択時の金利上昇シナリオを試算します。</p>
-        <label>⏱️ 金利上昇のタイミング（経過年数）</label>
-        <input type="range" id="rate-timing" min="1" max="20" step="1" value="5" oninput="updateRateRisk()">
+        <label>⏱️ 金利上昇のタイミング（経過年数）<span class="tooltip-icon" data-tooltip="変動金利がいつから上昇し始めるか。実際の金利上昇時期は読めないため複数シナリオをチェック">?</span></label>
+        <input type="range" id="rate-timing" min="1" max="20" step="1" value="5" oninput="updateRateRisk()" aria-label="金利上昇タイミング（1〜20年後）" title="スライダーで金利上昇のタイミングを選択">
         <div class="val-display" id="rate-timing-disp">5年後</div>
         <div id="rate-risk-result"></div>
     </div>
@@ -272,13 +292,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <div id="panel-check" class="panel">
     <div class="card">
         <div class="card-title">✅ 借入適正額チェック</div>
-        <label>💰 世帯年収</label>
-        <input type="range" id="income-amount" min="300" max="2000" step="50" value="500" oninput="updateCheck()">
+        <label>💰 世帯年収<span class="tooltip-icon" data-tooltip="税込み年収（ボーナス込み）。世帯全体の合算年収を入力">?</span></label>
+        <input type="range" id="income-amount" min="300" max="2000" step="50" value="500" oninput="updateCheck()" aria-label="世帯年収（300〜2000万円）" title="スライダーで年収を選択">
         <div class="val-display" id="income-disp">年収 500万円</div>
-        <label>🏠 物件の想定価格（万円）</label>
-        <input type="number" id="property-price" placeholder="例: 4000" min="500" max="30000" value="4000" required oninput="updateCheck()" aria-label="例: 4000">
-        <label>🏦 頭金（万円）</label>
-        <input type="number" id="check-downpay" placeholder="例: 800" min="0" max="10000" value="800" oninput="updateCheck()" aria-label="例: 800">
+        <label>🏠 物件の想定価格（万円）<span class="tooltip-icon" data-tooltip="購入予定の物件価格。不動産情報サイトの物件相場から参考値を入力">?</span></label>
+        <input type="number" id="property-price" placeholder="例: 4000" min="500" max="30000" value="4000" required oninput="updateCheck()" aria-label="物件価格（500〜30000万円）" title="物件価格を万円単位で入力">
+        <label>🏦 頭金（万円）<span class="tooltip-icon" data-tooltip="購入時に用意できる自己資金。多いほど借入額が減り月々の返済が楽になります">?</span></label>
+        <input type="number" id="check-downpay" placeholder="例: 800" min="0" max="10000" value="800" oninput="updateCheck()" aria-label="頭金（0〜10000万円）" title="頭金を万円単位で入力">
     </div>
     <div id="check-result"></div>
 
@@ -652,6 +672,10 @@ function updateBasic() {
             <button onclick="shareToLine()" style="flex:1;min-width:100px;background:#00b900;color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:0.8rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;">💬 LINE</button>
             <button onclick="shareByEmail('${loanRate}%','${fmt(Math.round(res.monthly))}')" style="flex:1;min-width:100px;background:#ea4c89;color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:0.8rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;">📧 メール</button>
         </div>
+        <div style="display:flex;gap:8px;margin-bottom:14px;">
+            <button onclick="printResult(${Math.round(res.monthly)},${Math.round(res.total)},${Math.round(res.interest)},${loanRate},${years})" style="flex:1;background:#4338ca;color:#fff;border:none;border-radius:10px;padding:10px;font-size:0.85rem;font-weight:700;cursor:pointer;">🖨️ 印刷</button>
+            <button onclick="downloadResult(${Math.round(res.monthly)},${Math.round(res.total)},${Math.round(res.interest)},${loanRate},${years})" style="flex:1;background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:10px;font-size:0.85rem;font-weight:700;cursor:pointer;">📥 ダウンロード</button>
+        </div>
         <div class="card" style="margin-bottom:14px;">
             <div class="card-title">📊 年別残高・利息推移</div>
             <div class="chart-wrap"><div class="bar-chart" id="basic-chart" role="img" aria-label="年別の元金・利息推移棒グラフ"></div></div>
@@ -670,6 +694,7 @@ function updateBasic() {
 
     drawBasicChart(res.schedule);
     drawBalanceChart(res.schedule, loanAmt);
+    displayGoalResult(Math.round(res.monthly));
     updatePrepay();
     updateRateRisk();
 }
@@ -984,12 +1009,66 @@ document.addEventListener('click', function(e){
     if (typeof dataLayer !== 'undefined') dataLayer.push({event:'affiliate_click',affiliate_item:el.dataset.itemName,affiliate_platform:el.dataset.platform});
 });
 
+// ===== 目標設定・達成度 =====
+function saveGoal(value) {
+    if (value && value > 0) {
+        try { localStorage.setItem('hls_goal', value); } catch(e) {}
+    }
+}
+function getGoal() {
+    try { return parseInt(localStorage.getItem('hls_goal')) || null; } catch(e) { return null; }
+}
+function clearGoal() {
+    try { localStorage.removeItem('hls_goal'); } catch(e) {}
+    document.getElementById('goal-monthly').value = '';
+    const goalEl = document.getElementById('goal-result');
+    if (goalEl) goalEl.innerHTML = '';
+}
+function displayGoalResult(monthly) {
+    const goalEl = document.getElementById('goal-result');
+    if (!goalEl) return;
+    const goal = getGoal();
+    if (!goal) { goalEl.innerHTML = ''; return; }
+    const goalCirc = goal * 10000;
+    if (monthly <= goalCirc) {
+        goalEl.innerHTML = `<span class="goal-result achieved">✅ 目標達成！ 月々${fmt(monthly)}円 ≤ 目標${fmt(goalCirc)}円</span>`;
+    } else {
+        const diff = monthly - goalCirc;
+        goalEl.innerHTML = `<span class="goal-result exceeded">⚠️ 目標超過 月々${fmt(monthly)}円 > 目標${fmt(goalCirc)}円 （差分：+${fmt(diff)}円）</span>`;
+    }
+}
+
+// ===== 印刷・エクスポート =====
+function printResult(monthly, total, interest, rate, years) {
+    window.print();
+}
+function downloadResult(monthly, total, interest, rate, years) {
+    const date = new Date();
+    const dateStr = date.getFullYear() + '-' + String(date.getMonth()+1).padStart(2,'0') + '-' + String(date.getDate()).padStart(2,'0');
+    const text = `住宅ローン計算シミュレーター - 計算結果\n生成日時: ${dateStr}\n\n【計算条件】\n金利: ${rate}%\n返済期間: ${years}年\n\n【計算結果】\n月々の返済額: ${fmt(monthly)}円\n総返済額: ${fmt(total)}円\n総利息: ${fmt(interest)}円\n\n---\n本ツール: https://appadaycreator.com/housing-loan-simulator/\n※ 本計算は参考値です。実際の金融商品にはご確認の上、利用ください。`;
+    const blob = new Blob([text], {type:'text/plain'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `housing_loan_${dateStr}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
 // エラーハンドラ
 window.onerror = function(msg,src,line){try{console.error('[AppError]',msg,'at',src+':'+line);}catch(e){}return false;};
 window.addEventListener('unhandledrejection',function(e){console.error('[PromiseError]',e.reason);});
 
 document.addEventListener('DOMContentLoaded', function(){
     loadInputs();
+    // Load goal
+    const goalVal = getGoal();
+    if (goalVal) {
+        const goalEl = document.getElementById('goal-monthly');
+        if (goalEl) goalEl.value = goalVal;
+    }
     updateBasic();
     updateCheck();
     renderPresets();

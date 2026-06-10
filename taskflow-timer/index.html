@@ -2097,6 +2097,138 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
            localStorage.setItem('darkTheme', state.isDarkTheme);
        }
 
+        // 統計管理機能
+        function getStatisticsKey(date) {
+            return 'tf_stats_' + date.toISOString().split('T')[0];
+        }
+
+        function getTodayStats() {
+            const key = getStatisticsKey(new Date());
+            try {
+                return JSON.parse(localStorage.getItem(key) || '{"completedCount":0,"totalMinutes":0,"tasks":[]}');
+            } catch (e) {
+                return { completedCount: 0, totalMinutes: 0, tasks: [] };
+            }
+        }
+
+        function recordStatistic(task, duration) {
+            const key = getStatisticsKey(new Date());
+            const stats = getTodayStats();
+            stats.completedCount = (stats.completedCount || 0) + 1;
+            stats.totalMinutes = (stats.totalMinutes || 0) + duration;
+            if (!stats.tasks) stats.tasks = [];
+            stats.tasks.push({
+                name: task.name || 'タスク',
+                minutes: duration,
+                timestamp: Date.now()
+            });
+            try {
+                localStorage.setItem(key, JSON.stringify(stats));
+            } catch (e) {
+                console.warn('Failed to save statistics');
+            }
+        }
+
+        function updateStatisticsDisplay() {
+            const stats = getTodayStats();
+            const todayCount = document.getElementById('todayCompletedCount');
+            const todayTime = document.getElementById('todayTotalTime');
+            const todayScore = document.getElementById('todayFocusScore');
+
+            if (todayCount) todayCount.textContent = stats.completedCount || 0;
+            if (todayTime) todayTime.textContent = (stats.totalMinutes || 0) + '分';
+
+            if (todayScore && stats.totalMinutes && stats.completedCount) {
+                const score = Math.min(100, Math.round((stats.totalMinutes / (stats.completedCount * 30)) * 100));
+                todayScore.textContent = score + '%';
+            }
+        }
+
+        function initStatisticsCharts() {
+            if (typeof Chart === 'undefined') {
+                console.warn('Chart.js not loaded');
+                return;
+            }
+
+            const stats = getTodayStats();
+            const taskDistCtx = document.getElementById('taskDistributionChart');
+            const timelineCtx = document.getElementById('timelineChart');
+
+            if (!taskDistCtx || !timelineCtx) return;
+
+            const taskNames = stats.tasks?.map(t => t.name) || [];
+            const taskMinutes = stats.tasks?.map(t => t.minutes) || [];
+
+            const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
+            if (window.taskDistributionChart instanceof Chart) {
+                window.taskDistributionChart.destroy();
+            }
+            if (window.timelineChart instanceof Chart) {
+                window.timelineChart.destroy();
+            }
+
+            window.taskDistributionChart = new Chart(taskDistCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: taskNames.length ? taskNames : ['データなし'],
+                    datasets: [{
+                        data: taskMinutes.length ? taskMinutes : [1],
+                        backgroundColor: colors.slice(0, (taskNames.length || 1)),
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { font: { size: 12 } }
+                        }
+                    }
+                }
+            });
+
+            const hourBuckets = {};
+            if (stats.tasks) {
+                stats.tasks.forEach(task => {
+                    const hour = new Date(task.timestamp).getHours();
+                    hourBuckets[hour] = (hourBuckets[hour] || 0) + task.minutes;
+                });
+            }
+
+            const hours = Array.from({length: 24}, (_, i) => i);
+            const hourData = hours.map(h => hourBuckets[h] || 0);
+
+            window.timelineChart = new Chart(timelineCtx, {
+                type: 'line',
+                data: {
+                    labels: hours.map(h => h + ':00'),
+                    datasets: [{
+                        label: '実行時間（分）',
+                        data: hourData,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#3b82f6'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { stepSize: 10 } }
+                    }
+                }
+            });
+        }
+
       function toggleView() {
           state.compactView = !state.compactView;
           elements.toggleViewButton.textContent = state.compactView ? translations[state.language].detail : translations[state.language].titleOnly;

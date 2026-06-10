@@ -28,6 +28,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
 <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
   body { background: #f8fafc; min-height: 100vh; }
   .card { background: white; border-radius: 1rem; box-shadow: 0 4px 24px rgba(0,0,0,0.09); }
@@ -56,9 +57,10 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
   [class*="share"],[class*="affiliate"],[id*="share"],
   [id*="affiliate"],[id*="banner"],
   script,noscript{display:none!important}
-  body{background:#fff!important;color:#000!important;font-size:12pt}
+  body{background:#fff!important;color:#000!important;font-size:11pt}
   [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
   a[href]::after{content:none!important}
+  #main{padding:0;max-width:100%}
 }
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;}
 .related-link{padding:10px;text-align:center;border:1px solid #ddd;border-radius:4px;text-decoration:none;color:#333;display:block;transition:background 0.15s;}
@@ -207,6 +209,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       </div>
     </details>
 
+    <h2 class="font-bold text-gray-800 mb-3 mt-5">③ 月額予算を入力（オプション）</h2>
+    <div class="bg-blue-50 rounded-lg p-4 mb-5">
+      <label for="budget" class="block text-xs text-gray-600 mb-2">月額で無理なく払える予算（円）</label>
+      <div class="flex items-center gap-2">
+        <input type="number" id="budget" placeholder="例：15000" min="1000" max="500000" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm">
+        <span class="text-xs text-gray-500">円/月</span>
+      </div>
+      <p class="text-xs text-gray-500 mt-2">入力すると「完了までの月数」が自動計算されます</p>
+    </div>
+
     <button class="btn-primary mt-5" onclick="calculate()" aria-label="費用を計算する →">費用を計算する →</button>
   </div>
 
@@ -263,6 +275,24 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       </div>
     </div>
     <div class="mb-4" id="parts-breakdown"></div>
+
+    <div id="budget-progress-section" class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4" style="display:none;">
+      <div class="text-xs text-gray-600 mb-2">月額予算での完了予定</div>
+      <progress id="progress-bar" max="100" value="0" style="width:100%;height:24px;border-radius:8px;"></progress>
+      <div class="text-sm font-bold text-blue-700 mt-2" id="budget-months"></div>
+    </div>
+
+    <div id="chart-section" class="mb-4" style="display:none;">
+      <div class="text-sm font-bold text-gray-800 mb-2">📊 部位別費用の比較</div>
+      <canvas id="costChart" style="max-height:300px;"></canvas>
+    </div>
+
+    <div class="flex flex-wrap gap-2 mb-4">
+      <button onclick="printResults()" class="flex-1 min-w-[100px] bg-blue-500 text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-blue-600 transition no-print">🖨️ 印刷</button>
+      <button onclick="copyResults()" class="flex-1 min-w-[100px] bg-green-500 text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-green-600 transition no-print">📋 コピー</button>
+      <button onclick="downloadCSV()" class="flex-1 min-w-[100px] bg-purple-500 text-white text-sm font-bold py-2 px-3 rounded-lg hover:bg-purple-600 transition no-print">⬇️ CSV</button>
+    </div>
+
     <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800">
       💡 カウンセリングで正確な費用が確認できます。多くのクリニックが<strong>無料カウンセリング</strong>を実施中。
     </div>
@@ -303,6 +333,42 @@ function init() {
     btn.onclick = function() { togglePart(btn, p.key); };
     c.appendChild(btn);
   });
+  loadPreviousInput();
+}
+
+function loadPreviousInput() {
+  try {
+    var saved = localStorage.getItem('hairRemovalInput');
+    if(saved) {
+      var data = JSON.parse(saved);
+      selectedParts = data.parts || {};
+      selectedType = data.type || 'medical';
+      var budget = data.budget || '';
+      document.getElementById('budget').value = budget;
+      document.querySelectorAll('.part-btn').forEach(function(btn) {
+        var key = btn.dataset.key;
+        if(selectedParts[key]) {
+          btn.classList.add('selected');
+        }
+      });
+      document.querySelectorAll('.type-btn').forEach(function(btn) {
+        if(btn.dataset.type === selectedType) {
+          btn.classList.add('selected');
+        }
+      });
+    }
+  } catch(e) { /* localStorage not available */ }
+}
+
+function saveToLocalStorage() {
+  try {
+    var budget = document.getElementById('budget').value;
+    localStorage.setItem('hairRemovalInput', JSON.stringify({
+      parts: selectedParts,
+      type: selectedType,
+      budget: budget
+    }));
+  } catch(e) { /* localStorage not available */ }
 }
 
 function togglePart(btn, key) {
@@ -370,11 +436,24 @@ function calculate() {
   document.getElementById('r-monthly-calc').textContent = '月'+Math.round(monthly36/1000)+'千円〜';
 
   var bd = document.getElementById('parts-breakdown');
-  bd.innerHTML = '<div class="space-y-2">';
+  bd.innerHTML = '<div class="text-sm font-bold text-gray-800 mb-2">📝 部位別費用</div><div class="space-y-2">';
   breakdown.forEach(function(b) {
     bd.innerHTML += '<div class="flex justify-between text-sm"><span class="text-gray-600">'+b.name+'</span><span class="font-bold">¥'+b.cost.toLocaleString()+'</span></div>';
   });
   bd.innerHTML += '</div>';
+
+  var budget = parseFloat(document.getElementById('budget').value);
+  if(budget && budget > 0) {
+    var months = Math.ceil(total / budget);
+    var progressPercent = Math.min((budget / (total / 24)) * 100, 100);
+    document.getElementById('progress-bar').value = progressPercent;
+    document.getElementById('budget-months').textContent = '月額 ¥' + Math.round(budget).toLocaleString() + ' で支払うと、約 ' + months + ' ヶ月で完了できます';
+    document.getElementById('budget-progress-section').style.display = 'block';
+  } else {
+    document.getElementById('budget-progress-section').style.display = 'none';
+  }
+
+  renderCostChart(breakdown);
 
   var aff = document.getElementById('aff-area');
   if(selectedType==='medical') {
@@ -383,9 +462,92 @@ function calculate() {
     aff.innerHTML = '<div class="bg-rose-50 border border-rose-200 rounded-xl p-4 mb-2"><div class="font-bold text-rose-800 mb-1">光脱毛サロンの無料体験</div><p class="text-xs text-gray-600 mb-3">ミュゼ・ストラッシュ等の人気サロン。まずは無料体験から試してみよう。</p><a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ7+18PTPM+1O96+5YRHE" rel="nofollow" target="_blank" rel="noopener sponsored" class="block text-center bg-rose-500 text-white font-bold py-3 rounded-lg text-sm hover:bg-rose-600 transition">無料体験を予約する →</a></div>';
   }
 
+  saveToLocalStorage();
   document.getElementById('results').style.display = 'block';
   document.getElementById('affiliate-section').style.display = 'block';
   document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+}
+
+function renderCostChart(breakdown) {
+  var ctx = document.getElementById('costChart');
+  if(!ctx) return;
+
+  if(window.costChartInstance) {
+    window.costChartInstance.destroy();
+  }
+
+  var labels = breakdown.map(function(b) { return b.name; });
+  var values = breakdown.map(function(b) { return b.cost; });
+
+  window.costChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: '費用（円）',
+        data: values,
+        backgroundColor: '#e11d48',
+        borderColor: '#be123c',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        x: { beginAtZero: true }
+      }
+    }
+  });
+
+  document.getElementById('chart-section').style.display = 'block';
+}
+
+function printResults() {
+  window.print();
+}
+
+function copyResults() {
+  var total = document.getElementById('r-total').textContent;
+  var period = document.getElementById('r-period').textContent;
+  var sessions = document.getElementById('r-count').textContent;
+  var text = '脱毛費用シミュレーション結果\n' +
+             '総費用: ' + total + '\n' +
+             '期間: ' + period + '\n' +
+             '施術回数: ' + sessions;
+
+  navigator.clipboard.writeText(text).then(function() {
+    showToast('結果をコピーしました！');
+  }).catch(function() {
+    alert('コピーに失敗しました');
+  });
+}
+
+function downloadCSV() {
+  var breakdown = [];
+  document.querySelectorAll('#parts-breakdown .flex').forEach(function(el) {
+    var parts = el.textContent.match(/(.+?)\n¥(.+)/);
+    if(parts) {
+      breakdown.push([parts[1].trim(), parts[2].trim()]);
+    }
+  });
+
+  var csv = 'uTF-8,部位,費用\n';
+  breakdown.forEach(function(row) {
+    csv += row[0] + ',' + row[1] + '\n';
+  });
+
+  csv += '\n総費用,' + document.getElementById('r-total').textContent;
+
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'hair-removal-cost-' + new Date().getTime() + '.csv';
+  link.click();
 }
 
 init();

@@ -135,6 +135,25 @@ button:focus-visible { outline: 2px solid #059669; outline-offset: 2px; }
 
 /* アクセシビリティ: フォーカス移動時の視認性向上 */
 input[type="radio"]:focus-visible ~ span { outline: 2px solid #059669; outline-offset: 0px; padding: 2px; }
+
+/* M2: フォーム選択肢のUX改善 - 視認性向上 */
+label[class*="flex"] {
+  transition: all 0.2s ease !important;
+  background-color: #f9fafb !important;
+}
+label[class*="flex"]:hover {
+  background-color: #d1fae5 !important;
+  border-color: #10b981 !important;
+}
+label[class*="flex"] input:checked ~ span {
+  font-weight: 600;
+  color: #047857;
+}
+label:has(input[type="radio"]:checked) {
+  background-color: #d1fae5 !important;
+  border-color: #059669 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
 </style>
 </head>
 <body class=" font-sans text-gray-800" style="background:#f8fafc;"><a href="#main" class="sr-only">本文へスキップ</a>
@@ -663,6 +682,88 @@ ${advice.join('\n')}`;
     document.getElementById('result-content').innerHTML = html;
     window.currentResult = { type: answers.type, industry: answers.industry, office: answers.office, initialCost, monthlyCost, advice };
     updateHistoryButtonVisibility();
+
+    // M4: グラフ描画
+    setTimeout(() => renderCharts(initialCost, monthlyCost, recommendedMonths, answers, breakdown), 100);
+  }
+
+  // M4: グラフ描画関数
+  function renderCharts(initialCost, monthlyCost, recommendedMonths, answers, breakdown) {
+    // 1. 費用構成ドーナツグラフ
+    const costBreakdownCtx = document.getElementById('costBreakdownChart');
+    if (costBreakdownCtx && window.Chart) {
+      const totalMonthlyCosts = monthlyCost * recommendedMonths;
+      new Chart(costBreakdownCtx, {
+        type: 'doughnut',
+        data: {
+          labels: [`初期費用\n${initialCost}万円`, `運転資金\n${totalMonthlyCosts}万円`],
+          datasets: [{
+            data: [initialCost, totalMonthlyCosts],
+            backgroundColor: ['#10b981', '#3b82f6'],
+            borderColor: '#fff',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { position: 'bottom', labels: { font: { size: 12 }, boxWidth: 12 } }
+          }
+        }
+      });
+    }
+
+    // 2. 資金計画度スコア（0-100）
+    const fundingScoreCtx = document.getElementById('fundingScoreChart');
+    if (fundingScoreCtx && window.Chart) {
+      // スコア計算: 自己資金率(30%) + 売上目標(40%) + 知識レベル(30%)
+      const savingsMap = { '50万円未満': 0.3, '50〜100万円': 0.5, '100〜300万円': 1, '300万円以上': 2 };
+      const savingsValue = savingsMap[answers.savings] || 0;
+      const savingsScore = Math.min(30, (savingsValue * 100 / Math.max(1, initialCost)) * 30);
+
+      const revenueMap = { '30万円未満': 0, '30〜60万円': 10, '60〜100万円': 20, '100〜200万円': 30, '200万円以上': 40 };
+      const revenueScore = revenueMap[answers.revenue] || 0;
+
+      const knowledgeMap = { '全くない': 10, '少しある（青色申告は知っている）': 20, 'ある程度できる': 25, 'プロに任せる予定': 30 };
+      const knowledgeScore = knowledgeMap[answers.tax_knowledge] || 0;
+
+      const totalScore = Math.round(Math.min(100, savingsScore + revenueScore + knowledgeScore));
+
+      new Chart(fundingScoreCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['達成度', '未達'],
+          datasets: [{
+            data: [totalScore, 100 - totalScore],
+            backgroundColor: ['#059669', '#e5e7eb'],
+            borderColor: '#fff',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: { enabled: false }
+          }
+        },
+        plugins: [{
+          id: 'textCenter',
+          beforeDatasetsDraw(chart) {
+            const { ctx, chartArea: { left, top, width, height } } = chart;
+            ctx.save();
+            ctx.font = 'bold 24px sans-serif';
+            ctx.fillStyle = '#059669';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`${totalScore}点`, left + width / 2, top + height / 2);
+            ctx.restore();
+          }
+        }]
+      });
+    }
   }
 
   // P2-1: グローバル変数からテキスト取得（onclick属性への直接埋め込みを排除）

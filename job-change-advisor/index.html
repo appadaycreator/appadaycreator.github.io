@@ -119,6 +119,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <script defer src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858"
          crossorigin="anonymous"></script>
     <!-- End Google AdSense -->
+    <!-- Chart.js for M4 visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -231,6 +233,11 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 <div id="result-score-fill" class="h-3 rounded-full transition-all" style="width:0%"></div>
             </div>
             <p class="text-sm text-gray-500" id="result-score-label"></p>
+            <!-- M4: Chart visualization -->
+            <div class="mt-6" style="background:#f8fafc;border-radius:14px;padding:16px;max-width:500px;margin:16px auto;">
+                <p class="text-sm font-bold text-gray-700 mb-3">📈 あなたの転職スコア分析</p>
+                <canvas id="resultChart" style="max-width:100%;max-height:250px;"></canvas>
+            </div>
         </div>
 
         <div id="result-detail" class="result-card mb-6">
@@ -302,6 +309,11 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             <div id="action-list" class="space-y-2 text-sm text-gray-700"></div>
         </div>
 
+        <!-- M10: Export & Print buttons -->
+        <div class="grid grid-cols-2 gap-3 mb-3">
+            <button onclick="printResult()" class="py-3 rounded-xl border-2 border-gray-200 text-gray-700 font-bold bg-white hover:border-green-400 transition">🖨️ 印刷</button>
+            <button onclick="exportResult()" class="py-3 rounded-xl border-2 border-gray-200 text-gray-700 font-bold bg-white hover:border-orange-400 transition">📥 結果をダウンロード</button>
+        </div>
         <button onclick="share()" class="w-full mb-3 py-3 rounded-xl border-2 border-gray-200 text-gray-700 font-bold bg-white hover:border-blue-400 transition">📤 結果をXでシェアする</button>
         <button onclick="restart()" class="w-full py-2 rounded-xl text-gray-400 text-sm bg-transparent underline">もう一度診断する</button>
 
@@ -434,61 +446,61 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
 
 <script>
 const QUESTIONS = [
-    { emoji:'😔', text:'現在の職場への総合的な満足度は？', options:[
+    { emoji:'😔', text:'現在の職場への総合的な満足度は？', hint:'職場全体の雰囲気・給与・人間関係を総合的に判断してください', options:[
         {text:'非常に不満（毎日つらい）', score:{now:4}},
         {text:'やや不満（改善を望んでいる）', score:{soon:3}},
         {text:'普通（特に不満はない）', score:{wait:1}},
         {text:'満足（今の仕事が好き）', score:{wait:3}},
     ]},
-    { emoji:'📈', text:'現在の職場でのスキル・キャリアの成長は？', options:[
+    { emoji:'📈', text:'現在の職場でのスキル・キャリアの成長は？', hint:'新しいスキル・経験の習得度や、キャリアアップの見込みを考慮してください', options:[
         {text:'ほぼ成長していない（頭打ち）', score:{now:3}},
         {text:'少しは成長しているが物足りない', score:{soon:2}},
         {text:'順調に成長している', score:{wait:2}},
         {text:'非常に学べる環境', score:{wait:3}},
     ]},
-    { emoji:'💰', text:'現在の年収と市場相場を比べると？', options:[
+    { emoji:'💰', text:'現在の年収と市場相場を比べると？', hint:'同じ業界・職種・キャリアレベルの相場と比較してください', options:[
         {text:'市場相場より30%以上低い', score:{now:4}},
         {text:'市場相場より10〜30%低い', score:{soon:3}},
         {text:'だいたい市場相場通り', score:{wait:1}},
         {text:'市場相場より高い', score:{wait:3}},
     ]},
-    { emoji:'🧑‍💼', text:'今の職場の人間関係・職場環境は？', options:[
+    { emoji:'🧑‍💼', text:'今の職場の人間関係・職場環境は？', hint:'上司・同僚との関係、パワハラ・セクハラの有無などを考慮してください', options:[
         {text:'深刻な問題がある（ハラスメント等）', score:{now:5}},
         {text:'かなりストレスを感じている', score:{soon:3}},
         {text:'普通（特に問題はない）', score:{wait:1}},
         {text:'良好（信頼できる仲間がいる）', score:{wait:2}},
     ]},
-    { emoji:'🎯', text:'転職後にやりたいことは明確ですか？', options:[
+    { emoji:'🎯', text:'転職後にやりたいことは明確ですか？', hint:'目標の業界・職種・企業イメージなどが具体的にあるかどうかを判断してください', options:[
         {text:'明確にある（業界・職種・企業が絞れている）', score:{now:3}},
         {text:'なんとなくある（方向性は見えている）', score:{soon:2}},
         {text:'まだ整理できていない', score:{wait:2}},
         {text:'転職の目的が不明確', score:{wait:3}},
     ]},
-    { emoji:'📋', text:'職務経歴書・スキルの棚卸しは？', options:[
+    { emoji:'📋', text:'職務経歴書・スキルの棚卸しは？', hint:'転職活動に必要な書類やスキル整理の進捗状況を選んでください', options:[
         {text:'いつでも出せる（準備済み）', score:{now:3}},
         {text:'一部できている（更新中）', score:{soon:2}},
         {text:'まだ始めていない（着手予定あり）', score:{soon:1, wait:1}},
         {text:'全くできていない（予定もない）', score:{wait:3}},
     ]},
-    { emoji:'🏥', text:'今の仕事が体・精神の健康に影響していますか？', options:[
+    { emoji:'🏥', text:'今の仕事が体・精神の健康に影響していますか？', hint:'残業・ストレス・睡眠・身体症状などの健康状態を考慮してください', options:[
         {text:'深刻な影響がある（病院に行ったことがある）', score:{now:5}},
         {text:'疲れが溜まっている・睡眠不足気味', score:{now:1, soon:2}},
         {text:'少し疲れることもある（概ね問題なし）', score:{soon:1}},
         {text:'健康面は問題ない', score:{wait:2}},
     ]},
-    { emoji:'⏰', text:'今の会社に在籍して何年ですか？', options:[
+    { emoji:'⏰', text:'今の会社に在籍して何年ですか？', hint:'現在の企業での勤続年数を選んでください', options:[
         {text:'1年未満', score:{wait:3}},
         {text:'1〜3年', score:{soon:1}},
         {text:'3〜7年', score:{now:1, soon:1}},
         {text:'7年以上', score:{now:2}},
     ]},
-    { emoji:'🌏', text:'転職市場でのあなたのスキルの需要は？', options:[
+    { emoji:'🌏', text:'転職市場でのあなたのスキルの需要は？', hint:'あなたのスキルが市場でどの程度必要とされているかを判断してください', options:[
         {text:'非常に高い（引き合いが多い）', score:{now:3}},
         {text:'ある程度ある', score:{soon:2}},
         {text:'よく分からない', score:{soon:1}},
         {text:'低いと思う', score:{wait:3}},
     ]},
-    { emoji:'🎲', text:'転職しないと後悔しそうですか？', options:[
+    { emoji:'🎲', text:'転職しないと後悔しそうですか？', hint:'現在の状況を継続した場合の長期的な満足度を考えてください', options:[
         {text:'このまま5年後も同じ状況は絶対嫌だ', score:{now:4}},
         {text:'変化がなければ後悔しそう', score:{soon:3}},
         {text:'今のままでも悪くはない', score:{wait:2}},
@@ -537,6 +549,20 @@ function renderQ() {
     document.getElementById('progress-fill').style.width = pct + '%';
     document.getElementById('q-emoji').textContent = q.emoji;
     document.getElementById('q-text').textContent = q.text;
+    // M8: Display hint text below question
+    const qCard = document.querySelector('.question-card');
+    let hintEl = qCard.querySelector('[data-hint]');
+    if (q.hint) {
+        if (!hintEl) {
+            hintEl = document.createElement('p');
+            hintEl.setAttribute('data-hint', 'true');
+            hintEl.style.cssText = 'margin:12px 0 16px;font-size:0.9rem;color:#6b7280;line-height:1.5;padding:10px;background:#f3f4f6;border-radius:8px;border-left:3px solid #9ca3af;';
+            qCard.insertBefore(hintEl, qCard.querySelector('#options-container'));
+        }
+        hintEl.textContent = '💡 ' + q.hint;
+    } else if (hintEl) {
+        hintEl.remove();
+    }
     const cont = document.getElementById('options-container');
     cont.innerHTML = '';
     q.options.forEach((opt, i) => {
@@ -623,6 +649,69 @@ function renderResult() {
     document.getElementById('result-desc').textContent = r.desc;
     document.getElementById('action-list').innerHTML = r.actions.map(a => `<div class="flex gap-2 items-start"><span class="text-blue-600 font-bold flex-shrink-0">✓</span><span>${a}</span></div>`).join('');
     localStorage.setItem('job_change_result', JSON.stringify({result:top, score:nowPct, date:new Date().toISOString()}));
+    // M4: Draw chart visualization
+    renderScoreChart();
+}
+
+function renderScoreChart() {
+    const chartEl = document.getElementById('resultChart');
+    if (!chartEl) return;
+    // Destroy previous chart if exists
+    if (window.resultChartInstance) {
+        window.resultChartInstance.destroy();
+    }
+    // Prepare data for 3-axis chart
+    const labels = ['今すぐ転職', '3〜6ヶ月後', '現職で成長'];
+    const data = [state.scores.now, state.scores.soon, state.scores.wait];
+    const maxScore = Math.max(...data, 20);
+
+    window.resultChartInstance = new Chart(chartEl, {
+        type: 'radar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'あなたのスコア',
+                data: data,
+                backgroundColor: 'rgba(30, 64, 175, 0.1)',
+                borderColor: '#1e40af',
+                borderWidth: 2,
+                pointBackgroundColor: '#1e40af',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 5,
+                pointHoverRadius: 6,
+                fill: true,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        font: { size: 12 },
+                        padding: 12,
+                        usePointStyle: true,
+                    }
+                }
+            },
+            scales: {
+                r: {
+                    beginAtZero: true,
+                    max: maxScore,
+                    ticks: {
+                        font: { size: 11 },
+                        backdropColor: 'transparent',
+                        padding: 8,
+                    },
+                    grid: {
+                        color: 'rgba(0,0,0,0.08)',
+                    }
+                }
+            }
+        }
+    });
 }
 
 function share() {
@@ -630,6 +719,48 @@ function share() {
     const title = RESULTS[stored.result]?.title || '';
     const text = `転職タイミング診断で「${title}」と判定されました！転職緊急度: ${stored.score}%。あなたも診断してみては？`;
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent('https://appadaycreator.com/job-change-advisor/')}&hashtags=転職,転職診断`, '_blank');
+}
+
+// M10: Print result
+function printResult() {
+    window.print();
+}
+
+// M10: Export result as text
+function exportResult() {
+    const stored = JSON.parse(localStorage.getItem('job_change_result')||'{}');
+    const r = RESULTS[stored.result] || {};
+    const now = new Date().toLocaleString('ja-JP');
+    const actionText = (r.actions || []).map((a,i) => `${i+1}. ${a}`).join('\n');
+    const text = `【転職タイミング診断結果】
+診断日時: ${now}
+診断結果: ${r.title}
+緊急度: ${stored.score}%
+
+【診断結果の詳細】
+${r.headline}
+
+${r.desc}
+
+【今すぐやること】
+${actionText}
+
+【スコア分析】
+・今すぐ転職: ${state.scores.now}点
+・3〜6ヶ月後: ${state.scores.soon}点
+・現職で成長: ${state.scores.wait}点
+
+このツールはhttps://appadaycreator.com/job-change-advisor/で無料で何度でも利用できます。`;
+    const blob = new Blob([text], {type: 'text/plain'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `job-change-result_${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showSuccess && showSuccess('📥 結果をダウンロードしました！');
 }
 
 function restart() {

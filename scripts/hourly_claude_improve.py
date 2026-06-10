@@ -1169,6 +1169,41 @@ def _compute_sleep_between() -> int:
         return SLEEP_BETWEEN
 
 
+def verify_deployed_url(repo: str, timeout: int = 20) -> tuple:
+    """改善後のデプロイURLに実際にHTTPリクエストして正常表示を確認する。
+    Returns (ok: bool, detail: str)
+    """
+    import urllib.request, urllib.error as _ue
+    url = f"https://appadaycreator.com/{repo}/"
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": "AppADayCreator-AutoVerify/1.0",
+                     "Accept": "text/html,application/xhtml+xml"},
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            status = resp.status
+            content = resp.read(131072).decode("utf-8", errors="ignore")
+        if status != 200:
+            return False, f"HTTP {status}"
+        if len(content) < 3000:
+            return False, f"ページ内容が少なすぎます ({len(content):,}文字)"
+        if "<html" not in content.lower():
+            return False, "HTMLコンテンツが検出されません"
+        for marker in ["500 Internal Server Error", "404 Not Found",
+                       "502 Bad Gateway", "503 Service Unavailable",
+                       "Whoops, looks like something went wrong"]:
+            if marker in content:
+                return False, f"エラーページ検出: {marker}"
+        return True, f"HTTP {status}, {len(content):,}文字"
+    except _ue.HTTPError as e:
+        return False, f"HTTP {e.code}: {e.reason}"
+    except _ue.URLError as e:
+        return False, f"URLエラー: {e.reason}"
+    except Exception as e:
+        return False, f"例外: {e}"
+
+
 def _worker(worker_id: int, stop_event, sheets_factory):
     """並列ワーカー: サービスをクレームして改善を繰り返す。"""
     log(f"[W{worker_id}] ワーカー起動")
@@ -1220,6 +1255,21 @@ def _worker(worker_id: int, stop_event, sheets_factory):
             t_start = time.time()
             ok, stdout = run_improve(svc, pre_issues)
             elapsed = int(time.time() - t_start)
+
+            # デプロイ後URLを実際にフェッチして正常表示を確認
+            if ok:
+                time.sleep(3)  # ファイル反映の待機
+                v_ok, v_detail = verify_deployed_url(svc["repo"])
+                if v_ok:
+                    log(f"[W{worker_id}]   ✅ URL確認OK: {v_detail}")
+                else:
+                    log(f"[W{worker_id}]   ⚠️ URL確認失敗: {v_detail}")
+                    send_telegram(
+                        f"⚠️ {svc['name']} 改善後URL確認失敗\n"
+                        f"詳細: {v_detail}\n"
+                        f"🔗 https://appadaycreator.com/{svc['repo']}/"
+                    )
+                    ok = False  # 失敗扱い→クールダウン延長
 
             # クールダウン期限計算（R列に書き込む）
             cd_hours = COOLDOWN_FAIL_HOURS if (not ok or zero_traffic) else COOLDOWN_SUCCESS_HOURS
