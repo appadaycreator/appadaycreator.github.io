@@ -23,6 +23,9 @@
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
 
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
   <!-- Font Awesome -->
 
   <!-- Schema.org JSON-LD -->
@@ -840,6 +843,12 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
       <!-- アプリランキング -->
       <div id="result-apps" class="mb-4"></div>
 
+      <!-- グラフ表示エリア -->
+      <div class="bg-white rounded-2xl shadow-md p-4 mb-4">
+        <h3 class="font-bold text-gray-800 mb-3 text-center">📊 マッチ度の比較</h3>
+        <canvas id="matchChart" height="80"></canvas>
+      </div>
+
       <!-- 結果シェアボタン（ランキング直後→拡散誘発） -->
       <div class="bg-white rounded-2xl shadow-md p-5 mb-4">
         <h3 class="font-bold text-gray-800 mb-1 text-sm flex items-center">
@@ -858,6 +867,16 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         </div>
         <button id="copy-url-btn" onclick="copyDiagnosisUrl()" style="width:100%;background:#f9fafb;border:1px solid #e5e7eb;color:#374151;padding:10px;border-radius:8px;font-size:13px;font-weight:bold;cursor:pointer;">
           🔗 URLをコピーする
+        </button>
+      </div>
+
+      <!-- 印刷・エクスポートボタン -->
+      <div class="flex gap-2 mb-4">
+        <button id="print-btn" onclick="printResult()" style="flex:1;background:#6366f1;color:white;padding:10px;border-radius:8px;font-size:13px;font-weight:bold;cursor:pointer;border:none;">
+          🖨️ 印刷する
+        </button>
+        <button id="export-csv-btn" onclick="exportResultAsCSV()" style="flex:1;background:#8b5cf6;color:white;padding:10px;border-radius:8px;font-size:13px;font-weight:bold;cursor:pointer;border:none;">
+          📥 CSV保存
         </button>
       </div>
 
@@ -1630,6 +1649,9 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         document.querySelectorAll('a[href*="twitter.com/intent/tweet"]').forEach(a => {
           a.href = `https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}&via=appadaycreator`;
         });
+
+        // グラフ描画（マッチ度の比較）
+        drawMatchChart(scores);
       }, 800);
     }
 
@@ -1646,6 +1668,53 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         const btn = document.getElementById('copy-url-btn');
         if (btn) { btn.textContent = '✅ コピーしました！'; setTimeout(() => { btn.textContent = '🔗 URLをコピーする'; }, 2000); }
       }
+    }
+
+    // グラフ描画関数（Chart.js）
+    function drawMatchChart(scores) {
+      const canvas = document.getElementById('matchChart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const apps = Object.keys(scores);
+      const labels = apps.map(k => appInfo[k].name);
+      const data = apps.map(k => Math.max(10, Math.round((scores[k] / (Math.max(...Object.values(scores)) || 1)) * 100)));
+      if (window.matchChartInstance) window.matchChartInstance.destroy();
+      window.matchChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets: [{ label: 'マッチ度 (%)', data, backgroundColor: ['#f43f5e', '#ec4899', '#db2777', '#be185d', '#831843'], borderRadius: 8 }] },
+        options: { indexAxis: 'y', responsive: true, maintainAspectRatio: true, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, max: 100, title: { display: true, text: 'マッチ度 (%)' } } } }
+      });
+    }
+
+    // 印刷関数
+    function printResult() {
+      window.print();
+    }
+
+    // CSV エクスポート関数
+    function exportResultAsCSV() {
+      const type = currentDiagnosisType || 'Unknown';
+      const info = typeInfo[type];
+      const scores = calcScores();
+      const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+      const timestamp = new Date().toLocaleString('ja-JP');
+      let csv = 'マッチングアプリ比較診断\n';
+      csv += `診断日時,${timestamp}\n`;
+      csv += `あなたのタイプ,${info.label}\n`;
+      csv += '\nおすすめアプリランキング\n';
+      csv += 'ランク,アプリ名,マッチ度\n';
+      sorted.forEach((s, i) => {
+        const app = appInfo[s[0]];
+        const pct = Math.max(10, Math.round((s[1] / (sorted[0][1] || 1)) * 100));
+        csv += `${i + 1},${app.name},${pct}%\n`;
+      });
+      csv += '\n特徴\n';
+      csv += `${info.desc}\n`;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `matchmaking-diagnosis-${new Date().getTime()}.csv`;
+      link.click();
     }
 
     function retryDiagnosis() {
