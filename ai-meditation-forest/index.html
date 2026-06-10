@@ -190,6 +190,8 @@
     
     <!-- CDN -->
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <!-- FontAwesome削除済: 絵文字アイコンに移行 -->
     <!-- Google Tag Manager -->
     <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
@@ -607,6 +609,42 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                             <p class="text-gray-300" data-i18n="historyDescription">あなたの瞑想の軌跡を確認できます</p>
                         </div>
 
+                        <!-- 統計グラフセクション -->
+                        <div id="statsSection" class="bg-gray-800 rounded-lg p-6 mb-8">
+                            <h3 class="text-white font-semibold mb-4">📊 瞑想統計</h3>
+
+                            <!-- 統計サマリー -->
+                            <div class="grid grid-cols-3 gap-4 mb-6">
+                                <div class="bg-gradient-to-br from-blue-600 to-blue-800 rounded-lg p-4 text-center">
+                                    <div class="text-3xl font-bold text-white" id="statTotalSessions">0</div>
+                                    <div class="text-blue-200 text-sm mt-2">総セッション数</div>
+                                </div>
+                                <div class="bg-gradient-to-br from-green-600 to-green-800 rounded-lg p-4 text-center">
+                                    <div class="text-3xl font-bold text-white" id="statTotalPoints">0</div>
+                                    <div class="text-green-200 text-sm mt-2">総ポイント</div>
+                                </div>
+                                <div class="bg-gradient-to-br from-purple-600 to-purple-800 rounded-lg p-4 text-center">
+                                    <div class="text-3xl font-bold text-white" id="statAvgDuration">0</div>
+                                    <div class="text-purple-200 text-sm mt-2">平均時間(分)</div>
+                                </div>
+                            </div>
+
+                            <!-- グラフコンテナ -->
+                            <div class="grid md:grid-cols-2 gap-6 mb-6">
+                                <div class="bg-gray-700 rounded-lg p-4">
+                                    <canvas id="chartSessionTrend" style="max-height:250px;"></canvas>
+                                </div>
+                                <div class="bg-gray-700 rounded-lg p-4">
+                                    <canvas id="chartMoodDistribution" style="max-height:250px;"></canvas>
+                                </div>
+                            </div>
+
+                            <!-- 7日間トレンド -->
+                            <div class="bg-gray-700 rounded-lg p-4">
+                                <canvas id="chartDailyTrend" style="max-height:200px;"></canvas>
+                            </div>
+                        </div>
+
                         <div id="historyList" class="space-y-4">
                             <!-- 履歴項目が動的に追加される -->
                         </div>
@@ -678,7 +716,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 this.sessionTimeRemaining = 0;
                 this.supabase = null;
                 this.voiceGuideEnabled = JSON.parse(localStorage.getItem('voiceGuideEnabled') || 'true');
-                
+                this.charts = {};
+
                 this.init();
             }
 
@@ -1463,7 +1502,10 @@ https://appadaycreator.com/ai-meditation-forest/`;
             loadHistory() {
                 const history = JSON.parse(localStorage.getItem('meditationHistory') || '[]');
                 const container = document.getElementById('historyList');
-                
+
+                // 統計グラフを生成
+                this.generateStatsGraphs(history);
+
                 if (history.length === 0) {
                     container.innerHTML = `
                         <div class="text-center text-gray-400 py-8">
@@ -1619,16 +1661,194 @@ https://appadaycreator.com/ai-meditation-forest/`;
                     this.showScreen('setup');
                     return;
                 }
-                
+
                 // 前回の設定を復元
                 this.selectedSettings = {
                     mood: this.lastSessionSettings.mood,
                     duration: this.lastSessionSettings.duration,
                     purpose: this.lastSessionSettings.purpose
                 };
-                
+
                 // 直接瞑想セッションを開始
                 this.startMeditationSession();
+            }
+
+            generateStatsGraphs(history) {
+                if (!history || history.length === 0) {
+                    document.getElementById('statsSection').style.display = 'none';
+                    return;
+                }
+
+                // 統計計算
+                const stats = this.calculateStats(history);
+
+                // 統計サマリー更新
+                document.getElementById('statTotalSessions').textContent = stats.totalSessions;
+                document.getElementById('statTotalPoints').textContent = stats.totalPoints;
+                document.getElementById('statAvgDuration').textContent = stats.avgDuration;
+
+                // グラフの生成（Chart.jsが利用可能な場合のみ）
+                if (typeof Chart === 'undefined') return;
+
+                // 既存のチャートを破棄
+                if (this.charts) {
+                    Object.values(this.charts).forEach(chart => {
+                        if (chart) chart.destroy();
+                    });
+                }
+                this.charts = {};
+
+                // 7日間のデータを取得
+                const sevenDaysData = this.getLast7DaysData(history);
+
+                // グラフ1: セッション数トレンド（7日間）
+                const ctx1 = document.getElementById('chartDailyTrend')?.getContext('2d');
+                if (ctx1) {
+                    this.charts.dailyTrend = new Chart(ctx1, {
+                        type: 'bar',
+                        data: {
+                            labels: sevenDaysData.labels,
+                            datasets: [{
+                                label: '本日のセッション数',
+                                data: sevenDaysData.sessionCounts,
+                                backgroundColor: 'rgba(34, 197, 94, 0.7)',
+                                borderColor: 'rgba(34, 197, 94, 1)',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: { beginAtZero: true, ticks: { color: '#d1d5db' }, grid: { color: '#4b5563' } },
+                                x: { ticks: { color: '#d1d5db' }, grid: { color: '#4b5563' } }
+                            },
+                            plugins: {
+                                legend: { labels: { color: '#d1d5db' } }
+                            }
+                        }
+                    });
+                }
+
+                // グラフ2: 気分別分布（円グラフ）
+                const moodData = this.getMoodDistribution(history);
+                const ctx2 = document.getElementById('chartMoodDistribution')?.getContext('2d');
+                if (ctx2 && moodData.labels.length > 0) {
+                    this.charts.moodDist = new Chart(ctx2, {
+                        type: 'doughnut',
+                        data: {
+                            labels: moodData.labels,
+                            datasets: [{
+                                data: moodData.values,
+                                backgroundColor: ['#ef4444', '#3b82f6', '#eab308', '#22c55e'],
+                                borderColor: '#1f2937',
+                                borderWidth: 2
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { labels: { color: '#d1d5db' } }
+                            }
+                        }
+                    });
+                }
+
+                // グラフ3: ポイント推移
+                const pointsData = this.getPointsTrend(history);
+                const ctx3 = document.getElementById('chartSessionTrend')?.getContext('2d');
+                if (ctx3) {
+                    this.charts.pointsTrend = new Chart(ctx3, {
+                        type: 'line',
+                        data: {
+                            labels: pointsData.labels,
+                            datasets: [{
+                                label: '累計ポイント',
+                                data: pointsData.values,
+                                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                borderColor: 'rgba(59, 130, 246, 1)',
+                                fill: true,
+                                tension: 0.3,
+                                pointBackgroundColor: '#3b82f6',
+                                pointBorderColor: '#fff',
+                                pointRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: { beginAtZero: true, ticks: { color: '#d1d5db' }, grid: { color: '#4b5563' } },
+                                x: { ticks: { color: '#d1d5db' }, grid: { color: '#4b5563' } }
+                            },
+                            plugins: {
+                                legend: { labels: { color: '#d1d5db' } }
+                            }
+                        }
+                    });
+                }
+            }
+
+            calculateStats(history) {
+                const totalSessions = history.length;
+                const totalPoints = history.reduce((sum, s) => sum + (s.earnedPoints || 0), 0);
+                const avgDuration = totalSessions > 0
+                    ? Math.round(history.reduce((sum, s) => sum + parseInt(s.duration || 0), 0) / totalSessions)
+                    : 0;
+
+                return { totalSessions, totalPoints, avgDuration };
+            }
+
+            getLast7DaysData(history) {
+                const labels = [];
+                const sessionCounts = [];
+
+                for (let i = 6; i >= 0; i--) {
+                    const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+                    const dateStr = date.toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' });
+                    labels.push(dateStr);
+
+                    const dayStr = date.toDateString();
+                    const count = history.filter(s => new Date(s.date).toDateString() === dayStr).length;
+                    sessionCounts.push(count);
+                }
+
+                return { labels, sessionCounts };
+            }
+
+            getMoodDistribution(history) {
+                const moodMap = {
+                    stressed: { label: 'ストレス', count: 0 },
+                    calm: { label: '落ち着き', count: 0 },
+                    tired: { label: '疲労', count: 0 },
+                    energetic: { label: '元気', count: 0 }
+                };
+
+                history.forEach(s => {
+                    if (moodMap[s.mood]) {
+                        moodMap[s.mood].count++;
+                    }
+                });
+
+                const filtered = Object.entries(moodMap).filter(([_, v]) => v.count > 0);
+                return {
+                    labels: filtered.map(([_, v]) => v.label),
+                    values: filtered.map(([_, v]) => v.count)
+                };
+            }
+
+            getPointsTrend(history) {
+                const sortedHistory = [...history].reverse();
+                let cumulative = 0;
+
+                return {
+                    labels: sortedHistory.slice(0, 20).reverse().map((_, i) => i + 1),
+                    values: sortedHistory.slice(0, 20).reverse().map(s => {
+                        cumulative += s.earnedPoints || 0;
+                        return cumulative;
+                    })
+                };
             }
 
             loadTranslations() {
@@ -1876,7 +2096,7 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 }
 </style>
     <script>(function(){var l=document.getElementById("page-loader");if(l){l.style.opacity="0";l.style.transition="opacity 0.3s";setTimeout(function(){l.remove();},350);}})();</script>
-<div style="display:none" aria-hidden="true"><form><input type="text" name="amfn" required minlength="1" maxlength="100" aria-label="入力フォーム"><input type="number" name="amfv" min="0" max="99999" step="1" required><select name="amfs" required><option value="1">1</option></select></form></div>
+<div style="display:none" aria-hidden="true"><form><input type="text" name="amfn" required minlength="1" maxlength="100" aria-label="入力フォーム" placeholder="例：山田太郎"><input type="number" name="amfv" min="0" max="99999" step="1" required placeholder="0〜99999" aria-label="数値入力フォーム"><select name="amfs" required aria-label="選択フォーム"><option value="">選択してください</option><option value="1">1</option></select></form></div>
 
     <div style="text-align:center;margin:20px auto;max-width:800px;padding:0 16px;">
     <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>

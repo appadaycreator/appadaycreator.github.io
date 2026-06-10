@@ -35,6 +35,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
 <script>window.onerror=function(m,s,l,c,e){console.warn('Error:',m);return true;};window.addEventListener('unhandledrejection',function(e){console.warn('Rejection:',e.reason);});</script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   body{background: #f8fafc;min-height:100vh;}
   .card{background:white;border-radius:1rem;box-shadow:0 4px 24px rgba(0,0,0,0.09);}
@@ -62,9 +63,15 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
   [class*="share"],[class*="affiliate"],[id*="share"],
   [id*="affiliate"],[id*="banner"],
   script,noscript{display:none!important}
-  body{background:#fff!important;color:#000!important;font-size:12pt}
+  body{background:#fff!important;color:#000!important;font-size:11pt;margin:0;padding:0}
   [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
-  a[href]::after{content:none!important}
+  #graph-card{display:block!important;page-break-inside:avoid}
+  #caution-card{display:block!important;page-break-inside:avoid}
+  .card{page-break-inside:avoid;box-shadow:none!important;border:1px solid #ccc}
+  .btn-primary,.option-btn{display:none!important}
+  a[href]::after{content:' ('+attr(href)+')';}
+  a[href*="appadaycreator.com"]::after{content:none;}
+  canvas{image-rendering:pixelated;max-width:100%;height:auto!important}
 }
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;}
 .related-link{padding:10px;text-align:center;border:1px solid #ddd;border-radius:4px;text-decoration:none;color:#333;display:block;transition:background 0.15s;}
@@ -157,6 +164,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <div class="flex items-center gap-3"><div class="text-2xl">⚠️</div><div><div class="font-bold text-gray-800 text-sm">医療診断ではありません</div><div class="text-gray-500 text-sm text-xs">本ツールは参考情報の提供のみです</div></div></div>
     </div>
     <button class="btn-primary" onclick="startDiagnosis()" aria-label="診断スタート →">診断スタート →</button>
+    <div id="restore-btn-container" style="margin-top:12px;display:none;">
+      <button class="btn-primary" style="background:#6b7280;" onclick="restoreLastData()" aria-label="前回のデータから再開">📋 前回のデータから再開</button>
+    </div>
   </div>
 
   <div id="screen-questions" class="screen">
@@ -189,6 +199,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <h3 class="font-bold text-gray-800 mb-3">💊 おすすめサプリカテゴリ TOP3</h3>
       <div id="supplements-list"></div>
     </div>
+    <div id="graph-card" class="card p-6 mb-4" style="display:none;">
+      <h3 class="font-bold text-gray-800 mb-3">📊 栄養素不足スコア</h3>
+      <div style="position:relative;height:300px;">
+        <canvas id="deficiency-chart"></canvas>
+      </div>
+    </div>
     <div id="caution-card" class="card p-6 mb-4" style="display:none;">
       <h3 class="font-bold text-gray-800 mb-3">⚠️ 飲み合わせ注意</h3>
       <div id="caution-list" class="space-y-2"></div>
@@ -215,6 +231,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="flex gap-2 mb-4">
       <button class="btn-primary" style="background:#059669;" onclick="copyResults()" aria-label="結果をコピー" title="診断結果をコピーします">📋 結果をコピー</button>
       <button class="btn-primary" style="background:#6b7280;" onclick="restart()" aria-label="もう一度診断する">↻ もう一度診断</button>
+    </div>
+    <div class="flex gap-2 mb-4">
+      <button class="btn-primary" style="background:#25c851;" onclick="shareToLine()" aria-label="LINEでシェア" title="診断結果をLINEで共有します">💬 LINEでシェア</button>
+      <button class="btn-primary" style="background:#1d9bf0;" onclick="shareToTwitter()" aria-label="Xでシェア" title="診断結果をXで共有します">𝕏 Xでシェア</button>
+    </div>
+    <div class="flex gap-2 mb-4">
+      <button class="btn-primary" style="background:#0369a1;" onclick="printResults()" aria-label="印刷" title="診断結果を印刷します">🖨️ 印刷</button>
+      <button class="btn-primary" style="background:#7c3aed;" onclick="downloadCSV()" aria-label="CSV ダウンロード" title="診断結果をCSVで保存します">📥 CSV ダウンロード</button>
     </div>
     <div id="toast" style="position:fixed;bottom:20px;right:20px;background:#16a34a;color:white;padding:12px 20px;border-radius:8px;display:none;z-index:1000;animation:slideIn 0.3s ease;">✓ コピーしました</div>
   </div>
@@ -249,7 +273,63 @@ var cautionPairs=[
 ];
 
 var cur=0,ans={};
-function startDiagnosis(){show('questions');renderQ();}
+function saveToLocalStorage(){
+  try{
+    localStorage.setItem('supplement_advisor_data',JSON.stringify({cur:cur,ans:ans,timestamp:Date.now()}));
+  }catch(e){
+    console.warn('localStorage save failed:',e);
+  }
+}
+function loadFromLocalStorage(){
+  try{
+    var data=JSON.parse(localStorage.getItem('supplement_advisor_data'));
+    if(data&&data.ans&&Object.keys(data.ans).length>0){
+      cur=data.cur||0;
+      ans=data.ans||{};
+      return true;
+    }
+  }catch(e){
+    console.warn('localStorage load failed:',e);
+  }
+  return false;
+}
+function hasLocalStorageData(){
+  try{
+    var data=JSON.parse(localStorage.getItem('supplement_advisor_data'));
+    return!!(data&&data.ans&&Object.keys(data.ans).length>0);
+  }catch(e){
+    return false;
+  }
+}
+function clearLocalStorageData(){
+  try{
+    localStorage.removeItem('supplement_advisor_data');
+  }catch(e){
+    console.warn('localStorage clear failed:',e);
+  }
+}
+window.addEventListener('load',function(){
+  if(hasLocalStorageData()){
+    document.getElementById('restore-btn-container').style.display='block';
+  }
+});
+function startDiagnosis(){
+  show('questions');
+  cur=0;
+  ans={};
+  renderQ();
+}
+function restoreLastData(){
+  if(loadFromLocalStorage()){
+    show('loading');
+    setTimeout(function(){
+      showResults();
+    },1500);
+  }else{
+    alert('保存されたデータが見つかりません。新規診断を開始します。');
+    startDiagnosis();
+  }
+}
 function show(name){document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});document.getElementById('screen-'+name).classList.add('active');}
 function renderQ(){
   var q=Qs[cur];var pct=Math.round((cur+1)/Qs.length*100);
@@ -291,6 +371,7 @@ function pick(i,val,key,isMulti){
   }
 }
 function showResults(){
+  saveToLocalStorage();
   var concernIdxList=Array.isArray(ans.concern)?ans.concern:[ans.concern?ans.concern.i:0];
   var sunIdx=ans.sun?ans.sun.i:0;
   var exIdx=ans.exercise?ans.exercise.i:0;
@@ -369,9 +450,20 @@ function showResults(){
   var searchTerm=encodeURIComponent(mainSupp.name+' サプリメント');
   var amazonUrl='https://www.amazon.co.jp/s?k='+searchTerm+'&tag=appadaycrea0f-22';
   document.getElementById('aff-area').innerHTML='<a href="'+amazonUrl+'" target="_blank" rel="noopener" class="block bg-yellow-400 text-gray-900 font-bold py-3 px-4 rounded-xl text-center text-sm hover:bg-yellow-500 transition mb-2">'+mainSupp.emoji+' Amazonで'+mainSupp.name+'を探す →</a><a href="https://px.a8.net/svt/ejp?a8mat=4AVCO8+3ORU2Y+5JTC+5YRHE" target="_blank" rel="noopener sponsored" class="block bg-green-600 text-white font-bold py-3 px-4 rounded-xl text-center text-sm hover:bg-green-700 transition">ヨンデミーで栄養・健康の知識を育てる →</a><img border="0" width="1" height="1" src="https://www11.a8.net/0.gif?a8mat=4AVCO8+3ORU2Y+5JTC+5YRHE" alt="" loading="lazy"><p class="text-xs text-gray-400 text-center mt-1">Amazonアソシエイトプログラム参加中</p>';
+
+  window.lastResultsData={suppKeys:suppKeys,defKeys:defKeys};
+  document.getElementById('graph-card').style.display='';
+  setTimeout(function(){drawChart(suppKeys);},100);
+
   show('results');
 }
-function restart(){cur=0;ans={};show('intro');}
+function restart(){
+  cur=0;
+  ans={};
+  clearLocalStorageData();
+  document.getElementById('restore-btn-container').style.display='none';
+  show('intro');
+}
 function copyResults(){
   var date=new Date().toISOString().split('T')[0];
   var ageGender=ans.age_gender?ans.age_gender.val:'';
@@ -408,6 +500,222 @@ function showToast(){
   var toast=document.getElementById('toast');
   toast.style.display='block';
   setTimeout(function(){toast.style.display='none';},2500);
+}
+
+function calculateDeficiencyScores(suppKeys){
+  var scores=[];
+  suppKeys.forEach(function(key){
+    var score=50;
+    if(key==='fatigue'){
+      var exIdx=ans.exercise?ans.exercise.i:0;
+      score=70+Math.max(0,(2-exIdx)*10);
+    }else if(key==='skin'){
+      var dietIdx=ans.diet?ans.diet.i:0;
+      score=75+Math.max(0,(2-dietIdx)*5);
+    }else if(key==='eye'){
+      var sunIdx=ans.sun?ans.sun.i:0;
+      score=65+Math.max(0,(2-sunIdx)*10);
+    }else if(key==='stress'){
+      var exIdx=ans.exercise?ans.exercise.i:0;
+      score=60+Math.max(0,(2-exIdx)*15);
+    }else if(key==='immune'){
+      var dietIdx=ans.diet?ans.diet.i:0;
+      score=70+Math.max(0,(2-dietIdx)*5);
+    }else if(key==='vitd'){
+      var sunIdx=ans.sun?ans.sun.i:0;
+      score=80+(2-sunIdx)*10;
+    }else if(key==='protein'){
+      var exIdx=ans.exercise?ans.exercise.i:0;
+      score=(exIdx>=2)?30:60;
+    }else if(key==='veg'){
+      var dietIdx=ans.diet?ans.diet.i:0;
+      score=75+(2-dietIdx)*5;
+    }
+    scores.push(Math.min(100,Math.max(20,score)));
+  });
+  return scores;
+}
+
+function drawChart(suppKeys){
+  try{
+    var labels=suppKeys.map(function(k){return suppMap[k]?suppMap[k].name:'';});
+    var scores=calculateDeficiencyScores(suppKeys);
+    var ctx=document.getElementById('deficiency-chart');
+    if(!ctx)return;
+
+    var parentContainer=ctx.parentElement;
+    var containerWidth=parentContainer.offsetWidth;
+    var chartContainer=ctx.parentElement.parentElement;
+
+    if(window.deficiencyChartInstance){
+      window.deficiencyChartInstance.destroy();
+    }
+
+    window.deficiencyChartInstance=new Chart(ctx,{
+      type:'bar',
+      data:{
+        labels:labels,
+        datasets:[{
+          label:'栄養素不足スコア (%)',
+          data:scores,
+          backgroundColor:['#ef4444','#f97316','#eab308'],
+          borderColor:['#991b1b','#7c2d12','#8b5cf6'],
+          borderWidth:2,
+          borderRadius:8,
+          barPercentage:0.7,
+          categoryPercentage:0.8
+        }]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        indexAxis:'x',
+        scales:{
+          y:{
+            beginAtZero:true,
+            max:100,
+            ticks:{
+              callback:function(v){return v+'%';}
+            }
+          }
+        },
+        plugins:{
+          legend:{display:true,position:'top'},
+          tooltip:{
+            backgroundColor:'rgba(0,0,0,0.8)',
+            padding:12,
+            titleFont:{size:13},
+            bodyFont:{size:12},
+            callbacks:{
+              label:function(context){
+                return '不足度: '+context.parsed.y+'%';
+              }
+            }
+          }
+        }
+      }
+    });
+  }catch(e){
+    console.error('Chart error:',e);
+  }
+}
+
+function printResults(){
+  if(window.lastResultsData){
+    window.print();
+  }
+}
+
+function downloadCSV(){
+  var date=new Date().toISOString().split('T')[0];
+  var ageGender=ans.age_gender?ans.age_gender.val:'';
+  var concernList='';
+  if(Array.isArray(ans.concern)){
+    concernList=ans.concern.map(function(idx){return Qs[1].opts[idx];}).join('・');
+  }else if(ans.concern){
+    concernList=Qs[1].opts[ans.concern.i];
+  }
+
+  var dietList=ans.diet?ans.diet.val:'';
+  var exerciseList=ans.exercise?ans.exercise.val:'';
+  var sunList=ans.sun?ans.sun.val:'';
+
+  var rows=[
+    ['サプリメント・栄養素診断 結果レポート'],
+    [''],
+    ['【診断日時】',date],
+    ['【対象者】',ageGender],
+    ['【食生活】',dietList],
+    ['【運動習慣】',exerciseList],
+    ['【日光浴】',sunList],
+    ['【主な悩み】',concernList],
+    [''],
+    ['【不足栄養素一覧】']
+  ];
+
+  document.querySelectorAll('#deficiencies div strong').forEach(function(el){
+    var nutrientName=el.textContent;
+    var suppData=null;
+    for(var key in suppMap){
+      if(suppMap[key].name===nutrientName){
+        suppData=suppMap[key];
+        break;
+      }
+    }
+    rows.push([nutrientName,suppData?suppData.desc:'']);
+  });
+
+  rows.push(['']);
+  rows.push(['【推奨サプリメント TOP3】','推奨量','食事源','摂取タイミング','注意事項']);
+
+  document.querySelectorAll('.supp-card').forEach(function(card,idx){
+    var titleEl=card.querySelector('.font-bold');
+    var title=titleEl?titleEl.textContent.replace(/^[🥇🥈🥉] /,''):'';
+    var suppData=null;
+    for(var key in suppMap){
+      if(suppMap[key].name===title){
+        suppData=suppMap[key];
+        break;
+      }
+    }
+    if(suppData){
+      rows.push([
+        title,
+        suppData.dosage,
+        suppData.food,
+        suppData.timing,
+        suppData.note
+      ]);
+    }
+  });
+
+  rows.push(['']);
+  rows.push(['【重要な注意事項】']);
+  rows.push(['本診断結果は参考情報であり、医療診断ではありません。']);
+  rows.push(['重要な判断には医師・薬剤師にご相談ください。']);
+  rows.push(['詳細: https://appadaycreator.com/supplement-advisor/']);
+
+  var csv=rows.map(function(row){
+    return row.map(function(cell){
+      if(!cell)cell='';
+      var needsQuote=cell.indexOf(',')!==-1||cell.indexOf('"')!==-1||cell.indexOf('\n')!==-1;
+      if(needsQuote){
+        return '"'+cell.replace(/"/g,'""')+'"';
+      }
+      return cell;
+    }).join(',');
+  }).join('\n');
+
+  try{
+    var blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'});
+    var link=document.createElement('a');
+    var url=URL.createObjectURL(blob);
+    link.setAttribute('href',url);
+    link.setAttribute('download','supplement-diagnosis-'+date+'.csv');
+    link.style.visibility='hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }catch(e){
+    alert('ダウンロードに失敗しました。ブラウザ環境をご確認ください。');
+    console.error('CSV download error:',e);
+  }
+}
+
+function shareToLine(){
+  var date=new Date().toISOString().split('T')[0];
+  var ageGender=ans.age_gender?ans.age_gender.val:'';
+  var suppNames=Array.from(document.querySelectorAll('.supp-card .font-bold')).map(el=>el.textContent.split(' ').pop()).join('・');
+  var text=encodeURIComponent('【サプリ診断結果】\n対象: '+ageGender+'\n推奨: '+suppNames+'\n詳細: https://appadaycreator.com/supplement-advisor/');
+  window.open('https://social-plugins.line.me/openapi/share?url=https://appadaycreator.com/supplement-advisor/&text='+text,'lineShare','width=600,height=600');
+}
+
+function shareToTwitter(){
+  var ageGender=ans.age_gender?ans.age_gender.val:'';
+  var suppNames=Array.from(document.querySelectorAll('.supp-card .font-bold')).map(el=>el.textContent.split(' ').pop()).join('・');
+  var text=encodeURIComponent('【サプリ診断しました】\n対象: '+ageGender+'\nおすすめ: '+suppNames+'\n無料で診断: ');
+  window.open('https://twitter.com/intent/tweet?text='+text+'https://appadaycreator.com/supplement-advisor/','twitterShare','width=600,height=600');
 }
 </script>
 <div style="text-align:center;padding:8px;font-size:11px;"><a href="privacy-policy.html" style="color:inherit;font-size:11px;opacity:0.7;text-decoration:underline;">プライバシーポリシー</a></div>

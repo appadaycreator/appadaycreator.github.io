@@ -45,6 +45,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
     <!-- P2-7: PDF出力ライブラリ -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- M4: Chart.js グラフ化 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <!-- Schema.org -->
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebApplication", "name": "子供の習い事費用シミュレーター", "url": "https://appadaycreator.com/kids-activity-cost-simulator/", "description": "子供の習い事にかかる費用を年齢・習い事の種類別にシミュレーション。月謝・入会金・年間費用の相場を計算できます。", "applicationCategory": "FinanceApplication", "operatingSystem": "Any", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "JPY"}}</script>
     <script type="application/ld+json">
@@ -395,6 +397,30 @@ body{background:var(--bg-soft)}
         </div>
         <div id="result-area">
             <div class="result-empty">👆 上で習い事を選ぶと費用が表示されます</div>
+        </div>
+
+        <!-- M4: Chart.jsグラフセクション -->
+        <div id="charts-section" style="display:none;margin-top:20px;">
+            <div style="background:#fff;border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,0.07);padding:20px;margin:18px 0;">
+                <h3 style="font-size:0.95rem;font-weight:700;color:#334155;margin-bottom:14px;">📊 費用の内訳と推移</h3>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">
+                    <!-- 月謝比較グラフ -->
+                    <div style="background:#f8fafc;border-radius:10px;padding:14px;">
+                        <h4 style="font-size:0.85rem;font-weight:700;color:#475569;margin-bottom:10px;text-align:center;">月謝比較</h4>
+                        <canvas id="tuition-chart" style="max-height:200px;"></canvas>
+                    </div>
+                    <!-- 費用内訳ドーナツグラフ -->
+                    <div style="background:#f8fafc;border-radius:10px;padding:14px;">
+                        <h4 style="font-size:0.85rem;font-weight:700;color:#475569;margin-bottom:10px;text-align:center;">費用の構成比</h4>
+                        <canvas id="breakdown-chart" style="max-height:200px;"></canvas>
+                    </div>
+                </div>
+                <!-- 年間費用推移グラフ -->
+                <div style="background:#f8fafc;border-radius:10px;padding:14px;margin-top:16px;">
+                    <h4 style="font-size:0.85rem;font-weight:700;color:#475569;margin-bottom:10px;text-align:center;">年間費用推移（N年間の累積）</h4>
+                    <canvas id="cumulative-chart" style="max-height:250px;"></canvas>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -975,6 +1001,9 @@ function renderResults() {
 
     serviceAffGrid.innerHTML = serviceHtml;
     serviceAffCard.style.display = serviceHtml ? "block" : "none";
+
+    // M4: グラフを描画・更新
+    updateCharts();
 }
 
 function copyResults() {
@@ -1806,6 +1835,151 @@ window.addEventListener('DOMContentLoaded', function() {
     loadFromUrl();
     document.getElementById('share-mail-result').onclick = generateMailLink;
 });
+
+// M4: Chart.jsグラフのグローバル変数
+let tuitionChart = null, breakdownChart = null, cumulativeChart = null;
+
+// M4: グラフの描画・更新（月謝比較グラフ）
+function renderTuitionChart(selected) {
+    const ctx = document.getElementById('tuition-chart');
+    if (!ctx) return;
+
+    if (tuitionChart) tuitionChart.destroy();
+
+    const labels = selected.map(a => a.name);
+    const data = selected.map(a => (a.min + a.max) / 2);
+    const colors = ['#7c3aed', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#f97316', '#eab308', '#22c55e', '#10b981', '#06b6d4'];
+    const backgroundColors = data.map((_, i) => colors[i % colors.length]);
+
+    tuitionChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '月謝（円）',
+                data: data,
+                backgroundColor: backgroundColors,
+                borderRadius: 6,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { beginAtZero: true, ticks: { callback: v => '¥' + (v/1000).toFixed(0) + 'K' } }
+            }
+        }
+    });
+}
+
+// M4: 費用内訳グラフ（ドーナツグラフ）
+function renderBreakdownChart(selected, years) {
+    const ctx = document.getElementById('breakdown-chart');
+    if (!ctx) return;
+
+    if (breakdownChart) breakdownChart.destroy();
+
+    const totalMonthly = selected.reduce((s, a) => s + a.min, 0);
+    const totalInitial = selected.reduce((s, a) => s + a.initMin, 0);
+    const totalExtra = selected.reduce((s, a) => s + a.extraMin, 0);
+    const monthlyPercent = (totalMonthly * 12 / (totalMonthly * 12 + totalInitial + totalExtra) * 100).toFixed(1);
+    const initialPercent = (totalInitial / (totalMonthly * 12 + totalInitial + totalExtra) * 100).toFixed(1);
+    const extraPercent = (totalExtra / (totalMonthly * 12 + totalInitial + totalExtra) * 100).toFixed(1);
+
+    breakdownChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['月謝', '初期費用', '教材費'],
+            datasets: [{
+                data: [monthlyPercent, initialPercent, extraPercent],
+                backgroundColor: ['#7c3aed', '#3b82f6', '#f97316'],
+                borderColor: '#fff',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: { callbacks: { label: ctx => ctx.label + ': ' + ctx.parsed + '%' } }
+            }
+        }
+    });
+}
+
+// M4: 年間費用推移グラフ（折れ線グラフ）
+function renderCumulativeChart(selected, years) {
+    const ctx = document.getElementById('cumulative-chart');
+    if (!ctx) return;
+
+    if (cumulativeChart) cumulativeChart.destroy();
+
+    const totalMonthly = selected.reduce((s, a) => s + a.min, 0);
+    const totalInitial = selected.reduce((s, a) => s + a.initMin, 0);
+    const totalExtra = selected.reduce((s, a) => s + a.extraMin, 0);
+
+    const labels = [];
+    const datasets = [];
+    const cumulativeData = [];
+
+    for (let y = 0; y < years; y++) {
+        labels.push(`${y + 1}年目`);
+        const annual = totalMonthly * 12 + totalExtra + (y === 0 ? totalInitial : 0);
+        cumulativeData.push((y === 0 ? annual : cumulativeData[y-1] + annual));
+    }
+
+    cumulativeChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: '累積費用（円）',
+                data: cumulativeData,
+                borderColor: '#7c3aed',
+                backgroundColor: 'rgba(124, 58, 237, 0.05)',
+                borderWidth: 3,
+                fill: true,
+                tension: 0.3,
+                pointBackgroundColor: '#7c3aed',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 5,
+                pointHoverRadius: 7
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, ticks: { callback: v => '¥' + (v/10000).toFixed(0) + '万' } }
+            }
+        }
+    });
+}
+
+// M4: updateResults()の後に呼び出される関数
+function updateCharts() {
+    const selected = activities.filter(a => selectedActivities.has(a.id));
+    const years = parseInt(document.getElementById('years-slider').value) || 1;
+
+    if (selected.length === 0) {
+        const chartsSection = document.getElementById('charts-section');
+        if (chartsSection) chartsSection.style.display = 'none';
+    } else {
+        const chartsSection = document.getElementById('charts-section');
+        if (chartsSection) chartsSection.style.display = 'block';
+        setTimeout(() => {
+            renderTuitionChart(selected);
+            renderBreakdownChart(selected, years);
+            renderCumulativeChart(selected, years);
+        }, 100);
+    }
+}
 </script>
 <script>
 (function(){

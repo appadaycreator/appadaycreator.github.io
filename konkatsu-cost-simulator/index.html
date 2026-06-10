@@ -178,6 +178,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <div class="text-gray-500 text-sm mb-1">婚活総費用の目安</div>
       <div class="text-4xl font-bold text-pink-600" id="r-total">0万円</div>
       <div class="text-gray-400 text-sm" id="r-period"></div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap;">
+        <button onclick="copyResult()" style="flex:1;min-width:100px;padding:8px 12px;background:#db2777;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">📋 コピー</button>
+        <button onclick="window.print()" style="flex:1;min-width:100px;padding:8px 12px;background:#8b5cf6;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">🖨️ 印刷</button>
+        <button onclick="downloadAsText()" style="flex:1;min-width:100px;padding:8px 12px;background:#06b6d4;color:white;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">📄 保存</button>
+      </div>
     </div>
 
     <div class="space-y-3 mb-6">
@@ -212,6 +217,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     </div>
 
     <div class="bg-pink-50 rounded-lg p-3 text-sm" id="r-advice"></div>
+
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap;">
+      <a href="#" id="share-line" target="_blank" rel="noopener" style="flex:1;min-width:100px;padding:10px 12px;background:#06C755;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;text-align:center;">LINEでシェア</a>
+      <a href="#" id="share-twitter" target="_blank" rel="noopener" style="flex:1;min-width:100px;padding:10px 12px;background:#000;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;text-align:center;">Xでシェア</a>
+    </div>
 
     <div id="method-compare-section" style="display:none;margin-top:16px;">
       <h3 class="font-bold text-gray-800 text-sm mb-2">💰 婚活方法別 費用比較</h3>
@@ -496,7 +506,73 @@ function calculate() {
   document.getElementById('results').style.display          = 'block';
   document.getElementById('affiliate-section').style.display = 'block';
   document.getElementById('aff-area').innerHTML = method === 'agency' ? agencyAffiliate : appAffiliate;
+
+  /* 結果情報をグローバル変数に保存 */
+  window.lastResult = {
+    method: method,
+    months: months,
+    dateCost: dateCost,
+    fashionCost: fashionCost,
+    total: total,
+    service: serviceCost,
+    date: totalDate,
+    fashion: totalFashion,
+    methodName: mc.name,
+    monthlyCostRound: monthlyCostRound,
+    advice: adviceEl.textContent
+  };
+
+  /* シェアボタンの URL を更新 */
+  var shareText = '婚活費用計算で「' + mc.name + '」' + months + 'ヶ月の総費用は' + formatCost(total) + 'と出ました！';
+  var pageUrl = 'https://appadaycreator.com/konkatsu-cost-simulator/';
+  document.getElementById('share-line').href = 'https://line.me/R/share?text=' + encodeURIComponent(shareText + '\n' + pageUrl);
+  document.getElementById('share-twitter').href = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText) + '&url=' + encodeURIComponent(pageUrl) + '&via=appadaycreator';
+
   document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+}
+
+/* 結果をクリップボードにコピー */
+function copyResult() {
+  if (!window.lastResult) return alert('計算結果がありません。');
+  var r = window.lastResult;
+  var text = '【婚活費用シミュレーション結果】\n\n' +
+    '婚活方法: ' + r.methodName + '\n' +
+    '期間: ' + r.months + 'ヶ月\n' +
+    '総費用: ' + formatCost(r.total) + '\n\n' +
+    '[内訳]\n' +
+    'サービス費: ' + formatCost(r.service) + '\n' +
+    'デート・外出費: ' + formatCost(r.date) + '\n' +
+    'ファッション投資: ' + formatCost(r.fashion) + '\n\n' +
+    'アドバイス: ' + r.advice + '\n\n' +
+    '計算日時: ' + new Date().toLocaleString('ja-JP');
+  navigator.clipboard.writeText(text).then(function() {
+    alert('結果をコピーしました！');
+  }).catch(function() {
+    alert('コピーに失敗しました。');
+  });
+}
+
+/* 結果をテキストファイルでダウンロード */
+function downloadAsText() {
+  if (!window.lastResult) return alert('計算結果がありません。');
+  var r = window.lastResult;
+  var text = '【婚活費用シミュレーション結果】\n\n' +
+    '婚活方法: ' + r.methodName + '\n' +
+    '期間: ' + r.months + 'ヶ月\n' +
+    '総費用: ' + formatCost(r.total) + '\n\n' +
+    '[内訳]\n' +
+    'サービス費: ' + formatCost(r.service) + '\n' +
+    'デート・外出費: ' + formatCost(r.date) + '\n' +
+    'ファッション投資: ' + formatCost(r.fashion) + '\n\n' +
+    'アドバイス: ' + r.advice + '\n\n' +
+    '計算日時: ' + new Date().toLocaleString('ja-JP');
+  var blob = new Blob([text], { type: 'text/plain; charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var link = document.createElement('a');
+  link.href = url;
+  link.download = 'konkatsu_result.txt';
+  link.click();
+  URL.revokeObjectURL(url);
 }
 </script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"婚活費用計算【無料】マッチングアプリ・結婚相談所 総額いくら？","description":"婚活方法・期間・交際費用を入力して総費用を無料計算。方法別の費用比較と節約アドバイス付き。","url":"https://appadaycreator.com/konkatsu-cost-simulator/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"}}</script>

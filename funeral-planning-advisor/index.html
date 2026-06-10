@@ -30,6 +30,7 @@
   <!-- Microsoft Clarity -->
   <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","s3t9vl8h3v");</script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"このサービスは無料ですか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要でご利用いただけます。"}},{"@type":"Question","name":"入力データはどこに保存されますか？","acceptedAnswer":{"@type":"Answer","text":"お使いのデバイス内にのみ保存されます。外部送信は行いません。"}},{"@type":"Question","name":"結果はどのくらい正確ですか？","acceptedAnswer":{"@type":"Answer","text":"あくまで参考情報です。重要な判断の際は専門家にご相談ください。"}},{"@type":"Question","name":"どのような人が使っていますか？","acceptedAnswer":{"@type":"Answer","text":"初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}},{"@type":"Question","name":"結果をシェアできますか？","acceptedAnswer":{"@type":"Answer","text":"はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}},{"@type":"Question","name":"有料プランはありますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、すべての機能を完全無料でご利用いただけます。"}}]}</script>
 
 <meta property="og:type" content="website">
@@ -384,7 +385,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     document.getElementById('prev-btn').classList.toggle('hidden', currentStep === 0);
     document.getElementById('next-btn').textContent = currentStep === questions.length - 1 ? '診断する' : '次へ';
 
-    let html = `<p class="font-semibold text-gray-800 mb-4">${q.text}</p><div class="space-y-2">`;
+    let html = `<div class="mb-4">
+      <p class="font-semibold text-gray-800 mb-2">${q.text}</p>
+      <p class="text-xs text-gray-500 mb-3">※ 当てはまるものをお選びください${q.skipable ? '。スキップすることもできます' : ''}</p>
+    </div><div class="space-y-2">`;
     q.options.forEach(opt => {
       const checked = answers[q.id] === opt ? 'checked' : '';
       const hint = hints[opt] || '';
@@ -610,6 +614,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <p class="text-xs text-gray-500">（地域・葬儀社により ±${Math.round(errorMargin / 2)}万円程度の変動あり）</p>
         ${cemeteryAdd > 0 ? `<p class="text-xs text-gray-600 mt-2">内 墓地・納骨費用（${calc.cemeteryLabel}）：約${cemeteryAdd}万円含む</p>` : ''}
       </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+          <h3 class="font-bold text-gray-800 mb-3 text-sm">📊 費用内訳（円グラフ）</h3>
+          <canvas id="costBreakdownChart" height="80"></canvas>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+          <h3 class="font-bold text-gray-800 mb-3 text-sm">📈 葬儀形式の費用比較</h3>
+          <canvas id="funeralTypeChart" height="80"></canvas>
+        </div>
+      </div>
       ${breakdownHtml}
       <div class="flex gap-2 mb-4">
         <button onclick="copyResult()" class="flex-1 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-semibold transition">📋 結果をコピー</button>
@@ -642,6 +656,98 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       </div>`;
 
     document.getElementById('result-content').innerHTML = html;
+
+    // Chart.js チャート初期化
+    setTimeout(() => {
+      // 費用内訳の円グラフ
+      const breakdownCtx = document.getElementById('costBreakdownChart');
+      if (breakdownCtx) {
+        const chartData = [
+          calc.styleCost,
+          calc.attendanceAdd,
+          Math.abs(calc.regionAdjust),
+          calc.religionAdd,
+          cemeteryAdd
+        ];
+        const chartLabels = [
+          `葬儀形式\n${calc.styleCost}万円`,
+          `参列者加算\n${calc.attendanceAdd}万円`,
+          `地域調整\n${Math.abs(calc.regionAdjust)}万円`,
+          calc.religionAdd > 0 ? `お布施\n${calc.religionAdd}万円` : null,
+          cemeteryAdd > 0 ? `墓地・納骨\n${cemeteryAdd}万円` : null
+        ].filter(Boolean);
+
+        const filteredData = chartData.filter((_, i) => chartLabels[i] !== null);
+
+        new Chart(breakdownCtx, {
+          type: 'doughnut',
+          data: {
+            labels: chartLabels,
+            datasets: [{
+              data: filteredData,
+              backgroundColor: ['#64748b', '#4f46e5', '#7c3aed', '#dc2626', '#f59e0b'],
+              borderColor: '#fff',
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10 } },
+              tooltip: { callbacks: { label: ctx => ctx.label + '\n' + ctx.parsed + '万円' } }
+            }
+          }
+        });
+      }
+
+      // 葬儀形式の費用比較バーチャート
+      const typeCtx = document.getElementById('funeralTypeChart');
+      if (typeCtx) {
+        const styleMap = {
+          '一般葬（親族・知人・会社関係者を招く）': 150,
+          '家族葬（家族・親しい人のみ）': 60,
+          '一日葬（通夜なし）': 40,
+          '直葬・火葬のみ': 15,
+          'まだ決めていない': 80
+        };
+
+        const types = ['一般葬', '家族葬', '一日葬', '直葬'];
+        const costs = [
+          Math.round(150 * (calc.regionMult || 1)),
+          Math.round(60 * (calc.regionMult || 1)),
+          Math.round(40 * (calc.regionMult || 1)),
+          Math.round(15 * (calc.regionMult || 1))
+        ];
+        const currentIdx = types.findIndex(t => calc.styleLabel.includes(t));
+        const colors = types.map((_, i) => i === currentIdx ? '#dc2626' : '#cbd5e1');
+
+        new Chart(typeCtx, {
+          type: 'bar',
+          data: {
+            labels: types,
+            datasets: [{
+              label: '葬儀費用（地域調整済み）',
+              data: costs,
+              backgroundColor: colors,
+              borderRadius: 6
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { label: ctx => '約' + ctx.parsed.x + '万円' } }
+            },
+            scales: {
+              x: { ticks: { callback: v => v + '万円' }, grid: { color: '#f1f5f9' } }
+            }
+          }
+        });
+      }
+    }, 0);
 
     // チェックリスト初期化＆イベント設定
     checklist.forEach(item => {

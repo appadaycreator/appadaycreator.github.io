@@ -1702,3 +1702,109 @@ window.acceptSuggestion = acceptSuggestion;
 window.showSection = showSection;
 window.updateStatistics = updateStatistics;
 window.updateCategoryFilter = updateCategoryFilter;
+
+// ==================== エクスポート・印刷機能 ====================
+
+// 印刷機能
+function printStatistics() {
+  try {
+    window.print();
+  } catch (error) {
+    debugLog('印刷エラー:', error);
+    showToast('印刷に失敗しました', 'danger');
+  }
+}
+
+// CSVダウンロード機能
+function downloadMealsAsCSV() {
+  try {
+    if (!meals || meals.length === 0) {
+      showToast('ダウンロードする食事データがありません', 'warning');
+      return;
+    }
+
+    // CSVヘッダー
+    const headers = ['食事名', '日付', '時間', 'カテゴリ', 'カロリー (kcal)', 'タンパク質 (g)', '食材', 'コメント'];
+    const rows = [];
+
+    // CSVボディ
+    meals.forEach(meal => {
+      const row = [
+        `"${(meal.name || '').replace(/"/g, '""')}"`,
+        meal.date || '',
+        meal.time || '',
+        meal.category || '',
+        meal.calories || '',
+        meal.protein || '',
+        `"${(meal.ingredients || '').replace(/"/g, '""')}"`,
+        `"${(meal.notes || '').replace(/"/g, '""')}"`
+      ];
+      rows.push(row.join(','));
+    });
+
+    const csv = [headers.join(','), ...rows].join('\n');
+
+    // ダウンロード処理
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `食事記録_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+
+    showToast('CSVをダウンロードしました', 'success');
+  } catch (error) {
+    debugLog('CSVダウンロードエラー:', error);
+    showToast('CSVダウンロードに失敗しました', 'danger');
+  }
+}
+
+// 統計情報をコピー機能
+async function copyStatisticsToClipboard() {
+  try {
+    if (!meals || meals.length === 0) {
+      showToast('コピーする統計データがありません', 'warning');
+      return;
+    }
+
+    const totalMeals = meals.length;
+    const favoriteMeals = meals.filter(m => m.favorite).length;
+    const avgCalories = meals.length > 0 
+      ? (meals.reduce((sum, m) => sum + (m.calories || 0), 0) / meals.length).toFixed(0)
+      : '0';
+    const avgProtein = meals.length > 0 
+      ? (meals.reduce((sum, m) => sum + (m.protein || 0), 0) / meals.length).toFixed(1)
+      : '0';
+
+    const statsText = `📊 食事記録の統計
+
+総料理数: ${totalMeals}
+お気に入り: ${favoriteMeals}
+お気に入り率: ${((favoriteMeals / totalMeals) * 100).toFixed(1)}%
+
+平均カロリー: ${avgCalories} kcal
+平均タンパク質: ${avgProtein} g
+
+記録日時: ${new Date().toLocaleString('ja-JP')}`;
+
+    await navigator.clipboard.writeText(statsText);
+    showToast('統計結果をコピーしました', 'success');
+  } catch (error) {
+    debugLog('クリップボードコピーエラー:', error);
+    showToast('コピーに失敗しました', 'danger');
+  }
+}
+
+// ボタンイベントリスナーを登録
+function setupExportButtons() {
+  const printBtn = document.getElementById('print-stats-btn');
+  const csvBtn = document.getElementById('download-csv-btn');
+  const copyBtn = document.getElementById('copy-stats-btn');
+
+  if (printBtn) printBtn.addEventListener('click', printStatistics);
+  if (csvBtn) csvBtn.addEventListener('click', downloadMealsAsCSV);
+  if (copyBtn) copyBtn.addEventListener('click', copyStatisticsToClipboard);
+}
+
+// 初期化時にセットアップ
+window.addEventListener('load', setupExportButtons);

@@ -358,6 +358,50 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
   let currentStep = 0;
   let answers = {};
+  let history = [];
+
+  // M3: localStorage から履歴と前回データを読み込み
+  function loadFromLocalStorage() {
+    try {
+      const saved = localStorage.getItem('mba_advisor_history');
+      history = saved ? JSON.parse(saved) : [];
+      const lastAnswers = localStorage.getItem('mba_advisor_last');
+      if (lastAnswers) answers = JSON.parse(lastAnswers);
+    } catch(e) { console.warn('localStorage読み込み失敗'); }
+  }
+
+  // M3: localStorage に保存
+  function saveToLocalStorage() {
+    try {
+      localStorage.setItem('mba_advisor_last', JSON.stringify(answers));
+      const newHistory = [{
+        timestamp: new Date().toLocaleString('ja-JP'),
+        answers: {...answers}
+      }, ...history.slice(0, 4)];
+      localStorage.setItem('mba_advisor_history', JSON.stringify(newHistory));
+    } catch(e) { console.warn('localStorage保存失敗'); }
+  }
+
+  // M3: 履歴から復元
+  function restoreFromHistory(idx) {
+    if (history[idx]) {
+      answers = {...history[idx].answers};
+      currentStep = 0;
+      renderQuestion();
+      closeHistoryPanel();
+    }
+  }
+
+  // M3: 履歴パネルの表示切り替え
+  function toggleHistoryPanel() {
+    const panel = document.getElementById('history-panel');
+    if (panel) panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function closeHistoryPanel() {
+    const panel = document.getElementById('history-panel');
+    if (panel) panel.style.display = 'none';
+  }
 
   function renderQuestion() {
     const q = questions[currentStep];

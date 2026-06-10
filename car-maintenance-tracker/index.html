@@ -19,6 +19,7 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚗</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
@@ -152,7 +153,13 @@
           <p style="font-size:13px;color:#6b7280;margin-bottom:12px;">現在の走行距離を入力すると、各メンテナンスの進捗を自動診断します（🟢準備OK・🟡要注意・🔴交換予定）</p>
           <label>現在の走行距離 <span style="color:#999;font-size:12px;">（km）</span></label>
           <input type="number" id="diag-km" placeholder="例: 45000" min="0" oninput="updateDiagnosis()" aria-label="診断用の現在走行距離を入力" style="margin-bottom:12px;">
-          <div id="diag-result"></div>
+          <div id="diag-result">
+            <div style="text-align:center;color:#bbb;font-size:13px;padding:20px;">走行距離を入力してください</div>
+          </div>
+          <div id="chart-container" style="margin-top:16px;display:none;">
+            <canvas id="diag-chart" height="80"></canvas>
+            <div id="status-score" style="margin-top:12px;text-align:center;padding:16px;background:#f8fafc;border-radius:10px;"></div>
+          </div>
         </div>
         <div class="card">
           <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;">🚗 メンテナンス記録を追加</h2>
@@ -429,6 +436,8 @@ AppADayCreatorでは、本ツール以外にもライフスタイルカテゴリ
       'バッテリー交換': {km: null, months: 36},
       '洗車': {km: null, months: 1}
     };
+    let chartInstance=null;
+
     function getEntryData(){
       const mtype=document.getElementById('mtype')?.value||'';
       const km=document.getElementById('km')?.value||'';
@@ -492,17 +501,85 @@ AppADayCreatorでは、本ツール以外にもライフスタイルカテゴリ
         const color=getGaugeColor(progress);
         const badge=progress<60?'🟢':progress<85?'🟡':'🔴';
         const nextText=nextKm>0?`残り ${nextKm.toLocaleString()}km`:nextDate>0?`残り ${nextDate}日`:'準備完了';
-        html+=`<div style="padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;">
+        const statusLabel=progress<60?'準備OK':progress<85?'要注意':'要交換';
+        html+=`<div style="padding:12px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;${progress>=85?'border-color:#ef4444;':''}"}>
           <div style="font-weight:600;font-size:13px;margin-bottom:4px;">${badge} ${mtype}</div>
           <div style="background:#e5e7eb;height:8px;border-radius:4px;overflow:hidden;margin-bottom:6px;">
             <div style="background:${color};height:100%;width:${progress}%;transition:width.3s;"></div>
           </div>
           <div style="font-size:12px;color:#666;margin-bottom:2px;">進捗率: <strong style="color:${color};">${progress}%</strong></div>
-          <div style="font-size:11px;color:#999;">${nextText}</div>
+          <div style="font-size:11px;color:${progress>=85?'#ef4444':'#999'};">${statusLabel} • ${nextText}</div>
         </div>`;
       }
       html+='</div>';
       return html;
+    }
+    function renderChart(kmVal){
+      const kmNum=parseInt(kmVal)||0;
+      const currentDate=new Date();
+      const labels=[];
+      const data=[];
+      const bgColors=[];
+      for(const [mtype,_] of Object.entries(MAINTENANCE_INTERVALS)){
+        const {progress}=calculateProgress(mtype,kmNum,currentDate);
+        labels.push(mtype);
+        data.push(progress);
+        bgColors.push(getGaugeColor(progress));
+      }
+      const chartCanvas=document.getElementById('diag-chart');
+      if(!chartCanvas) return;
+      if(chartInstance) chartInstance.destroy();
+      chartInstance=new Chart(chartCanvas,{
+        type:'bar',
+        data:{
+          labels,
+          datasets:[{
+            label:'進捗率 (%)',
+            data,
+            backgroundColor:bgColors,
+            borderColor:bgColors,
+            borderWidth:0,
+            borderRadius:6,
+            barThickness:24
+          }]
+        },
+        options:{
+          indexAxis:'y',
+          responsive:true,
+          maintainAspectRatio:false,
+          plugins:{
+            legend:{display:false},
+            tooltip:{
+              callbacks:{
+                label:ctx=>`${ctx.parsed.x}%`
+              }
+            }
+          },
+          scales:{
+            x:{
+              beginAtZero:true,
+              max:100,
+              ticks:{callback:v=>`${v}%`},
+              grid:{color:'#f1f5f9'},
+              border:{display:false}
+            },
+            y:{
+              border:{display:false},
+              grid:{display:false}
+            }
+          }
+        }
+      });
+      const avgProgress=Math.round(data.reduce((a,b)=>a+b,0)/data.length);
+      const statusScore=100-avgProgress;
+      const scoreColor=statusScore>=40?'#10b981':statusScore>=25?'#f59e0b':'#ef4444';
+      document.getElementById('status-score').innerHTML=`
+        <div style="font-size:13px;color:#666;margin-bottom:8px;">車の状態スコア</div>
+        <div style="font-size:42px;font-weight:700;color:${scoreColor};margin-bottom:4px;line-height:1;">${statusScore}</div>
+        <div style="font-size:12px;color:#999;">
+          ${statusScore>=40?'🟢 良好（すぐのメンテナンスは不要）':statusScore>=25?'🟡 注意（計画的にメンテナンスを検討）':'🔴 危険（早急にメンテナンスが必要）'}
+        </div>
+      `;
     }
     let entries=JSON.parse(localStorage.getItem(KEY)||'[]');
     document.addEventListener('DOMContentLoaded',()=>{
@@ -516,12 +593,18 @@ AppADayCreatorでは、本ツール以外にもライフスタイルカテゴリ
     function updateDiagnosis(){
       const kmVal=document.getElementById('diag-km')?.value||'';
       const resultDiv=document.getElementById('diag-result');
+      const chartContainer=document.getElementById('chart-container');
       if(!resultDiv) return;
       if(!kmVal||kmVal<0){
-        resultDiv.innerHTML='';
+        resultDiv.innerHTML='<div style="text-align:center;color:#bbb;font-size:13px;padding:20px;">走行距離を入力してください</div>';
+        if(chartContainer) chartContainer.style.display='none';
         return;
       }
       resultDiv.innerHTML=renderDiagnosis(kmVal);
+      if(chartContainer){
+        chartContainer.style.display='block';
+        renderChart(kmVal);
+      }
     }
     function addEntry(){
       const d=getEntryData(); if(!d) return;

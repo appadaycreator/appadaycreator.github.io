@@ -35,6 +35,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
 <script>window.onerror=function(m,s,l,c,e){console.warn('Error:',m,s,l);return true;};window.addEventListener('unhandledrejection',function(e){console.warn('UnhandledRejection:',e.reason);});</script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   body{background: #f8fafc;min-height:100vh;}
   .card{background:white;border-radius:1rem;box-shadow:0 4px 24px rgba(0,0,0,0.09);}
@@ -187,6 +188,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       </div>
     </div>
     <button class="btn-primary mt-5" onclick="calculate()">費用を計算する →</button>
+    <div id="history-section" style="margin-top:12px;padding:12px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;">
+      <p style="font-size:13px;font-weight:600;color:#374151;margin:0 0 8px">📋 最近の計算結果</p>
+      <div id="history-list" style="display:flex;flex-direction:column;gap:6px;max-height:150px;overflow-y:auto;"></div>
+    </div>
+    <button class="btn-primary mt-3" onclick="clearHistory()" style="background:#ef4444">履歴をクリア</button>
   </div>
 
   <div id="results" class="card p-6 mb-4" style="display:none;">
@@ -223,6 +229,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <div class="text-xs text-gray-600 mt-1" id="r-net-note"></div>
     </div>
     <div class="text-sm text-gray-600 p-3 rounded-lg bg-yellow-50 border border-yellow-200 mb-4" id="r-advice"></div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+      <div style="background:white;border:1px solid #e2e8f0;border-radius:8px;padding:16px;"><canvas id="pieChart"></canvas></div>
+      <div style="background:white;border:1px solid #e2e8f0;border-radius:8px;padding:16px;"><canvas id="barChart"></canvas></div>
+    </div>
+    <div class="mb-4">
+      <button class="btn-primary" onclick="toggleComparisonMode()" style="background:#7c3aed;width:100%">複数パターン比較 ↔</button>
+    </div>
+    <div id="comparison-section" style="display:none;background:#f3f4f6;border-radius:8px;padding:16px;margin-bottom:16px;">
+      <h3 class="font-bold text-gray-800 mb-3">複数パターン比較</h3>
+      <button class="btn-primary" onclick="saveCurrentPattern()" style="background:#10b981;margin-bottom:12px">現在の計算結果を保存</button>
+      <div id="comparison-list" style="space-y-2"></div>
+    </div>
     <div class="flex gap-2" id="r-share-btns">
       <a id="share-line" href="#" target="_blank" rel="noopener"
          style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
@@ -232,6 +250,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
          style="flex:1;display:block;text-align:center;background:#000;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
         Xでシェア
       </a>
+    </div>
+    <div class="grid grid-cols-3 gap-2 mt-3">
+      <button class="btn-primary" onclick="printResults()" style="background:#6b7280;font-size:12px;padding:8px">🖨 印刷</button>
+      <button class="btn-primary" onclick="downloadCSV()" style="background:#f59e0b;font-size:12px;padding:8px">📥 CSV</button>
+      <button class="btn-primary" onclick="copyResults()" style="background:#8b5cf6;font-size:12px;padding:8px">📋 コピー</button>
     </div>
   </div>
 
@@ -262,6 +285,182 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <script>
 var birthCosts={natural:{public:350000,private:500000,premium:700000},painless:{public:500000,private:650000,premium:900000},cesarean:{public:450000,private:580000,premium:780000}};
 var _firstLoad=true;
+var pieChartInstance=null, barChartInstance=null;
+var comparisonPatterns=[];
+
+function saveInputToStorage(){
+  var data={
+    birthType:document.getElementById('birth-type').value,
+    hospitalType:document.getElementById('hospital-type').value,
+    prenatalMonths:document.getElementById('prenatal-months').value,
+    babyGoods:document.getElementById('baby-goods').value,
+    childcareMonthly:document.getElementById('childcare-monthly').value,
+    childcarePeriod:document.getElementById('childcare-period').value,
+    subsidyAmount:document.getElementById('subsidy-amount').value,
+    timestamp:new Date().getTime()
+  };
+  localStorage.setItem('currentInput', JSON.stringify(data));
+  updateHistoryDisplay();
+}
+
+function loadInputFromStorage(){
+  var data=JSON.parse(localStorage.getItem('currentInput')||'{}');
+  if(data.birthType) document.getElementById('birth-type').value=data.birthType;
+  if(data.hospitalType) document.getElementById('hospital-type').value=data.hospitalType;
+  if(data.prenatalMonths) document.getElementById('prenatal-months').value=data.prenatalMonths;
+  if(data.babyGoods) document.getElementById('baby-goods').value=data.babyGoods;
+  if(data.childcareMonthly) document.getElementById('childcare-monthly').value=data.childcareMonthly;
+  if(data.childcarePeriod) document.getElementById('childcare-period').value=data.childcarePeriod;
+  if(data.subsidyAmount) document.getElementById('subsidy-amount').value=data.subsidyAmount;
+}
+
+function updateHistoryDisplay(){
+  var history=JSON.parse(localStorage.getItem('history')||'[]');
+  var list=document.getElementById('history-list');
+  list.innerHTML='';
+  if(history.length===0){
+    list.innerHTML='<p style="font-size:12px;color:#9ca3af">まだ保存された計算がありません</p>';
+    return;
+  }
+  history.slice(-5).reverse().forEach(function(item,idx){
+    var btn=document.createElement('button');
+    btn.style.cssText='padding:8px;background:#fff;border:1px solid #d1d5db;border-radius:6px;font-size:12px;text-align:left;cursor:pointer;transition:background 0.2s';
+    btn.innerHTML='<strong>パターン '+(history.length-idx)+'</strong><br>総費用: 約'+Math.round(item.total/10000)+'万円 | 自己負担: 約'+Math.round(item.net/10000)+'万円';
+    btn.onclick=function(){ restoreHistoryPattern(item); };
+    btn.onmouseover=function(){ this.style.background='#f3f4f6'; };
+    btn.onmouseout=function(){ this.style.background='#fff'; };
+    list.appendChild(btn);
+  });
+}
+
+function restoreHistoryPattern(item){
+  document.getElementById('birth-type').value=item.birthType;
+  document.getElementById('hospital-type').value=item.hospitalType;
+  document.getElementById('prenatal-months').value=item.prenatalMonths;
+  document.getElementById('baby-goods').value=item.babyGoods;
+  document.getElementById('childcare-monthly').value=item.childcareMonthly;
+  document.getElementById('childcare-period').value=item.childcarePeriod;
+  document.getElementById('subsidy-amount').value=item.subsidyAmount;
+  calculate();
+}
+
+function clearHistory(){
+  if(confirm('計算履歴をすべて削除してもよろしいですか？')){
+    localStorage.removeItem('history');
+    updateHistoryDisplay();
+  }
+}
+
+function drawCharts(birthCost,checkupCost,goods,childcareCost,total,deduction,net){
+  drawPieChart(birthCost,checkupCost,goods,childcareCost);
+  drawBarChart(total,deduction,net);
+}
+
+function drawPieChart(birth,checkup,goods,childcare){
+  var ctx=document.getElementById('pieChart').getContext('2d');
+  if(pieChartInstance) pieChartInstance.destroy();
+  pieChartInstance=new Chart(ctx,{
+    type:'doughnut',
+    data:{
+      labels:['出産・入院費','妊婦健診費','ベビーグッズ','産後サポート費'],
+      datasets:[{
+        data:[birth,checkup,goods,childcare],
+        backgroundColor:['#db2777','#f472b6','#fbcfe8','#fdf2f8'],
+        borderColor:'#fff',
+        borderWidth:2
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:true,
+      plugins:{
+        legend:{position:'bottom',labels:{font:{size:12},padding:12}}
+      }
+    }
+  });
+}
+
+function drawBarChart(total,deduction,net){
+  var ctx=document.getElementById('barChart').getContext('2d');
+  if(barChartInstance) barChartInstance.destroy();
+  barChartInstance=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:['費用と補助金'],
+      datasets:[
+        {label:'総費用',data:[total],backgroundColor:'#ef4444'},
+        {label:'補助金',data:[deduction],backgroundColor:'#10b981'}
+      ]
+    },
+    options:{
+      indexAxis:'y',
+      responsive:true,
+      maintainAspectRatio:true,
+      plugins:{legend:{position:'bottom',labels:{font:{size:12}}}},
+      scales:{x:{stacked:false}}
+    }
+  });
+}
+
+function toggleComparisonMode(){
+  var section=document.getElementById('comparison-section');
+  section.style.display=section.style.display==='none'?'block':'none';
+  if(section.style.display==='block') renderComparisonTable();
+}
+
+function saveCurrentPattern(){
+  var bt=document.getElementById('birth-type').value;
+  var ht=document.getElementById('hospital-type').value;
+  var pm=parseInt(document.getElementById('prenatal-months').value)||9;
+  var goods=(parseFloat(document.getElementById('baby-goods').value)||20)*10000;
+  var childcareMonthly=(parseFloat(document.getElementById('childcare-monthly').value)||5)*10000;
+  var childcarePeriod=parseInt(document.getElementById('childcare-period').value)||6;
+  var subsidy=(parseFloat(document.getElementById('subsidy-amount').value)||0)*10000;
+  var birthCost=birthCosts[bt][ht];
+  var checkupCost=pm*10000;
+  var childcareCost=childcareMonthly*childcarePeriod;
+  var total=birthCost+checkupCost+goods+childcareCost;
+  var deduction=500000+subsidy;
+  var net=total-deduction;
+
+  var pattern={birthCost,checkupCost,goods,childcareCost,total,deduction,net,label:document.getElementById('r-total').textContent};
+  comparisonPatterns.push(pattern);
+  alert('パターンを保存しました（最大3個まで比較可能）');
+  if(comparisonPatterns.length>3) comparisonPatterns.shift();
+}
+
+function renderComparisonTable(){
+  var list=document.getElementById('comparison-list');
+  list.innerHTML='';
+  if(comparisonPatterns.length===0){
+    list.innerHTML='<p style="font-size:12px;color:#9ca3af">保存されたパターンがありません</p>';
+    return;
+  }
+  var table=document.createElement('table');
+  table.style.cssText='width:100%;border-collapse:collapse;font-size:13px';
+  var header=table.insertRow();
+  ['パターン','総費用','補助金','自己負担'].forEach(function(h){
+    var cell=header.insertCell();
+    cell.textContent=h;
+    cell.style.cssText='padding:8px;background:#e5e7eb;font-weight:600;border:1px solid #d1d5db';
+  });
+  comparisonPatterns.forEach(function(p,idx){
+    var row=table.insertRow();
+    var cells=[
+      'パターン'+(idx+1),
+      Math.round(p.total/10000)+'万円',
+      Math.round(p.deduction/10000)+'万円',
+      Math.round(p.net/10000)+'万円'
+    ];
+    cells.forEach(function(c){
+      var cell=row.insertCell();
+      cell.textContent=c;
+      cell.style.cssText='padding:8px;border:1px solid #e2e8f0';
+    });
+  });
+  list.appendChild(table);
+}
+
 function calculate(){
   var bt=document.getElementById('birth-type').value;
   var ht=document.getElementById('hospital-type').value;
@@ -295,7 +494,7 @@ function calculate(){
   else if(ht==='premium'){advice='プレミアム病院は快適ですが費用が高めです。自治体の補助金・出産準備金も確認のうえ、余裕を持った資金計画を立てましょう。';}
   else{advice='自治体によっては妊婦健診補助券（約5〜10万円相当）が利用できます。「お住まいの市区町村名＋妊婦健診補助」で検索して確認しましょう。';}
   document.getElementById('r-advice').textContent='💡 '+advice;
-  // シェアURL更新
+  drawCharts(birthCost,checkupCost,goods,childcareCost,total,deduction,net);
   var totalText=Math.round(total/10000)+'万円';
   var netText=net>0?'自己負担'+Math.round(net/10000)+'万円':'補助金内に収まる';
   var shareText='妊娠〜産後1年の費用を試算したら'+totalText+'（'+netText+'）でした！ #出産費用シミュレーター';
@@ -306,7 +505,84 @@ function calculate(){
   document.getElementById('affiliate-section').style.display='block';
   if(!_firstLoad){document.getElementById('results').scrollIntoView({behavior:'smooth'});}
   _firstLoad=false;
+  saveInputToStorage();
+  var history=JSON.parse(localStorage.getItem('history')||'[]');
+  history.push({birthType:bt,hospitalType:ht,prenatalMonths:pm,babyGoods:goods,childcareMonthly:childcareMonthly,childcarePeriod:childcarePeriod,subsidyAmount:subsidy,total:total,net:net,timestamp:new Date().getTime()});
+  if(history.length>20) history.shift();
+  localStorage.setItem('history', JSON.stringify(history));
 }
+
+function printResults(){
+  window.print();
+}
+
+function downloadCSV(){
+  var bt=document.getElementById('birth-type').value;
+  var ht=document.getElementById('hospital-type').value;
+  var total=document.getElementById('r-total').textContent.replace(/[^0-9]/g,'');
+  var birth=document.getElementById('r-birth2').textContent.replace(/[^0-9]/g,'');
+  var checkup=document.getElementById('r-checkup2').textContent.replace(/[^0-9]/g,'');
+  var goods=document.getElementById('r-goods2').textContent.replace(/[^0-9]/g,'');
+  var childcare=document.getElementById('r-childcare2').textContent.replace(/[^0-9]/g,'');
+  var net=document.getElementById('r-net').textContent.replace(/[^0-9]/g,'');
+  var csv='出産費用計算結果\n\n';
+  csv+='項目,金額\n';
+  csv+='出産方法,'+bt+'\n';
+  csv+='病院タイプ,'+ht+'\n';
+  csv+='\n費用内訳\n';
+  csv+='出産・入院費,'+birth+'万円\n';
+  csv+='妊婦健診費,'+checkup+'万円\n';
+  csv+='ベビーグッズ,'+goods+'万円\n';
+  csv+='産後サポート費,'+childcare+'万円\n';
+  csv+='\n合計\n';
+  csv+='総費用,'+total+'万円\n';
+  csv+='自己負担額,'+net+'万円\n';
+  csv+='計算日時,'+new Date().toLocaleString('ja-JP')+'\n';
+  var blob=new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  var link=document.createElement('a');
+  link.href=URL.createObjectURL(blob);
+  link.download='pregnancy-cost-simulator_'+new Date().getTime()+'.csv';
+  link.click();
+}
+
+function copyResults(){
+  var total=document.getElementById('r-total').textContent;
+  var net=document.getElementById('r-net').textContent;
+  var text='【妊娠・出産費用シミュレーター計算結果】\n\n';
+  text+='妊娠〜産後1年の総費用: '+total+'\n';
+  text+=net+'\n\n';
+  text+='▼詳細\n';
+  text+='出産・入院費: '+document.getElementById('r-birth2').textContent+'\n';
+  text+='妊婦健診費: '+document.getElementById('r-checkup2').textContent+'\n';
+  text+='ベビーグッズ: '+document.getElementById('r-goods2').textContent+'\n';
+  text+='産後サポート費: '+document.getElementById('r-childcare2').textContent+'\n\n';
+  text+='計算日時: '+new Date().toLocaleString('ja-JP')+'\n';
+  text+='https://appadaycreator.com/pregnancy-cost-simulator/';
+  navigator.clipboard.writeText(text).then(function(){
+    alert('計算結果をコピーしました');
+  }).catch(function(){
+    var textarea=document.createElement('textarea');
+    textarea.value=text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    alert('計算結果をコピーしました');
+  });
+}
+
+document.addEventListener('DOMContentLoaded',function(){
+  loadInputFromStorage();
+  updateHistoryDisplay();
+  document.getElementById('birth-type').addEventListener('change', saveInputToStorage);
+  document.getElementById('hospital-type').addEventListener('change', saveInputToStorage);
+  document.getElementById('prenatal-months').addEventListener('change', saveInputToStorage);
+  document.getElementById('baby-goods').addEventListener('input', saveInputToStorage);
+  document.getElementById('childcare-monthly').addEventListener('input', saveInputToStorage);
+  document.getElementById('childcare-period').addEventListener('change', saveInputToStorage);
+  document.getElementById('subsidy-amount').addEventListener('input', saveInputToStorage);
+});
+
 window.addEventListener('load',function(){calculate();});
 </script>
 <div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px auto;max-width:680px;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">入力された値を計算式やスコアリングロジックで処理し、あなたに合った結果を算出します。本ツールの結果はあくまで参考情報です。重要な判断の際は専門家にご相談ください。</p></div>

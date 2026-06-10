@@ -229,27 +229,35 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <!-- Goal Setting Form (P2) -->
           <div id="goalSettingPanel" style="background:#f0f9ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px;margin-bottom:12px;">
             <div style="font-size:12px;font-weight:600;color:#1e40af;margin-bottom:8px;">🎯 目標スコアを設定（任意）</div>
+            <div style="font-size:11px;color:#1e40af;margin-bottom:6px;">✓ ゲーム終了後に目標に対する達成度が表示されます</div>
             <div style="display:flex;gap:6px;">
-              <input type="number" id="goalInput" placeholder="0～10" min="0" max="10" style="flex:1;max-width:80px;" value="0">
-              <button onclick="setGoal()" style="background:#1e40af;color:white;border:none;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">設定</button>
-              <button onclick="clearGoal()" style="background:#e5e7eb;color:#666;border:none;padding:8px 16px;border-radius:8px;font-size:13px;cursor:pointer;">クリア</button>
+              <input type="number" id="goalInput" placeholder="0～10の範囲で入力" min="0" max="10" step="1" style="flex:1;max-width:80px;" value="0" aria-label="目標スコア（0～10）">
+              <button onclick="setGoal()" title="目標スコアを設定する" style="background:#1e40af;color:white;border:none;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;">設定</button>
+              <button onclick="clearGoal()" title="目標スコアをリセットする" style="background:#e5e7eb;color:#666;border:none;padding:8px 16px;border-radius:8px;font-size:13px;cursor:pointer;min-height:44px;">クリア</button>
             </div>
             <div id="goalStatus" style="font-size:11px;color:#666;margin-top:4px;"></div>
+            <div id="goalError" style="font-size:11px;color:#dc2626;margin-top:4px;display:none;"></div>
           </div>
 
           <div class="difficulty-row">
-            <button class="diff-btn active" onclick="setDiff(1,this)">かんたん</button>
-            <button class="diff-btn" onclick="setDiff(2,this)">ふつう</button>
-            <button class="diff-btn" onclick="setDiff(3,this)">むずかしい</button>
+            <button class="diff-btn active" onclick="setDiff(1,this)" title="3×3グリッド（9マス）、制限時間12秒" aria-label="難易度：かんたん（3×3グリッド、制限時間12秒）">かんたん</button>
+            <button class="diff-btn" onclick="setDiff(2,this)" title="4×4グリッド（16マス）、制限時間8秒" aria-label="難易度：ふつう（4×4グリッド、制限時間8秒）">ふつう</button>
+            <button class="diff-btn" onclick="setDiff(3,this)" title="5×5グリッド（25マス）、制限時間5秒" aria-label="難易度：むずかしい（5×5グリッド、制限時間5秒）">むずかしい</button>
           </div>
 
           <div class="color-stage">
             <div class="best-score-display" id="bestDisplay"></div>
             <div style="font-size:13px;color:#666;margin-bottom:4px;">問題 <span id="qNum">1</span> / 10</div>
-            <div class="timer-wrap"><div class="timer-bar" id="timerBar"></div></div>
-            <div class="score-bar" id="scoreDots"></div>
+            <div style="font-size:11px;color:#6b7280;margin-bottom:6px;">⏱ 制限時間内に色が1つだけ異なるマスをタップしてください</div>
+            <div class="timer-wrap"><div class="timer-bar" id="timerBar" aria-label="残り時間を示すプログレスバー"></div></div>
+            <div style="display:flex;gap:8px;justify-content:center;margin-bottom:8px;font-size:11px;color:#6b7280;">
+              <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#059669;margin-right:4px;vertical-align:middle;"></span>正解</div>
+              <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;margin-right:4px;vertical-align:middle;"></span>不正解</div>
+              <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e5e7eb;margin-right:4px;vertical-align:middle;"></span>未回答</div>
+            </div>
+            <div class="score-bar" id="scoreDots" role="status" aria-label="回答状況"></div>
             <div style="font-size:13px;color:#7C3AED;font-weight:600;margin-bottom:8px;" id="stageMsg">違う色のマスを見つけよう！</div>
-            <div class="color-grid" id="colorGrid"></div>
+            <div class="color-grid" id="colorGrid" role="group" aria-label="色のグリッド"></div>
           </div>
 
           <div class="result" id="result" style="margin-top:8px;">
@@ -457,9 +465,38 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     const DIFF_NAMES = {1: 'かんたん', 2: 'ふつう', 3: 'むずかしい'};
 
     document.addEventListener('DOMContentLoaded', () => {
+      showFirstTimeGuide();
+      setupGoalInputValidation();
       showGoalSetting();
       startGame();
     });
+
+    // 初回ガイダンス表示
+    function showFirstTimeGuide() {
+      const guideSeen = localStorage.getItem('colorSenseGame_firstVisit');
+      if (!guideSeen) {
+        const msg = '【ゲームの遊び方】\n\n1️⃣ 難易度を選ぶ\n2️⃣ グリッドが表示される\n3️⃣ 色が1つだけ違うマスを探す\n4️⃣ 制限時間内にタップ！\n5️⃣ 10問終了でスコア表示\n\nベストスコアを目指して何度でも遊べます！';
+        alert(msg);
+        localStorage.setItem('colorSenseGame_firstVisit', 'true');
+      }
+    }
+
+    // 目標スコア入力のリアルタイムバリデーション
+    function setupGoalInputValidation() {
+      const input = document.getElementById('goalInput');
+      const errorDiv = document.getElementById('goalError');
+      input.addEventListener('input', function() {
+        const val = parseInt(this.value) || 0;
+        errorDiv.style.display = 'none';
+        if (this.value && (val < 0 || val > 10)) {
+          errorDiv.textContent = '⚠️ 0～10の範囲で入力してください';
+          errorDiv.style.display = 'block';
+          this.style.borderColor = '#dc2626';
+        } else {
+          this.style.borderColor = '#e2e8f0';
+        }
+      });
+    }
 
     function getBestKey() { return 'bestScore_' + difficulty; }
     function getBest() { return parseInt(localStorage.getItem(getBestKey()) || '0'); }
@@ -493,10 +530,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     // P2: 目標スコアを設定
     function setGoal() {
       const val = parseInt(document.getElementById('goalInput').value) || 0;
-      if (val < 0 || val > 10) {
-        alert('0～10の範囲で入力してください');
+      const errorDiv = document.getElementById('goalError');
+      if (document.getElementById('goalInput').value && (val < 0 || val > 10)) {
+        errorDiv.textContent = '⚠️ 0～10の範囲で入力してください';
+        errorDiv.style.display = 'block';
+        document.getElementById('goalInput').style.borderColor = '#dc2626';
         return;
       }
+      errorDiv.style.display = 'none';
+      document.getElementById('goalInput').style.borderColor = '#e2e8f0';
       saveGoal(val);
       goalScore = val;
       updateGoalStatus();
@@ -616,7 +658,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         const h = i === oddIndex ? oddH : baseH;
         cell.style.background = 'hsl(' + h + ', ' + baseS + '%, ' + baseL + '%)';
         cell.dataset.idx = i;
+        cell.setAttribute('role', 'button');
+        cell.setAttribute('tabindex', '0');
+        cell.setAttribute('aria-label', 'マス ' + (i + 1) + ' / ' + total);
         cell.addEventListener('click', () => onCellClick(i, cell));
+        cell.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onCellClick(i, cell);
+          }
+        });
         grid.appendChild(cell);
       }
 

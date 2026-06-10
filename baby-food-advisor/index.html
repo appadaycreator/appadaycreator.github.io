@@ -225,6 +225,28 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="card p-6 mb-6" id="diagnosis-history" style="display:none;background:#f0f9ff;border:1px solid #bae6fd;">
     </div>
 
+    <!-- M6: 食材導入トラッキングセクション -->
+    <div class="card p-6 mb-6" id="tracking-section" style="display:none;background:#fef3c7;border:1px solid #fbbf24;">
+      <h3 class="font-bold text-gray-800 mb-4 text-sm">📊 食材導入の進捗</h3>
+      <div class="mb-4">
+        <div class="text-sm font-bold text-gray-700 mb-2">導入目標</div>
+        <div id="goal-display" class="text-xs text-gray-600 mb-3">目標を設定して食材導入を追跡しましょう</div>
+        <button onclick="showGoalModal()" style="width:100%;display:block;text-align:center;background:#f59e0b;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;cursor:pointer;border:none;">⚙️ 目標を設定</button>
+      </div>
+      <div style="border-top:1px solid #fcd34d;padding-top:12px;">
+        <div class="text-sm font-bold text-gray-700 mb-2">導入済み食材（<span id="introduced-count">0</span>種類）</div>
+        <div id="introduced-foods" class="text-xs text-gray-600">食材を導入した日付で記録できます</div>
+        <button onclick="addIntroduced()" style="width:100%;display:block;text-align:center;background:#34d399;color:white;padding:6px;border-radius:8px;font-size:12px;font-weight:bold;cursor:pointer;border:none;margin-top:8px;">➕ 食材を追加</button>
+      </div>
+      <div style="background:white;border-radius:8px;padding:8px;margin-top:8px;display:none;" id="achievement-gauge">
+        <div class="text-xs font-bold text-gray-700 mb-2">達成率</div>
+        <div style="background:#f3f4f6;border-radius:999px;height:8px;overflow:hidden;">
+          <div id="achievement-bar" style="background:#10b981;height:100%;width:0%;transition:width 0.3s ease;"></div>
+        </div>
+        <div style="text-align:center;margin-top:4px;"><span id="achievement-pct" style="font-size:12px;font-weight:bold;color:#10b981;">0%</span></div>
+      </div>
+    </div>
+
     <button class="btn-primary" onclick="startDiagnosis()" aria-label="診断スタート →">診断スタート →</button>
     <p class="text-center text-xs text-gray-500 mt-3">※医師・栄養士の指導の代替ではありません</p>
   </div>
@@ -299,6 +321,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
       </div>
       <div id="copy-toast" style="display:none;text-align:center;margin-top:8px;font-size:12px;color:#0284c7;font-weight:bold;">✅ URLをコピーしました</div>
+    </div>
+
+    <!-- 食材導入トラッキング結果画面版 -->
+    <div class="card p-6 mb-4" id="result-tracking" style="background:#f0fdf4;border:1px solid #86efac;">
+      <h3 class="font-bold text-gray-800 mb-3">🎯 月齢別食材導入チェックリスト</h3>
+      <div id="result-introduced-list" class="text-sm text-gray-600 mb-3">
+        <p class="text-xs text-gray-500">今月齢で導入予定の食材をチェック</p>
+      </div>
+      <button onclick="addIntroducedFromResult()" style="width:100%;display:block;text-align:center;background:#10b981;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;cursor:pointer;border:none;">✅ 導入した食材を記録</button>
     </div>
 
     <!-- 食材リスト -->
@@ -554,10 +585,18 @@ function displayHistory() {
   }
 
   historyDiv.style.display = 'block';
-  var html = '<h3 style="font-bold text-gray-800 mb-3 text-sm">📋 診断履歴（最近3回）</h3><div class="space-y-2">';
-  for (var i = 0; i < Math.min(3, history.length); i++) {
+  var html = '<h3 style="font-bold text-gray-800 mb-3 text-sm">📋 診断履歴（最近5回）</h3><div class="space-y-2">';
+  for (var i = 0; i < Math.min(5, history.length); i++) {
     var h = history[i];
-    html += '<div class="bg-gray-50 rounded-lg p-3 text-sm cursor-pointer hover:bg-gray-100" onclick="loadFromHistory(' + i + ')" style="border-left:4px solid #db2777;"><div class="font-bold text-gray-800">' + h.date + '</div><div class="text-gray-600 text-xs">月齢: ' + h.age + ' | アレルギー: ' + (h.allergy || 'なし') + '</div></div>';
+    var badge = i === 0 ? '<span style="font-size:10px;background:#db2777;color:white;padding:2px 6px;border-radius:4px;margin-left:8px;">最新</span>' : '';
+    var stageEmoji = '';
+    if (h.age) {
+      if (h.age.includes('5〜6')) stageEmoji = '🌱';
+      else if (h.age.includes('7〜8')) stageEmoji = '🌿';
+      else if (h.age.includes('9〜11')) stageEmoji = '🌻';
+      else if (h.age.includes('12〜18')) stageEmoji = '🌸';
+    }
+    html += '<div class="bg-gray-50 rounded-lg p-3 text-sm cursor-pointer hover:bg-blue-50 transition" onclick="loadFromHistory(' + i + ')" style="border-left:4px solid #db2777;"><div class="font-bold text-gray-800">' + stageEmoji + ' ' + h.date + badge + '</div><div class="text-gray-600 text-xs mt-1">📅 月齢: ' + h.age + ' | 🥕 アレルギー: ' + (h.allergy || 'なし') + ' | 💨 進捗: ' + (h.progress || '未記録') + '</div></div>';
   }
   html += '</div>';
   historyDiv.innerHTML = html;
@@ -566,8 +605,175 @@ function displayHistory() {
 function loadFromHistory(index) {
   var history = JSON.parse(localStorage.getItem('baby-food-history') || '[]');
   if (!history[index]) return;
-  alert('前回のデータで診断を開始します。');
-  startDiagnosis();
+
+  var entry = history[index];
+  ans = {};
+
+  // 過去のデータから回答を復元
+  var ageMap = {'5〜6ヶ月（離乳食初期）': 0, '7〜8ヶ月（中期）': 1, '9〜11ヶ月（後期）': 2, '12〜18ヶ月（完了期）': 3};
+  var progressMap = {'まだ始めていない': 0, 'ゆっくり進んでいる': 1, '順調': 2, 'よく食べる': 3};
+  var effortMap = {'毎日手作りしたい': 0, 'なるべく手作りしたい': 1, '市販品も積極的に活用したい': 2, 'できるだけ楽したい': 3};
+  var purchaseMap = {'スーパーで毎日買う': 0, 'まとめ買い（週1〜2回）': 1, '宅配サービスを使用': 2, 'コープ（生協）を利用中': 3};
+
+  if (entry.age) {
+    var ageIdx = ageMap[entry.age] || 0;
+    ans.age = { i: ageIdx, val: entry.age };
+  }
+  if (entry.progress) {
+    var progressIdx = progressMap[entry.progress] || 0;
+    ans.progress = { i: progressIdx, val: entry.progress };
+  }
+  if (entry.allergy) {
+    var allergyOpts = ['なし','卵','乳製品','小麦','そば・蕎麦粉','エビ・かに','ピーナッツ・ナッツ','複数あり','不明・様子見'];
+    var allergyIdx = allergyOpts.indexOf(entry.allergy);
+    if (allergyIdx >= 0) ans.allergy = { i: allergyIdx, val: entry.allergy };
+  }
+  if (entry.effort) {
+    var effortIdx = effortMap[entry.effort] || 0;
+    ans.effort = { i: effortIdx, val: entry.effort };
+  }
+  if (entry.purchase) {
+    var purchaseIdx = purchaseMap[entry.purchase] || 0;
+    ans.purchase = { i: purchaseIdx, val: entry.purchase };
+  }
+  if (entry.trouble) {
+    var troubleOpts = ['何から始めるかわからない','食べてくれない','栄養バランスが心配','時間がない','レパートリーが少ない'];
+    var troubleIdx = troubleOpts.indexOf(entry.trouble);
+    if (troubleIdx >= 0) ans.trouble = { i: troubleIdx, val: entry.trouble };
+  }
+
+  cur = 0;
+  showResults();
+}
+
+// M6: 目標設定・達成度トラッキング関数
+function saveGoals(goalFoods) {
+  localStorage.setItem('baby-food-goals', JSON.stringify(goalFoods));
+  updateTrackingDisplay();
+}
+
+function getGoals() {
+  return JSON.parse(localStorage.getItem('baby-food-goals') || '[]');
+}
+
+function saveIntroduced(introducedMap) {
+  localStorage.setItem('baby-food-introduced', JSON.stringify(introducedMap));
+  updateTrackingDisplay();
+}
+
+function getIntroduced() {
+  return JSON.parse(localStorage.getItem('baby-food-introduced') || '{}');
+}
+
+function updateTrackingDisplay() {
+  var goals = getGoals();
+  var introduced = getIntroduced();
+  var goalDiv = document.getElementById('goal-display');
+  var introDiv = document.getElementById('introduced-foods');
+  var trackingSection = document.getElementById('tracking-section');
+  var achievementGauge = document.getElementById('achievement-gauge');
+
+  if (!goals.length && !Object.keys(introduced).length) {
+    trackingSection.style.display = 'none';
+    return;
+  }
+
+  trackingSection.style.display = 'block';
+
+  // 目標表示
+  if (goals.length) {
+    goalDiv.innerHTML = '<div class="space-y-1">' + goals.map(function(g, i) {
+      return '<div class="text-xs text-gray-700 mb-1">🎯 ' + g + ' <button onclick="removeGoal(' + i + ')" style="color:#ef4444;font-size:11px;cursor:pointer;border:none;background:none;margin-left:4px;">削除</button></div>';
+    }).join('') + '</div>';
+  }
+
+  // 導入済み食材表示
+  if (Object.keys(introduced).length) {
+    introDiv.innerHTML = '<div class="space-y-1">' + Object.keys(introduced).map(function(food) {
+      var date = introduced[food];
+      return '<div class="text-xs text-gray-700 mb-1">✅ ' + food + ' (' + date + ') <button onclick="removeIntroduced(\'' + food.replace(/'/g, "\\'") + '\')" style="color:#ef4444;font-size:11px;cursor:pointer;border:none;background:none;margin-left:4px;">削除</button></div>';
+    }).join('') + '</div>';
+    document.getElementById('introduced-count').textContent = Object.keys(introduced).length;
+  }
+
+  // 達成率計算
+  if (goals.length > 0) {
+    var achievedCount = goals.filter(function(g) { return introduced.hasOwnProperty(g); }).length;
+    var pct = Math.round((achievedCount / goals.length) * 100);
+    achievementGauge.style.display = 'block';
+    document.getElementById('achievement-bar').style.width = pct + '%';
+    document.getElementById('achievement-pct').textContent = pct + '%';
+  }
+}
+
+function showGoalModal() {
+  var goals = getGoals();
+  var input = prompt('導入目標の食材を入力してください（カンマ区切りで複数可。例：卵,乳製品,小麦）:', goals.join(','));
+  if (input === null) return;
+
+  var newGoals = input.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+  saveGoals(newGoals);
+}
+
+function removeGoal(index) {
+  var goals = getGoals();
+  goals.splice(index, 1);
+  saveGoals(goals);
+}
+
+function addIntroduced() {
+  var food = prompt('導入した食材を入力してください:');
+  if (!food) return;
+  var introduced = getIntroduced();
+  var today = new Date().toLocaleDateString('ja-JP');
+  introduced[food] = today;
+  saveIntroduced(introduced);
+}
+
+function removeIntroduced(food) {
+  var introduced = getIntroduced();
+  delete introduced[food];
+  saveIntroduced(introduced);
+}
+
+function addIntroducedFromResult() {
+  var ageIdx = ans.age ? ans.age.i : 0;
+  var stageKey = ['early','middle','late','finish'][ageIdx] || 'early';
+  var data = stageData[stageKey];
+
+  var foodList = data.okFoods.join('\n');
+  var food = prompt('導入した食材を入力してください（おすすめ食材から選択可）:\n\n---\n' + foodList, '');
+  if (!food) return;
+
+  var introduced = getIntroduced();
+  var today = new Date().toLocaleDateString('ja-JP');
+  introduced[food] = today;
+  saveIntroduced(introduced);
+
+  alert('✅ 「' + food + '」を導入済みとして記録しました！');
+  updateResultTrackingDisplay();
+  updateTrackingDisplay();
+}
+
+function updateResultTrackingDisplay() {
+  var ageIdx = ans.age ? ans.age.i : 0;
+  var stageKey = ['early','middle','late','finish'][ageIdx] || 'early';
+  var data = stageData[stageKey];
+  var introduced = getIntroduced();
+
+  var resultList = document.getElementById('result-introduced-list');
+  var checkedCount = data.okFoods.filter(function(f) { return introduced.hasOwnProperty(f); }).length;
+  var checkHtml = '<div class="space-y-1">';
+
+  data.okFoods.forEach(function(food) {
+    var isIntroduced = introduced.hasOwnProperty(food);
+    var icon = isIntroduced ? '☑️' : '☐';
+    var style = isIntroduced ? 'opacity:0.6;text-decoration:line-through;' : '';
+    checkHtml += '<div style="' + style + '" class="text-xs text-gray-700 mb-1">' + icon + ' ' + food + (isIntroduced ? ' (' + introduced[food] + ')' : '') + '</div>';
+  });
+
+  checkHtml += '</div>';
+  resultList.innerHTML = checkHtml;
 }
 
 function startDiagnosis() {
@@ -654,6 +860,9 @@ function showResults() {
   var progressScore = Math.round(((ageIdx + 1) / 4) * 100);
   document.getElementById('progress-score').textContent = progressScore + '%';
 
+  // M6: 結果画面の食材導入チェックリストを更新
+  updateResultTrackingDisplay();
+
   document.getElementById('res-emoji').textContent = data.emoji;
   document.getElementById('res-stage').textContent = data.stage;
   document.getElementById('res-stage-sub').textContent = data.stageSub;
@@ -725,6 +934,7 @@ function showResults() {
   }
 
   show('results');
+  updateTrackingDisplay();
   drawProgressChart(progressScore, stageKey);
   gtag('event', 'result_view', { event_category: 'conversion', stage: stageKey });
   // P19: 結果URLを更新してシェアリンクに反映
@@ -795,6 +1005,7 @@ function restart() {
   cur = 0;
   ans = {};
   displayHistory();
+  updateTrackingDisplay();
   show('intro');
 }
 
@@ -1201,7 +1412,11 @@ AppADayCreatorでは、本ツール以外にも育児・子育てカテゴリの
 (function(){
   var btn = document.getElementById('back-to-top');
   if(!btn) return;
-  window.addEventListener('scroll', function(){
+  // M6: ページロード時に追跡表示を初期化
+displayHistory();
+updateTrackingDisplay();
+
+window.addEventListener('scroll', function(){
     btn.style.display = window.scrollY > 400 ? 'block' : 'none';
   }, {passive:true});
 })();

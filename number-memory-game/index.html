@@ -58,8 +58,9 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .btn:hover { opacity: 0.9; }
         .btn:active { transform: scale(0.98); }
         .btn:focus-visible { outline: 3px solid #7C3AED; outline-offset: 3px; }
-        input, select, textarea { width: 100%; padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 15px; margin-top: 4px; font-family: inherit; min-height: 44px; }
+        input, select, textarea { width: 100%; padding: 12px 14px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 15px; margin-top: 4px; font-family: inherit; min-height: 48px; }
         input:focus, select:focus, textarea:focus { outline: none; border-color: #7C3AED; box-shadow: 0 0 0 3px #7C3AED22; }
+        #answer-input { min-height: 56px; padding: 14px; }
         label { font-size: 13px; font-weight: 600; color: #555; display: block; margin-top: 14px; margin-bottom: 2px; }
         .result { display: none; }
         .result.show { display: block; }
@@ -180,7 +181,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             ② 消えたら入力欄に数字を入力<br>
             ③ 正解→次のレベルへ。不正解でゲーム終了！
           </div>
-          <button class="btn" onclick="startGame()">ゲームスタート ▶</button>
+          <button class="btn" autofocus onclick="startGame()">ゲームスタート ▶</button>
         </div>
         <div id="game-area" style="display:none;">
           <div style="text-align:center;margin-bottom:12px;">
@@ -189,7 +190,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <span id="level-badge">Lv.1</span>
             <span id="digit-info" style="display:block;font-size:12px;color:#999;margin-top:4px;"></span>
           </div>
-          <div id="number-display">準備中...</div>
+          <div id="number-display" role="status" aria-live="polite">準備中...</div>
           <div id="input-area" style="display:none;">
             <label for="answer-input" style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;">💡 覚えた数字を入力してください</label>
             <input type="text" id="answer-input" placeholder="0〜9の数字のみを入力" autocomplete="off" title="覚えた数字を全て入力してください。スペースは入れず、数字のみを入力します。" aria-describedby="answer-help">
@@ -206,6 +207,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <p id="final-msg" style="color:#666;font-size:14px;margin-top:8px;"></p>
             <!-- 横展開#13: ランキング -->
             <div id="nm-ranking-display" style="margin-top:12px;font-size:.85rem;background:#f5f3ff;border-radius:10px;padding:.6rem .8rem;text-align:left;color:#374151;"></div>
+            <!-- P1-1: M6 目標スコア表示 -->
+            <div id="nm-goal-display" style="margin-top:12px;"></div>
             <!-- M4: スコア統計パネル -->
             <div id="nm-stats-panel" style="margin-top:14px;font-size:.85rem;background:#eef2ff;border-radius:10px;padding:.8rem;text-align:center;color:#374151;display:none;">
               <div style="font-weight:700;margin-bottom:6px;">📊 統計情報</div>
@@ -227,8 +230,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <button class="btn" style="margin-top:0;background:#10b981;" onclick="copyNmResult()">📋 結果をコピー</button>
               <button class="btn" style="margin-top:0;background:#f59e0b;" onclick="printNmResult()">🖨️ 印刷する</button>
               <button class="btn" style="margin-top:0;background:#6366f1;" onclick="exportNmRankingCsv()">📥 ランキングをCSV出力</button>
+              <button class="btn" style="margin-top:0;background:#8b5cf6;" onclick="setNmGoal()">🎯 目標を設定</button>
+              <button class="btn" style="margin-top:0;background:#06b6d4;" onclick="showNmPlayHistory()">📊 最近5回の詳細</button>
               <button class="btn" style="margin-top:0;" onclick="startGame()">🔄 もう一度プレイ</button>
             </div>
+            <!-- P1-3: M17 スコア別推薦ツール -->
+            <div id="nm-recommended-tools" style="margin-top:16px;"></div>
           </div>
         </div>
 
@@ -379,7 +386,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     let score = 0, level = 1, gameRunning = false, timer = null;
     const BTN_COLOR = '#7C3AED';
     let currentNumber = '';
-    let showDuration = 2000; // ms
     let maxLevelReached = parseInt(localStorage.getItem('nm_max_level') || '1');
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -470,13 +476,19 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     function checkAnswer() {
       const userInput = document.getElementById('answer-input').value.trim();
-      if (userInput === '') { alert('数字を入力してください'); return; }
-      // テキスト入力なので、数字のみの検証
-      if (!/^\d+$/.test(userInput)) { alert('数字のみを入力してください（0〜9）'); return; }
+      const feedbackEl = document.getElementById('feedback-msg');
+      if (userInput === '') {
+        feedbackEl.innerHTML = '<span style="color:#ef4444;">⚠️ 数字を入力してください</span>';
+        return;
+      }
+      if (!/^\d+$/.test(userInput)) {
+        feedbackEl.innerHTML = '<span style="color:#ef4444;">⚠️ 数字のみを入力してください（0〜9）</span>';
+        return;
+      }
       if (userInput === currentNumber) {
         onCorrect();
       } else {
-        document.getElementById('feedback-msg').innerHTML =
+        feedbackEl.innerHTML =
           '<span style="color:#ef4444;">✗ 不正解！正解は ' + currentNumber + ' でした</span>';
         setTimeout(() => onWrong(), 1200);
       }
@@ -503,7 +515,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     function endGame() {
       gameRunning = false;
-      if (timer) clearInterval(timer);
+      if (timer) { clearInterval(timer); timer = null; }
       document.getElementById('game-area').style.display = 'none';
       document.getElementById('final-score').innerHTML = score + ' 点<br><span style="font-size:0.8em;color:#666;">到達レベル: Lv.' + (level - 1) + ' / 最高レベル: Lv.' + maxLevelReached + '</span>';
       let msg = '';
@@ -515,6 +527,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('result').classList.add('show');
       saveNmRanking(score);
       renderNmRanking();
+      checkAndShowGoalAchievement(score);
+      renderNmRecommendedTools(score);
     }
 
     // 横展開#13: ランキング機能 + M4, M10 拡張
@@ -630,6 +644,84 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const sc = document.getElementById('final-score')?.textContent || '0点';
       const text = encodeURIComponent(`【数字記憶ゲーム】${sc}を達成！Lv${level}まで到達しました🧠 記憶力を鍛えよう！ #数字記憶ゲーム`);
       window.open('https://twitter.com/intent/tweet?text=' + text, '_blank', 'noopener');
+    }
+    // P1-1: M6 目標スコア機能
+    function checkAndShowGoalAchievement(currentScore) {
+      const goal = parseInt(localStorage.getItem('nm_goal_score') || '0');
+      if (goal <= 0) return;
+      const goalEl = document.getElementById('nm-goal-display');
+      if (!goalEl) return;
+      const achieved = currentScore >= goal;
+      goalEl.innerHTML = '<div style="background:' + (achieved ? '#dcfce7' : '#f3e8ff') + ';border:1px solid ' + (achieved ? '#86efac' : '#ddd6fe') + ';border-radius:8px;padding:12px;margin-top:12px;text-align:center;">'
+        + '<div style="font-weight:700;color:' + (achieved ? '#166534' : '#7c3aed') + ';">'
+        + (achieved ? '🎯 目標達成！' : '📊 目標スコア: ' + goal + '点') + '</div>'
+        + (achieved ? '<div style="font-size:0.85rem;color:#166534;margin-top:4px;">素晴らしい！目標を達成しました</div>' : '<div style="font-size:0.85rem;color:#6b7280;margin-top:4px;">あと ' + (goal - currentScore) + ' 点で目標達成</div>')
+        + '</div>';
+    }
+    function setNmGoal() {
+      const input = prompt('目標スコアを入力してください（0で目標なし）:', localStorage.getItem('nm_goal_score') || '10');
+      if (input !== null) {
+        const goal = parseInt(input) || 0;
+        if (goal >= 0) {
+          localStorage.setItem('nm_goal_score', String(goal));
+          alert((goal === 0 ? '目標をリセット' : '目標を ' + goal + ' 点に設定') + 'しました');
+        }
+      }
+    }
+    // P1-3: M17 スコア別推薦ツール表示
+    function renderNmRecommendedTools(currentScore) {
+      const el = document.getElementById('nm-recommended-tools');
+      if (!el) return;
+      let recommendations = [];
+      if (currentScore <= 5) {
+        recommendations = [
+          {url: 'https://px.a8.net/svt/ejp?a8mat=4AX38J+4DU6NE+2MJW+HYV1E', text: '🎓 小中学生向けの通信教育【デキタス】'},
+          {url: 'https://px.a8.net/svt/ejp?a8mat=4B3R2X+AO2WIY+36T2+ZQFQA', text: '📚 スタディサプリ小学講座'},
+          {url: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ7+BH9562+35VG+64JTE', text: '🗣️ 英会話レッスン【NativeCamp】'}
+        ];
+      } else if (currentScore <= 10) {
+        recommendations = [
+          {url: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ7+5K3YLM+36T2+TSYJM', text: '📖 スタディサプリ中学講座'},
+          {url: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FIIWRU+1IRY+1TKOKI', text: '💰 お金の教養講座【ファイナンシャルアカデミー】'},
+          {url: 'https://px.a8.net/svt/ejp?a8mat=4B3VR6+GFV6NE+3CJQ+64C3M', text: '📚 本が聴ける【audiobook.jp】'}
+        ];
+      } else {
+        recommendations = [
+          {url: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642', text: '⭐ ハピタス - ポイント還元サービス'},
+          {url: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+36YZ3E+3A66+5YRHE', text: '🔒 ウイルスバスター - セキュリティソフト'},
+          {url: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ7+18PTPM+1O96+699KI', text: '🧘 ホットヨガスタジオLAVA'}
+        ];
+      }
+      const levelMsg = currentScore <= 5 ? '初心者向け' : currentScore <= 10 ? '中級者向け' : '上級者向け';
+      el.innerHTML = '<div style="background:#eaf4fb;border-left:4px solid #1976d2;border-radius:8px;padding:12px;margin-top:12px;">'
+        + '<div style="font-size:.85rem;font-weight:700;color:#0c4a6e;margin-bottom:8px;">📚 あなたにおすすめ (' + levelMsg + ')</div>'
+        + '<div style="display:flex;flex-direction:column;gap:6px;">'
+        + recommendations.map(r => '<a href="' + r.url + '" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#fff;color:#1976d2;padding:6px 12px;border:1px solid #1976d2;border-radius:6px;font-size:.8rem;text-decoration:none;font-weight:600;text-align:center;min-height:32px;display:flex;align-items:center;justify-content:center;">' + r.text + '</a>').join('')
+        + '</div></div>';
+    }
+    // P2-2: M7 プレイ履歴比較機能
+    function showNmPlayHistory() {
+      const history = JSON.parse(localStorage.getItem('nm_history') || '[]');
+      if (history.length === 0) {
+        alert('プレイ履歴がありません');
+        return;
+      }
+      const recent = history.slice(-5).reverse();
+      const trend = history.length >= 2 ? (recent[0].score > recent[recent.length - 1].score ? '📈 上昇傾向' : recent[0].score < recent[recent.length - 1].score ? '📉 下降傾向' : '➡️ 安定') : '➡️ 初回';
+      let html = '<div style="background:#fff;border:2px solid #7C3AED;border-radius:12px;padding:16px;max-width:600px;margin:0 auto;max-height:80vh;overflow-y:auto;">'
+        + '<div style="font-size:1.1rem;font-weight:700;margin-bottom:8px;color:#7C3AED;">📊 最近5回のプレイ</div>'
+        + '<div style="font-size:.9rem;color:#666;margin-bottom:12px;">' + trend + '</div>'
+        + '<table style="width:100%;border-collapse:collapse;font-size:.85rem;">'
+        + '<tr style="background:#f3e8ff;border-bottom:1px solid #ddd6fe;"><th style="padding:8px;text-align:left;">順序</th><th style="padding:8px;text-align:center;">スコア</th><th style="padding:8px;text-align:center;">レベル</th></tr>'
+        + recent.map((r, i) => '<tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:8px;">' + (i + 1) + '回目</td><td style="padding:8px;text-align:center;font-weight:700;color:#7C3AED;">' + r.score + '点</td><td style="padding:8px;text-align:center;">Lv' + r.lv + '</td></tr>').join('')
+        + '</table>'
+        + '<button onclick="this.parentElement.parentElement.removeChild(this.parentElement);" style="width:100%;margin-top:12px;padding:8px;background:#f3e8ff;border:1px solid #ddd6fe;border-radius:6px;cursor:pointer;font-weight:600;color:#7C3AED;">閉じる</button>'
+        + '</div>';
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
+      modal.innerHTML = html;
+      modal.onclick = e => e.target === modal && modal.remove();
+      document.body.appendChild(modal);
     }
     </script>
 

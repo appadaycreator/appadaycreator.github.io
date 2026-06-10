@@ -1317,6 +1317,41 @@ button:focus-visible,[class*=btn]:focus-visible,.option-card:focus-visible{
                     </div>
                 </div>
 
+                <!-- P1: M3改善 - 履歴スコア比較チャート -->
+                <div id="history-comparison-section" class="mb-8" style="display:none;">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">
+                        <span class="mr-2">📚</span>診断履歴の成長パターン
+                    </h3>
+                    <div class="bg-blue-50 rounded-lg p-6">
+                        <div id="history-comparison-chart-container">
+                            <canvas id="history-comparison-chart" width="400" height="200"></canvas>
+                        </div>
+                        <p class="text-xs text-gray-600 mt-4 text-center">複数の診断結果から、推奨活動のスコア推移を追跡。成長パターンを把握できます。</p>
+                    </div>
+                </div>
+
+                <!-- P2: M4改善 - スコアトレンド分析 -->
+                <div id="score-trend-section" class="mb-8" style="display:none;">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">
+                        <span class="mr-2">📉</span>カテゴリ別スコアトレンド
+                    </h3>
+                    <div class="bg-orange-50 rounded-lg p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <label for="trend-category-select" class="text-sm font-semibold text-gray-700">分析カテゴリを選択:</label>
+                            <select id="trend-category-select" onchange="updateScoreTrendChart()" style="padding:8px;border-radius:6px;border:1px solid #d1d5db;font-size:14px;">
+                                <option value="">カテゴリを選択</option>
+                            </select>
+                        </div>
+                        <div id="score-trend-chart-container">
+                            <canvas id="score-trend-chart" width="400" height="200"></canvas>
+                        </div>
+                        <div class="flex justify-between items-center mt-4">
+                            <p class="text-xs text-gray-600">複数診断での同じカテゴリの成長率を表示</p>
+                            <p id="score-trend-label" style="font-weight:bold;color:#6b7280;"></p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- P0-3: AdSense スロット1 -->
                 <div class="kaf-adsense-slot">
                     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858"
@@ -2608,64 +2643,7 @@ button:focus-visible,[class*=btn]:focus-visible,.option-card:focus-visible{
     </script>
 
     <script>
-    // Exit Intent Popup（診断完了後のみ表示）
-    (function() {
-        let exitIntentShown = false;
-        let diagnosisDone = localStorage.getItem('kaf_diagnosis_done') === 'true';
-        let maxScrollY = 0;
-
-        // デスクトップ: マウスが画面上部から出たとき
-        document.addEventListener('mouseleave', function(e) {
-            if (e.clientY <= 0 && !exitIntentShown && diagnosisDone) {
-                const isPro = localStorage.getItem('kids_activity_pro') === 'true';
-                if (!isPro) {
-                    exitIntentShown = true;
-                    showExitIntentPopup();
-                }
-            }
-        });
-
-        // モバイル: 診断後に下まで読んだ後、上にスクロールして戻ったとき
-        window.addEventListener('scroll', function() {
-            if (!diagnosisDone || exitIntentShown) return;
-            if (window.scrollY > maxScrollY) maxScrollY = window.scrollY;
-            // 1000px以上読んだあと、上位200pxまで戻ったら離脱とみなす
-            if (maxScrollY > 1000 && window.scrollY < 200) {
-                const isPro = localStorage.getItem('kids_activity_pro') === 'true';
-                if (!isPro) {
-                    exitIntentShown = true;
-                    setTimeout(showExitIntentPopup, 300);
-                }
-            }
-        }, { passive: true });
-
-        function showExitIntentPopup() {
-            var overlay = document.createElement('div');
-            overlay.id = 'exit-intent-overlay';
-            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
-            overlay.innerHTML = `
-                <div style="background:white;border-radius:20px;padding:28px;max-width:400px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
-                    <div style="font-size:44px;margin-bottom:10px;">🎯</div>
-                    <h2 style="font-size:1.25em;font-weight:bold;margin-bottom:8px;color:#1f2937;">お子様の可能性をもっと深く知りませんか？</h2>
-                    <p style="color:#6b7280;font-size:0.88em;margin-bottom:14px;">Pro版でお子様の才能・将来キャリア・<br>週間行動プランが全てわかります</p>
-                    <div style="background:#fef9c3;border-radius:12px;padding:12px;margin-bottom:14px;font-size:0.85em;color:#92400e;">
-                        <strong>通常価格 ¥700（一回限り・買い切り）</strong>
-                    </div>
-                    <a href="https://buy.stripe.com/4gM00l9lL816bJA8PGbZe00"
-                       style="display:block;background:#4f46e5;color:white;padding:14px;border-radius:12px;font-weight:bold;text-decoration:none;margin-bottom:10px;"
-                       onclick="document.getElementById('exit-intent-overlay').remove();">
-                        📊 詳細レポートを取得する（¥700）
-                    </a>
-                    <p style="color:#059669;font-size:0.78em;margin-bottom:10px;">🔒 Stripe安全決済 ｜ ✅ 7日間返金保証（<a href="mailto:appadaycreator@gmail.com" style="color:#0369a1;">メールで申請</a>）</p>
-                    <button onclick="document.getElementById('exit-intent-overlay').remove();"
-                            style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:0.82em;">
-                        後で見る
-                    </button>
-                </div>`;
-            document.body.appendChild(overlay);
-        }
-        
-        // 診断完了フラグを設定 & CTAパーソナライズ
+    // 診断完了フラグを設定 & CTAパーソナライズ
         window.addEventListener('diagnosis-complete', function(e) {
             localStorage.setItem('kaf_diagnosis_done', 'true');
             diagnosisDone = true;

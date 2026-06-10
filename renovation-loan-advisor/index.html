@@ -43,6 +43,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 </script>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
   :root{--navy:#1e40af;--navy-dark:#1e3a8a;--orange:#ea580c;--orange-dark:#c2410c;}
   *{box-sizing:border-box;}
@@ -68,6 +69,22 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
   .progress-track{background:#dbeafe;border-radius:9999px;height:6px;overflow:hidden;}
   .progress-fill{background:linear-gradient(90deg,#1e40af,#3b82f6);height:6px;border-radius:9999px;transition:width .4s ease;box-shadow:0 0 8px rgba(59,130,246,0.4);}
   .q-label{font-size:11px;color:#64748b;margin-top:8px;}
+
+  .goal-section{background:linear-gradient(135deg,#fef3c7,#fef9c3);border:2px dashed #f59e0b;border-radius:12px;padding:20px;margin-bottom:20px;}
+  .goal-title{font-size:16px;font-weight:800;color:#92400e;margin:0 0 12px;display:flex;align-items:center;gap:8px;}
+  .goal-input-group{display:flex;gap:8px;margin-bottom:10px;}
+  .goal-input{flex:1;padding:10px;border:1px solid #f59e0b;border-radius:8px;font-size:14px;}
+  .goal-progress{background:#fff;border-radius:8px;padding:12px;margin-top:12px;}
+  .goal-bar{background:#e5e7eb;height:20px;border-radius:9999px;overflow:hidden;margin:8px 0;}
+  .goal-fill{background:linear-gradient(90deg,#f59e0b,#ea580c);height:100%;border-radius:9999px;transition:width .3s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-size:11px;font-weight:700;color:white;}
+  .goal-stat{font-size:12px;color:#92400e;margin:4px 0;}
+
+  .history-section{background:#f0f4f8;border:1px solid #cbd5e1;border-radius:12px;padding:14px;margin-top:16px;}
+  .history-title{font-size:14px;font-weight:800;color:#1e293b;margin:0 0 10px;}
+  .history-list{display:flex;flex-direction:column;gap:8px;}
+  .history-item{background:white;border:1px solid #e2e8f0;border-radius:8px;padding:10px;cursor:pointer;font-size:12px;transition:all .2s;}
+  .history-item:hover{background:#eff6ff;border-color:#1e40af;transform:translateX(2px);}
+  .history-item-meta{color:#64748b;font-size:11px;margin-top:4px;}
 
   .q-title{font-size:17px;font-weight:800;color:#1e293b;line-height:1.5;margin:0 0 16px;}
 
@@ -189,6 +206,24 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     </div>
   </div>
 
+  <!-- Goal Setting Panel [M6] -->
+  <div id="goal-setting-panel" class="goal-section">
+    <div class="goal-title">🎯 あなたのリフォーム予算目標を設定</div>
+    <div class="goal-input-group">
+      <input type="number" id="goal-amount" class="goal-input" placeholder="目標額（万円）" min="0" max="9999">
+      <button onclick="setGoalAmount()" class="btn-secondary" style="padding: 10px 20px; width: auto;">設定</button>
+      <button onclick="clearGoalAmount()" class="btn-secondary" style="padding: 10px 20px; width: auto; background: #fecaca;">クリア</button>
+    </div>
+    <div id="goal-progress" class="goal-progress" style="display:none;">
+      <div class="goal-stat">📊 目標: <strong id="goal-display">—</strong>万円</div>
+      <div class="goal-stat">💰 現在の診断額: <strong id="current-amount">—</strong>万円</div>
+      <div class="goal-bar">
+        <div class="goal-fill" id="goal-bar-fill" style="width:0%"><span id="goal-percent">0%</span></div>
+      </div>
+      <div class="goal-stat">前回比: <strong id="prev-compare" style="color:#666;">—</strong></div>
+    </div>
+  </div>
+
   <!-- Quiz Section -->
   <div id="quiz-section">
     <div class="card p-5 mb-4">
@@ -215,6 +250,13 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 
   <!-- Result Section -->
   <div id="result-section" style="display:none;">
+    <!-- アクションボタン群 -->
+    <div style="display:flex;gap:0.75rem;margin-bottom:1.5rem;flex-wrap:wrap;">
+      <button class="btn-secondary" onclick="copyResultToClipboard()" title="診断結果をコピー">📋 コピー</button>
+      <button class="btn-secondary" onclick="window.print()" title="結果を印刷">🖨️ 印刷</button>
+      <button class="btn-secondary" onclick="downloadCSV()" title="シミュレーション結果をCSV形式でダウンロード">📥 CSV</button>
+    </div>
+
     <div class="result-hero mb-4">
       <div class="result-icon-big" id="result-icon"></div>
       <span class="result-tag">診断結果</span>
@@ -243,6 +285,38 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         </table>
       </div>
       <p class="text-xs text-gray-400 mt-3">※元利均等返済。実際の金利は金融機関・審査状況により異なります。</p>
+
+      <!-- グラフコンテナ -->
+      <div style="margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid #e2e8f0;">
+        <h4 style="font-size:.95rem;font-weight:700;color:#1e293b;margin:0 0 1rem;">📈 返済額グラフ比較</h4>
+        <div style="position:relative;height:300px;margin-bottom:1.5rem;">
+          <canvas id="paymentChart" aria-label="月々返済額の金利別比較グラフ"></canvas>
+        </div>
+        <div style="position:relative;height:250px;">
+          <canvas id="totalChart" aria-label="総返済額の返済期間別比較グラフ"></canvas>
+        </div>
+      </div>
+
+      <!-- Goal Achievement Progress [M6] -->
+      <div id="goal-result-section" style="display:none;margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid #e2e8f0;">
+        <div style="background:linear-gradient(135deg,#fef3c7,#fef9c3);border:2px solid #f59e0b;border-radius:12px;padding:14px;">
+          <div style="font-size:14px;font-weight:800;color:#92400e;margin-bottom:10px;">🎯 目標達成度</div>
+          <div style="font-size:13px;color:#92400e;margin-bottom:8px;">📊 目標: <strong id="goal-display-result">—</strong>万円 / 診断額: <strong id="current-amount-result">—</strong>万円</div>
+          <div style="background:#fff;border-radius:8px;height:20px;overflow:hidden;margin-bottom:8px;">
+            <div id="goal-bar-fill-result" style="background:linear-gradient(90deg,#f59e0b,#ea580c);height:100%;border-radius:8px;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-size:11px;font-weight:700;color:white;transition:width .3s ease;width:0%"></div>
+          </div>
+          <div style="font-size:13px;color:#92400e;">✅ 達成率: <strong id="goal-percent-result">0%</strong></div>
+          <div style="font-size:12px;color:#92400e;margin-top:6px;">前回比: <strong id="prev-compare-result">—</strong></div>
+        </div>
+      </div>
+
+      <!-- Diagnosis History [M6-補助機能] -->
+      <div id="history-section" style="display:none;margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid #e2e8f0;">
+        <div class="history-section">
+          <div class="history-title">📋 過去の診断結果</div>
+          <div class="history-list" id="history-list"></div>
+        </div>
+      </div>
     </div>
 
     <div class="card p-5 mb-4">
@@ -483,6 +557,7 @@ function selectOption(idx) {
     btn.classList.toggle('selected', i === idx);
   });
   document.getElementById('next-btn').disabled = false;
+  saveCurrentAnswers();
 }
 
 function nextQuestion() {
@@ -493,6 +568,8 @@ function nextQuestion() {
   } else {
     calculateResult();
   }
+  saveCurrentAnswers();
+}
 }
 
 function prevQuestion() {
@@ -500,6 +577,7 @@ function prevQuestion() {
     currentQ--;
     renderQuestion();
   }
+  saveCurrentAnswers();
 }
 
 function calcMonthlyPayment(principal, annualRate, months) {
@@ -687,6 +765,16 @@ function calculateResult() {
 
   document.getElementById('quiz-section').style.display = 'none';
   document.getElementById('result-section').style.display = 'block';
+
+  // グラフ描画 & localStorage保存 & 目標進捗更新
+  setTimeout(() => {
+    renderPaymentChart(borrowAmount, termYears);
+    renderTotalChart(borrowAmount, termYears);
+    saveToLocalStorage();
+    updateGoalProgress(borrowAmount);
+    updateHistoryList();
+  }, 100);
+
   window.scrollTo(0,0);
 
   try { gtag('event', 'quiz_complete', {'event_category': 'renovation-loan-advisor', 'event_label': loanType}); } catch(e) {}
@@ -701,6 +789,293 @@ function resetQuiz() {
   window.scrollTo(0,0);
 }
 
+// ===== localStorage 機能 =====
+function saveToLocalStorage() {
+  const data = {
+    timestamp: new Date().toLocaleString('ja-JP'),
+    answers: answers,
+    borrowAmount: document.getElementById('borrow-amount')?.textContent || '',
+    resultTitle: document.getElementById('result-title')?.textContent || ''
+  };
+  const history = JSON.parse(localStorage.getItem('renovationHistory') || '[]');
+  history.unshift(data);
+  if (history.length > 5) history.pop();
+  localStorage.setItem('renovationHistory', JSON.stringify(history));
+}
+
+function loadFromLocalStorage() {
+  const saved = localStorage.getItem('renovationLastAnswers');
+  if (saved) {
+    answers = JSON.parse(saved);
+    currentQ = 0;
+    renderQuestion();
+    for (let i = 0; i < Object.keys(answers).length; i++) {
+      currentQ = i;
+      renderQuestion();
+    }
+  }
+}
+
+function saveCurrentAnswers() {
+  localStorage.setItem('renovationLastAnswers', JSON.stringify(answers));
+}
+
+// ===== Chart.js グラフ描画 =====
+function renderPaymentChart(borrowAmount, termYears) {
+  const termOptions = [5, 10, 15, 20];
+  const rates = [1.5, 2.0, 3.0];
+  const principal = borrowAmount * 10000;
+
+  const datasets = rates.map((rate, idx) => {
+    const monthlyPayments = termOptions.map(yrs => {
+      const months = yrs * 12;
+      return calcMonthlyPayment(principal, rate, months);
+    });
+    const colors = ['#1e40af', '#3b82f6', '#60a5fa'];
+    return {
+      label: `金利 ${rate}%`,
+      data: monthlyPayments,
+      borderColor: colors[idx],
+      backgroundColor: colors[idx] + '20',
+      tension: 0.4,
+      fill: false,
+      borderWidth: 2
+    };
+  });
+
+  const ctx = document.getElementById('paymentChart');
+  if (!ctx) return;
+
+  // 既存チャートを破棄
+  if (window.paymentChartInstance) window.paymentChartInstance.destroy();
+
+  window.paymentChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: termOptions.map(y => `${y}年`),
+      datasets: datasets
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top' }
+      },
+      scales: {
+        y: { beginAtZero: true, ticks: { callback: function(v) { return Math.round(v/1000) + '千円'; } } }
+      }
+    }
+  });
+}
+
+function renderTotalChart(borrowAmount, termYears) {
+  const termOptions = [5, 10, 15, 20];
+  const principal = borrowAmount * 10000;
+
+  const totalAmounts = termOptions.map(yrs => {
+    const months = yrs * 12;
+    const monthly = calcMonthlyPayment(principal, 2.0, months);
+    return Math.round(monthly * months / 10000);
+  });
+
+  const ctx = document.getElementById('totalChart');
+  if (!ctx) return;
+
+  // 既存チャートを破棄
+  if (window.totalChartInstance) window.totalChartInstance.destroy();
+
+  const colors = termOptions.map(y => y === termYears ? '#ea580c' : '#bfdbfe');
+  window.totalChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: termOptions.map(y => `${y}年`),
+      datasets: [{
+        label: '総返済額（金利2.0%）',
+        data: totalAmounts,
+        backgroundColor: colors,
+        borderColor: colors,
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: undefined,
+      plugins: { legend: { position: 'top' } },
+      scales: { y: { beginAtZero: true, ticks: { callback: function(v) { return v + '万円'; } } } }
+    }
+  });
+}
+
+// ===== 目標設定機能 [M6] =====
+function setGoalAmount() {
+  const input = document.getElementById('goal-amount');
+  const amount = parseInt(input.value) || 0;
+  if (amount <= 0) {
+    alert('正の整数を入力してください（万円）');
+    return;
+  }
+  localStorage.setItem('renovationGoalAmount', amount);
+  input.value = '';
+  displayGoalProgress();
+  alert(`目標額を ${amount}万円に設定しました！`);
+}
+
+function clearGoalAmount() {
+  if (!confirm('目標額をクリアしますか？')) return;
+  localStorage.removeItem('renovationGoalAmount');
+  document.getElementById('goal-amount').value = '';
+  document.getElementById('goal-progress').style.display = 'none';
+}
+
+function displayGoalProgress() {
+  const goal = parseInt(localStorage.getItem('renovationGoalAmount')) || 0;
+  const panel = document.getElementById('goal-progress');
+  if (goal > 0) {
+    document.getElementById('goal-display').textContent = goal;
+    panel.style.display = 'block';
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+function updateGoalProgress(borrowAmount) {
+  const goal = parseInt(localStorage.getItem('renovationGoalAmount')) || 0;
+  if (goal <= 0) return;
+
+  const prevHistory = JSON.parse(localStorage.getItem('renovationHistory') || '[]');
+  const prevBorrow = prevHistory.length > 1 ? (prevHistory[1]?.borrowAmount ? parseInt(prevHistory[1].borrowAmount) : 0) : 0;
+  const prevDiff = borrowAmount - prevBorrow;
+  const prevStr = prevDiff > 0 ? `+${prevDiff}万円` : `${prevDiff}万円`;
+
+  const percent = Math.min(100, Math.round((borrowAmount / goal) * 100));
+
+  const resultPanel = document.getElementById('goal-result-section');
+  resultPanel.style.display = 'block';
+  document.getElementById('goal-display-result').textContent = goal;
+  document.getElementById('current-amount-result').textContent = borrowAmount;
+  document.getElementById('goal-percent-result').textContent = percent + '%';
+  document.getElementById('goal-bar-fill-result').style.width = percent + '%';
+  document.getElementById('prev-compare-result').textContent = prevHistory.length > 1 ? prevStr : '(初回)';
+}
+
+function loadGoalAmount() {
+  displayGoalProgress();
+}
+
+// ===== 診断履歴表示機能 [M6補助] =====
+function updateHistoryList() {
+  const history = JSON.parse(localStorage.getItem('renovationHistory') || '[]');
+  const historySection = document.getElementById('history-section');
+  const historyList = document.getElementById('history-list');
+
+  if (history.length <= 1) {
+    historySection.style.display = 'none';
+    return;
+  }
+
+  historySection.style.display = 'block';
+  historyList.innerHTML = history.slice(0, 5).map((item, idx) => `
+    <div class="history-item" onclick="loadHistoryDiagnosis(${idx})">
+      <div style="font-weight:700;color:#1e293b;">
+        <span style="display:inline-block;background:#1e40af;color:white;font-size:10px;padding:2px 6px;border-radius:4px;margin-right:6px;">#${idx + 1}</span>
+        ${item.resultTitle || 'リフォームローン診断'}
+      </div>
+      <div style="color:#64748b;font-size:11px;margin-top:4px;">
+        💰 診断額: <strong>${item.borrowAmount}万円</strong> / ${item.timestamp}
+      </div>
+    </div>
+  `).join('');
+}
+
+function loadHistoryDiagnosis(historyIdx) {
+  const history = JSON.parse(localStorage.getItem('renovationHistory') || '[]');
+  if (historyIdx < 0 || historyIdx >= history.length) return;
+  const item = history[historyIdx];
+  alert(`診断#${historyIdx + 1}: ${item.resultTitle}\n診断額: ${item.borrowAmount}万円\n${item.timestamp}`);
+}
+
+// ===== エクスポート機能 =====
+function copyResultToClipboard() {
+  const resultTitle = document.getElementById('result-title')?.textContent || '';
+  const resultDesc = document.getElementById('result-desc')?.textContent || '';
+  const borrowAmount = document.getElementById('borrow-amount')?.textContent || '';
+
+  const text = `リフォームローン診断結果
+
+【診断結果】
+${resultTitle}
+
+【内容】
+${resultDesc}
+
+【借入額目安】
+${borrowAmount}万円
+
+診断ページ: https://appadaycreator.com/renovation-loan-advisor/`;
+
+  navigator.clipboard.writeText(text).then(() => {
+    alert('診断結果をコピーしました！SNSやメールで共有できます。');
+  }).catch(err => {
+    console.error('コピー失敗:', err);
+    alert('コピーに失敗しました。ブラウザの互換性をご確認ください。');
+  });
+}
+
+function downloadCSV() {
+  const borrowAmount = document.getElementById('borrow-amount')?.textContent || '0';
+  const termYears = questions[5]?.options[answers['term']]?.years || 10;
+  const termOptions = [5, 10, 15, 20];
+  const rates = [1.5, 2.0, 3.0];
+  const principal = borrowAmount * 10000;
+
+  let csv = 'リフォームローン シミュレーション結果\n';
+  csv += `借入額,${borrowAmount}万円\n`;
+  csv += `診断日時,${new Date().toLocaleString('ja-JP')}\n`;
+  csv += `選択返済期間,${termYears}年\n\n`;
+  csv += '返済期間（年）,金利1.5%（月々）,金利2.0%（月々）,金利3.0%（月々）,総返済額(2%)\n';
+
+  termOptions.forEach(yrs => {
+    const months = yrs * 12;
+    const m15 = calcMonthlyPayment(principal, 1.5, months);
+    const m20 = calcMonthlyPayment(principal, 2.0, months);
+    const m30 = calcMonthlyPayment(principal, 3.0, months);
+    const total20 = Math.round(m20 * months / 10000);
+    const fmtWan = v => (v >= 10000 ? (v/10000).toFixed(1) + '万' : Math.round(v/1000) + '千');
+    csv += `${yrs}年,${fmtWan(m15)},${fmtWan(m20)},${fmtWan(m30)},${total20}万円\n`;
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', 'renovation-loan-result.csv');
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+// ===== バリデーション & 画面更新 =====
+function updateAnswerAndRender(qIdx, optIdx) {
+  answers[String(qIdx)] = optIdx;
+  saveCurrentAnswers();
+  renderQuestion();
+}
+
+// 初期化: localStorage から前回データ復元 or 新規開始 & 目標額読み込み
+const savedAnswers = localStorage.getItem('renovationLastAnswers');
+if (savedAnswers) {
+  try {
+    answers = JSON.parse(savedAnswers);
+    currentQ = 0;
+    // 全問進めてから最後の質問を表示
+    if (Object.keys(answers).length === questions.length) {
+      currentQ = questions.length - 1;
+    }
+  } catch(e) {}
+}
+loadGoalAmount();
 renderQuestion();
 </script>
 

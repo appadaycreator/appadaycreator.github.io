@@ -233,6 +233,19 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <!-- スクール別動的CTA -->
         <div id="result-ctas" class="space-y-3"></div>
 
+        <!-- 印刷・エクスポート機能 -->
+        <div class="space-y-2 mt-4 mb-4">
+          <button onclick="printResult()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded-xl text-center transition-colors text-sm">
+            📄 印刷する
+          </button>
+          <button onclick="copyResultToClipboard()" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 rounded-xl text-center transition-colors text-sm">
+            📋 結果をコピー
+          </button>
+          <button onclick="downloadResult()" class="w-full bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 rounded-xl text-center transition-colors text-sm">
+            📥 結果をダウンロード
+          </button>
+        </div>
+
         <!-- Amazon CTA -->
         <a href="https://www.amazon.co.jp/s?k=プログラミング+入門書&tag=appadaycrea0f-22" target="_blank" rel="noopener"
           class="block w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 rounded-xl text-center transition-colors text-sm mt-3 js-track-affiliate" data-platform="Amazon" data-item-name="プログラミング入門書" data-link-type="affiliate_link">
@@ -779,6 +792,41 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         const pixelImg = cta.pixel ? `<img border="0" width="1" height="1" src="${cta.pixel}" alt="" loading="lazy">` : '';
         return `<a href="${cta.href}" target="_blank" rel="${cta.rel}" class="block w-full ${cta.cls} text-white font-bold py-3 rounded-xl text-center transition-colors">${cta.label}</a>${pixelImg}`;
       }).join('');
+    }
+
+    function generateResultText(key) {
+      const r = schoolResults[key];
+      const now = new Date().toLocaleString('ja-JP');
+      const text = `【推奨スクール】${r.title}\n\n🎯 理由:\n${r.reason}\n\n📌 特徴:\n${r.info.map(i => `• ${i}`).join('\n')}\n\n生成日: ${now}`;
+      return text;
+    }
+
+    function printResult() {
+      window.print();
+    }
+
+    function copyResultToClipboard() {
+      const key = getResultKey(answers);
+      const text = generateResultText(key);
+      navigator.clipboard.writeText(text).then(() => {
+        alert('結果をクリップボードにコピーしました！');
+      }).catch(() => {
+        alert('コピーに失敗しました。');
+      });
+    }
+
+    function downloadResult() {
+      const key = getResultKey(answers);
+      const r = schoolResults[key];
+      const text = generateResultText(key);
+      const filename = `programming-school-diagnosis_${r.title.replace(/\s+/g, '_')}_${new Date().getTime()}.txt`;
+      const element = document.createElement('a');
+      element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+      element.setAttribute('download', filename);
+      element.style.display = 'none';
+      document.body.appendChild(element);
+      element.click();
+      document.body.removeChild(element);
     }
 
     function clearHistory() {

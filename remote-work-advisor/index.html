@@ -30,6 +30,7 @@
   <!-- Microsoft Clarity -->
   <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","s3t9vl8h3v");</script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"このサービスは無料ですか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要でご利用いただけます。"}},{"@type":"Question","name":"入力データはどこに保存されますか？","acceptedAnswer":{"@type":"Answer","text":"お使いのデバイス内にのみ保存されます。外部送信は行いません。"}},{"@type":"Question","name":"結果はどのくらい正確ですか？","acceptedAnswer":{"@type":"Answer","text":"あくまで参考情報です。重要な判断の際は専門家にご相談ください。"}},{"@type":"Question","name":"どのような人が使っていますか？","acceptedAnswer":{"@type":"Answer","text":"初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}},{"@type":"Question","name":"結果をシェアできますか？","acceptedAnswer":{"@type":"Answer","text":"はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}},{"@type":"Question","name":"有料プランはありますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、すべての機能を完全無料でご利用いただけます。"}}]}</script>
 <meta property="og:type" content="website">
 <meta property="og:image" content="https://appadaycreator.com/remote-work-advisor/ogp.png">
@@ -510,6 +511,9 @@ https://appadaycreator.com/remote-work-advisor/`;
 
       <div class="bg-white border border-gray-200 rounded-xl p-4 mb-5">
         <p class="text-sm font-semibold text-gray-700 mb-3">📊 カテゴリ別スコア</p>
+        <div id="score-chart-container" style="position:relative;height:250px;margin-bottom:1rem;">
+          <canvas id="scoreChart"></canvas>
+        </div>
         <div class="grid grid-cols-2 gap-3">
           <div class="bg-blue-50 rounded-lg p-3">
             <p class="text-xs text-blue-700 font-semibold">PC環境</p>
@@ -530,10 +534,11 @@ https://appadaycreator.com/remote-work-advisor/`;
         </div>
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-5">
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-2 mb-5">
         <button onclick="copyResult()" class="py-3 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-lg text-sm transition min-h-12">📋 コピー</button>
-        <button onclick="shareOnSNS('line')" class="py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-lg text-sm transition min-h-12">LINE</button>
-        <button onclick="shareOnSNS('twitter')" class="py-3 bg-black hover:bg-gray-800 text-white font-semibold rounded-lg text-sm transition min-h-12">X</button>
+        <button onclick="printResult()" class="py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition min-h-12">🖨️ 印刷</button>
+        <button onclick="downloadCSV()" class="py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg text-sm transition min-h-12">📥 CSV</button>
+        <button onclick="shareOnSNS('twitter')" class="py-3 bg-black hover:bg-gray-800 text-white font-semibold rounded-lg text-sm transition min-h-12">𝕏 シェア</button>
       </div>
 
       ${answers.issue && investMap[answers.issue] ? `
@@ -548,6 +553,45 @@ https://appadaycreator.com/remote-work-advisor/`;
       </div>`;
 
     document.getElementById('result-content').innerHTML = html;
+
+    // グラフを描画（M4: グラフ・スコア・ゲージで結果を可視化）
+    setTimeout(() => {
+      const ctx = document.getElementById('scoreChart')?.getContext('2d');
+      if (ctx) {
+        new Chart(ctx, {
+          type: 'radar',
+          data: {
+            labels: ['PC環境', 'ネット', 'スペース', '生産性'],
+            datasets: [{
+              label: 'スコア',
+              data: [cats.pc, cats.internet, cats.workspace, cats.productivity],
+              fill: true,
+              borderColor: '#7c3aed',
+              backgroundColor: 'rgba(124, 58, 237, 0.1)',
+              pointBackgroundColor: '#7c3aed',
+              borderWidth: 2,
+              pointRadius: 4,
+              pointHoverRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              r: {
+                beginAtZero: true,
+                max: 25,
+                ticks: { stepSize: 5 },
+                grid: { color: 'rgba(0,0,0,0.05)' }
+              }
+            },
+            plugins: {
+              legend: { labels: { font: { size: 12 }, color: '#374151' } }
+            }
+          }
+        });
+      }
+    }, 100);
   }
 
   function copyResult() {
@@ -558,6 +602,55 @@ https://appadaycreator.com/remote-work-advisor/`;
       console.error('コピー失敗:', err);
       alert('コピーに失敗しました。もう一度お試しください。');
     });
+  }
+
+  // M10: 印刷機能
+  function printResult() {
+    window.print();
+  }
+
+  // M10: CSVダウンロード機能
+  function downloadCSV() {
+    const score = calcScore();
+    const cats = calcCategoryScores();
+    const level = score >= 80 ? '優秀' : score >= 60 ? '標準' : score >= 40 ? '要改善' : '要整備';
+
+    const csvContent = [
+      ['リモートワーク環境診断結果', new Date().toLocaleDateString('ja-JP')],
+      [],
+      ['総合スコア', score + '点', level],
+      [],
+      ['カテゴリ', 'スコア', '最大値'],
+      ['PC環境', cats.pc, '25'],
+      ['ネット環境', cats.internet, '25'],
+      ['作業スペース', cats.workspace, '25'],
+      ['生産性', cats.productivity, '25'],
+      [],
+      ['最も困っていることは', answers.issue, ''],
+      []
+    ];
+
+    const investMap = {
+      'PC・機器が古い・不足している': '3〜10万円',
+      'インターネットが遅い・不安定': '1〜3万円',
+      '作業スペースが狭い・環境が悪い': '5〜20万円',
+      'オンライン会議の音声・映像品質': '1〜5万円',
+      'コミュニケーション・孤独感': 'コワーキング費用（月5,000〜3万円）'
+    };
+
+    if (answers.issue && investMap[answers.issue]) {
+      csvContent.push(['改善投資目安', investMap[answers.issue], '']);
+    }
+
+    const csv = csvContent.map(row =>
+      row.map(cell => `"${cell}"`).join(',')
+    ).join('\n');
+
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `リモートワーク診断結果_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
   }
 
   function resetQuiz() {

@@ -213,6 +213,29 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <option value="intl_bus">国際線ビジネス（一般）</option>
             </select>
           </div>
+          <h3 style="font-size:14px;font-weight:600;margin-top:16px;margin-bottom:10px;">🎯 目標設定
+            <span title="今回の旅行で目指す荷物の目標重量を設定します。達成状況を追跡し、継続利用をサポートします。" style="cursor:help;color:#2563eb;font-weight:600;font-size:12px;">ⓘ</span>
+          </h3>
+          <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px;margin-bottom:12px;">
+            <div style="display:flex;gap:8px;margin-bottom:10px;">
+              <div style="flex:1;">
+                <label style="font-size:12px;color:#555;display:block;margin-bottom:4px;">目標預け重量（kg）</label>
+                <input type="number" id="goalChecked" min="0" max="50" step="0.5" placeholder="例：20" title="次の旅行での目標預け重量を入力"
+                  style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;">
+              </div>
+              <div style="flex:1;">
+                <label style="font-size:12px;color:#555;display:block;margin-bottom:4px;">目標機内持込（kg）</label>
+                <input type="number" id="goalCabin" min="0" max="30" step="0.5" placeholder="例：10" title="次の旅行での目標機内持込重量を入力"
+                  style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;">
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+              <button onclick="setGoalPreset(20, 10)" style="background:#16a34a;color:white;border:none;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">標準（20/10）</button>
+              <button onclick="setGoalPreset(15, 7)" style="background:#16a34a;color:white;border:none;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">LCC対応（15/7）</button>
+              <button onclick="clearGoal()" style="background:#94a3b8;color:white;border:none;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">目標をクリア</button>
+            </div>
+            <div id="goalDisplay" style="font-size:12px;color:#15803d;font-weight:600;display:none;"></div>
+          </div>
           <h3 style="font-size:14px;font-weight:600;margin-top:16px;margin-bottom:10px;">📦 荷物リスト
             <span title="各荷物品目の預け重量と機内持込重量を入力します。複数の荷物を追加して合計を自動計算できます。" style="cursor:help;color:#2563eb;font-weight:600;font-size:12px;">ⓘ</span>
           </h3>
@@ -224,6 +247,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="result" id="result" style="margin-top:16px;">
             <div class="card">
               <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#2563EB;">✈️ チェック結果</h3>
+              <div id="achievementSection" style="display:none;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px;margin-bottom:12px;">
+                <h4 style="font-size:13px;font-weight:700;color:#15803d;margin:0 0 8px;">🎯 目標達成度</h4>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                  <div id="checkedProgress" style="width:100%;"></div>
+                  <div id="cabinProgress" style="width:100%;"></div>
+                </div>
+                <div id="comparisonText" style="font-size:12px;color:#4b5563;margin-top:8px;display:none;"></div>
+              </div>
               <div id="output"></div>
               <div id="chartContainer" style="display:none;margin:16px 0;">
                 <h4 style="font-size:13px;font-weight:600;margin-bottom:8px;">📊 容量使用率</h4>
@@ -360,6 +391,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     let items = [{id:1,name:'',checked:0,cabin:0}];
     let nextId = 2;
     let chartInstance = null;
+    let goalChecked = null;
+    let goalCabin = null;
+    let lastChecked = null;
+    let lastCabin = null;
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('roundTrip').addEventListener('change', e => {
@@ -371,9 +406,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         saveState();
       });
       document.getElementById('airlineReturn').addEventListener('change', saveState);
+      document.getElementById('goalChecked').addEventListener('change', saveGoal);
+      document.getElementById('goalCabin').addEventListener('change', saveGoal);
       loadState();
+      loadGoal();
       updateAirlineInfo();
       renderItems();
+      updateGoalDisplay();
     });
 
     function updateAirlineInfo(){
@@ -383,6 +422,78 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         infoEl.textContent = `預け荷物: ${airline.checked}kg / 機内持込: ${airline.cabin}kg`;
         infoEl.style.display = 'block';
       }
+    }
+
+    function saveGoal(){
+      goalChecked = parseFloat(document.getElementById('goalChecked').value) || null;
+      goalCabin = parseFloat(document.getElementById('goalCabin').value) || null;
+      localStorage.setItem('lwc_goal', JSON.stringify({checked: goalChecked, cabin: goalCabin}));
+      updateGoalDisplay();
+    }
+
+    function loadGoal(){
+      const saved = localStorage.getItem('lwc_goal');
+      if(saved){
+        try{
+          const goal = JSON.parse(saved);
+          goalChecked = goal.checked;
+          goalCabin = goal.cabin;
+          if(goalChecked) document.getElementById('goalChecked').value = goalChecked;
+          if(goalCabin) document.getElementById('goalCabin').value = goalCabin;
+        }catch(e){}
+      }
+      const lastResult = localStorage.getItem('lwc_last_result');
+      if(lastResult){
+        try{
+          const result = JSON.parse(lastResult);
+          lastChecked = result.checked;
+          lastCabin = result.cabin;
+        }catch(e){}
+      }
+    }
+
+    function updateGoalDisplay(){
+      const display = document.getElementById('goalDisplay');
+      if(goalChecked || goalCabin){
+        display.textContent = `目標: 預け${goalChecked||'—'}kg / 機内${goalCabin||'—'}kg`;
+        display.style.display = 'block';
+      } else {
+        display.style.display = 'none';
+      }
+    }
+
+    function setGoalPreset(checked, cabin){
+      document.getElementById('goalChecked').value = checked;
+      document.getElementById('goalCabin').value = cabin;
+      saveGoal();
+    }
+
+    function clearGoal(){
+      document.getElementById('goalChecked').value = '';
+      document.getElementById('goalCabin').value = '';
+      goalChecked = null;
+      goalCabin = null;
+      localStorage.removeItem('lwc_goal');
+      updateGoalDisplay();
+    }
+
+    function renderProgressBar(label, current, goal, isChecked){
+      if(!goal) return `<div style="font-size:12px;color:#6b7280;">• ${label}: ${current.toFixed(1)}kg（目標未設定）</div>`;
+      const percent = Math.min((current / goal) * 100, 100);
+      const status = current <= goal ? '達成' : `超過${(current - goal).toFixed(1)}kg`;
+      const barColor = current <= goal ? '#16a34a' : '#dc2626';
+      return `
+        <div style="margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="font-size:12px;font-weight:600;color:#374151;">${label}</span>
+            <span style="font-size:12px;color:#6b7280;">${current.toFixed(1)}kg / ${goal}kg</span>
+          </div>
+          <div style="width:100%;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden;">
+            <div style="width:${percent}%;height:100%;background:${barColor};transition:width 0.3s ease;"></div>
+          </div>
+          <div style="font-size:11px;color:#6b7280;margin-top:2px;">${status}</div>
+        </div>
+      `;
     }
 
     function saveState(){
@@ -477,24 +588,42 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const overages = usages.map((u, i) => Math.max(0, u - limits[i]));
       const bgColors = overages.map((o, i) => o > 0 ? '#ef4444' : '#16a34a');
 
+      const goals = isRound ? [goalChecked || null, goalCabin || null, goalChecked || null, goalCabin || null] : [goalChecked || null, goalCabin || null];
+      const datasets = [{
+        label: '使用量 (kg)',
+        data: usages,
+        backgroundColor: bgColors,
+        borderColor: bgColors,
+        borderWidth: 1
+      }];
+
+      if(goals.some(g => g)){
+        datasets.push({
+          label: '目標 (kg)',
+          data: goals,
+          type: 'line',
+          borderColor: '#2563eb',
+          borderDash: [5, 5],
+          borderWidth: 2,
+          fill: false,
+          pointRadius: 4,
+          pointBackgroundColor: '#2563eb',
+          tension: 0
+        });
+      }
+
       chartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
           labels: labels,
-          datasets: [{
-            label: '使用量 (kg)',
-            data: usages,
-            backgroundColor: bgColors,
-            borderColor: bgColors,
-            borderWidth: 1
-          }]
+          datasets: datasets
         },
         options: {
           indexAxis: 'y',
           responsive: true,
           maintainAspectRatio: true,
           plugins: {
-            legend: {display: false},
+            legend: {display: goals.some(g => g) ? true : false},
             tooltip: {
               callbacks: {
                 afterLabel: (ctx) => {
@@ -538,6 +667,30 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }
       document.getElementById('output').innerHTML = rows.map((r,i) => i === 0 || (isRound && i === 4) ? '' :
         `<div class="row-item"><span>${r[0]}</span><span class="${r[2]||''}">${r[1]}</span></div>`).join('');
+
+      const achievementSection = document.getElementById('achievementSection');
+      if(goalChecked || goalCabin){
+        const checkedHtml = renderProgressBar('預け荷物', totalChecked, goalChecked, true);
+        const cabinHtml = renderProgressBar('機内持込', totalCabin, goalCabin, false);
+        document.getElementById('checkedProgress').innerHTML = checkedHtml;
+        document.getElementById('cabinProgress').innerHTML = cabinHtml;
+
+        const comparisonEl = document.getElementById('comparisonText');
+        if(lastChecked !== null || lastCabin !== null){
+          const checkedDiff = totalChecked - (lastChecked || 0);
+          const cabinDiff = totalCabin - (lastCabin || 0);
+          const checkedText = checkedDiff < 0 ? `前回比：-${Math.abs(checkedDiff).toFixed(1)}kg` : checkedDiff > 0 ? `前回比：+${checkedDiff.toFixed(1)}kg` : '前回と同じ';
+          const cabinText = cabinDiff < 0 ? `前回比：-${Math.abs(cabinDiff).toFixed(1)}kg` : cabinDiff > 0 ? `前回比：+${cabinDiff.toFixed(1)}kg` : '前回と同じ';
+          comparisonEl.innerHTML = `📊 ${checkedText} | ${cabinText}`;
+          comparisonEl.style.display = 'block';
+        }
+
+        achievementSection.style.display = 'block';
+      } else {
+        achievementSection.style.display = 'none';
+      }
+
+      localStorage.setItem('lwc_last_result', JSON.stringify({checked: totalChecked, cabin: totalCabin}));
 
       document.getElementById('chartContainer').style.display = 'block';
       drawCapacityChart(totalChecked, totalCabin, airlineOut, totalChecked, totalCabin, isRound ? airlineIn : airlineOut, isRound);

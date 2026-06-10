@@ -71,6 +71,7 @@
     
     <!-- 外部ライブラリ -->
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
 
     <style>
         /* フォントサイズ調整用CSS変数 */
@@ -1467,13 +1468,50 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             if (progressBar && progressBar.parentElement && progressBar.parentElement.parentElement) {
                 progressBar.parentElement.parentElement.style.display = 'none';
             }
-            
+
             const resultContainer = document.getElementById('resultContent');
-            
+
+            // 診断スコア内訳を計算
+            const scores = calculateDiagnosisScores(result.diagnosisData);
+
             let html = `
                 <div class="bg-pink-50 p-6 rounded-lg mb-6">
                     <h3 class="text-lg font-semibold mb-2">${currentLanguage === 'ja' ? '診断結果サマリー' : 'Diagnosis Summary'}</h3>
                     <p class="text-gray-700">${result.summary}</p>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+                    <h3 class="text-lg font-semibold mb-4">${currentLanguage === 'ja' ? 'スコアゲージ' : 'Score Gauge'}</h3>
+                    <div id="gaugeSection" class="space-y-4"></div>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+                    <h3 class="text-lg font-semibold mb-4">${currentLanguage === 'ja' ? 'スコア分析' : 'Score Analysis'}</h3>
+                    <div style="position: relative; height: 300px; width: 100%;">
+                        <canvas id="radarChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+                    <h3 class="text-lg font-semibold mb-4">${currentLanguage === 'ja' ? 'スコア内訳' : 'Score Breakdown'}</h3>
+                    <div style="position: relative; height: 250px; width: 100%;">
+                        <canvas id="scoreChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-gradient-to-r from-pink-100 to-purple-100 p-4 rounded-lg mb-6">
+                    <h4 class="font-semibold mb-3">${currentLanguage === 'ja' ? '結果をシェア' : 'Share Results'}</h4>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="shareToTwitter()" class="bg-blue-400 hover:bg-blue-500 text-white px-4 py-2 rounded transition-colors">
+                            <span>𝕏</span> ${currentLanguage === 'ja' ? 'Twitter' : 'Twitter'}
+                        </button>
+                        <button onclick="shareToLine()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded transition-colors">
+                            <span>💬</span> LINE
+                        </button>
+                        <button onclick="copyToClipboard()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded transition-colors">
+                            <span>📋</span> ${currentLanguage === 'ja' ? 'コピー' : 'Copy'}
+                        </button>
+                    </div>
                 </div>
             `;
             
@@ -1520,18 +1558,251 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             });
             
             resultContainer.innerHTML = html;
-            
+
             // 質問を非表示にして結果を表示
             document.querySelectorAll('.question').forEach(q => q.classList.add('hidden'));
             document.getElementById('result').classList.remove('hidden');
             document.getElementById('result').classList.add('fade-in');
-            
+
             // ナビゲーションボタンを非表示
             document.getElementById('prevBtn').classList.add('hidden');
             document.getElementById('nextBtn').classList.add('hidden');
             document.getElementById('submitBtn').classList.add('hidden');
-            
+
+            // ゲージを描画
+            renderScoreGauges(scores);
+
+            // グラフを描画（DOM更新完了を待つ）
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    drawScoreChart(scores);
+                    drawRadarChart(scores);
+                }, 50);
+            });
+
             log.info('Result displayed');
+        }
+
+        // スコアゲージをレンダリング
+        function renderScoreGauges(scores) {
+            const gaugeSection = document.getElementById('gaugeSection');
+            if (!gaugeSection) return;
+
+            const gaugeLabels = currentLanguage === 'ja'
+                ? { moistureNeed: '保湿必要度', sebumControl: '皮脂コントロール', antiAging: 'エイジングケア', lowSensitivity: '低刺激性' }
+                : { moistureNeed: 'Moisture', sebumControl: 'Sebum Control', antiAging: 'Anti-Aging', lowSensitivity: 'Low Sensitivity' };
+
+            const gaugeData = [
+                { key: 'moistureNeed', label: gaugeLabels.moistureNeed, value: scores.moistureNeed, color: 'from-blue-400 to-blue-600' },
+                { key: 'sebumControl', label: gaugeLabels.sebumControl, value: scores.sebumControl, color: 'from-green-400 to-green-600' },
+                { key: 'antiAging', label: gaugeLabels.antiAging, value: scores.antiAging, color: 'from-red-400 to-red-600' },
+                { key: 'lowSensitivity', label: gaugeLabels.lowSensitivity, value: scores.lowSensitivity, color: 'from-purple-400 to-purple-600' }
+            ];
+
+            gaugeSection.innerHTML = gaugeData.map(gauge => `
+                <div class="mb-4">
+                    <div class="flex justify-between mb-1">
+                        <span class="font-medium text-gray-700">${gauge.label}</span>
+                        <span class="font-bold text-lg text-gray-900">${gauge.value}/100</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                        <div class="bg-gradient-to-r ${gauge.color} h-full rounded-full transition-all duration-500" style="width: ${gauge.value}%"></div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 診断スコア内訳を計算
+        function calculateDiagnosisScores(diagnosisData) {
+            let moistureNeed = 30;
+            let sebumControl = 30;
+            let antiAging = 30;
+            let lowSensitivity = 30;
+
+            // 保湿必要度の計算
+            if (diagnosisData.skinType === 'dry') {
+                moistureNeed = 85;
+            } else if (diagnosisData.skinType === 'combination') {
+                moistureNeed = 60;
+            } else if (diagnosisData.skinType === 'oily') {
+                moistureNeed = 35;
+            } else if (diagnosisData.skinType === 'sensitive') {
+                moistureNeed = 75;
+            }
+
+            // 皮脂コントロール必要度
+            if (diagnosisData.skinType === 'oily') {
+                sebumControl = 85;
+            } else if (diagnosisData.skinType === 'combination') {
+                sebumControl = 70;
+            }
+
+            // エイジングケア必要度
+            if (diagnosisData.ageGroup === '40s' || diagnosisData.ageGroup === '50s') {
+                antiAging = 80;
+            } else if (diagnosisData.ageGroup === '30s') {
+                antiAging = 60;
+            }
+
+            // 低刺激性必要度
+            if (diagnosisData.skinType === 'sensitive') {
+                lowSensitivity = 95;
+            } else if (diagnosisData.hasAllergy === 'yes') {
+                lowSensitivity = 85;
+            }
+
+            return {
+                moistureNeed: Math.round(moistureNeed),
+                sebumControl: Math.round(sebumControl),
+                antiAging: Math.round(antiAging),
+                lowSensitivity: Math.round(lowSensitivity)
+            };
+        }
+
+        // スコアチャートを描画
+        function drawScoreChart(scores) {
+            const ctx = document.getElementById('scoreChart');
+            if (!ctx) return;
+
+            const labels = currentLanguage === 'ja'
+                ? ['保湿必要度', '皮脂コントロール', 'エイジングケア', '低刺激性']
+                : ['Moisture', 'Sebum Control', 'Anti-Aging', 'Low Sensitivity'];
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: currentLanguage === 'ja' ? 'スコア' : 'Score',
+                        data: [
+                            scores.moistureNeed,
+                            scores.sebumControl,
+                            scores.antiAging,
+                            scores.lowSensitivity
+                        ],
+                        backgroundColor: [
+                            'rgba(59, 130, 246, 0.6)',
+                            'rgba(34, 197, 94, 0.6)',
+                            'rgba(239, 68, 68, 0.6)',
+                            'rgba(168, 85, 247, 0.6)'
+                        ],
+                        borderColor: [
+                            'rgba(59, 130, 246, 1)',
+                            'rgba(34, 197, 94, 1)',
+                            'rgba(239, 68, 68, 1)',
+                            'rgba(168, 85, 247, 1)'
+                        ],
+                        borderWidth: 1,
+                        borderRadius: 5
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // レーダーチャートを描画
+        function drawRadarChart(scores) {
+            const ctx = document.getElementById('radarChart');
+            if (!ctx) return;
+
+            const labels = currentLanguage === 'ja'
+                ? ['保湿必要度', '皮脂コントロール', 'エイジングケア', '低刺激性']
+                : ['Moisture', 'Sebum Control', 'Anti-Aging', 'Low Sensitivity'];
+
+            new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: currentLanguage === 'ja' ? 'スコア' : 'Score',
+                        data: [
+                            scores.moistureNeed,
+                            scores.sebumControl,
+                            scores.antiAging,
+                            scores.lowSensitivity
+                        ],
+                        borderColor: 'rgba(217, 119, 182, 1)',
+                        backgroundColor: 'rgba(217, 119, 182, 0.2)',
+                        borderWidth: 2,
+                        pointBackgroundColor: 'rgba(217, 119, 182, 1)',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 5,
+                        pointHoverRadius: 7
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) {
+                                    return value;
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Twitter シェア
+        function shareToTwitter() {
+            const text = currentLanguage === 'ja'
+                ? `CosmeFinder で肌質診断をしました！あなたにぴったりの化粧品が見つかります 💄✨`
+                : `I took a skin diagnosis on CosmeFinder! 💄✨`;
+            const url = 'https://appadaycreator.com/cosmetic-finder/';
+            window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank');
+        }
+
+        // LINE シェア
+        function shareToLine() {
+            const text = currentLanguage === 'ja'
+                ? `CosmeFinder で肌質診断をしました！あなたにぴったりの化粧品が見つかります 💄✨ https://appadaycreator.com/cosmetic-finder/`
+                : `I took a skin diagnosis on CosmeFinder! 💄✨ https://appadaycreator.com/cosmetic-finder/`;
+            window.open(`https://line.me/R/msg/text/${encodeURIComponent(text)}`, '_blank');
+        }
+
+        // クリップボードコピー
+        function copyToClipboard() {
+            const text = currentLanguage === 'ja'
+                ? `CosmeFinder で肌質診断をしました！あなたにぴったりの化粧品が見つかります 💄✨\nhttps://appadaycreator.com/cosmetic-finder/`
+                : `I took a skin diagnosis on CosmeFinder! 💄✨\nhttps://appadaycreator.com/cosmetic-finder/`;
+
+            navigator.clipboard.writeText(text).then(() => {
+                alert(currentLanguage === 'ja' ? 'クリップボードにコピーしました' : 'Copied to clipboard');
+            });
         }
 
         function resetDiagnosis() {

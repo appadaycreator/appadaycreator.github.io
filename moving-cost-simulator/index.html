@@ -255,6 +255,40 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <p id="chart-note" class="text-xs text-slate-500 mt-2 text-center"></p>
     </div>
 
+    <!-- M6: Budget Target Tracking -->
+    <div class="bg-white rounded-2xl shadow-md p-4 mb-4">
+      <h3 class="font-bold text-slate-800 mb-3 flex items-center gap-2"><span>🎯</span> 予算目標設定</h3>
+      <div class="space-y-3">
+        <div>
+          <label for="budget-target" class="block text-sm font-semibold text-slate-700 mb-2">目標予算</label>
+          <div class="flex gap-2">
+            <input type="number" id="budget-target" class="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm" placeholder="例: 200000" min="0" step="10000" aria-label="目標予算を入力してください">
+            <button onclick="saveBudgetTarget()" class="px-4 py-2 bg-sky-500 text-white font-bold text-sm rounded-lg hover:bg-sky-600 transition-colors">保存</button>
+          </div>
+        </div>
+        <div id="budget-achievement" class="space-y-2 text-sm" style="display:none;">
+          <div class="flex justify-between items-center pb-2 border-b border-sky-100">
+            <span class="text-slate-600">目標予算</span>
+            <span id="target-display" class="font-bold text-slate-800"></span>
+          </div>
+          <div class="flex justify-between items-center pb-2 border-b border-sky-100">
+            <span class="text-slate-600">実費（下限）</span>
+            <span id="actual-cost-display" class="font-bold text-slate-800"></span>
+          </div>
+          <div class="flex justify-between items-center pb-2">
+            <span class="text-slate-600">達成率</span>
+            <span id="achievement-rate" class="font-bold text-slate-800"></span>
+          </div>
+          <div class="mt-3 p-3 rounded-lg bg-sky-50 border border-sky-200">
+            <div id="achievement-status" class="text-sm font-semibold text-sky-700 text-center"></div>
+            <div class="mt-2 bg-slate-200 rounded-full h-4 overflow-hidden">
+              <div id="achievement-bar" class="bg-sky-500 h-4 rounded-full transition-all duration-500" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Previous Comparison -->
     <div id="prev-compare-section" class="bg-green-50 rounded-2xl shadow-md p-4 mb-4 border border-green-200" style="display:none;">
       <h3 class="font-bold text-green-700 mb-3 flex items-center gap-2"><span>📈</span> 前回との比較</h3>
@@ -735,11 +769,17 @@ function showResult() {
   ).join('');
 
   // M3: Save to localStorage
+  const mid = (low + high) / 2;
+  const budgetTarget = JSON.parse(localStorage.getItem('budgetTarget') || 'null');
+  const achievementRate = budgetTarget ? Math.round((budgetTarget / mid) * 100) : null;
+
   const currentResult = {
     timestamp: new Date().toISOString(),
     low,
     high,
     score,
+    budgetTarget,
+    achievementRate,
     answers: JSON.parse(JSON.stringify(answers))
   };
   const resultHistory = JSON.parse(localStorage.getItem('movingCostResults') || '[]');
@@ -750,6 +790,11 @@ function showResult() {
 
   // M6: Show previous comparison
   showPreviousComparison(low, high, resultHistory);
+
+  // M6: Show budget achievement
+  if (budgetTarget && budgetTarget > 0) {
+    showBudgetAchievement(low, high, budgetTarget);
+  }
 
   // M4: Draw cost impact chart
   setTimeout(() => drawCostChart(detailData), 100);
@@ -894,12 +939,14 @@ function downloadCSV() {
     return;
   }
 
-  const headers = ['計算日時', '最低費用', '最高費用', '診断結果'];
+  const headers = ['計算日時', '最低費用', '最高費用', '診断結果', '目標予算', '達成率'];
   const rows = history.map(r => [
     new Date(r.timestamp).toLocaleString('ja-JP'),
     r.low,
     r.high,
-    r.score
+    r.score,
+    r.budgetTarget || '-',
+    r.achievementRate || '-'
   ]);
 
   let csv = headers.map(h => `"${h}"`).join(',') + '\n';
@@ -914,12 +961,83 @@ function downloadCSV() {
   URL.revokeObjectURL(url);
 }
 
+// M6: Save budget target to localStorage
+function saveBudgetTarget() {
+  const target = parseInt(document.getElementById('budget-target').value);
+  if (!target || target <= 0) {
+    alert('有効な予算額を入力してください（0より大きい数値）');
+    return;
+  }
+  localStorage.setItem('budgetTarget', JSON.stringify(target));
+  const lastResult = JSON.parse(localStorage.getItem('lastResult') || '{}');
+  lastResult.budgetTarget = target;
+  localStorage.setItem('lastResult', JSON.stringify(lastResult));
+  showBudgetAchievement(lastResult.low, lastResult.high, target);
+}
+
+// M6: Display budget achievement rate
+function showBudgetAchievement(low, high, budgetTarget) {
+  if (!budgetTarget || budgetTarget <= 0) return;
+
+  const section = document.getElementById('budget-achievement');
+  const mid = (low + high) / 2;
+  const achievementRate = Math.round((budgetTarget / mid) * 100);
+
+  // 達成率の計算（100%を超えた場合は"達成"、未満の場合は"超過"）
+  let statusText, statusClass;
+  if (budgetTarget >= mid) {
+    statusText = `✅ 予算内で実現可能（達成率: ${achievementRate}%）`;
+    statusClass = 'text-green-700';
+  } else if (budgetTarget >= low) {
+    statusText = `⚠️ 予算を超過の可能性（達成率: ${achievementRate}%）`;
+    statusClass = 'text-amber-700';
+  } else {
+    statusText = `❌ 大幅に予算超過（達成率: ${achievementRate}%）`;
+    statusClass = 'text-red-700';
+  }
+
+  document.getElementById('target-display').textContent = formatYen(budgetTarget);
+  document.getElementById('actual-cost-display').textContent = formatYen(Math.round(mid));
+  document.getElementById('achievement-rate').textContent = achievementRate + '%';
+  document.getElementById('achievement-status').textContent = statusText;
+  document.getElementById('achievement-status').className = `text-sm font-semibold ${statusClass} text-center`;
+
+  // プログレスバーの幅（最大200%）
+  const barWidth = Math.min(achievementRate, 200);
+  document.getElementById('achievement-bar').style.width = barWidth + '%';
+
+  // 色を達成率に応じて変更
+  const bar = document.getElementById('achievement-bar');
+  if (budgetTarget >= mid) {
+    bar.classList.remove('bg-amber-500', 'bg-red-500');
+    bar.classList.add('bg-green-500');
+  } else if (budgetTarget >= low) {
+    bar.classList.remove('bg-green-500', 'bg-red-500');
+    bar.classList.add('bg-amber-500');
+  } else {
+    bar.classList.remove('bg-green-500', 'bg-amber-500');
+    bar.classList.add('bg-red-500');
+  }
+
+  section.style.display = 'block';
+}
+
+// M6: Load and restore budget target on page load
+function loadBudgetTarget() {
+  const saved = JSON.parse(localStorage.getItem('budgetTarget') || 'null');
+  if (saved && saved > 0) {
+    document.getElementById('budget-target').value = saved;
+  }
+}
+
 function resetQuiz() {
   if (autoAdvanceTimer) { clearTimeout(autoAdvanceTimer); autoAdvanceTimer = null; }
   currentQ = 0;
   answers = {};
   document.getElementById('quiz-section').classList.remove('hidden');
   document.getElementById('result-section').classList.add('hidden');
+  document.getElementById('budget-target').value = '';
+  document.getElementById('budget-achievement').style.display = 'none';
   if (window.costChartInstance) {
     window.costChartInstance.destroy();
     window.costChartInstance = null;
@@ -930,7 +1048,9 @@ function resetQuiz() {
 
 // Init
 // M3: Load previous results on page load
+// M6: Load budget target on page load
 document.addEventListener('DOMContentLoaded', function() {
+  loadBudgetTarget();
   const lastResult = JSON.parse(localStorage.getItem('lastResult') || 'null');
   if (lastResult && lastResult.low) {
     const resultSection = document.getElementById('result-section');

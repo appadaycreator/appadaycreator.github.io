@@ -936,6 +936,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="modal">
         <div class="modal-handle"></div>
         <div class="modal-title" id="modal-title">食材を追加</div>
+        <div id="form-error" style="display:none;background:#fee2e2;border:1px solid #fecaca;border-radius:var(--radius-sm);padding:12px;margin-bottom:16px;color:var(--danger);font-size:0.85rem;font-weight:500;" role="alert" aria-live="polite"></div>
         <input type="hidden" id="edit-id">
         <div class="form-group">
             <label class="form-label">カテゴリ<span class="tooltip-icon" data-tooltip="食材の種類を選択してください">?</span></label>
@@ -950,13 +951,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="form-row">
             <div class="form-group">
                 <label class="form-label">数量・単位<span class="tooltip-icon" data-tooltip="個数やサイズを記入">?</span></label>
-                <input type="text" class="form-input" id="f-qty" placeholder="例: 6個、1パック" maxlength="15" aria-label="数量と単位を入力。例：6個、1パック">
-                <span class="form-hint">例：10個、500g</span>
+                <input type="number" class="form-input" id="f-qty" placeholder="6" min="1" max="999" step="1" aria-label="数量を入力（1～999）。例：6、10">
+                <span class="form-hint">数値で入力可能。単位は食材名に含めてください（例：卵6個→食材名『卵』、数量『6』）</span>
             </div>
             <div class="form-group">
                 <label class="form-label">賞味期限<span class="tooltip-icon" data-tooltip="期限が近い順に優先表示">?</span></label>
-                <input type="date" class="form-input" id="f-expiry" aria-label="賞味期限を選択してください">
-                <span class="form-hint">初期値は+7日</span>
+                <input type="date" class="form-input" id="f-expiry" placeholder="2026-06-17" aria-label="賞味期限を選択（初期値は本日から7日後）">
+                <span class="form-hint">初期値は本日から7日後に自動設定されます</span>
             </div>
         </div>
         <div class="form-group">
@@ -1062,6 +1063,7 @@ function selectCat(id, el) {
 }
 
 function openModal(editId) {
+    document.getElementById('form-error').style.display = 'none';
     document.getElementById('edit-id').value = editId || '';
     document.getElementById('modal-title').textContent = editId ? '食材を編集' : '食材を追加';
     if (editId) {
@@ -1092,16 +1094,33 @@ function closeModal() {
 }
 
 function saveFood() {
+    const errorDiv = document.getElementById('form-error');
     const name = document.getElementById('f-name').value.trim();
-    if (!name) { showToast('食材名を入力してください'); return; }
+    const qty = document.getElementById('f-qty').value.trim();
+    const expiry = document.getElementById('f-expiry').value;
+    const location = document.getElementById('f-location').value;
+
+    // バリデーション
+    const errors = [];
+    if (!name) errors.push('食材名は必須です');
+    if (qty && (isNaN(qty) || parseInt(qty) < 1 || parseInt(qty) > 999)) errors.push('数量は1～999の数値で入力してください');
+
+    if (errors.length > 0) {
+        errorDiv.textContent = errors.join('、');
+        errorDiv.style.display = 'block';
+        return;
+    }
+    errorDiv.style.display = 'none';
+
     const editId = document.getElementById('edit-id').value;
+    const finalExpiry = expiry || new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().slice(0,10);
     const food = {
         id: editId || Date.now().toString(),
         cat: selectedCat,
         name,
-        qty: document.getElementById('f-qty').value.trim(),
-        expiry: document.getElementById('f-expiry').value,
-        location: document.getElementById('f-location').value,
+        qty: qty || '',
+        expiry: finalExpiry,
+        location: location,
         addedAt: new Date().toISOString().slice(0,10),
     };
     const foods = getFoods();

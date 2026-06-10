@@ -604,13 +604,15 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         <div class="space-y-4">
                             <div>
                                 <label class="block text-sm font-medium mb-2" data-translate="project_name">プロジェクト名</label>
-                                <input type="text" id="project-name" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white" required aria-label="入力フォーム">
+                                <input type="text" id="project-name" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white" required aria-label="プロジェクト名" placeholder="例：書籍執筆プロジェクト">
+                                <span id="error-project-name" class="text-red-500 text-xs mt-1 hidden"></span>
                             </div>
                             
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label class="block text-sm font-medium mb-2" data-translate="deadline">締切日</label>
-                                    <input type="date" id="project-deadline" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white" required aria-label="入力フォーム">
+                                    <input type="date" id="project-deadline" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white" placeholder="例：2026-06-30" required aria-label="締切日">
+                                    <span id="error-project-deadline" class="text-red-500 text-xs mt-1 hidden"></span>
                                 </div>
                                 
                                 <div>
@@ -626,7 +628,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                             
                             <div>
                                 <label class="block text-sm font-medium mb-2" data-translate="total_work">総作業量</label>
-                                <input type="number" id="total-work" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white" min="1" required>
+                                <input type="number" id="total-work" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white" min="1" required aria-label="総作業量" placeholder="例：100">
+                                <span id="error-total-work" class="text-red-500 text-xs mt-1 hidden"></span>
                             </div>
                             
                             <div>
@@ -642,7 +645,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                             
                             <div>
                                 <label class="block text-sm font-medium mb-2" data-translate="description">説明</label>
-                                <textarea id="project-description" rows="3" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white"></textarea>
+                                <textarea id="project-description" rows="3" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white" aria-label="プロジェクト説明" placeholder="プロジェクトの詳細説明を入力してください"></textarea>
                             </div>
                             
                             <div class="flex items-center space-x-4">
@@ -709,11 +712,12 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                 </label>
                                 <input type="number" id="completed-work" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white" min="0" step="0.1" placeholder="0">
                                 <p id="progress-input-hint" class="text-xs text-gray-400 mt-1">残り作業量に加算されます</p>
+                                <span id="error-completed-work" class="text-red-500 text-xs mt-1 hidden"></span>
                             </div>
 
                             <div>
                                 <label class="block text-sm font-medium mb-2" data-translate="notes">メモ</label>
-                                <textarea id="progress-notes" rows="2" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white"></textarea>
+                                <textarea id="progress-notes" rows="2" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white" aria-label="進捗メモ" placeholder="進捗内容、学んだことなど"></textarea>
                             </div>
                         </div>
 
@@ -998,12 +1002,16 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 // フォーム送信
                 document.getElementById('project-form').addEventListener('submit', (e) => {
                     e.preventDefault();
-                    this.saveProject();
+                    if (this.validateProjectForm()) {
+                        this.saveProject();
+                    }
                 });
 
                 document.getElementById('progress-form').addEventListener('submit', (e) => {
                     e.preventDefault();
-                    this.updateProjectProgress();
+                    if (this.validateProgressForm()) {
+                        this.updateProjectProgress();
+                    }
                 });
 
                 // タイマー
@@ -1212,6 +1220,56 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 this.currentProjectId = null;
             }
 
+            // フォームバリデーション
+            validateProjectForm() {
+                let hasError = false;
+
+                const projectName = document.getElementById('project-name').value.trim();
+                const projectNameError = document.getElementById('error-project-name');
+                if (!projectName) {
+                    projectNameError.textContent = 'プロジェクト名を入力してください';
+                    projectNameError.classList.remove('hidden');
+                    hasError = true;
+                } else if (projectName.length > 50) {
+                    projectNameError.textContent = 'プロジェクト名は50文字以内で入力してください';
+                    projectNameError.classList.remove('hidden');
+                    hasError = true;
+                } else {
+                    projectNameError.classList.add('hidden');
+                }
+
+                const deadline = document.getElementById('project-deadline').value;
+                const deadlineError = document.getElementById('error-project-deadline');
+                if (!deadline) {
+                    deadlineError.textContent = '締切日を選択してください';
+                    deadlineError.classList.remove('hidden');
+                    hasError = true;
+                } else {
+                    const selectedDate = new Date(deadline);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    if (selectedDate < today) {
+                        deadlineError.textContent = '締切日は本日以降を選択してください';
+                        deadlineError.classList.remove('hidden');
+                        hasError = true;
+                    } else {
+                        deadlineError.classList.add('hidden');
+                    }
+                }
+
+                const totalWork = document.getElementById('total-work').value;
+                const totalWorkError = document.getElementById('error-total-work');
+                if (!totalWork || isNaN(totalWork) || parseInt(totalWork) < 1) {
+                    totalWorkError.textContent = '総作業量は1以上の数値を入力してください';
+                    totalWorkError.classList.remove('hidden');
+                    hasError = true;
+                } else {
+                    totalWorkError.classList.add('hidden');
+                }
+
+                return !hasError;
+            }
+
             // プロジェクト保存
             saveProject() {
                 const formData = {
@@ -1247,6 +1305,29 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 this.updateDisplay();
                 this.hideProjectModal();
                 this.showNotification('プロジェクトを保存しました', 'success');
+            }
+
+            // 進捗フォームバリデーション
+            validateProgressForm() {
+                let hasError = false;
+                const completedWork = document.getElementById('completed-work').value;
+                const completedWorkError = document.getElementById('error-completed-work');
+                const mode = document.getElementById('progress-input-mode').value;
+                const currentProject = this.projects[this.currentProjectId];
+
+                if (!completedWork || isNaN(completedWork) || parseFloat(completedWork) < 0) {
+                    completedWorkError.textContent = '作業量は0以上の数値を入力してください';
+                    completedWorkError.classList.remove('hidden');
+                    hasError = true;
+                } else if (mode === 'total' && currentProject && parseFloat(completedWork) > currentProject.totalWork) {
+                    completedWorkError.textContent = `作業量は総作業量（${currentProject.totalWork}）以下で入力してください`;
+                    completedWorkError.classList.remove('hidden');
+                    hasError = true;
+                } else {
+                    completedWorkError.classList.add('hidden');
+                }
+
+                return !hasError;
             }
 
             // プロジェクト進捗更新

@@ -39,6 +39,9 @@
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
 
+  <!-- Chart.js for M4: グラフ・ゲージ可視化 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
   <!-- Error Handlers -->
   <script>
     window.onerror = function(msg, src, line, col, err) {
@@ -222,6 +225,30 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <p class="text-gray-700 mt-2 text-sm" id="result-desc"></p>
         </div>
 
+        <!-- M4: グラフ・スコア表示セクション -->
+        <div class="bg-indigo-50 rounded-xl p-4 mb-4">
+          <h3 class="font-bold text-indigo-700 mb-3">📊 診断スコア</h3>
+          <div class="space-y-3">
+            <div>
+              <p class="text-xs text-gray-600 mb-1">スタイル選好度</p>
+              <canvas id="styleChart" style="max-height: 250px;"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- M3: 診断履歴セクション -->
+        <div class="bg-yellow-50 rounded-xl p-4 mb-4">
+          <h3 class="font-bold text-yellow-700 mb-3">⏱️ 診断履歴</h3>
+          <div class="space-y-2">
+            <button onclick="showHistory()" class="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 rounded-lg transition-colors text-sm">
+              📋 過去の診断結果を見る
+            </button>
+            <button onclick="restoreLastResult()" class="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 rounded-lg transition-colors text-sm">
+              🔄 前回のデータから再診断
+            </button>
+          </div>
+        </div>
+
         <div class="bg-rose-50 rounded-xl p-4 mb-4">
           <h3 class="font-bold text-rose-700 mb-2">✨ コーデのコツ</h3>
           <ul id="result-tips" class="text-sm text-gray-700 space-y-1 list-disc list-inside"></ul>
@@ -271,6 +298,23 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <div class="my-4 text-center">
         <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
         <script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
+      </div>
+    </div>
+
+    <!-- M3: 履歴表示モーダル -->
+    <div id="historyModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-2xl max-w-md w-full max-h-96 overflow-y-auto">
+        <div class="sticky top-0 bg-gradient-to-r from-rose-500 to-pink-500 p-4 text-white">
+          <h3 class="font-bold text-lg">📋 診断履歴</h3>
+        </div>
+        <div id="historyList" class="p-4 space-y-2">
+          <!-- 履歴項目がここに動的に挿入される -->
+        </div>
+        <div class="border-t p-4">
+          <button onclick="closeHistory()" class="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 rounded-lg transition-colors">
+            閉じる
+          </button>
+        </div>
       </div>
     </div>
 
@@ -744,6 +788,146 @@ AppADayCreatorでは、本ツール以外にも美容・ファッションカテ
 
     let current = 0;
     let answers = {};
+    let styleChart = null; // グラフインスタンス保持用
+
+    // M3: localStorage から履歴を取得
+    function getHistory() {
+      const historyJson = localStorage.getItem('fashionDiagnosisHistory');
+      return historyJson ? JSON.parse(historyJson) : [];
+    }
+
+    // M3: 診断結果を履歴に保存
+    function saveToHistory(result) {
+      const history = getHistory();
+      const timestamp = new Date().toLocaleString('ja-JP');
+      history.unshift({ timestamp, result });
+      if (history.length > 10) history.pop(); // 最大10件まで保持
+      localStorage.setItem('fashionDiagnosisHistory', JSON.stringify(history));
+      localStorage.setItem('lastDiagnosis', JSON.stringify(result)); // 最後の診断を別途保存
+    }
+
+    // M3: 履歴を表示
+    function showHistory() {
+      const history = getHistory();
+      const historyList = document.getElementById('historyList');
+      historyList.innerHTML = '';
+
+      if (history.length === 0) {
+        historyList.innerHTML = '<p class="text-gray-500 text-center py-4">履歴がありません</p>';
+      } else {
+        history.forEach((item, idx) => {
+          const resultKey = getResultKey(item.result);
+          const r = styleResults[resultKey];
+          const btn = document.createElement('button');
+          btn.className = 'w-full text-left bg-gray-100 hover:bg-gray-200 p-3 rounded-lg transition-colors text-sm';
+          btn.innerHTML = `<div class="font-bold">${idx === 0 ? '⭐ ' : ''}${r.icon} ${r.title}</div><div class="text-xs text-gray-600 mt-1">${item.timestamp}</div>`;
+          btn.onclick = () => loadHistoryItem(item.result);
+          historyList.appendChild(btn);
+        });
+      }
+      document.getElementById('historyModal').classList.remove('hidden');
+    }
+
+    // M3: 履歴を閉じる
+    function closeHistory() {
+      document.getElementById('historyModal').classList.add('hidden');
+    }
+
+    // M3: 履歴から項目を読み込み
+    function loadHistoryItem(result) {
+      answers = result;
+      closeHistory();
+      showResult();
+    }
+
+    // M3: 前回のデータから復元
+    function restoreLastResult() {
+      const lastJson = localStorage.getItem('lastDiagnosis');
+      if (!lastJson) {
+        alert('前回の診断データはありません');
+        return;
+      }
+      answers = JSON.parse(lastJson);
+      current = 0;
+      document.getElementById('intro').classList.add('hidden');
+      document.getElementById('result').classList.add('hidden');
+      document.getElementById('quiz').classList.remove('hidden');
+      showQuestion(0);
+    }
+
+    // M4: Chart.js でスタイル選好度グラフを描画
+    function drawStyleChart() {
+      const ctx = document.getElementById('styleChart');
+      if (!ctx) return;
+
+      // 各スタイルのスコアを計算（選択肢に応じた重み付け）
+      const styleScores = {
+        clean_simple: 0,
+        casual_natural: 0,
+        feminine: 0,
+        street: 0,
+        business: 0
+      };
+
+      // style 回答から初期スコア計算
+      const styleMap = {
+        simple: 'clean_simple',
+        casual: 'casual_natural',
+        feminine: 'feminine',
+        street: 'street',
+        business: 'business'
+      };
+      const selectedStyle = styleMap[answers.style];
+      if (selectedStyle) styleScores[selectedStyle] += 3;
+
+      // scene から補足スコア
+      if (answers.scene === 'work') styleScores.business += 2;
+      if (answers.scene === 'date') styleScores.feminine += 2;
+      if (answers.scene === 'outing') styleScores.street += 2;
+
+      // worry から補足スコア
+      if (answers.worry === 'rut') {
+        styleScores.street += 1;
+        styleScores.casual_natural += 1;
+      }
+
+      const labels = ['クリーン・シンプル', 'カジュアル・ナチュラル', 'フェミニン', 'ストリート', 'ビジネス'];
+      const data = [
+        styleScores.clean_simple,
+        styleScores.casual_natural,
+        styleScores.feminine,
+        styleScores.street,
+        styleScores.business
+      ];
+
+      if (styleChart) styleChart.destroy();
+
+      styleChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: ['#e0e7ff', '#a7f3d0', '#fbcfe8', '#fed7aa', '#bfdbfe'],
+            borderColor: ['#818cf8', '#10b981', '#ec4899', '#f97316', '#3b82f6'],
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                font: { size: 12 },
+                padding: 12
+              }
+            }
+          }
+        }
+      });
+    }
 
     function startQuiz() {
       document.getElementById('intro').classList.add('hidden');
@@ -798,6 +982,10 @@ AppADayCreatorでは、本ツール以外にも美容・ファッションカテ
     function showResult() {
       document.getElementById('quiz').classList.add('hidden');
       document.getElementById('result').classList.remove('hidden');
+
+      // M3: 診断結果を履歴に保存
+      saveToHistory(answers);
+
       const key = getResultKey(answers);
       const r = styleResults[key];
 
@@ -840,6 +1028,9 @@ AppADayCreatorでは、本ツール以外にも美容・ファッションカテ
 
       document.getElementById('line-share').href = `https://line.me/R/share?text=${encodeURIComponent(resultText + '\n' + shareUrl)}`;
       document.getElementById('x-share').href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(resultText + ' - ' + shareUrl)}&via=appadaycreator`;
+
+      // M4: グラフを描画（Chart.js）
+      setTimeout(() => drawStyleChart(), 100);
     }
 
     // P2-1: テキストコピー機能

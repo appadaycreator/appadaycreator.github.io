@@ -1234,6 +1234,55 @@ function filterBlog(cat){
 
     </div>
 
+<!-- r32-pagination -->
+<div id="pagination-controls" style="text-align:center;margin:2rem 0">
+<button id="load-more-btn" onclick="loadMoreArticles()" style="padding:.75rem 2rem;background:#3b82f6;color:#fff;border:none;border-radius:.5rem;font-size:.9rem;font-weight:700;cursor:pointer">記事をさらに見る</button>
+<div id="pagination-info" style="margin-top:.5rem;font-size:.82rem;color:#64748b"></div>
+</div>
+<script>
+(function(){
+  var items = document.querySelectorAll('[data-cat]');
+  var shown = 12;
+  var total = items.length;
+  function updateDisplay() {
+    var visible = 0;
+    items.forEach(function(el) {
+      if(el.style.display === 'none' && el.dataset._filteredOut) return;
+      visible++;
+      el.style.display = visible <= shown ? '' : 'none';
+    });
+    var info = document.getElementById('pagination-info');
+    var btn = document.getElementById('load-more-btn');
+    if(info) info.textContent = Math.min(shown, total) + '件 / 全' + total + '件表示中';
+    if(btn) btn.style.display = shown >= total ? 'none' : '';
+  }
+  window.loadMoreArticles = function() { shown = Math.min(shown + 12, total); updateDisplay(); };
+  // Patch filterBlog to reset pagination
+  var origFilter = window.filterBlog;
+  window.filterBlog = function(cat) {
+    shown = 12;
+    // Mark filtered-out items
+    items.forEach(function(el){ el.dataset._filteredOut = (cat !== 'all' && el.dataset.cat !== cat) ? '1' : ''; });
+    if(origFilter) origFilter(cat);
+    // Re-apply pagination on visible items
+    var visItems = Array.from(items).filter(function(el){ return !el.dataset._filteredOut; });
+    var visTotal = visItems.length;
+    visItems.forEach(function(el, i){ el.style.display = i < shown ? '' : 'none'; });
+    var info = document.getElementById('pagination-info');
+    var btn = document.getElementById('load-more-btn');
+    if(info) info.textContent = Math.min(shown, visTotal) + '件 / 全' + visTotal + '件表示中';
+    if(btn) btn.style.display = shown >= visTotal ? 'none' : '';
+    window.loadMoreArticles = function() {
+      shown = Math.min(shown + 12, visTotal);
+      visItems.forEach(function(el, i){ el.style.display = i < shown ? '' : 'none'; });
+      if(info) info.textContent = shown + '件 / 全' + visTotal + '件表示中';
+      if(btn) btn.style.display = shown >= visTotal ? 'none' : '';
+    };
+  };
+  if(total > 12) updateDisplay();
+})();
+</script>
+
     <!-- AdSense（記事リスト末尾） -->
     <div style="text-align:center;margin:2rem 0">
     <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>

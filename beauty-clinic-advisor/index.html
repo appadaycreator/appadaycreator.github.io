@@ -39,7 +39,8 @@
     <!-- End Google Tag Manager -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+
     <noscript>
 </noscript>
     <style>
@@ -83,10 +84,13 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
   header,footer,nav,button,.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
   [id*="affiliate"],[id*="banner"],
-  script,noscript{display:none!important}
+  script,noscript,ins.adsbygoogle{display:none!important}
   body{background:#fff!important;color:#000!important;font-size:12pt}
   [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
   a[href]::after{content:none!important}
+  .result-card{page-break-inside:avoid}
+  #scoreChart{max-height:250px!important}
+  canvas{background:#fff!important}
 }
 
 .card{background:#fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.08);overflow:hidden;}
@@ -360,6 +364,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             </ul>
         </div>
 
+        <div class="flex gap-2 mb-3">
+            <button onclick="printResult()" class="flex-1 py-3 rounded-xl border-2 border-gray-200 text-gray-700 font-bold bg-white hover:border-orange-400 transition" title="結果を印刷して保存">
+                <span class="mr-1">🖨️</span>印刷
+            </button>
+            <button onclick="copyResultToClipboard()" class="flex-1 py-3 rounded-xl border-2 border-gray-200 text-gray-700 font-bold bg-white hover:border-green-400 transition" title="結果をコピー">
+                <span class="mr-1">📋</span>コピー
+            </button>
+        </div>
         <button onclick="shareResult()" class="w-full mb-3 py-3 rounded-xl border-2 border-gray-200 text-gray-700 font-bold bg-white hover:border-pink-400 transition">
             <span class="text-blue-400 mr-2">𝕏</span>診断結果をXでシェアする
         </button>
@@ -640,8 +652,12 @@ function selectOption(idx) {
     const nextBtn = document.getElementById('next-btn');
     nextBtn.disabled = false;
     nextBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    localStorage.setItem('diagnosis_answers', JSON.stringify(answers));
     // 最終問題以外は自動で次へ遷移（選択後 400ms）
     if (current < Q.length - 1) {
+        setTimeout(() => next(), 400);
+    } else {
+        // 最終問題も自動で診断フロー（showLoading）へ遷移
         setTimeout(() => next(), 400);
     }
 }
@@ -722,6 +738,8 @@ function showResult() {
     const resultType = topTypes[0];
     const isCombo = topTypes.length > 1 && maxScore > 0;
     const r = RESULTS[resultType];
+    localStorage.setItem('diagnosis_scores', JSON.stringify(scores));
+    localStorage.setItem('diagnosis_result_type', resultType);
     // タイプ別「まずやること」ボックスを結果上部に表示
     const nextActions = {
         hair: '💡 まずは<strong>無料カウンセリング</strong>を予約して、毛質・肌質に合った脱毛方法を医師に相談しましょう。',
@@ -786,10 +804,61 @@ function showResult() {
     </div>`;
     document.getElementById('result-main').insertAdjacentHTML('beforeend', barHtml);
 
+    // Chart.js可視化を追加（M4）
+    const chartHtml = `<div id="chart-section" class="bg-white bg-opacity-70 rounded-xl p-4 mt-4">
+        <p class="font-bold text-sm text-gray-700 mb-3">📈 診断スコア グラフ表示</p>
+        <div class="flex gap-2 mb-3 justify-center flex-wrap">
+            <button onclick="switchChart('bar')" class="text-xs px-3 py-1 rounded bg-pink-100 text-pink-700 font-bold border-2 border-pink-300">棒グラフ</button>
+            <button onclick="switchChart('doughnut')" class="text-xs px-3 py-1 rounded bg-purple-100 text-purple-700 font-bold border-2 border-purple-300">円グラフ</button>
+            <button onclick="switchChart('radar')" class="text-xs px-3 py-1 rounded bg-orange-100 text-orange-700 font-bold border-2 border-orange-300">レーダーチャート</button>
+        </div>
+        <canvas id="scoreChart" style="max-height:300px;"></canvas>
+    </div>`;
+    document.getElementById('result-main').insertAdjacentHTML('beforeend', chartHtml);
+
+    // Chart.jsを初期化
+    window._currentChartType = 'bar';
+    window._chartInstance = null;
+    initializeChart('bar');
+
+    // 診断履歴にデータを追加（M3拡張）
+    saveDiagnosisToHistory();
+
     document.getElementById('result-screen').classList.remove('hidden');
     window._resultType = resultType;
     window._resultBadge = r.badge;
     document.getElementById('result-screen').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function printResult() {
+    window.print();
+}
+
+function copyResultToClipboard() {
+    const resultType = window._resultType;
+    const r = RESULTS[resultType];
+    const scoresText = `✨ 脱毛系: ${scores.hair}pt\n🌟 美肌系: ${scores.skin}pt\n👑 エイジングケア系: ${scores.aging}pt`;
+    const treatmentText = r.treatments.join('\n');
+    const clipboardText = `【美容医療・脱毛クリニック診断結果】
+
+診断タイプ: ${r.badge}
+${r.headline}
+
+📊 診断スコア内訳:
+${scoresText}
+
+⭐ おすすめ施術:
+${treatmentText}
+
+💡 施術前のポイント:
+${r.tip}
+
+詳細: https://appadaycreator.com/beauty-clinic-advisor/`;
+    navigator.clipboard.writeText(clipboardText).then(() => {
+        alert('診断結果がコピーされました！\nメールやメモに貼り付けて保存できます。');
+    }).catch(err => {
+        console.error('コピー失敗', err);
+    });
 }
 
 function shareResult() {
@@ -816,7 +885,128 @@ function toggleFAQ(element) {
     if (!isOpen) element.classList.add('open');
 }
 
+// Chart.js グラフタイプ切り替え（M4）
+function switchChart(chartType) {
+    window._currentChartType = chartType;
+    initializeChart(chartType);
+}
+
+// Chart.js グラフ初期化（M4）
+function initializeChart(chartType) {
+    const ctx = document.getElementById('scoreChart');
+    if (!ctx) return;
+
+    if (window._chartInstance) {
+        window._chartInstance.destroy();
+    }
+
+    const chartData = {
+        labels: ['✨ 脱毛系', '🌟 美肌系', '👑 エイジングケア系'],
+        datasets: [{
+            data: [scores.hair, scores.skin, scores.aging],
+            backgroundColor: ['#fb7185', '#c026d3', '#f97316'],
+            borderColor: ['#be123c', '#9333ea', '#ea580c'],
+            borderWidth: 2
+        }]
+    };
+
+    const chartConfig = {
+        type: chartType,
+        data: chartData,
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: chartType === 'radar' ? 'top' : 'bottom',
+                    labels: { font: { size: 12 }, padding: 12 }
+                }
+            },
+            scales: chartType === 'bar' ? {
+                y: { beginAtZero: true, max: Math.max(scores.hair, scores.skin, scores.aging, 10) + 5 }
+            } : chartType === 'radar' ? {
+                r: { beginAtZero: true, max: Math.max(scores.hair, scores.skin, scores.aging, 10) + 5 }
+            } : {}
+        }
+    };
+
+    window._chartInstance = new Chart(ctx, chartConfig);
+}
+
+// 診断履歴にデータを保存（M3拡張）
+function saveDiagnosisToHistory() {
+    const resultType = window._resultType;
+    const r = RESULTS[resultType];
+    const historyEntry = {
+        timestamp: new Date().toISOString(),
+        date: new Date().toLocaleDateString('ja-JP'),
+        type: resultType,
+        badge: r.badge,
+        hair: scores.hair,
+        skin: scores.skin,
+        aging: scores.aging,
+        headline: r.headline
+    };
+
+    let history = [];
+    try {
+        const saved = localStorage.getItem('diagnosis_history');
+        if (saved) {
+            history = JSON.parse(saved);
+        }
+    } catch (e) {}
+
+    history.unshift(historyEntry);
+    if (history.length > 5) history = history.slice(0, 5);
+
+    localStorage.setItem('diagnosis_history', JSON.stringify(history));
+}
+
+// 診断履歴から復元（M3拡張）
+function loadDiagnosisFromHistory(timestamp) {
+    let history = [];
+    try {
+        const saved = localStorage.getItem('diagnosis_history');
+        if (saved) {
+            history = JSON.parse(saved);
+        }
+    } catch (e) {}
+
+    const entry = history.find(h => h.timestamp === timestamp);
+    if (entry) {
+        scores = { hair: entry.hair, skin: entry.skin, aging: entry.aging };
+        window._resultType = entry.type;
+        document.getElementById('quiz-screen').classList.add('hidden');
+        document.getElementById('loading-screen').classList.add('hidden');
+        showResult();
+    }
+}
+
+// localStorage から復元
+function restoreDiagnosis() {
+    const savedAnswers = localStorage.getItem('diagnosis_answers');
+    const savedScores = localStorage.getItem('diagnosis_scores');
+    const savedResultType = localStorage.getItem('diagnosis_result_type');
+    if (savedAnswers && savedScores && savedResultType) {
+        const confirmed = confirm('前回の診断結果を表示しますか？\n（新規診断する場合は「キャンセル」をクリック）');
+        if (confirmed) {
+            answers = JSON.parse(savedAnswers);
+            scores = JSON.parse(savedScores);
+            window._resultType = savedResultType;
+            document.getElementById('quiz-screen').classList.add('hidden');
+            document.getElementById('loading-screen').classList.add('hidden');
+            showResult();
+            return;
+        } else {
+            localStorage.removeItem('diagnosis_answers');
+            localStorage.removeItem('diagnosis_scores');
+            localStorage.removeItem('diagnosis_result_type');
+        }
+    }
+}
+
 // 初期化
+restoreDiagnosis();
 renderQuestion();
 // 最初のFAQを開いた状態で表示（SPEC v1.2.0）
 const firstFaq = document.querySelector('.faq-item');

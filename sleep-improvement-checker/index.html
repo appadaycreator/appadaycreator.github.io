@@ -224,6 +224,15 @@ ins.adsbygoogle[data-ad-status="unfilled"] { display: none !important; margin: 0
       <div id="res-breakdown" class="mb-3"></div>
       <!-- シェアボタン -->
       <div id="res-share" class="mt-2"></div>
+      <!-- M10: 印刷・エクスポート機能 -->
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e5e7eb">
+        <div style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:8px;text-align:center;">📥 結果をダウンロード</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+          <button onclick="printResult()" style="background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;padding:8px 12px;font-size:12px;font-weight:600;color:#374151;cursor:pointer;transition:all .2s;" title="ブラウザの印刷ダイアログを開きます">🖨️ 印刷</button>
+          <button onclick="copyToClipboard()" id="copy-btn" style="background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;padding:8px 12px;font-size:12px;font-weight:600;color:#374151;cursor:pointer;transition:all .2s;" title="結果をテキストでコピーします">📋 コピー</button>
+          <button onclick="downloadCSV()" style="background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;padding:8px 12px;font-size:12px;font-weight:600;color:#374151;cursor:pointer;transition:all .2s;" title="結果をCSVでダウンロードします">💾 CSV</button>
+        </div>
+      </div>
     </div>
     <div class="card p-6 mb-4">
       <h3 class="font-bold text-gray-800 mb-3">🛏️ 快眠グッズを探す</h3>
@@ -456,6 +465,75 @@ function showResults(){
   show('results');
 }
 function restart(){cur=0;total=0;answers=[];show('intro');}
+
+/* M10: 印刷・結果エクスポート機能 */
+function printResult(){
+  window.print();
+}
+
+function copyToClipboard(){
+  var level=levels[0];for(var i=0;i<levels.length;i++){if(total<=levels[i].max){level=levels[i];break;}}
+  var text='===== 睡眠改善診断 結果 =====\n';
+  text+='判定: '+level.text+'\n';
+  text+='スコア: '+total+'/30点（低いほど良好）\n';
+  text+='\n【判定結果】\n'+level.desc+'\n';
+  text+='\n【今夜からできる改善策】\n';
+  level.tips.forEach(function(t){text+='• '+t+'\n';});
+  text+='\n【項目別スコア】\n';
+  answers.forEach(function(s,i){if(s>0)text+='• '+Q_LABELS[i]+': '+s+'点\n';});
+  text+='\n===== 診断URL =====\n';
+  text+='https://appadaycreator.com/sleep-improvement-checker/\n';
+  text+='\n※ 医療的な診断ではありません。症状が続く場合は医師にご相談ください。';
+
+  navigator.clipboard.writeText(text).then(function(){
+    var btn=document.getElementById('copy-btn');
+    var orig=btn.textContent;
+    btn.textContent='✅ コピーしました';
+    btn.style.background='#dcfce7';
+    btn.style.borderColor='#86efac';
+    btn.style.color='#166534';
+    setTimeout(function(){
+      btn.textContent=orig;
+      btn.style.background='#f3f4f6';
+      btn.style.borderColor='#d1d5db';
+      btn.style.color='#374151';
+    },2000);
+  }).catch(function(){
+    alert('コピーに失敗しました。ブラウザの互換性をご確認ください。');
+  });
+}
+
+function downloadCSV(){
+  var level=levels[0];for(var i=0;i<levels.length;i++){if(total<=levels[i].max){level=levels[i];break;}}
+  var now=new Date();
+  var dateStr=now.getFullYear()+'-'+(now.getMonth()+1).toString().padStart(2,'0')+'-'+now.getDate().toString().padStart(2,'0');
+  var timeStr=now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0');
+
+  var csv='項目,回答\n';
+  csv+='診断日時,"'+dateStr+' '+timeStr+'"\n';
+  csv+='睡眠スコア,"'+total+'/30点（低いほど良好）"\n';
+  csv+='判定,"'+level.text+'"\n';
+  csv+='\n';
+  csv+='詳細,得点\n';
+  answers.forEach(function(s,i){
+    csv+='"'+Q_LABELS[i]+'",'+s+'\n';
+  });
+  csv+='\n';
+  csv+='改善策,内容\n';
+  level.tips.forEach(function(t,i){
+    csv+='"改善策'+(i+1)+'","'+t+'"\n';
+  });
+
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  var link=document.createElement('a');
+  var url=URL.createObjectURL(blob);
+  link.setAttribute('href',url);
+  link.setAttribute('download','睡眠診断結果_'+dateStr+'.csv');
+  link.style.visibility='hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
 </script>
 
 <div style="max-width:512px;margin:0 auto;padding:0 16px;">

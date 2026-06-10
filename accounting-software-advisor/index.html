@@ -457,6 +457,12 @@ input,select{font-size:16px!important;}
 
     <div id="rank-list"></div>
 
+    <!-- 目標設定・変更履歴: M6 -->
+    <div id="goal-section" style="background:#ecfdf5;border:2px solid #10b981;border-radius:16px;padding:16px;margin-bottom:16px;display:none;">
+      <div style="font-size:.95rem;font-weight:800;color:#047857;margin-bottom:12px;">🎯 目標ソフト設定・進捗</div>
+      <div id="goal-content"></div>
+    </div>
+
     <!-- グラフ化: M4 -->
     <div style="background:#fff;border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,.06);padding:20px;margin-bottom:16px;">
       <h3 style="font-size:.95rem;font-weight:800;color:var(--text);margin-bottom:14px;">📊 あなたの診断スコア</h3>
@@ -798,6 +804,7 @@ function saveResultToLocalStorage(rankKeys){
   var result={
     timestamp:new Date().toISOString(),
     topSoftware:top.name,
+    topSoftwareKey:rankKeys[0],
     rankKeys:rankKeys,
     answers:ans
   };
@@ -807,8 +814,28 @@ function saveResultToLocalStorage(rankKeys){
     if(history.length>10)history.pop();
     localStorage.setItem('diagnosisHistory',JSON.stringify(history));
     localStorage.setItem('lastDiagnosis',JSON.stringify(result));
+
+    // M6: 目標ソフト管理
+    var lastTarget=localStorage.getItem('targetSoftware');
+    localStorage.setItem('targetSoftware',rankKeys[0]);
+
+    // M6: ソフト変更履歴を保存
+    try{
+      var changeHistory=JSON.parse(localStorage.getItem('softwareChangeHistory')||'[]');
+      if(!lastTarget||lastTarget!==rankKeys[0]){
+        changeHistory.unshift({
+          timestamp:new Date().toISOString(),
+          software:rankKeys[0],
+          softwareName:top.name
+        });
+        if(changeHistory.length>5)changeHistory.pop();
+        localStorage.setItem('softwareChangeHistory',JSON.stringify(changeHistory));
+      }
+    }catch(e){}
+
     showHistorySection();
-  }catch(e){console.log('localStorage error');}
+    showGoalSection(rankKeys[0],lastTarget);
+  }catch(e){}
 }
 
 function showHistorySection(){
@@ -831,7 +858,7 @@ function showHistorySection(){
         });
       }
     }
-  }catch(e){console.log('history show error');}
+  }catch(e){}
 }
 
 function clearHistory(){
@@ -846,6 +873,9 @@ function clearHistory(){
 function restoreDiagnosis(result){
   ans=result.answers;
   rankKeysGlobal=result.rankKeys;
+  // 現在の目標ソフトを一時保存
+  var currentTarget=localStorage.getItem('targetSoftware');
+  // 復元結果を表示
   showResults();
 }
 
@@ -1004,6 +1034,9 @@ function showResults(){
   // M4: グラフ描画
   drawCompatibilityChart(rankKeys);
 
+  // M6: 目標セクション表示
+  showGoalSection(rankKeys[0],localStorage.getItem('targetSoftware'));
+
   show('results');
 }
 
@@ -1147,6 +1180,49 @@ function downloadAsCSV(){
 // M10: 印刷
 function printResults(){
   window.print();
+}
+
+// M6: 目標設定・変更履歴表示
+function showGoalSection(currentSoftwareKey,lastTargetKey){
+  var section=document.getElementById('goal-section');
+  var content=document.getElementById('goal-content');
+  if(!section||!content)return;
+
+  var currentSoftwareName=softwareMap[currentSoftwareKey].name;
+  var html='';
+
+  if(!lastTargetKey){
+    // 初回診断
+    html='<p style="font-size:.9rem;color:#047857;margin:0 0 8px;">🎯 <strong>目標ソフトが決定しました</strong></p>';
+    html+='<p style="font-size:.85rem;color:#065f46;margin:0;">あなたに最適な『'+currentSoftwareName+'』を目標に、導入を進めましょう。</p>';
+  }else if(lastTargetKey===currentSoftwareKey){
+    // 同じソフト
+    html='<p style="font-size:.9rem;color:#047857;margin:0 0 8px;">✅ <strong>前回と同じ『'+currentSoftwareName+'』を選びました</strong></p>';
+    html+='<p style="font-size:.85rem;color:#065f46;margin:0;">確実に導入に向けて進んでいます。</p>';
+  }else{
+    // ソフト変更
+    var lastSoftwareName=softwareMap[lastTargetKey]?softwareMap[lastTargetKey].name:'不明';
+    html='<p style="font-size:.9rem;color:#047857;margin:0 0 8px;">🔄 <strong>ソフトの選択を変更しました</strong></p>';
+    html+='<p style="font-size:.85rem;color:#065f46;margin:0 0 10px;">前回：'+lastSoftwareName+' → 今回：'+currentSoftwareName+'</p>';
+
+    // 変更履歴を表示
+    try{
+      var changeHistory=JSON.parse(localStorage.getItem('softwareChangeHistory')||'[]');
+      if(changeHistory.length>1){
+        html+='<div style="font-size:.8rem;color:#047857;font-weight:700;margin-top:12px;margin-bottom:8px;">選択履歴：</div>';
+        html+='<div style="font-size:.78rem;color:#065f46;line-height:1.8;">';
+        changeHistory.forEach(function(entry,idx){
+          var d=new Date(entry.timestamp);
+          var dateStr=d.toLocaleDateString('ja-JP')+' '+d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+          html+='<div style="padding:4px 0;border-bottom:1px solid rgba(16,185,129,.2);">'+(idx+1)+'回目: '+dateStr+' → <strong>'+entry.softwareName+'</strong></div>';
+        });
+        html+='</div>';
+      }
+    }catch(e){}
+  }
+
+  section.style.display='block';
+  content.innerHTML=html;
 }
 
 function restart(){

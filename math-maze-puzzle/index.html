@@ -65,6 +65,8 @@
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858"
          crossorigin="anonymous"></script>
     <!-- End Google AdSense -->
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js" defer></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"VideoGame","name":"計算チャレンジ - 暗算力を鍛えるシンプルゲーム","url":"https://appadaycreator.com/math-maze-puzzle/","description":"暗算力を鍛えるシンプルなゲーム「計算チャレンジ」。制限時間内にどれだけ計算問題を解けるか挑戦しよう！脳トレしながら楽しく計算力アップ！","operatingSystem":"All","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"}}</script>
     <meta name="twitter:image" content="https://appadaycreator.com/math-maze-puzzle/ogp.png">
 <meta name="twitter:description" content="無料の計算ゲーム。2分間で暗算力を鍛える脳トレ。難易度4段階。小学生〜大人まで楽しめます。スコア記録機能付き。" />
@@ -263,18 +265,34 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             </div>
             
             <div class="mt-6 border-t pt-4">
-                <h3 class="font-bold text-gray-700 mb-2">統計</h3>
-                <div class="text-sm">
-                    <p>プレイ回数: <span id="play-count" class="font-medium">0</span></p>
-                    <p>クリア回数: <span id="clear-count" class="font-medium">0</span></p>
-                    <p>最高スコア: <span id="high-score" class="font-medium">0</span></p>
+                <h3 class="font-bold text-gray-700 mb-2">📊 統計情報</h3>
+                <div class="text-sm space-y-1">
+                    <p class="border-b pb-1 mb-2">
+                        <span class="text-gray-600">プレイ回数:</span>
+                        <span id="play-count" class="font-bold text-blue-600">0</span>
+                    </p>
+                    <p class="border-b pb-1">
+                        <span class="text-gray-600">平均スコア:</span>
+                        <span id="avg-score-sidebar" class="font-bold text-green-600">0</span>
+                    </p>
+                    <p class="border-b pb-1">
+                        <span class="text-gray-600">最高スコア:</span>
+                        <span id="high-score" class="font-bold text-orange-600">0</span>
+                    </p>
+                    <p class="border-b pb-1">
+                        <span class="text-gray-600">正答率:</span>
+                        <span id="accuracy-rate-sidebar" class="font-bold text-purple-600">0%</span>
+                    </p>
+                    <p class="text-xs text-gray-500 mt-2">
+                        最終更新: <span id="last-play-time">-</span>
+                    </p>
                 </div>
             </div>
 
             <div class="mt-6 border-t pt-4">
                 <h3 class="font-bold text-gray-700 mb-2">📊 スコア推移</h3>
-                <div id="score-history-mini" class="bg-gray-50 p-2 rounded text-sm">
-                    <p class="text-xs text-gray-500">ゲームをプレイするとスコア履歴が表示されます</p>
+                <div id="score-history-mini" class="bg-gray-50 p-2 rounded text-sm" style="min-height:100px">
+                    <canvas id="sidebar-chart" height="80" style="max-width:100%"></canvas>
                 </div>
             </div>
         </div>
@@ -397,10 +415,22 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         <div id="problem-number" class="text-sm text-gray-600 text-center mb-2">問題 1</div>
                         <div id="problem-text" class="text-3xl text-center font-bold mb-8">7 + 8 = ?</div>
                         <div class="grid grid-cols-2 gap-4">
-                            <button class="answer-btn bg-blue-100 hover:bg-blue-200 text-blue-800 py-4 px-6 rounded-lg text-xl font-semibold transition-all" aria-label="答えを選ぶ: 12">12</button>
-                            <button class="answer-btn bg-blue-100 hover:bg-blue-200 text-blue-800 py-4 px-6 rounded-lg text-xl font-semibold transition-all" aria-label="答えを選ぶ: 15">15</button>
-                            <button class="answer-btn bg-blue-100 hover:bg-blue-200 text-blue-800 py-4 px-6 rounded-lg text-xl font-semibold transition-all" aria-label="答えを選ぶ: 16">16</button>
-                            <button class="answer-btn bg-blue-100 hover:bg-blue-200 text-blue-800 py-4 px-6 rounded-lg text-xl font-semibold transition-all" aria-label="答えを選ぶ: 14">14</button>
+                            <button class="answer-btn bg-blue-100 hover:bg-blue-200 text-blue-800 py-4 px-6 rounded-lg text-xl font-semibold transition-all relative" data-key="1" aria-label="答えを選ぶ: 12 (キー: 1)">
+                                <span>12</span>
+                                <span class="absolute top-1 right-2 text-xs font-bold text-blue-600 opacity-70">① 1</span>
+                            </button>
+                            <button class="answer-btn bg-blue-100 hover:bg-blue-200 text-blue-800 py-4 px-6 rounded-lg text-xl font-semibold transition-all relative" data-key="2" aria-label="答えを選ぶ: 15 (キー: 2)">
+                                <span>15</span>
+                                <span class="absolute top-1 right-2 text-xs font-bold text-blue-600 opacity-70">② 2</span>
+                            </button>
+                            <button class="answer-btn bg-blue-100 hover:bg-blue-200 text-blue-800 py-4 px-6 rounded-lg text-xl font-semibold transition-all relative" data-key="3" aria-label="答えを選ぶ: 16 (キー: 3)">
+                                <span>16</span>
+                                <span class="absolute top-1 right-2 text-xs font-bold text-blue-600 opacity-70">③ 3</span>
+                            </button>
+                            <button class="answer-btn bg-blue-100 hover:bg-blue-200 text-blue-800 py-4 px-6 rounded-lg text-xl font-semibold transition-all relative" data-key="4" aria-label="答えを選ぶ: 14 (キー: 4)">
+                                <span>14</span>
+                                <span class="absolute top-1 right-2 text-xs font-bold text-blue-600 opacity-70">④ 4</span>
+                            </button>
                         </div>
 
                         <!-- コンボ表示 -->
@@ -428,6 +458,28 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         <p class="mb-2">正答率: <span id="correct-rate" class="font-bold">80%</span></p>
                         <p>獲得スコア: <span id="earned-score" class="font-bold text-xl text-blue-600">850</span></p>
                     </div>
+
+                    <!-- Score Chart & Stats -->
+                    <div class="bg-white rounded-lg p-4 mb-6 max-w-md mx-auto shadow">
+                        <div id="score-stats" class="mb-4">
+                            <p class="text-sm text-gray-600">平均: <span id="avg-score" class="font-bold">0</span> | 最高: <span id="best-score" class="font-bold">0</span></p>
+                        </div>
+                        <canvas id="result-chart" height="80"></canvas>
+                    </div>
+
+                    <!-- Export Buttons -->
+                    <div class="flex flex-wrap justify-center gap-3 mb-6">
+                        <button id="print-result-btn" class="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white py-3 px-6 rounded-lg font-semibold text-sm sm:text-base transition-all transform hover:scale-105 active:scale-95 min-w-[120px]" aria-label="結果を印刷">
+                            🖨 印刷
+                        </button>
+                        <button id="copy-result-btn" class="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 px-6 rounded-lg font-semibold text-sm sm:text-base transition-all transform hover:scale-105 active:scale-95 min-w-[120px]" aria-label="結果をコピー">
+                            📋 コピー
+                        </button>
+                        <button id="export-csv-btn" class="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white py-3 px-6 rounded-lg font-semibold text-sm sm:text-base transition-all transform hover:scale-105 active:scale-95 min-w-[120px]" aria-label="CSVをダウンロード">
+                            📥 CSV
+                        </button>
+                    </div>
+
                     <div class="flex justify-center space-x-4 mb-6">
                         <button id="share-result-btn" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg flex items-center" aria-label="ゲーム結果をシェア">
                             <span aria-hidden="true" class="mr-2">🔗</span> 結果をシェア
@@ -450,6 +502,28 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         <p class="mb-2">正答率: <span id="game-over-correct-rate" class="font-bold text-red-700">0%</span></p>
                         <p>獲得スコア: <span id="game-over-score" class="font-bold text-2xl text-red-600">0</span></p>
                     </div>
+
+                    <!-- Score Chart & Stats -->
+                    <div class="bg-white rounded-lg p-4 mb-6 max-w-md mx-auto shadow">
+                        <div id="score-stats-go" class="mb-4">
+                            <p class="text-sm text-gray-600">平均: <span id="avg-score-go" class="font-bold">0</span> | 最高: <span id="best-score-go" class="font-bold">0</span></p>
+                        </div>
+                        <canvas id="result-chart-go" height="80"></canvas>
+                    </div>
+
+                    <!-- Export Buttons -->
+                    <div class="flex flex-wrap justify-center gap-3 mb-6">
+                        <button id="print-result-btn-go" class="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white py-3 px-6 rounded-lg font-semibold text-sm sm:text-base transition-all transform hover:scale-105 active:scale-95 min-w-[120px]" aria-label="結果を印刷">
+                            🖨 印刷
+                        </button>
+                        <button id="copy-result-btn-go" class="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 px-6 rounded-lg font-semibold text-sm sm:text-base transition-all transform hover:scale-105 active:scale-95 min-w-[120px]" aria-label="結果をコピー">
+                            📋 コピー
+                        </button>
+                        <button id="export-csv-btn-go" class="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white py-3 px-6 rounded-lg font-semibold text-sm sm:text-base transition-all transform hover:scale-105 active:scale-95 min-w-[120px]" aria-label="CSVをダウンロード">
+                            📥 CSV
+                        </button>
+                    </div>
+
                     <div>
                         <button id="retry-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg" aria-label="もう一度チャレンジ">
                             もう一度チャレンジ

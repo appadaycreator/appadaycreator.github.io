@@ -43,6 +43,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
 
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
 <style>
   body { background: #f8fafc; min-height: 100vh; }
   .site-header { background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%); }
@@ -294,6 +295,28 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="card p-6 mb-4">
       <h3 class="font-bold text-gray-800 mb-3">💰 節約ポイント</h3>
       <div id="saving-tips"></div>
+    </div>
+
+    <!-- スコアゲージ（Chart.js） -->
+    <div class="card p-6 mb-4">
+      <h3 class="font-bold text-gray-800 mb-3">📊 スコア可視化</h3>
+      <canvas id="scoreGaugeChart" style="max-height:120px;"></canvas>
+      <p style="font-size:0.8rem;color:#6b7280;margin-top:8px;text-align:center;">スコア：<span id="gauge-score-text">0</span>点（0-100）</p>
+    </div>
+
+    <!-- 質問別寄与度グラフ -->
+    <div class="card p-6 mb-4">
+      <h3 class="font-bold text-gray-800 mb-3">📈 質問別スコア内訳</h3>
+      <canvas id="contributionChart" style="max-height:200px;"></canvas>
+    </div>
+
+    <!-- 過去の診断履歴 -->
+    <div class="card p-6 mb-4">
+      <h3 class="font-bold text-gray-800 mb-3">📝 過去の診断履歴</h3>
+      <div id="history-list" style="max-height:300px;overflow-y:auto;"></div>
+      <button class="btn-secondary" style="margin-top:12px;font-size:0.9rem;" onclick="clearAllHistory()" aria-label="履歴をクリア">
+        🗑️ 履歴を全削除
+      </button>
     </div>
 
     <!-- AdSense広告 -->
@@ -636,6 +659,16 @@ function showResults() {
   if (lineEl) lineEl.href = 'https://line.me/R/share?text=' + encodeURIComponent(shareText + ' ' + shareUrl);
   var xEl = document.getElementById('share-x');
   if (xEl) xEl.href = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText) + '&url=' + encodeURIComponent(shareUrl) + '&via=appadaycreator';
+
+  // M3: 履歴を localStorage に保存
+  saveToHistory(ans, level, totalScore);
+
+  // M4: グラフを描画
+  setTimeout(function() {
+    renderScoreGauge(totalScore, level);
+    renderContributionChart(ans);
+    renderHistoryList();
+  }, 300);
 }
 
 function restart() {
@@ -644,6 +677,181 @@ function restart() {
   totalScore = 0;
   show('intro');
 }
+
+// M3: localStorage にデータを保存する関数
+function saveToHistory(ans, level, score) {
+  try {
+    var history = JSON.parse(localStorage.getItem('gadgetDiagnosisHistory') || '[]');
+    var entry = {
+      timestamp: new Date().toISOString(),
+      ans: ans,
+      level: level,
+      score: score
+    };
+    history.unshift(entry);
+    // 最大5件まで保持
+    if (history.length > 5) history.pop();
+    localStorage.setItem('gadgetDiagnosisHistory', JSON.stringify(history));
+  } catch(e) {
+    console.log('履歴保存エラー:', e);
+  }
+}
+
+// 過去の診断履歴を復元・表示する関数
+function renderHistoryList() {
+  var historyListEl = document.getElementById('history-list');
+  try {
+    var history = JSON.parse(localStorage.getItem('gadgetDiagnosisHistory') || '[]');
+    if (history.length === 0) {
+      historyListEl.innerHTML = '<p style="color:#9ca3af;text-align:center;font-size:0.9rem;">過去の診断はまだありません</p>';
+      return;
+    }
+    var html = '<div style="display:grid;grid-template-columns:1fr;gap:8px;">';
+    history.forEach(function(item, idx) {
+      var date = new Date(item.timestamp);
+      var dateStr = date.toLocaleString('ja-JP', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+      var levelLabel = {
+        'urgent': '今すぐ',
+        'soon': '半年以内',
+        'later': '1年以内',
+        'ok': 'まだ大丈夫'
+      }[item.level] || '';
+      html += '<button style="text-align:left;padding:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background=\'#eff6ff\'" onmouseout="this.style.background=\'#f8fafc\'" onclick="restoreFromHistory(' + idx + ')">';
+      html += '<div style="font-weight:700;color:#1f2937;">' + item.score + '点 - ' + levelLabel + '</div>';
+      html += '<div style="font-size:0.8rem;color:#9ca3af;">' + dateStr + '</div>';
+      html += '</button>';
+    });
+    html += '</div>';
+    historyListEl.innerHTML = html;
+  } catch(e) {
+    console.log('履歴読み込みエラー:', e);
+  }
+}
+
+// 過去の診断データを復元する関数
+function restoreFromHistory(index) {
+  try {
+    var history = JSON.parse(localStorage.getItem('gadgetDiagnosisHistory') || '[]');
+    if (index < history.length) {
+      var entry = history[index];
+      ans = entry.ans;
+      cur = Qs.length; // 全問回答済みにする
+      totalScore = entry.score;
+      showResults();
+      window.scrollTo(0, 0);
+    }
+  } catch(e) {
+    console.log('復元エラー:', e);
+  }
+}
+
+// 全履歴を削除する関数
+function clearAllHistory() {
+  if (confirm('本当に全ての履歴を削除しますか？')) {
+    try {
+      localStorage.removeItem('gadgetDiagnosisHistory');
+      renderHistoryList();
+    } catch(e) {
+      console.log('削除エラー:', e);
+    }
+  }
+}
+
+// M4: スコアゲージを描画する関数
+function renderScoreGauge(score, level) {
+  var canvas = document.getElementById('scoreGaugeChart');
+  if (!canvas || !window.Chart) return;
+
+  var ctx = canvas.getContext('2d');
+  if (window.scoreGaugeChart) window.scoreGaugeChart.destroy();
+
+  var colors = {
+    'ok': '#2563eb',
+    'later': '#059669',
+    'soon': '#d97706',
+    'urgent': '#ef4444'
+  };
+
+  window.scoreGaugeChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['スコア', '残り'],
+      datasets: [{
+        data: [score, 100 - score],
+        backgroundColor: [colors[level], '#e5e7eb'],
+        borderColor: ['#fff', '#fff'],
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: true }
+      }
+    }
+  });
+
+  document.getElementById('gauge-score-text').textContent = score;
+}
+
+// 質問別寄与度グラフを描画する関数
+function renderContributionChart(ans) {
+  var canvas = document.getElementById('contributionChart');
+  if (!canvas || !window.Chart) return;
+
+  var ctx = canvas.getContext('2d');
+  if (window.contributionChart) window.contributionChart.destroy();
+
+  var labels = ['使用年数', '困っていること', '使用目的', 'OSサポート', '予算', '購入方法'];
+  var scores = [];
+  labels.forEach(function(_, i) {
+    var q = Qs[i];
+    if (ans[q.key]) {
+      scores.push(ans[q.key].score || 0);
+    } else {
+      scores.push(0);
+    }
+  });
+
+  window.contributionChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'スコア寄与度',
+        data: scores,
+        backgroundColor: '#2563eb',
+        borderColor: '#1d4ed8',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      indexAxis: 'y',
+      plugins: {
+        legend: { display: true, position: 'top' }
+      },
+      scales: {
+        x: {
+          beginAtZero: true,
+          max: 50
+        }
+      }
+    }
+  });
+}
+
+// ページロード時に初期化
+window.addEventListener('DOMContentLoaded', function() {
+  // 結果画面で履歴を表示（最初は hidden）
+  var resultsScreen = document.getElementById('screen-results');
+  if (resultsScreen && !resultsScreen.classList.contains('active')) {
+    // renderHistoryList() は showResults() 後に実行される
+  }
+});
 </script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"スマホ・PC買い替えタイミング診断【無料】今が替え時？","description":"現在の機種・使用年数・不満点から最適な買い替えタイミングを無料診断。損しない買い替え判断。","url":"https://appadaycreator.com/gadget-timing-advisor/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"}}</script>
 

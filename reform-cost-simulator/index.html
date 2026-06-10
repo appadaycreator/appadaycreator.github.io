@@ -175,6 +175,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="grid grid-cols-2 gap-2 mb-5" id="parts-container"></div>
 
     <button class="btn-primary" onclick="calculate()" aria-label="費用を計算する →">費用を計算する →</button>
+
+    <div id="history-section" style="margin-top:12px;">
+      <button onclick="showHistory()" style="width:100%;padding:8px;border:1px solid #cbd5e1;border-radius:0.75rem;background:#f0f9ff;color:#0284c7;font-size:0.875rem;cursor:pointer;font-weight:600;margin-bottom:6px;" aria-label="履歴を表示">📜 前回の計算結果を確認</button>
+    </div>
   </div>
 
   <div id="results" class="card p-6 mb-4" style="display:none;">
@@ -195,7 +199,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
       ⚠️ 上記は参考価格です。建物の状態・施工業者により実際の費用は異なります。複数社から見積もりを取ることをおすすめします。
     </div>
-    <div class="flex gap-2 mt-4">
+
+    <div class="flex gap-2 mt-4" style="flex-wrap:wrap;">
+      <button onclick="copyResult()" style="flex:1;min-width:80px;display:block;text-align:center;background:#8b5cf6;color:white;padding:8px;border:none;border-radius:8px;font-size:12px;font-weight:bold;cursor:pointer;text-decoration:none;">📋 コピー</button>
+      <button onclick="printResult()" style="flex:1;min-width:80px;display:block;text-align:center;background:#6366f1;color:white;padding:8px;border:none;border-radius:8px;font-size:12px;font-weight:bold;cursor:pointer;text-decoration:none;">🖨️ 印刷</button>
+      <button onclick="downloadResult()" style="flex:1;min-width:80px;display:block;text-align:center;background:#0ea5e9;color:white;padding:8px;border:none;border-radius:8px;font-size:12px;font-weight:bold;cursor:pointer;text-decoration:none;">📥 DL</button>
+    </div>
+
+    <div class="flex gap-2 mt-2">
       <a id="share-line-result" href="#" target="_blank" rel="noopener"
          style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:8px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">
         LINEでシェア
@@ -206,6 +217,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       </a>
     </div>
     <button onclick="resetForm()" style="margin-top:12px;width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:0.75rem;background:white;color:#6b7280;font-size:0.875rem;cursor:pointer;font-weight:600;" aria-label="もう一度試す">↩ もう一度試す</button>
+  </div>
+
+  <div id="history-modal" class="card p-6 mb-4" style="display:none;">
+    <h2 class="font-bold text-gray-800 mb-4">📜 計算履歴</h2>
+    <div id="history-list" style="space-y:2;"></div>
+    <button onclick="closeHistory()" style="margin-top:12px;width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:0.75rem;background:white;color:#6b7280;font-size:0.875rem;cursor:pointer;font-weight:600;">閉じる</button>
+    <button onclick="clearHistory()" style="margin-top:8px;width:100%;padding:10px;border:2px solid #fee2e2;border-radius:0.75rem;background:#fef2f2;color:#7f1d1d;font-size:0.875rem;cursor:pointer;font-weight:600;">履歴をすべてクリア</button>
   </div>
 
   <div class="card p-6 mb-4" id="affiliate-section" style="display:none;">
@@ -241,6 +259,7 @@ var reformParts = [
 ];
 
 var selected = {};
+var currentResult = null;
 
 function init() {
   var c = document.getElementById('parts-container');
@@ -255,6 +274,67 @@ function init() {
     };
     c.appendChild(btn);
   });
+}
+
+function getHistory() {
+  try {
+    var h = localStorage.getItem('reformHistory');
+    return h ? JSON.parse(h) : [];
+  } catch(e) {
+    return [];
+  }
+}
+
+function saveToHistory(calc) {
+  var history = getHistory();
+  history.unshift({ timestamp: new Date().toLocaleString('ja-JP'), data: calc });
+  if(history.length > 20) history.pop();
+  try { localStorage.setItem('reformHistory', JSON.stringify(history)); } catch(e) {}
+}
+
+function showHistory() {
+  var history = getHistory();
+  var list = document.getElementById('history-list');
+  list.innerHTML = '';
+  if(history.length === 0) {
+    list.innerHTML = '<p style="color:#6b7280;font-size:0.875rem;">まだ計算履歴がありません</p>';
+  } else {
+    history.forEach(function(item, idx) {
+      var div = document.createElement('div');
+      div.style.cssText = 'padding:10px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:8px;cursor:pointer;transition:background 0.2s;';
+      div.innerHTML = '<div style="font-size:0.875rem;color:#374151;font-weight:600;">'+item.timestamp+'</div><div style="font-size:0.75rem;color:#6b7280;margin-top:4px;">'+item.data.parts+'</div>';
+      div.onmouseover = function() { this.style.background = '#f0f9ff'; };
+      div.onmouseout = function() { this.style.background = 'transparent'; };
+      div.onclick = function() { restoreFromHistory(item.data); closeHistory(); };
+      list.appendChild(div);
+    });
+  }
+  document.getElementById('history-modal').style.display = 'block';
+  document.getElementById('history-modal').scrollIntoView({behavior:'smooth'});
+}
+
+function closeHistory() {
+  document.getElementById('history-modal').style.display = 'none';
+}
+
+function clearHistory() {
+  if(confirm('すべての履歴を削除してもいいですか？')) {
+    try { localStorage.removeItem('reformHistory'); } catch(e) {}
+    showHistory();
+  }
+}
+
+function restoreFromHistory(calc) {
+  document.getElementById('house-type').value = calc.houseType;
+  document.getElementById('years').value = calc.years;
+  document.getElementById('grade').value = calc.grade;
+  selected = {};
+  calc.selectedKeys.forEach(function(key) { selected[key] = true; });
+  document.querySelectorAll('.part-btn').forEach(function(btn) {
+    if(selected[btn.dataset.key]) { btn.classList.add('selected'); }
+    else { btn.classList.remove('selected'); }
+  });
+  calculate();
 }
 
 function calculate() {
@@ -274,6 +354,7 @@ function calculate() {
   var totalLow = 0, totalHigh = 0;
   var breakdown = [];
   var subsidies = [];
+  var selectedKeys = Object.keys(selected);
 
   reformParts.forEach(function(p) {
     if(selected[p.key]) {
@@ -285,6 +366,21 @@ function calculate() {
       if(p.subsidy && p.subsidyNote) { subsidies.push(p.subsidyNote); }
     }
   });
+
+  currentResult = {
+    houseType: houseType,
+    years: years,
+    grade: grade,
+    gradeLabel: gradeLabel,
+    selectedKeys: selectedKeys,
+    parts: selectedKeys.map(function(k) { var p = reformParts.find(function(x) { return x.key === k; }); return p ? p.emoji+' '+p.name : ''; }).join('、'),
+    totalLow: totalLow,
+    totalHigh: totalHigh,
+    breakdown: breakdown,
+    subsidies: subsidies
+  };
+
+  saveToHistory(currentResult);
 
   document.getElementById('r-total-low').textContent = '約'+Math.round(totalLow/10000)+'万円〜';
   document.getElementById('r-total-range').textContent = gradeLabel+'グレード・高い場合 '+Math.round(totalHigh/10000)+'万円まで';
@@ -320,7 +416,61 @@ function resetForm() {
   document.querySelectorAll('.part-btn').forEach(function(btn) { btn.classList.remove('selected'); });
   document.getElementById('results').style.display = 'none';
   document.getElementById('affiliate-section').style.display = 'none';
+  document.getElementById('history-modal').style.display = 'none';
   document.getElementById('main').scrollIntoView({ behavior: 'smooth' });
+}
+
+function copyResult() {
+  if(!currentResult) return;
+  var text = 'リフォーム費用シミュレーター結果\n\n';
+  text += '【工事箇所】\n'+currentResult.parts+'\n\n';
+  text += '【建物情報】\n';
+  text += 'タイプ: '+(currentResult.houseType==='house'?'一戸建て':'マンション')+'\n';
+  text += '築年数: '+currentResult.years+'\n';
+  text += 'グレード: '+currentResult.gradeLabel+'\n\n';
+  text += '【費用相場】\n約'+Math.round(currentResult.totalLow/10000)+'万円〜約'+Math.round(currentResult.totalHigh/10000)+'万円\n\n';
+  text += '【項目別内訳】\n';
+  currentResult.breakdown.forEach(function(b) {
+    text += b.name+': '+Math.round(b.low/10000)+'〜'+Math.round(b.high/10000)+'万円\n';
+  });
+  if(currentResult.subsidies.length > 0) {
+    text += '\n【対象補助金】\n'+currentResult.subsidies.join('\n');
+  }
+  navigator.clipboard.writeText(text).then(function() {
+    alert('✅ 結果をコピーしました');
+  }).catch(function() {
+    alert('⚠️ コピーに失敗しました');
+  });
+}
+
+function printResult() {
+  window.print();
+}
+
+function downloadResult() {
+  if(!currentResult) return;
+  var text = 'リフォーム費用シミュレーター結果\n\n';
+  text += '【工事箇所】\n'+currentResult.parts+'\n\n';
+  text += '【建物情報】\n';
+  text += 'タイプ: '+(currentResult.houseType==='house'?'一戸建て':'マンション')+'\n';
+  text += '築年数: '+currentResult.years+'\n';
+  text += 'グレード: '+currentResult.gradeLabel+'\n\n';
+  text += '【費用相場】\n約'+Math.round(currentResult.totalLow/10000)+'万円〜約'+Math.round(currentResult.totalHigh/10000)+'万円\n\n';
+  text += '【項目別内訳】\n';
+  currentResult.breakdown.forEach(function(b) {
+    text += b.name+': '+Math.round(b.low/10000)+'〜'+Math.round(b.high/10000)+'万円\n';
+  });
+  if(currentResult.subsidies.length > 0) {
+    text += '\n【対象補助金】\n'+currentResult.subsidies.join('\n');
+  }
+  var now = new Date();
+  var dateStr = now.getFullYear()+''+String(now.getMonth()+1).padStart(2,'0')+String(now.getDate()).padStart(2,'0')+'-'+String(now.getHours()).padStart(2,'0')+String(now.getMinutes()).padStart(2,'0')+String(now.getSeconds()).padStart(2,'0');
+  var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'reform-result-'+dateStr+'.txt';
+  link.click();
+  URL.revokeObjectURL(link.href);
 }
 
 init();

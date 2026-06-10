@@ -35,6 +35,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
 <script>window.onerror=function(m,s,l,c,e){console.warn('Error:',m);return true;};window.addEventListener('unhandledrejection',function(e){console.warn('Rejection:',e.reason);});</script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   body{background: #f8fafc;min-height:100vh;}
   .card{background:white;border-radius:1rem;box-shadow:0 4px 24px rgba(0,0,0,0.09);}
@@ -230,7 +231,17 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <div><a href="/electricity-cost-advisor/" class="text-green-600 underline">移住後の電気代削減診断 →</a></div>
       <div><a href="/real-estate-investment-sim/" class="text-green-600 underline">移住先で不動産投資を検討する →</a></div>
     </div>
-    <button class="btn-primary" style="background:#059669;transition:all 0.2s ease;" onmouseover="this.style.transform='scale(1.03)'; this.style.background='#047857';" onmouseout="this.style.transform='scale(1)'; this.style.background='#059669';" onclick="restart()" aria-label="もう一度診断する">もう一度診断する</button>
+    <div class="space-y-3 mb-4">
+      <button class="btn-primary" style="background:#059669;transition:all 0.2s ease;" onmouseover="this.style.transform='scale(1.03)'; this.style.background='#047857';" onmouseout="this.style.transform='scale(1)'; this.style.background='#059669';" onclick="restart()" aria-label="もう一度診断する">もう一度診断する</button>
+      <div class="card p-4">
+        <h3 class="font-bold text-gray-800 mb-3 text-sm">📚 過去の診断履歴</h3>
+        <div id="history-list" style="max-height:300px;overflow-y:auto;"></div>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <button onclick="printResults()" style="background:#6366f1;color:white;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:bold;cursor:pointer">📄 印刷</button>
+        <button onclick="exportResults()" style="background:#8b5cf6;color:white;border:none;border-radius:6px;padding:10px;font-size:13px;font-weight:bold;cursor:pointer">📊 CSV出力</button>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -252,7 +263,85 @@ var areasMap={
 };
 
 var cur=0,ans={};
-function startDiagnosis(){cur=0;ans={};show('questions');renderQ();}
+
+// localStorage 処理
+function loadFromStorage(){
+  try{
+    var saved=localStorage.getItem('relocation_answers');
+    if(saved){ans=JSON.parse(saved);}
+  }catch(e){console.warn('localStorage 読み込みエラー',e);}
+}
+
+function saveToStorage(){
+  try{localStorage.setItem('relocation_answers',JSON.stringify(ans));}catch(e){console.warn('localStorage 保存エラー',e);}
+}
+
+function saveHistoryEntry(){
+  try{
+    var history=JSON.parse(localStorage.getItem('relocation_history')||'[]');
+    var entry={
+      timestamp:new Date().toLocaleString('ja-JP'),
+      answers:ans,
+      results:{
+        movingCost:window._lastMovingCost,
+        monthlySave:window._lastMonthlySave,
+        annualSave:window._lastAnnualSave,
+        breakEvenYear:window._lastBreakEvenYear,
+        tenYearSave:window._lastTenYearSave,
+        areaKey:window._lastAreaKey
+      }
+    };
+    history.unshift(entry);
+    if(history.length>5)history.pop();
+    localStorage.setItem('relocation_history',JSON.stringify(history));
+  }catch(e){console.warn('履歴保存エラー',e);}
+}
+
+function loadHistoryEntry(idx){
+  try{
+    var history=JSON.parse(localStorage.getItem('relocation_history')||'[]');
+    if(history[idx]){
+      ans=history[idx].answers;
+      cur=5;
+      show('loading');
+      setTimeout(showResults,1600);
+    }
+  }catch(e){console.warn('履歴読み込みエラー',e);}
+}
+
+function clearHistory(){
+  if(confirm('履歴を全て削除してもよろしいですか？')){
+    try{localStorage.removeItem('relocation_history');}catch(e){}
+    displayHistory();
+  }
+}
+
+function displayHistory(){
+  try{
+    var history=JSON.parse(localStorage.getItem('relocation_history')||'[]');
+    var historyEl=document.getElementById('history-list');
+    if(!historyEl)return;
+    if(history.length===0){
+      historyEl.innerHTML='<p style="color:#9ca3af;font-size:14px;">履歴がありません</p>';
+      return;
+    }
+    var html='';
+    history.forEach(function(h,i){
+      var ans=h.answers;
+      html+='<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px;margin-bottom:8px;cursor:pointer" onclick="loadHistoryEntry('+i+')" title="この診断を復元">'
+        +'<div style="font-size:12px;color:#9ca3af;margin-bottom:6px">'+h.timestamp+'</div>'
+        +'<div style="font-size:13px;color:#1e293b">'
+        +'<strong>'+h.results.movingCost+'円</strong> '
+        +'10年で<strong>'+h.results.tenYearSave+'万円</strong>'
+        +'</div>'
+        +'</div>';
+    });
+    html+='<button onclick="clearHistory()" style="width:100%;padding:8px;background:none;border:1px solid #d1d5db;border-radius:6px;color:#6b7280;font-size:13px;cursor:pointer">🗑 履歴をクリア</button>';
+    historyEl.innerHTML=html;
+  }catch(e){console.warn('履歴表示エラー',e);}
+}
+
+function startDiagnosis(){cur=0;ans={};loadFromStorage();show('questions');renderQ();}
 function show(name){document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});document.getElementById('screen-'+name).classList.add('active');}
 function renderQ(){
   var q=Qs[cur];var pct=Math.round((cur+1)/Qs.length*100);
@@ -274,6 +363,7 @@ function renderQ(){
 function goBack(){if(cur>0){cur--;renderQ();}}
 function pick(i,val,key){
   ans[key]={i:i,val:val};
+  saveToStorage();
   document.querySelectorAll('.option-btn').forEach(function(b,j){b.classList.toggle('selected',j===i);});
   setTimeout(function(){cur++;if(cur<Qs.length){renderQ();}else{show('loading');setTimeout(showResults,1600);}},300);
 }
@@ -297,24 +387,57 @@ function showResults(){
   document.getElementById('r-monthly-change').textContent='月▲'+Math.round(monthlySave/1000)+'千円の削減見込み';
   document.getElementById('r-annual-save').textContent=tenYearSave>0?'10年で約'+Math.round(tenYearSave/10000)+'万円の節約':'移住費用は'+breakEvenYear+'年目頃に回収見込み';
 
-  // 10年資産推移グラフ（修正版：正しいスケーリング）
-  var maxVal=annualSave*10;
-  var tl='';
-  var cumulative=-movingCost;
+  // Chart.js による10年資産推移グラフ
+  window._lastMovingCost=movingCost;
+  window._lastMonthlySave=monthlySave;
+  window._lastAnnualSave=annualSave;
+  window._lastBreakEvenYear=breakEvenYear;
+  window._lastTenYearSave=tenYearSave;
+
+  var chartData=[];var labels=[];var cumulative=-movingCost;
   for(var y=1;y<=10;y++){
     cumulative+=annualSave;
-    var isPositive=cumulative>=0;
-    var bal=isPositive?'+'+Math.round(cumulative/10000)+'万円':'▲'+Math.round(Math.abs(cumulative)/10000)+'万円';
-    var barLen=isPositive?Math.max(1,Math.round(cumulative/maxVal*8)):0;
-    var color=isPositive?'#15803d':'#dc2626';
-    tl+='<div style="display:flex;align-items:center;gap:4px;padding:2px 0;">'
-      +'<span style="min-width:28px;font-size:10px;color:#9ca3af;">'+y+'年</span>'
-      +'<span style="color:'+color+';font-family:monospace;flex:1;">'+(isPositive?'█'.repeat(barLen):'·')+'</span>'
-      +'<span style="font-size:11px;color:'+color+';min-width:70px;text-align:right;">'+bal+'</span>'
-      +(y===breakEvenYear?'<span style="font-size:10px;color:#7c3aed;white-space:nowrap;margin-left:4px;">← 回収</span>':'')
-      +'</div>';
+    chartData.push(cumulative);
+    labels.push(y+'年');
   }
-  document.getElementById('r-timeline').innerHTML=tl;
+
+  var timelineCanvas='<canvas id="timeline-chart" style="max-height:300px;"></canvas>';
+  document.getElementById('r-timeline').innerHTML=timelineCanvas;
+
+  setTimeout(function(){
+    var ctx=document.getElementById('timeline-chart');
+    if(ctx){
+      new Chart(ctx,{
+        type:'bar',
+        data:{
+          labels:labels,
+          datasets:[{
+            label:'累積額',
+            data:chartData,
+            backgroundColor:chartData.map(function(v){return v>=0?'#15803d':'#dc2626';}),
+            borderColor:'#e2e8f0',
+            borderWidth:1
+          }]
+        },
+        options:{
+          responsive:true,
+          maintainAspectRatio:true,
+          plugins:{
+            legend:{display:true,labels:{color:'#374151',font:{size:12}}},
+            tooltip:{callbacks:{label:function(ctx){return Math.round(ctx.parsed.y/10000)+'万円';}}}
+          },
+          scales:{
+            y:{
+              ticks:{callback:function(v){return Math.round(v/100000)+'0万円';}},
+              grid:{color:'#e2e8f0'},
+              beginAtZero:true
+            },
+            x:{grid:{display:false}}
+          }
+        }
+      });
+    }
+  },50);
 
   // 検討項目チェックリスト
   var checkItems=['☑ 気候・自然環境は本当に合っているか？','☑ 通勤・通学時間は実現可能か？','☑ 医療施設・学校は近いか？','☑ 地元コミュニティに馴染めるか？','☑ 転職先・収入は確保できるか？','☑ インターネット・ライフラインは十分か？','☑ 定期的に実家に帰省できるか？'];
@@ -351,10 +474,52 @@ function showResults(){
   });
 
   document.getElementById('aff-area').innerHTML='<div class="space-y-2"><a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ7+DFIAJU+4ZCO+60OXE" rel="nofollow" target="_blank" rel="noopener sponsored" class="block text-center bg-green-600 text-white font-bold py-3 rounded-lg text-sm hover:bg-green-700 transition">移住相談・無料セミナーに参加する →</a><a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ8+9YH9II+40OC+C3BAP" rel="nofollow" target="_blank" rel="noopener sponsored" class="block text-center bg-emerald-500 text-white font-bold py-3 rounded-lg text-sm hover:bg-emerald-600 transition">地方の物件を探す →</a></div>';
+
+  // 結果を履歴に保存
+  window._lastAreaKey=purposeIdx===0?'cost':purposeIdx===1?'nature':workIdx===0?'telework':'balance';
+  saveHistoryEntry();
+
   show('results');
+  displayHistory();
   window.scrollTo({top:0,behavior:'smooth'});
 }
-function restart(){cur=0;ans={};show('intro');}
+function restart(){cur=0;ans={};localStorage.removeItem('relocation_answers');show('intro');}
+
+function printResults(){
+  window.print();
+}
+
+function exportResults(){
+  try{
+    var csvHeader='項目,値\n';
+    var csvData='移住初期費用,約'+Math.round(window._lastMovingCost/10000)+'万円\n'
+      +'月額削減額,月▲'+Math.round(window._lastMonthlySave/1000)+'千円\n'
+      +'年間節約額,'+window._lastAnnualSave+'円\n'
+      +'損益分岐年,'+window._lastBreakEvenYear+'年目\n'
+      +'10年後の累積節約,'+Math.round(window._lastTenYearSave/10000)+'万円\n'
+      +'回答情報,\n';
+
+    for(var key in ans){
+      if(ans[key].val){
+        csvData+='　'+key+','+ans[key].val+'\n';
+      }
+    }
+
+    var csv=csvHeader+csvData;
+    var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+    var link=document.createElement('a');
+    var url=URL.createObjectURL(blob);
+    link.setAttribute('href',url);
+    link.setAttribute('download','relocation-diagnosis.csv');
+    link.style.visibility='hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }catch(e){
+    alert('エクスポート処理でエラーが発生しました');
+    console.warn(e);
+  }
+}
 </script>
 <div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px auto;max-width:680px;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">入力された値を計算式やスコアリングロジックで処理し、あなたに合った結果を算出します。本ツールの結果はあくまで参考情報です。重要な判断の際は専門家にご相談ください。</p></div>
 <section style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 16px;margin-top:16px;max-width:720px;margin-left:auto;margin-right:auto;">

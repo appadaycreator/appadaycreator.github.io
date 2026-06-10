@@ -39,6 +39,7 @@
   <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","s3t9vl8h3v");</script>
 
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <script>
     window.onerror = function(msg, src, line, col, err) {
@@ -161,6 +162,30 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <!-- Intro -->
     <div class="bg-white rounded-2xl shadow p-6 mb-6">
       <p class="text-gray-600 text-sm leading-relaxed">フリーランス・副業で生産性を上げるには、<strong class="text-indigo-700">適切なSaaSツール選び</strong>が重要です。職種・悩み・チーム規模・予算から、あなたに合うツールをカテゴリ別にご提案します。</p>
+    </div>
+
+    <!-- M3: History Section -->
+    <div id="history-section" class="bg-blue-50 rounded-2xl shadow p-6 mb-6 border border-blue-200">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-bold text-blue-900">📚 診断履歴</h3>
+        <button onclick="clearHistory()" style="background:none;border:none;color:#0369a1;cursor:pointer;font-size:0.8rem;text-decoration:underline;">履歴をクリア</button>
+      </div>
+      <div id="history-panel" class="text-sm text-gray-600">診断履歴がありません</div>
+    </div>
+
+    <!-- M6: Goal Setting Section -->
+    <div class="bg-amber-50 rounded-2xl shadow p-6 mb-6 border border-amber-200">
+      <h3 class="text-sm font-bold text-amber-900 mb-3">🎯 ツール最適化の目標</h3>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-2">目標ツール数</label>
+          <input id="goal-tool-count" type="number" min="1" max="10" value="5" class="w-full px-3 py-2 border border-amber-200 rounded-lg text-sm" placeholder="目標ツール数を入力" onchange="saveGoal({toolCount: parseInt(this.value)})">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-700 mb-2">月額予算（円）</label>
+          <input id="goal-budget" type="number" min="0" step="1000" value="10000" class="w-full px-3 py-2 border border-amber-200 rounded-lg text-sm" placeholder="月額予算を入力" onchange="saveGoal({budget: parseInt(this.value)})">
+        </div>
+      </div>
     </div>
 
     <!-- Quiz -->
@@ -351,6 +376,62 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   <p style="margin:0;">ご意見・ご要望・不具合のご報告は <a href="mailto:appadaycreator@gmail.com" style="color:#0369a1;font-weight:bold;">appadaycreator@gmail.com</a> または <a href="contact.html" style="color:#0369a1;">お問い合わせフォーム</a> へ</p>
 </section></div>
 <script>
+    // M3: localStorage functions for data saving & history
+    const storageKey = 'saasToolAdvisorData';
+    const goalKey = 'saasToolAdvisorGoal';
+    const historyKey = 'saasToolAdvisorHistory';
+
+    function saveToLocalStorage() {
+      const data = {
+        answers: answers,
+        timestamp: new Date().toISOString(),
+        categories: getToolCategories ? getToolCategories() : []
+      };
+      const history = JSON.parse(localStorage.getItem(historyKey) || '[]');
+      history.unshift(data);
+      if (history.length > 10) history.pop();
+      localStorage.setItem(historyKey, JSON.stringify(history));
+      localStorage.setItem(storageKey, JSON.stringify(data));
+    }
+
+    function loadFromLocalStorage() {
+      const saved = localStorage.getItem(storageKey);
+      return saved ? JSON.parse(saved) : null;
+    }
+
+    function getHistory() {
+      return JSON.parse(localStorage.getItem(historyKey) || '[]');
+    }
+
+    function saveGoal(goal) {
+      const currentGoal = loadGoal() || {};
+      const updated = { ...currentGoal, ...goal, timestamp: new Date().toISOString() };
+      localStorage.setItem(goalKey, JSON.stringify(updated));
+    }
+
+    function loadGoal() {
+      const saved = localStorage.getItem(goalKey);
+      return saved ? JSON.parse(saved) : null;
+    }
+
+    function loadGoalUI() {
+      const goal = loadGoal();
+      if (goal) {
+        const toolCountInput = document.getElementById('goal-tool-count');
+        const budgetInput = document.getElementById('goal-budget');
+        if (toolCountInput && goal.toolCount) toolCountInput.value = goal.toolCount;
+        if (budgetInput && goal.budget) budgetInput.value = goal.budget;
+      }
+    }
+
+    function clearHistory() {
+      if (confirm('診断履歴を削除してもよろしいですか？')) {
+        localStorage.removeItem(historyKey);
+        localStorage.removeItem(storageKey);
+        displayHistory();
+      }
+    }
+
     const questions = [
       {
         id: 'job',
@@ -525,9 +606,95 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if (currentStep > 0) { currentStep--; renderQuestion(); }
     }
 
+    function createToolDistributionChart() {
+      const categories = getToolCategories();
+      const chartCanvas = document.getElementById('tool-distribution-chart');
+      if (!chartCanvas || !window.Chart) return;
+
+      const labels = categories.map(catKey => toolDatabase[catKey].category);
+      const isFreeOnly = answers.budget === '無料ツールのみ使いたい';
+
+      const freeToolCounts = categories.map(catKey => {
+        const cat = toolDatabase[catKey];
+        return isFreeOnly ? cat.free.length : cat.free.length;
+      });
+      const paidToolCounts = categories.map(catKey => {
+        const cat = toolDatabase[catKey];
+        return isFreeOnly ? 0 : cat.paid.length;
+      });
+
+      if (window.toolDistributionChart) window.toolDistributionChart.destroy();
+      window.toolDistributionChart = new Chart(chartCanvas, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: '無料ツール',
+              data: freeToolCounts,
+              backgroundColor: '#86efac',
+              borderRadius: 6
+            },
+            ...(isFreeOnly ? [] : [{
+              label: '有料ツール',
+              data: paidToolCounts,
+              backgroundColor: '#a5b4fc',
+              borderRadius: 6
+            }])
+          ]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { usePointStyle: true, padding: 15 } }
+          },
+          scales: {
+            x: { beginAtZero: true, max: 5 },
+            y: { ticks: { font: { size: 11 } } }
+          }
+        }
+      });
+    }
+
+    function createCategoryPreferenceChart() {
+      const answerLabels = [];
+      const answerValues = [];
+      if (answers.job) answerLabels.push('職種'), answerValues.push(answers.job.length);
+      if (answers.pain) answerLabels.push('悩み'), answerValues.push(answers.pain.length);
+      if (answers.budget) answerLabels.push('予算'), answerValues.push(answers.budget.length);
+      if (answers.os) answerLabels.push('OS'), answerValues.push(answers.os.length);
+
+      const chartCanvas = document.getElementById('preference-chart');
+      if (!chartCanvas || !window.Chart) return;
+
+      if (window.preferenceChart) window.preferenceChart.destroy();
+      window.preferenceChart = new Chart(chartCanvas, {
+        type: 'doughnut',
+        data: {
+          labels: ['職種', '悩み', '予算', 'OS'],
+          datasets: [{
+            data: [1, 1, 1, 1],
+            backgroundColor: ['#4f46e5', '#7c3aed', '#ec4899', '#f59e0b'],
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { usePointStyle: true, padding: 15, font: { size: 12 } } }
+          }
+        }
+      });
+    }
+
     function showResult() {
       document.getElementById('quiz-section').classList.add('hidden');
       document.getElementById('result-section').classList.remove('hidden');
+
+      saveToLocalStorage();
 
       const shareText = encodeURIComponent('SaaSツール診断で最適なビジネスツールが見つかりました！');
       const shareUrl = encodeURIComponent('https://appadaycreator.com/saas-tool-advisor/');
@@ -540,6 +707,45 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const badgeLabels = [answers.job, answers.pain, answers.budget, answers.os].filter(Boolean);
       const badgesHtml = badgeLabels.map(l => `<span class="inline-block bg-indigo-100 text-indigo-700 text-xs font-semibold px-2 py-0.5 rounded-full">${l}</span>`).join('');
       let html = badgesHtml ? `<div class="flex flex-wrap gap-1.5 mb-4 pb-4 border-b border-gray-100">${badgesHtml}</div>` : '';
+
+      const goal = loadGoal();
+      const toolCount = categories.length * (isFreeOnly ? 1 : 2);
+      const goalToolCount = goal ? goal.toolCount || 5 : 5;
+      const goalProgress = Math.round((goalToolCount / (goalToolCount + 2)) * 100);
+
+      html += `<div class="mb-6 grid grid-cols-2 gap-3">
+        <div class="bg-indigo-50 rounded-xl p-4 text-center">
+          <p class="text-2xl font-bold text-indigo-600">${categories.length}</p>
+          <p class="text-xs text-gray-600">推奨カテゴリ</p>
+        </div>
+        <div class="bg-green-50 rounded-xl p-4 text-center">
+          <p class="text-2xl font-bold text-green-600">${toolCount}</p>
+          <p class="text-xs text-gray-600">ツール選択肢</p>
+        </div>
+      </div>`;
+
+      if (goal) {
+        html += `<div class="mb-6 bg-amber-50 rounded-xl p-4 border border-amber-200">
+          <p class="text-xs font-semibold text-amber-900 mb-2">🎯 目標達成度</p>
+          <div class="space-y-2">
+            <div>
+              <div class="flex justify-between text-xs mb-1">
+                <span class="text-gray-700">ツール数: ${toolCount} / ${goalToolCount}</span>
+                <span class="text-gray-600">${Math.min(100, Math.round((toolCount / goalToolCount) * 100))}%</span>
+              </div>
+              <div class="w-full bg-white rounded-full h-2 border border-amber-200">
+                <div class="bg-amber-400 h-2 rounded-full transition-all" style="width:${Math.min(100, (toolCount / goalToolCount) * 100)}%"></div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      html += `<div class="mb-6 bg-white rounded-xl p-4 border border-gray-200">
+        <h3 class="text-sm font-bold text-gray-800 mb-3">📊 ツール分布</h3>
+        <canvas id="tool-distribution-chart" style="max-height:250px"></canvas>
+      </div>`;
+
       categories.forEach((catKey, i) => {
         const cat = toolDatabase[catKey];
         const tools = isFreeOnly ? cat.free : [...cat.free.slice(0, 1), ...cat.paid.slice(0, 1)];
@@ -558,13 +764,50 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }
 
       document.getElementById('result-content').innerHTML = html;
+
+      setTimeout(() => {
+        createToolDistributionChart();
+      }, 100);
     }
 
     function resetQuiz() {
-      currentStep = 0; answers = {};
+      currentStep = 0;
+      answers = {};
+      document.getElementById('quiz-section').classList.remove('hidden');
+      document.getElementById('result-section').classList.add('hidden');
+      document.getElementById('error-msg').classList.add('hidden');
+      renderQuestion();
+    }
+
+    function loadPreviousDiagnosis(index) {
+      const history = getHistory();
+      if (index < 0 || index >= history.length) return;
+      const item = history[index];
+      answers = item.answers || {};
+      currentStep = 0;
       document.getElementById('quiz-section').classList.remove('hidden');
       document.getElementById('result-section').classList.add('hidden');
       renderQuestion();
+      showResult();
+    }
+
+    function displayHistory() {
+      const history = getHistory();
+      if (!history.length) return;
+
+      let html = '<div class="space-y-2">';
+      history.forEach((item, i) => {
+        const date = new Date(item.timestamp).toLocaleString('ja-JP');
+        const categories = item.categories || [];
+        html += `<div class="bg-gray-50 rounded-lg p-3 text-sm cursor-pointer hover:bg-indigo-50 transition" onclick="loadPreviousDiagnosis(${i})">
+          <div class="font-semibold text-gray-800">${date}</div>
+          <div class="text-xs text-gray-600 mt-1">${categories.join(' > ')}</div>
+        </div>`;
+      });
+      html += '</div>';
+
+      const historyPanel = document.getElementById('history-panel');
+      if (historyPanel) historyPanel.innerHTML = html;
     }
 
     function copyResult(btn) {
@@ -593,11 +836,21 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     }
 
     renderQuestion();
+    displayHistory();
 
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && !document.getElementById('quiz-section').classList.contains('hidden')) {
         e.preventDefault();
         nextStep();
+      }
+    });
+
+    window.addEventListener('load', function() {
+      loadGoalUI();
+      const saved = loadFromLocalStorage();
+      if (saved && saved.answers && Object.keys(saved.answers).length > 0) {
+        const restoreBtn = document.getElementById('restore-previous-btn');
+        if (restoreBtn) restoreBtn.classList.remove('hidden');
       }
     });
   </script>

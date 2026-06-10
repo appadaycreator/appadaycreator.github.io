@@ -1250,6 +1250,96 @@ function nextOnboardingStep() {
     }
 }
 
+// ======== 比較・シミュレーション機能 (M7) ========
+const levelConfig = {
+    grade1: { name: '小1', difficulty: 1, enemyHPMult: 0.8, scoreMultiplier: 1.0 },
+    grade2: { name: '小2', difficulty: 2, enemyHPMult: 1.0, scoreMultiplier: 1.1 },
+    grade3: { name: '小3', difficulty: 3, enemyHPMult: 1.2, scoreMultiplier: 1.2 },
+    grade4: { name: '小4', difficulty: 4, enemyHPMult: 1.4, scoreMultiplier: 1.3 },
+    grade5: { name: '小5', difficulty: 5, enemyHPMult: 1.6, scoreMultiplier: 1.4 },
+    grade6: { name: '小6', difficulty: 6, enemyHPMult: 1.8, scoreMultiplier: 1.5 },
+    middle: { name: '中学生', difficulty: 7, enemyHPMult: 2.2, scoreMultiplier: 1.7 },
+    common: { name: '常用漢字', difficulty: 8, enemyHPMult: 2.6, scoreMultiplier: 1.9 },
+    nando: { name: '難読', difficulty: 9, enemyHPMult: 3.0, scoreMultiplier: 2.1 }
+};
+
+function toggleSimulator() {
+    const panel = document.getElementById('simulatorPanel');
+    if (panel.style.display === 'none' || !panel.style.display) {
+        displaySimulatorResults();
+        panel.style.display = 'block';
+    } else {
+        panel.style.display = 'none';
+    }
+}
+
+function simulateDifficultyStats(levelKey) {
+    const config = levelConfig[levelKey];
+    if (!config) return null;
+
+    const baseEnemiesPerWave = 3;
+    const totalWaves = 10;
+    let totalEnemies = 0;
+
+    for (let wave = 1; wave <= totalWaves; wave++) {
+        const waveEnemies = Math.ceil(baseEnemiesPerWave + (wave - 1) * 0.5);
+        totalEnemies += waveEnemies;
+    }
+
+    const baseScore = 100;
+    const estimatedScore = Math.round(totalEnemies * baseScore * config.scoreMultiplier);
+    const difficultyRank = ['🟢', '🟢', '🟡', '🟡', '🟠', '🟠', '🔴', '🔴', '🔴'][config.difficulty - 1];
+
+    const baseWinRate = 0.85;
+    const difficultyModifier = 1 - ((config.difficulty - 1) * 0.08);
+    const estimatedWinRate = Math.max(10, Math.min(95, Math.round(baseWinRate * 100 * difficultyModifier)));
+
+    return {
+        level: levelKey,
+        name: config.name,
+        estimatedScore: estimatedScore,
+        totalEnemies: totalEnemies,
+        difficultyRank: difficultyRank,
+        winRate: estimatedWinRate,
+        difficulty: config.difficulty
+    };
+}
+
+function displaySimulatorResults() {
+    const levels = ['grade1', 'grade2', 'grade3', 'grade4', 'grade5', 'grade6', 'middle', 'common', 'nando'];
+    const results = levels.map(lvl => simulateDifficultyStats(lvl)).filter(Boolean);
+
+    const tbody = document.getElementById('simulatorTable');
+    tbody.innerHTML = results.map(r => `
+        <tr style="background:#fff;border-bottom:1px solid #e0f2fe;">
+            <td style="padding:10px 8px;font-weight:700;color:#0369a1;">${r.name}</td>
+            <td style="text-align:center;padding:10px 8px;color:#1e40af;font-weight:700;">${r.estimatedScore.toLocaleString()} 点</td>
+            <td style="text-align:center;padding:10px 8px;color:#1e40af;">${r.totalEnemies} 体</td>
+            <td style="text-align:center;padding:10px 8px;font-size:1.2rem;">${r.difficultyRank}</td>
+            <td style="text-align:center;padding:10px 8px;">
+                <div style="display:flex;align-items:center;justify-content:center;gap:6px;">
+                    <div style="width:60px;height:6px;background:#e0f2fe;border-radius:3px;overflow:hidden;">
+                        <div style="width:${r.winRate}%;height:100%;background:${r.winRate >= 70 ? '#10b981' : r.winRate >= 50 ? '#f59e0b' : '#ef4444'};transition:width .3s;"></div>
+                    </div>
+                    <span style="font-weight:700;color:#0369a1;min-width:30px;">${r.winRate}%</span>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+
+    const chart = document.getElementById('simulatorChart');
+    const chartContainer = document.getElementById('chartContainer');
+    chart.style.display = 'block';
+
+    const maxScore = Math.max(...results.map(r => r.estimatedScore));
+    chartContainer.innerHTML = results.map(r => `
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;">
+            <div style="width:100%;background:linear-gradient(180deg,#0369a1,#0ea5e9);border-radius:4px 4px 0 0;height:${Math.max(10, (r.estimatedScore / maxScore) * 100)}%;transition:height .3s;"></div>
+            <div style="font-size:.7rem;font-weight:700;color:#0369a1;margin-top:6px;text-align:center;white-space:nowrap;">${r.name}</div>
+        </div>
+    `).join('');
+}
+
 window.setLevel = setLevel;
 window.startGame = startGame;
 window.pauseGame = pauseGame;
@@ -1262,4 +1352,5 @@ window.setGameSpeed = setGameSpeed;
 window.skipKanji = skipKanji;
 window.toggleMute = toggleMute;
 window.nextOnboardingStep = nextOnboardingStep;
+window.toggleSimulator = toggleSimulator;
 window.addEventListener('load', init);
