@@ -34,6 +34,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js for visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
   <!-- Error Handler -->
   <script>window.onerror=function(m,s,l,c,e){console.warn('Error:',m);return true;};window.addEventListener('unhandledrejection',function(e){console.warn('Rejection:',e.reason);});</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"このサービスは無料ですか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要でご利用いただけます。"}},{"@type":"Question","name":"入力データはどこに保存されますか？","acceptedAnswer":{"@type":"Answer","text":"お使いのデバイス内にのみ保存されます。外部送信は行いません。"}},{"@type":"Question","name":"結果はどのくらい正確ですか？","acceptedAnswer":{"@type":"Answer","text":"あくまで参考情報です。重要な判断の際は専門家にご相談ください。"}},{"@type":"Question","name":"どのような人が使っていますか？","acceptedAnswer":{"@type":"Answer","text":"初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}},{"@type":"Question","name":"結果をシェアできますか？","acceptedAnswer":{"@type":"Answer","text":"はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}},{"@type":"Question","name":"有料プランはありますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、すべての機能を完全無料でご利用いただけます。"}}]}</script>
@@ -241,6 +243,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     </div>
 
     <div id="result-section" class="hidden">
+      <div id="history-section" class="bg-white rounded-2xl shadow-md p-6 mb-6" style="display:none">
+        <h3 style="font-size:16px;font-weight:bold;margin-bottom:12px;color:#374151">📜 過去の診断履歴</h3>
+        <div id="history-list" style="max-height:200px;overflow-y:auto;margin-bottom:12px"></div>
+        <button onclick="clearHistory()" style="width:100%;background:#fee2e2;color:#7f1d1d;border:1px solid #fca5a5;padding:8px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;min-height:36px;">履歴をクリア</button>
+      </div>
+
       <div class="bg-white rounded-2xl shadow-md p-6 mb-6">
         <h2 class="text-2xl font-bold text-center mb-6 text-blue-700">あなたへのおすすめ英語教育</h2>
         <div id="result-content"></div>
@@ -422,6 +430,67 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     const answers = {};
     const totalQ = 8;
     let currentQ = 1;
+    const STORAGE_KEY = 'kidsEnglishAdvisor';
+    const HISTORY_KEY = 'kidsEnglishAdvisorHistory';
+
+    // localStorage関連の関数
+    function saveCurrentAnswers() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(answers));
+    }
+
+    function loadPreviousAnswers() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved ? JSON.parse(saved) : null;
+    }
+
+    function getHistory() {
+      const hist = localStorage.getItem(HISTORY_KEY);
+      return hist ? JSON.parse(hist) : [];
+    }
+
+    function saveToHistory() {
+      const history = getHistory();
+      const entry = {
+        timestamp: new Date().toLocaleString('ja-JP'),
+        ...answers
+      };
+      history.unshift(entry);
+      if (history.length > 10) history.pop();
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    }
+
+    function clearHistory() {
+      if (confirm('履歴をすべて削除してもよろしいですか？')) {
+        localStorage.removeItem(HISTORY_KEY);
+        location.reload();
+      }
+    }
+
+    function restoreFromHistory(index) {
+      const history = getHistory();
+      if (history[index]) {
+        Object.assign(answers, { ...history[index] });
+        delete answers.timestamp;
+        saveCurrentAnswers();
+        showResult();
+        window.scrollTo(0, 0);
+      }
+    }
+
+    // スコア計算
+    function calcScore() {
+      const age = answers[1];
+      const purpose = answers[2];
+      const budget = answers[4];
+      const time = answers[6];
+
+      let score = 50;
+      if (age === 'baby' || age === 'preschool') score += 10;
+      if (purpose === 'fun' || purpose === 'speak') score += 10;
+      if (budget === 'high' || budget === 'premium') score += 10;
+      if (time === 'long' || time === 'intensive') score += 10;
+      return Math.min(100, score);
+    }
 
     // 戻るボタン処理
     function goBack() {
@@ -439,6 +508,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         const q = parseInt(this.dataset.q);
         const v = this.dataset.v;
         answers[q] = v;
+        saveCurrentAnswers();
         document.querySelectorAll(`[data-q="${q}"]`).forEach(b => b.classList.remove('border-yellow-500','bg-yellow-100'));
         this.classList.add('border-yellow-500','bg-yellow-100');
         setTimeout(() => {
@@ -449,7 +519,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             document.getElementById('progress-bar').style.width = (q / totalQ * 100) + '%';
             document.getElementById('progress-text').textContent = `質問 ${currentQ} / ${totalQ}`;
             document.getElementById('back-btn').classList.remove('hidden');
-          } else { showResult(); }
+          } else { saveToHistory(); showResult(); }
         }, 300);
       });
     });
@@ -459,6 +529,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('progress-bar').style.width = '100%';
       document.getElementById('quiz-section').classList.add('hidden');
       document.getElementById('result-section').classList.remove('hidden');
+
+      // 履歴表示
+      const history = getHistory();
+      if (history.length > 1) {
+        const histSection = document.getElementById('history-section');
+        histSection.style.display = 'block';
+        const histList = document.getElementById('history-list');
+        histList.innerHTML = history.slice(1, 6).map((h, i) => `
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px 12px;margin-bottom:8px;cursor:pointer;font-size:12px;color:#374151" onclick="restoreFromHistory(${i+1})">
+            <p style="margin:0;font-weight:600">${h.timestamp}</p>
+            <p style="margin:2px 0 0;color:#64748b;font-size:11px">クリックで復元</p>
+          </div>
+        `).join('');
+      }
 
       const age = answers[1];
       const purpose = answers[2];
@@ -533,7 +617,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const budgetLabel = {low:'〜5千円',mid:'5千〜1.5万円',high:'1.5〜3万円',premium:'3万円以上'};
       const formatLabel = {school:'通学型教室',online:'オンライン',material:'教材・アプリ',mix:'組み合わせ'};
 
+      const score = calcScore();
       let html = `
+        <div class="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-4 mb-4">
+          <div style="text-align:center;margin-bottom:16px">
+            <p style="font-size:24px;font-weight:bold;color:#1e40af;margin:0">診断スコア</p>
+            <div style="margin:12px 0;font-size:48px;font-weight:bold;color:#2563eb">${score}</div>
+            <div style="width:100%;height:12px;background:#e0e7ff;border-radius:6px;overflow:hidden">
+              <div style="width:${score}%;height:100%;background:linear-gradient(90deg,#3b82f6,#8b5cf6);transition:width 0.5s ease"></div>
+            </div>
+            <p style="font-size:12px;color:#64748b;margin-top:8px">あなたにぴったりな英語教育選びの準備度</p>
+          </div>
+          <canvas id="scoreRadarChart" style="max-width:100%;height:200px;margin:16px 0"></canvas>
+        </div>
+
         <div class="bg-gray-50 border border-gray-200 rounded-xl p-3 mb-4">
           <p class="text-xs font-bold text-gray-500 mb-2">📝 あなたの選択</p>
           <div class="flex flex-wrap gap-2">
@@ -573,7 +670,61 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>`;
 
       document.getElementById('result-content').innerHTML = html;
+
+      // レーダーチャート描画
+      setTimeout(() => {
+        const ctx = document.getElementById('scoreRadarChart');
+        if (ctx && window.Chart) {
+          const ageScore = { baby: 40, preschool: 50, 'elem-low': 70, 'elem-high': 80, junior: 85 }[age] || 50;
+          const purposeScore = { fun: 80, exam: 75, global: 90, speak: 85 }[purpose] || 50;
+          const budgetScore = { low: 60, mid: 75, high: 85, premium: 95 }[budget] || 50;
+          const timeScore = { short: 65, mid: 75, long: 85, intensive: 95 }[time] || 50;
+
+          new Chart(ctx, {
+            type: 'radar',
+            data: {
+              labels: ['年齢適性', '目的達成', '予算', '学習時間'],
+              datasets: [{
+                label: 'あなたの状況スコア',
+                data: [ageScore, purposeScore, budgetScore, timeScore],
+                borderColor: '#2563eb',
+                backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                pointBackgroundColor: '#2563eb',
+                pointBorderColor: '#fff',
+                pointRadius: 4
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              scales: {
+                r: {
+                  beginAtZero: true,
+                  max: 100,
+                  ticks: { font: { size: 10 } }
+                }
+              },
+              plugins: {
+                legend: { labels: { font: { size: 11 } } }
+              }
+            }
+          });
+        }
+      }, 100);
     }
+
+    // 初期化：前回のデータを復元
+    (function() {
+      const prev = loadPreviousAnswers();
+      if (prev && Object.keys(prev).length === totalQ) {
+        Object.assign(answers, prev);
+        // Q1の選択状態を復元
+        const q1Val = answers[1];
+        if (q1Val) {
+          document.querySelector(`[data-q="1"][data-v="${q1Val}"]`)?.click();
+        }
+      }
+    })();
   </script>
 <div class="max-w-2xl mx-auto px-4 mb-4">
 <!-- Related Services -->

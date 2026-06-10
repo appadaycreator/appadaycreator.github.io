@@ -179,6 +179,36 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             </div>
             <!-- 費用対効果 -->
             <div id="r-cost" style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px;line-height:1.8;"></div>
+            <!-- M6: 目標設定・達成度トラッキング -->
+            <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:10px;padding:12px;margin-bottom:14px;font-size:13px;">
+              <p style="font-weight:600;color:#92400e;margin:0 0 8px;">🎯 目標設定・達成度トラッキング</p>
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+                <input type="number" id="goal-years" placeholder="目標：何年以内に買い替える？" min="1" max="20" style="flex:1;padding:8px 12px;border:1px solid #fcd34d;border-radius:6px;font-size:12px;">
+                <button onclick="saveGoal()" style="background:#f59e0b;color:white;border:none;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;min-height:auto;">保存</button>
+              </div>
+              <div id="goal-status" style="font-size:12px;color:#92400e;"></div>
+            </div>
+            <!-- M10: 印刷・エクスポート・コピー機能 -->
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;">
+              <button onclick="copyResultToClipboard()" aria-label="診断結果をクリップボードにコピー" style="flex:1;min-width:140px;background:#8b5cf6;color:white;border:none;padding:10px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;min-height:44px;transition:opacity 0.2s;">📋 コピー</button>
+              <button onclick="exportToCSV()" aria-label="診断結果をCSVダウンロード" style="flex:1;min-width:140px;background:#10b981;color:white;border:none;padding:10px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;min-height:44px;transition:opacity 0.2s;">📥 CSV</button>
+              <button onclick="printResult()" aria-label="診断結果を印刷" style="flex:1;min-width:140px;background:#3b82f6;color:white;border:none;padding:10px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;min-height:44px;transition:opacity 0.2s;">🖨️ 印刷</button>
+            </div>
+            <!-- トースト通知 -->
+            <div id="toast" style="display:none;position:fixed;bottom:20px;right:20px;background:#333;color:white;padding:12px 16px;border-radius:8px;font-size:13px;z-index:9999;animation:slideIn 0.3s ease;"></div>
+            <style>
+              @keyframes slideIn {
+                from { transform: translateY(100px); opacity: 0; }
+                to { transform: translateY(0); opacity: 1; }
+              }
+              @keyframes slideOut {
+                from { transform: translateY(0); opacity: 1; }
+                to { transform: translateY(100px); opacity: 0; }
+              }
+              #toast.hide {
+                animation: slideOut 0.3s ease;
+              }
+            </style>
             <button class="btn" onclick="location.reload()">もう一度診断</button>
             <!-- 結果シェアボタン -->
             <div id="r-share" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;"></div>
@@ -644,6 +674,162 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
       if (historyPanel) {
         historyPanel.innerHTML = renderHistory();
       }
+
+      // M6: 目標設定の表示・復元
+      loadAndDisplayGoal(appName);
+
+      // グローバルに result を保存（CSV エクスポート用）
+      window.lastResult = r;
+      window.lastAnswers = answers;
+    }
+
+    // M6: 目標設定・達成度トラッキング機能
+    function saveGoal() {
+      const goalYears = parseInt(document.getElementById('goal-years').value);
+      if (isNaN(goalYears) || goalYears < 1) {
+        alert('1以上の数値を入力してください');
+        return;
+      }
+      const appName = window.lastResult.appName;
+      const goals = JSON.parse(localStorage.getItem('goals') || '{}');
+      goals[appName] = {
+        years: goalYears,
+        date: new Date().toISOString(),
+        appliance: appName
+      };
+      localStorage.setItem('goals', JSON.stringify(goals));
+      loadAndDisplayGoal(appName);
+    }
+
+    function loadAndDisplayGoal(appName) {
+      const goals = JSON.parse(localStorage.getItem('goals') || '{}');
+      const goal = goals[appName];
+      const statusDiv = document.getElementById('goal-status');
+      const goalInput = document.getElementById('goal-years');
+
+      if (goal) {
+        goalInput.value = goal.years;
+        const lifespan = APPLIANCE_DATA[appName].lifespan;
+        const currentYears = YEAR_MID[window.lastAnswers[1].idx];
+        const remainingYears = lifespan - currentYears;
+        const achievementRate = Math.min(100, Math.round((goal.years / remainingYears) * 100));
+
+        statusDiv.innerHTML = `
+          <div style="margin:8px 0;">
+            <strong>目標: ${goal.years}年以内に買い替え</strong><br>
+            <small>現在: 約${currentYears}年使用 | 標準寿命: ${lifespan}年 | 残り年数: ${remainingYears}年</small>
+          </div>
+          <div style="height:6px;background:#fde68a;border-radius:3px;overflow:hidden;">
+            <div style="height:100%;background:#f59e0b;width:${achievementRate}%;transition:width 0.3s;"></div>
+          </div>
+          <small style="display:block;margin-top:4px;">達成見込み: ${achievementRate}%</small>
+        `;
+      } else {
+        goalInput.value = '';
+        statusDiv.innerHTML = '<small style="color:#92400e;">目標を設定してリピート利用を促進しましょう</small>';
+      }
+    }
+
+    // トースト通知関数
+    function showToast(message, duration = 2000) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.style.display = 'block';
+      toast.classList.remove('hide');
+
+      setTimeout(() => {
+        toast.classList.add('hide');
+        setTimeout(() => {
+          toast.style.display = 'none';
+        }, 300);
+      }, duration);
+    }
+
+    // M10: 結果をクリップボードにコピー
+    function copyResultToClipboard() {
+      if (!window.lastResult) {
+        alert('診断結果がありません');
+        return;
+      }
+      const r = window.lastResult;
+      const answers = window.lastAnswers;
+      const appName = r.appName;
+      const yearIdx = answers[1].idx;
+      const faultIdx = answers[2].idx;
+      const powerIdx = answers[3].idx;
+      const yearLabels = ['5年未満', '5〜10年', '10〜15年', '15年以上'];
+      const faultLabels = ['なし', 'たまに', '頻繁', '危険'];
+      const powerLabels = ['問題なし', '少し高め', 'かなり高め', 'とても高い'];
+
+      const resultText = `【${appName} 診断結果】
+
+診断日: ${new Date().toLocaleString('ja-JP')}
+診断結果: ${r.title}
+詳細: ${r.desc}
+
+【詳細情報】
+緊急度: ${r.urgency}%
+使用年数: ${yearLabels[yearIdx]}
+不具合度: ${faultLabels[faultIdx]}
+電気代懸念度: ${powerLabels[powerIdx]}
+費用目安: ${r.data.costMin}～${r.data.costMax}万円
+年間節約見込み: ${r.data.saving.toLocaleString()}円
+
+🔗 家電買い替え時期診断
+https://appadaycreator.com/home-appliance-lifespan/`;
+
+      navigator.clipboard.writeText(resultText).then(() => {
+        showToast('✓ 結果をコピーしました');
+      }).catch(() => {
+        alert('クリップボードへのコピーに失敗しました');
+      });
+    }
+
+    // M10: CSV エクスポート機能
+    function exportToCSV() {
+      if (!window.lastResult) {
+        alert('診断結果がありません');
+        return;
+      }
+      const r = window.lastResult;
+      const answers = window.lastAnswers;
+      const appName = r.appName;
+      const yearIdx = answers[1].idx;
+      const faultIdx = answers[2].idx;
+      const powerIdx = answers[3].idx;
+      const yearLabels = ['5年未満', '5〜10年', '10〜15年', '15年以上'];
+      const faultLabels = ['なし', 'たまに', '頻繁', '危険'];
+      const powerLabels = ['問題なし', '少し高め', 'かなり高め', 'とても高い'];
+
+      const csvContent = `データ,値
+診断日,${new Date().toLocaleString('ja-JP')}
+家電名,${appName}
+診断結果,${r.title}
+詳細説明,${r.desc.substring(0, 100)}
+緊急度,%,${r.urgency}
+使用年数,${yearLabels[yearIdx]}
+不具合度,${faultLabels[faultIdx]}
+電気代懸念度,${powerLabels[powerIdx]}
+費用目安,${r.data.costMin}-${r.data.costMax}万円
+年間節約見込み,${r.data.saving.toLocaleString()}円`;
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `診断結果_${appName}_${new Date().toISOString().slice(0,10)}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('✓ CSVダウンロード開始');
+    }
+
+    function printResult() {
+      showToast('ℹ️ 印刷プレビューを開きます...');
+      setTimeout(() => {
+        window.print();
+      }, 300);
     }
     </script>
 <script id="ux-behavior">

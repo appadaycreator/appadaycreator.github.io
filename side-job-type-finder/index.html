@@ -21,6 +21,7 @@
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- GTM -->
     <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
     <!-- Clarity -->
@@ -169,7 +170,15 @@
           <p id="q-text" style="font-size:16px;font-weight:600;margin-bottom:16px;"></p>
           <div id="q-options" class="space-y-2"></div>
         </div>
-        
+
+        <div id="history-notice" style="display:none;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:12px;margin-bottom:16px;">
+          <p style="font-size:13px;color:#92400e;margin:0;">
+            <strong>📋 前回のデータが見つかりました</strong>
+            <button onclick="restorePreviousData()" style="margin-left:8px;padding:4px 12px;background:#fbbf24;border:none;border-radius:4px;font-size:12px;cursor:pointer;font-weight:600;">復元する</button>
+            <button onclick="clearHistory()" style="margin-left:4px;padding:4px 12px;background:transparent;border:1px solid #fbbf24;border-radius:4px;font-size:12px;cursor:pointer;">削除</button>
+          </p>
+        </div>
+
     <div class="card p-6 mb-4">
       <h2 class="font-bold text-gray-800 mb-3">💡 使用例</h2>
       <ul class="text-sm text-gray-700 space-y-2">
@@ -183,6 +192,18 @@
           <div class="card">
             <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;color:#6366F1;"></h3>
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
+
+            <div id="chart-container" style="margin:20px 0;padding:12px;background:#f8fafc;border-radius:8px;display:none;">
+              <p style="font-size:12px;font-weight:600;color:#666;margin-bottom:8px;">📊 各タイプとのスコア比較</p>
+              <canvas id="resultChart" style="max-height:300px;"></canvas>
+            </div>
+
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;">
+              <button class="btn" style="flex:1;min-width:120px;background:#10b981;" onclick="printResult()" aria-label="結果を印刷">🖨️ 印刷</button>
+              <button class="btn" style="flex:1;min-width:120px;background:#8b5cf6;" onclick="downloadCSV()" aria-label="CSVダウンロード">📥 CSV保存</button>
+              <button class="btn" style="flex:1;min-width:120px;background:#f59e0b;" onclick="copyResultText()" aria-label="結果をコピー">📋 コピー</button>
+            </div>
+
             <button class="btn" style="margin-top:16px;" onclick="location.reload()" aria-label="もう一度診断">もう一度診断</button>
           </div>
         </div>
@@ -435,6 +456,9 @@ AppADayCreatorでは、本ツール以外にもキャリア・仕事カテゴリ
       {text:'Q5. 人と関わることは好きですか？',opts:['対面・会話が得意で好き','オンラインコミュニケーションは得意','どちらかというと一人作業が好き','なるべく人と関わりたくない']},
       {text:'Q6. スマートフォンやPCの扱いは？',opts:['得意・日常的に使いこなす','ある程度は使える','あまり得意ではない','苦手']}
     ];
+    const RESULT_TYPES = ['Web系フリーランス型','ライティング・コンテンツ型','クリエイティブ型','物販・ネットショップ型','SNS・アフィリエイト型','スキルシェア・教える型'];
+    let chartInstance = null;
+
     function getResult(answers) {
       const scores = [0,0,0,0,0,0];
       const a = answers.map(x => x.idx);
@@ -459,12 +483,171 @@ AppADayCreatorでは、本ツール以外にもキャリア・仕事カテゴリ
       if(a[4]===2) { scores[1]+=1; scores[2]+=1; }
       if(a[4]===3) { scores[2]+=2; scores[4]+=1; }
       const best = scores.indexOf(Math.max(...scores));
-      return RESULTS[best];
+      return {result: RESULTS[best], scores: scores, bestIdx: best};
     }
-    // ★以下変更不要★
+
+    function saveToLocalStorage(answers, resultData) {
+      const data = {
+        answers: answers,
+        result: resultData.result,
+        scores: resultData.scores,
+        bestIdx: resultData.bestIdx,
+        timestamp: new Date().toISOString()
+      };
+      const history = JSON.parse(localStorage.getItem('sideJobHistory') || '[]');
+      history.push(data);
+      if(history.length > 10) history.shift();
+      localStorage.setItem('sideJobHistory', JSON.stringify(history));
+      localStorage.setItem('sideJobLastResult', JSON.stringify(data));
+    }
+
+    function checkAndShowHistory() {
+      const lastResult = localStorage.getItem('sideJobLastResult');
+      if(lastResult) {
+        document.getElementById('history-notice').style.display='block';
+      }
+    }
+
+    function restorePreviousData() {
+      const lastResult = JSON.parse(localStorage.getItem('sideJobLastResult') || 'null');
+      if(lastResult && lastResult.result) {
+        ans = lastResult.answers;
+        cur = QUESTIONS.length;
+        document.getElementById('quiz-start').style.display='none';
+        document.getElementById('quiz-area').style.display='none';
+        showResultWithData(lastResult);
+        document.getElementById('history-notice').style.display='none';
+      }
+    }
+
+    function clearHistory() {
+      localStorage.removeItem('sideJobLastResult');
+      document.getElementById('history-notice').style.display='none';
+    }
+
+    function renderChart(scores) {
+      const ctx = document.getElementById('resultChart');
+      if(!ctx) return;
+
+      document.getElementById('chart-container').style.display='block';
+
+      if(chartInstance) {
+        chartInstance.destroy();
+      }
+
+      chartInstance = new Chart(ctx, {
+        type: 'radar',
+        data: {
+          labels: RESULT_TYPES,
+          datasets: [{
+            label: 'あなたのスコア',
+            data: scores,
+            borderColor: '#6366F1',
+            backgroundColor: '#6366F122',
+            borderWidth: 2,
+            fill: true,
+            pointBackgroundColor: '#6366F1',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          scales: {
+            r: {
+              beginAtZero: true,
+              max: 15,
+              grid: { color: '#e5e7eb' },
+              ticks: { color: '#999' }
+            }
+          },
+          plugins: {
+            legend: { labels: { color: '#333', font: { size: 12 } } }
+          }
+        }
+      });
+    }
+
+    function printResult() {
+      const title = document.getElementById('r-title').textContent;
+      const desc = document.getElementById('r-desc').textContent;
+      const timestamp = new Date().toLocaleDateString('ja-JP');
+      const printWindow = window.open('', '', 'width=800,height=600');
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+          <meta charset="UTF-8">
+          <title>副業タイプ診断 結果</title>
+          <style>
+            body { font-family: 'Noto Sans JP', sans-serif; padding: 40px; max-width: 600px; margin: 0 auto; }
+            h1 { color: #6366F1; font-size: 24px; margin-bottom: 16px; }
+            p { line-height: 1.8; color: #333; margin-bottom: 12px; }
+            .timestamp { color: #999; font-size: 12px; margin-top: 24px; border-top: 1px solid #ddd; padding-top: 12px; }
+          </style>
+        </head>
+        <body>
+          <h1>副業タイプ診断 結果</h1>
+          <h2>${title}</h2>
+          <p>${desc}</p>
+          <p>このツールは <a href="https://appadaycreator.com/side-job-type-finder/">副業タイプ診断</a> で提供されています。</p>
+          <div class="timestamp">診断日時: ${timestamp}</div>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      setTimeout(() => { printWindow.print(); }, 250);
+    }
+
+    function downloadCSV() {
+      const title = document.getElementById('r-title').textContent;
+      const desc = document.getElementById('r-desc').textContent;
+      const timestamp = new Date().toISOString();
+      const csv = `診断項目,内容\n診断タイプ,"${title}"\n説明,"${desc.replace(/"/g, '""')}"\n診断日時,${timestamp}`;
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `side-job-result-${new Date().getTime()}.csv`);
+      link.style.visibility='hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function copyResultText() {
+      const title = document.getElementById('r-title').textContent;
+      const desc = document.getElementById('r-desc').textContent;
+      const text = `${title}\n\n${desc}\n\n診断ツール: https://appadaycreator.com/side-job-type-finder/`;
+
+      navigator.clipboard.writeText(text).then(() => {
+        alert('結果をコピーしました');
+      }).catch(() => {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        alert('結果をコピーしました');
+      });
+    }
+
     const BTN='#6366F1'; let cur=0; const ans=[];
-    document.addEventListener('DOMContentLoaded',()=>{ document.getElementById('q-total').textContent=QUESTIONS.length; });
-    function startQuiz(){ cur=0;ans.length=0; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); renderQ(); }
+    document.addEventListener('DOMContentLoaded',() => {
+      document.getElementById('q-total').textContent=QUESTIONS.length;
+      checkAndShowHistory();
+    });
+    function startQuiz(){
+      cur=0;ans.length=0;
+      document.getElementById('quiz-start').style.display='none';
+      document.getElementById('quiz-area').style.display='block';
+      document.getElementById('result').classList.remove('show');
+      document.getElementById('history-notice').style.display='none';
+      renderQ();
+    }
     function renderQ(){
       const q=QUESTIONS[cur];
       document.getElementById('q-num').textContent=cur+1;
@@ -475,9 +658,14 @@ AppADayCreatorでは、本ツール以外にもキャリア・仕事カテゴリ
     function answer(idx){ ans.push({idx}); cur++; if(cur>=QUESTIONS.length) showResult(); else renderQ(); }
     function showResult(){
       document.getElementById('quiz-area').style.display='none';
-      const r=getResult(ans);
-      document.getElementById('r-title').textContent=r.title;
-      document.getElementById('r-desc').textContent=r.desc;
+      const resultData = getResult(ans);
+      showResultWithData({result: resultData.result, scores: resultData.scores});
+      saveToLocalStorage(ans, resultData);
+    }
+    function showResultWithData(data) {
+      document.getElementById('r-title').textContent=data.result.title;
+      document.getElementById('r-desc').textContent=data.result.desc;
+      renderChart(data.scores);
       document.getElementById('result').classList.add('show');
     }
     </script>

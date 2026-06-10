@@ -42,6 +42,7 @@
   <!-- Microsoft Clarity -->
   <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","s3t9vl8h3v");</script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"このサービスは無料ですか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要でご利用いただけます。"}},{"@type":"Question","name":"入力データはどこに保存されますか？","acceptedAnswer":{"@type":"Answer","text":"お使いのデバイス内にのみ保存されます。外部送信は行いません。"}},{"@type":"Question","name":"結果はどのくらい正確ですか？","acceptedAnswer":{"@type":"Answer","text":"あくまで参考情報です。重要な判断の際は専門家にご相談ください。"}},{"@type":"Question","name":"どのような人が使っていますか？","acceptedAnswer":{"@type":"Answer","text":"初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}},{"@type":"Question","name":"結果をシェアできますか？","acceptedAnswer":{"@type":"Answer","text":"はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}},{"@type":"Question","name":"有料プランはありますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、すべての機能を完全無料でご利用いただけます。"}}]}</script>
 
 <meta property="og:type" content="website">
@@ -374,6 +375,27 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
   let currentStep = 0;
   let answers = {};
+  let resultHistory = [];
+
+  function loadFromLocalStorage() {
+    try {
+      const saved = localStorage.getItem('petCostAnswers');
+      if (saved) answers = JSON.parse(saved);
+      const history = localStorage.getItem('petCostHistory');
+      if (history) resultHistory = JSON.parse(history);
+    } catch (e) {
+      console.error('localStorage読み込みエラー:', e);
+    }
+  }
+
+  function saveToLocalStorage() {
+    try {
+      localStorage.setItem('petCostAnswers', JSON.stringify(answers));
+      localStorage.setItem('petCostHistory', JSON.stringify(resultHistory));
+    } catch (e) {
+      console.error('localStorage保存エラー:', e);
+    }
+  }
 
   function renderQuestion() {
     const q = questions[currentStep];
@@ -393,7 +415,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     document.getElementById('question-area').innerHTML = html;
   }
 
-  // 選択後に自動進行（最終質問は除く）
   function autoAdvance() {
     if (currentStep < questions.length - 1) {
       setTimeout(() => nextStep(), 300);
@@ -404,6 +425,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     const el = document.querySelector(`input[name="${questions[currentStep].id}"]:checked`);
     if (!el) { alert('選択してください'); return false; }
     answers[questions[currentStep].id] = el.value;
+    saveToLocalStorage();
     return true;
   }
 
@@ -527,7 +549,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     const { initialCost, annualCost, costs } = calcCosts();
 
-    // 詳細なペット寿命計算
     const lifespanMap = {
       '犬（小型犬・5kg未満）': 15,
       '犬（中型犬・5〜25kg）': 14,
@@ -540,13 +561,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     const lifespan = lifespanMap[answers.pet_type] || 14;
     const lifetimeCost = initialCost + annualCost * lifespan;
 
-    // 保険シミュレーション
     const hasInsurance = answers.insurance === 'ペット保険に加入予定' || answers.insurance === '既に加入している';
     const noInsurance = answers.insurance === '保険には加入しない（自費で対応）';
-    const insuranceCost = hasInsurance ? costs.insurance : 0;
     const emergencyFund = noInsurance ? Math.round((30 + lifetimeCost * 0.1) * 10) / 10 : 0;
 
-    // 費用内訳の視覚化（CSS棒グラフ）
     const costLabels = [
       { label: 'フード', amount: Math.round(costs.food), color: 'bg-amber-500' },
       { label: '医療費', amount: Math.round(costs.vet), color: 'bg-red-500' },
@@ -571,6 +589,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     if (answers.acquisition === 'ブリーダー・ペットショップ（純血種）') advice.push('純血種は遺伝疾患リスクがあります。ブリーダーの実績・評判を十分確認してください。');
     advice.push('フード定期購入やふるさと納税で年1〜3万円の節約可能です。');
 
+    resultHistory.push({ petType: answers.pet_type, annualCost, lifetimeCost, date: new Date().toLocaleDateString('ja-JP') });
+    if (resultHistory.length > 5) resultHistory.shift();
+    saveToLocalStorage();
+
     const html = `
       <div class="grid grid-cols-1 gap-4 mb-5">
         <div class="bg-amber-50 border-l-4 border-amber-500 rounded-xl p-4">
@@ -589,21 +611,27 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
       </div>
 
-      <div class="bg-white border border-gray-200 rounded-xl p-4 mb-5">
-        <p class="text-sm font-semibold text-gray-700 mb-3">📊 年間維持費の内訳</p>
-        <div class="space-y-2">
-          ${breakdown.map(item => `
-            <div class="flex items-center gap-2">
-              <div class="w-16">
-                <p class="text-xs text-gray-600 font-medium">${item.label}</p>
-                <p class="text-sm font-bold text-gray-800">${item.amount}万円</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+          <p class="text-sm font-semibold text-gray-700 mb-3">📊 年間維持費の内訳</p>
+          <div class="space-y-2">
+            ${breakdown.map(item => `
+              <div class="flex items-center gap-2">
+                <div class="w-16">
+                  <p class="text-xs text-gray-600 font-medium">${item.label}</p>
+                  <p class="text-sm font-bold text-gray-800">${item.amount}万円</p>
+                </div>
+                <div class="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden">
+                  <div class="${item.color} h-full transition-all" style="width: ${item.pct}%"></div>
+                </div>
+                <p class="text-xs text-gray-500 w-8 text-right">${item.pct}%</p>
               </div>
-              <div class="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden">
-                <div class="${item.color} h-full transition-all" style="width: ${item.pct}%"></div>
-              </div>
-              <p class="text-xs text-gray-500 w-8 text-right">${item.pct}%</p>
-            </div>
-          `).join('')}
+            `).join('')}
+          </div>
+        </div>
+        <div class="bg-white border border-gray-200 rounded-xl p-4">
+          <p class="text-sm font-semibold text-gray-700 mb-3">📈 費用割合（円グラフ）</p>
+          <canvas id="costPieChart" style="max-height:200px;"></canvas>
         </div>
       </div>
 
@@ -613,24 +641,56 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       </div>
 
       <div class="mt-5 border-t border-gray-100 pt-4">
-        <p class="text-xs text-gray-500 mb-2 text-center">この結果をシェアする</p>
-        <div class="flex gap-2">
+        <p class="text-xs text-gray-500 mb-2 text-center">この結果をシェア・エクスポート</p>
+        <div class="grid grid-cols-2 gap-2 mb-3">
           <a href="https://line.me/R/share?text=${encodeURIComponent('【ペット飼育費用シミュレーター】\n' + answers.pet_type + ' の年間維持費は約' + annualCost + '万円・生涯費用は約' + lifetimeCost + '万円という試算結果が出ました！')}&url=${encodeURIComponent('https://appadaycreator.com/pet-care-cost-simulator/')}" target="_blank" rel="noopener"
-             style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:10px;border-radius:10px;font-size:13px;font-weight:bold;text-decoration:none;">
+             style="display:block;text-align:center;background:#06C755;color:white;padding:10px;border-radius:10px;font-size:12px;font-weight:bold;text-decoration:none;">
             LINEでシェア
           </a>
           <a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(answers.pet_type + 'の年間維持費は約' + annualCost + '万円・生涯費用は約' + lifetimeCost + '万円！ペット飼育費用シミュレーターで試算しました')}&url=${encodeURIComponent('https://appadaycreator.com/pet-care-cost-simulator/')}&via=appadaycreator" target="_blank" rel="noopener"
-             style="flex:1;display:block;text-align:center;background:#000;color:white;padding:10px;border-radius:10px;font-size:13px;font-weight:bold;text-decoration:none;">
+             style="display:block;text-align:center;background:#000;color:white;padding:10px;border-radius:10px;font-size:12px;font-weight:bold;text-decoration:none;">
             Xでシェア
           </a>
           <button onclick="copyResultText(${annualCost}, ${lifetimeCost})"
-             style="flex:1;display:block;text-align:center;background:#f3f4f6;color:#374151;padding:10px;border-radius:10px;font-size:13px;font-weight:bold;border:none;cursor:pointer;" id="copy-btn">
+             style="display:block;text-align:center;background:#f3f4f6;color:#374151;padding:10px;border-radius:10px;font-size:12px;font-weight:bold;border:none;cursor:pointer;" id="copy-btn">
             コピー
           </button>
+          <button onclick="downloadCSV('${answers.pet_type}', ${initialCost}, ${annualCost}, ${lifespan}, ${lifetimeCost})"
+             style="display:block;text-align:center;background:#4f46e5;color:white;padding:10px;border-radius:10px;font-size:12px;font-weight:bold;border:none;cursor:pointer;">
+            CSV保存
+          </button>
         </div>
+        <button onclick="window.print()"
+           style="width:100%;display:block;text-align:center;background:#9333ea;color:white;padding:10px;border-radius:10px;font-size:12px;font-weight:bold;border:none;cursor:pointer;">
+          印刷する
+        </button>
       </div>`;
 
     document.getElementById('result-content').innerHTML = html;
+    setTimeout(() => renderPieChart(breakdown), 100);
+  }
+
+  function renderPieChart(breakdown) {
+    const ctx = document.getElementById('costPieChart');
+    if (!ctx) return;
+    if (window.pieChartInstance) window.pieChartInstance.destroy();
+    window.pieChartInstance = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: breakdown.map(b => b.label),
+        datasets: [{
+          data: breakdown.map(b => b.amount),
+          backgroundColor: ['#f59e0b', '#ef4444', '#3b82f6', '#22c55e', '#9ca3af'],
+          borderColor: '#fff',
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10 } } }
+      }
+    });
   }
 
   function copyResultText(annualCost, lifetimeCost) {
@@ -644,13 +704,26 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     }).catch(() => alert('コピーに失敗しました'));
   }
 
+  function downloadCSV(petType, initialCost, annualCost, lifespan, lifetimeCost) {
+    const csv = `項目,金額(万円)\nペット種別,${petType}\n初期費用,${initialCost}\n年間維持費,${annualCost}\n寿命(年),${lifespan}\n生涯費用,${lifetimeCost}`;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `ペット飼育費用_${new Date().getTime()}.csv`);
+    link.click();
+  }
+
   function resetQuiz() {
-    currentStep = 0; answers = {};
+    currentStep = 0;
+    answers = {};
+    saveToLocalStorage();
     document.getElementById('quiz-section').classList.remove('hidden');
     document.getElementById('result-section').classList.add('hidden');
     renderQuestion();
   }
 
+  loadFromLocalStorage();
   renderQuestion();
 </script>
 <div class="max-w-2xl mx-auto px-4 mb-4">

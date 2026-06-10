@@ -34,6 +34,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js for visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
   <!-- Error Handler -->
   <script>window.onerror=function(m,s,l,c,e){console.warn('Error:',m);return true;};window.addEventListener('unhandledrejection',function(e){console.warn('Rejection:',e.reason);});</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type": "Question", "name": "このサービスは無料ですか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、完全無料・登録不要でご利用いただけます。"}}, {"@type": "Question", "name": "入力データはどこに保存されますか？", "acceptedAnswer": {"@type": "Answer", "text": "お使いのデバイス内にのみ保存されます。外部送信は行いません。"}}, {"@type": "Question", "name": "結果はどのくらい正確ですか？", "acceptedAnswer": {"@type": "Answer", "text": "あくまで参考情報です。重要な判断の際は専門家にご相談ください。"}}, {"@type": "Question", "name": "どのような人が使っていますか？", "acceptedAnswer": {"@type": "Answer", "text": "初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}}, {"@type": "Question", "name": "結果をシェアできますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}}, {"@type": "Question", "name": "有料プランはありますか？", "acceptedAnswer": {"@type": "Answer", "text": "いいえ、すべての機能を完全無料でご利用いただけます。"}}]}</script>
@@ -559,12 +561,19 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="text-4xl mb-2">${top3[0].name.split(' ')[0]}</div>
           <h3 class="text-xl font-bold text-purple-700">あなたには「${top3[0].name}」がおすすめ</h3>
           <p class="text-gray-600 mt-2">${top3[0].desc}</p>
+          <div class="mt-4 p-3 bg-white rounded-lg">
+            <canvas id="gaugeChart" width="300" height="300" style="max-width:100%;margin:0 auto;display:block;"></canvas>
+          </div>
           <div class="mt-3 p-3 bg-white rounded-lg text-left text-sm">
             <p class="font-semibold text-purple-700 mb-1">最初の3ステップ：</p>
             <ol class="text-gray-700 space-y-1">
               ${top3[0].steps.map((step, idx) => `<li>${idx+1}. ${step}</li>`).join('')}
             </ol>
           </div>
+        </div>
+        <div class="bg-white rounded-xl shadow-sm p-5 mb-4">
+          <h3 class="font-bold text-gray-700 mb-4">📊 マッチ度スコア（TOP3比較）</h3>
+          <canvas id="comparisonChart" width="400" height="200" style="max-width:100%;"></canvas>
         </div>
         <h3 class="font-bold text-gray-700 mb-3">おすすめ収益化手段 TOP3</h3>`;
 
@@ -622,6 +631,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
       document.getElementById('result-content').innerHTML = html;
 
+      // グラフ描画用グローバル変数（初期化）
+      if (window.resultCharts) {
+        Object.values(window.resultCharts).forEach(chart => chart.destroy());
+      }
+      window.resultCharts = {};
+
+      // 次のイベントループ後にグラフ描画（DOM反映後）
+      setTimeout(() => {
+        drawGaugeChart(top3[0].score, maxScore);
+        drawComparisonChart(top3);
+      }, 100);
+
       // 結果を localStorage に保存
       localStorage.setItem('blog_income_results', JSON.stringify({
         timestamp: new Date().toISOString(),
@@ -629,6 +650,118 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         maxScore: maxScore,
         answers: answers
       }));
+
+      // グラフ描画関数：ゲージチャート（円形スコア表示）
+      window.drawGaugeChart = function(score, maxScore) {
+        const matchPct = Math.round((score / maxScore) * 100);
+        const ctx = document.getElementById('gaugeChart');
+        if (!ctx) return;
+
+        if (window.resultCharts && window.resultCharts.gauge) {
+          window.resultCharts.gauge.destroy();
+        }
+
+        window.resultCharts.gauge = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            datasets: [{
+              data: [matchPct, 100 - matchPct],
+              backgroundColor: ['#a855f7', '#e0e7ff'],
+              borderWidth: 0
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              tooltip: { enabled: false },
+              legend: { display: false },
+              datalabels: { display: false }
+            }
+          },
+          plugins: [{
+            id: 'textCenter',
+            beforeDatasetsDraw(chart) {
+              const { width, height, ctx: c } = chart;
+              c.restore();
+              const fontSize = (height / 200).toFixed(2);
+              c.font = `bold ${fontSize * 16}px sans-serif`;
+              c.textBaseline = 'middle';
+              c.fillStyle = '#a855f7';
+              const text = matchPct + '%';
+              const textX = Math.round((width - c.measureText(text).width) / 2);
+              const textY = height / 2;
+              c.fillText(text, textX, textY);
+              c.font = `12px sans-serif`;
+              c.fillStyle = '#6b7280';
+              c.fillText('マッチ度', Math.round((width - c.measureText('マッチ度').width) / 2), textY + 24);
+              c.save();
+            }
+          }]
+        });
+      };
+
+      // グラフ描画関数：横棒グラフ（TOP3比較）
+      window.drawComparisonChart = function(top3) {
+        const ctx = document.getElementById('comparisonChart');
+        if (!ctx) return;
+
+        if (window.resultCharts && window.resultCharts.comparison) {
+          window.resultCharts.comparison.destroy();
+        }
+
+        const maxScore = Math.max(...top3.map(m => m.score)) || 1;
+        const labels = top3.map(m => m.name.replace(/^[^\s]+ /, ''));
+        const data = top3.map(m => Math.round((m.score / maxScore) * 100));
+
+        window.resultCharts.comparison = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'マッチ度（%）',
+              data: data,
+              backgroundColor: ['#a855f7', '#d8b4fe', '#e9d5ff'],
+              borderRadius: 8,
+              borderSkipped: false
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: 'rgba(0,0,0,0.8)',
+                padding: 12,
+                titleFont: { size: 13 },
+                bodyFont: { size: 12 },
+                callbacks: {
+                  label: function(context) {
+                    return 'マッチ度: ' + context.parsed.x + '%';
+                  }
+                }
+              }
+            },
+            scales: {
+              x: {
+                beginAtZero: true,
+                max: 100,
+                ticks: {
+                  callback: function(value) { return value + '%'; },
+                  font: { size: 11 }
+                },
+                grid: { color: '#f3f4f6' }
+              },
+              y: {
+                ticks: { font: { size: 12 } },
+                grid: { display: false }
+              }
+            }
+          }
+        });
+      };
 
       window.copyResult = function(title, desc) {
         const text = `ブログ・SNS収益化適性診断\n\n推奨: ${title}\n\n${desc}\n\nあなたに最適な収益化手段を診断：\nhttps://appadaycreator.com/blog-income-advisor/`;

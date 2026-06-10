@@ -55,6 +55,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Error Handler -->
   <script>window.onerror=function(m,s,l,c,e){console.warn('Error:',m);return true;};window.addEventListener('unhandledrejection',function(e){console.warn('Rejection:',e.reason);});</script>
   <script>
@@ -280,6 +282,25 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <div class="bg-white rounded-2xl shadow-md p-6 mb-6">
         <h2 class="text-2xl font-bold text-center mb-6 text-amber-700">診断結果</h2>
         <div id="result-content"></div>
+
+        <!-- Graphs Section -->
+        <div id="graphs-section" class="mt-8 border-t pt-6">
+          <h3 class="text-lg font-bold mb-4 text-gray-800">📊 結果の可視化</h3>
+          <div class="grid grid-cols-1 gap-6">
+            <div class="bg-gray-50 rounded-xl p-4">
+              <h4 class="font-semibold text-gray-700 mb-3">年ごとの資産残高推移</h4>
+              <canvas id="chart-assets" style="max-height:300px;"></canvas>
+            </div>
+            <div class="bg-gray-50 rounded-xl p-4">
+              <h4 class="font-semibold text-gray-700 mb-3">月々の年金 vs 生活費</h4>
+              <canvas id="chart-monthly" style="max-height:250px;"></canvas>
+            </div>
+            <div class="bg-gray-50 rounded-xl p-4">
+              <h4 class="font-semibold text-gray-700 mb-3">資金充足度</h4>
+              <canvas id="chart-gauge" style="max-height:250px;"></canvas>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Affiliate -->
@@ -320,7 +341,23 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
       </div>
 
-      <button onclick="location.reload()" aria-label="もう一度診断する" class="w-full bg-amber-600 text-white font-bold py-3 rounded-xl hover:bg-amber-700 transition">もう一度診断する</button>
+      <div class="flex gap-3 flex-col">
+        <button onclick="resetQuiz()" aria-label="もう一度診断する" class="w-full bg-amber-600 text-white font-bold py-3 rounded-xl hover:bg-amber-700 transition">もう一度診断する</button>
+        <button onclick="showHistoryModal()" aria-label="計算履歴を表示" class="w-full bg-blue-500 text-white font-bold py-3 rounded-xl hover:bg-blue-600 transition" id="history-btn">📋 計算履歴を見る</button>
+        <button onclick="restorePreviousData()" aria-label="前回データを復元" class="w-full bg-gray-500 text-white font-bold py-3 rounded-xl hover:bg-gray-600 transition" id="restore-btn">↺ 前回データを復元</button>
+      </div>
+    </div>
+
+    <!-- History Modal -->
+    <div id="history-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded-2xl shadow-lg p-6 max-w-md w-full max-h-96 overflow-y-auto">
+        <h3 class="text-xl font-bold mb-4 text-gray-800">計算履歴</h3>
+        <div id="history-list" class="space-y-2 mb-4"></div>
+        <div class="text-center">
+          <button onclick="clearHistory()" class="text-red-500 text-sm hover:underline">履歴をすべてクリア</button>
+          <button onclick="document.getElementById('history-modal').classList.add('hidden')" class="block w-full mt-3 bg-gray-300 text-gray-800 font-bold py-2 rounded-lg hover:bg-gray-400">閉じる</button>
+        </div>
+      </div>
     </div>
   
 <section aria-labelledby="faq-h" class="bg-white rounded-2xl shadow-md p-4 mb-4" style="max-width:740px;margin-left:auto;margin-right:auto">
@@ -478,17 +515,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <script>
     const answers = {};
     const totalQ = 8;
+    let chartAssets, chartMonthly, chartGauge;
 
     document.querySelectorAll('.quiz-btn').forEach(btn => {
       btn.addEventListener('click', function() {
         const q = parseInt(this.dataset.q);
         const v = this.dataset.v;
         answers[q] = v;
-
-        // highlight
         document.querySelectorAll(`[data-q="${q}"]`).forEach(b => b.classList.remove('border-amber-500','bg-amber-100'));
         this.classList.add('border-amber-500','bg-amber-100');
-
         setTimeout(() => {
           if (q < totalQ) {
             document.getElementById(`q${q}`).classList.add('hidden');
@@ -507,7 +542,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('quiz-section').classList.add('hidden');
       document.getElementById('result-section').classList.remove('hidden');
 
-      // Calculations
       const age = parseInt(answers[1]);
       const savings = parseInt(answers[2]);
       const monthlyExpense = parseInt(answers[3]);
@@ -517,43 +551,27 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const childAid = answers[7];
       const hobbyCost = answers[8];
 
-      // Years until retirement
       const yearsToRetire = Math.max(0, retireAge - age);
-      // Assumed savings growth 2% per year
       const savingsAtRetire = savings * Math.pow(1.02, yearsToRetire);
 
-      // Housing cost addition
       let housingAdd = 0;
       if (housing === 'rent-low') housingAdd = 6;
       else if (housing === 'rent-high') housingAdd = 10;
       else if (housing === 'own-loan') housingAdd = 4;
 
-      // Hobby cost
       let hobbyAdd = 0;
       if (hobbyCost === 'low') hobbyAdd = 2;
       else if (hobbyCost === 'mid') hobbyAdd = 4;
       else if (hobbyCost === 'high') hobbyAdd = 6;
 
-      // Child aid one-time cost (万円)
       const childOneTime = answers[7] === 'none' ? 0 : answers[7] === 'small' ? 50 : answers[7] === 'medium' ? 300 : 700;
-
-      // Monthly living at retirement (老後は現役時の80%と仮定)
       const retireMonthly = monthlyExpense * 0.8 + housingAdd + hobbyAdd;
       const retireAnnual = retireMonthly * 12;
-
-      // Pension income annual
       const pensionAnnual = pension * 12;
-
-      // Annual shortfall
       const annualShortfall = Math.max(0, retireAnnual - pensionAnnual);
-
-      // Life expectancy 90歳想定
       const retireYears = 90 - retireAge;
       const totalNeeded = annualShortfall * retireYears + childOneTime;
-
-      // Gap
       const gap = totalNeeded - savingsAtRetire;
-
       const isOK = gap <= 0;
       const gapAbs = Math.abs(Math.round(gap));
       const monthlyShortfall = isOK ? 0 : Math.round(gap / retireYears / 12);
@@ -624,7 +642,143 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>`;
 
       document.getElementById('result-content').innerHTML = html;
+
+      setTimeout(() => {
+        generateGraphs(age, savings, monthlyExpense, pension, retireAge, yearsToRetire,
+                       savingsAtRetire, retireMonthly, pensionAnnual, annualShortfall, retireYears);
+        saveToHistory(age, retireMonthly, pension, gapAbs, isOK);
+        updateHistoryUI();
+      }, 100);
     }
+
+    function generateGraphs(age, savings, monthlyExpense, pension, retireAge, yearsToRetire,
+                           savingsAtRetire, retireMonthly, pensionAnnual, annualShortfall, retireYears) {
+      const years = [];
+      const assets = [];
+      let currentAssets = savingsAtRetire;
+      const annualExpense = retireMonthly * 12;
+
+      for (let i = 0; i <= retireYears; i++) {
+        years.push(retireAge + i);
+        assets.push(Math.max(0, currentAssets));
+        currentAssets -= annualExpense;
+      }
+
+      if (chartAssets) chartAssets.destroy();
+      const ctxAssets = document.getElementById('chart-assets').getContext('2d');
+      chartAssets = new Chart(ctxAssets, {
+        type: 'line',
+        data: {
+          labels: years,
+          datasets: [{
+            label: '資産残高（万円）',
+            data: assets,
+            borderColor: '#f59e0b',
+            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+            tension: 0.3,
+            fill: true
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: true } } }
+      });
+
+      if (chartMonthly) chartMonthly.destroy();
+      const ctxMonthly = document.getElementById('chart-monthly').getContext('2d');
+      chartMonthly = new Chart(ctxMonthly, {
+        type: 'bar',
+        data: {
+          labels: ['月額'],
+          datasets: [
+            { label: '年金（月）', data: [pension], backgroundColor: '#10b981' },
+            { label: '生活費（月）', data: [retireMonthly], backgroundColor: '#ef4444' }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: true, indexAxis: 'y', plugins: { legend: { display: true } } }
+      });
+
+      const sufficiencyPct = Math.min(100, Math.round((savingsAtRetire / (annualExpense * retireYears)) * 100));
+      if (chartGauge) chartGauge.destroy();
+      const ctxGauge = document.getElementById('chart-gauge').getContext('2d');
+      chartGauge = new Chart(ctxGauge, {
+        type: 'doughnut',
+        data: {
+          labels: ['充足度', '不足'],
+          datasets: [{
+            data: [sufficiencyPct, 100 - sufficiencyPct],
+            backgroundColor: ['#10b981', '#e5e7eb']
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { display: true } } }
+      });
+    }
+
+    function saveToHistory(age, retireMonthly, pension, gapAbs, isOK) {
+      const history = JSON.parse(localStorage.getItem('retirement_history') || '[]');
+      const entry = {
+        timestamp: new Date().toLocaleString('ja-JP'),
+        age, retireMonthly, pension, gapAbs, isOK,
+        answers: JSON.stringify(answers)
+      };
+      history.unshift(entry);
+      if (history.length > 5) history.pop();
+      localStorage.setItem('retirement_history', JSON.stringify(history));
+    }
+
+    function updateHistoryUI() {
+      const history = JSON.parse(localStorage.getItem('retirement_history') || '[]');
+      document.getElementById('restore-btn').style.display = history.length > 0 ? 'block' : 'none';
+      document.getElementById('history-btn').style.display = history.length > 0 ? 'block' : 'none';
+    }
+
+    function showHistoryModal() {
+      const history = JSON.parse(localStorage.getItem('retirement_history') || '[]');
+      const historyHtml = history.map((h, i) => `
+        <button onclick="loadHistory(${i})" class="w-full text-left bg-gray-100 hover:bg-gray-200 p-3 rounded-lg mb-2 text-sm">
+          <p class="font-semibold text-gray-700">${h.age}歳時点</p>
+          <p class="text-xs text-gray-500">${h.timestamp}</p>
+          <p class="text-xs text-gray-600">生活費: ${h.retireMonthly}万円, 年金: ${h.pension}万円</p>
+        </button>
+      `).join('');
+      document.getElementById('history-list').innerHTML = historyHtml || '<p class="text-gray-500">履歴がありません</p>';
+      document.getElementById('history-modal').classList.remove('hidden');
+    }
+
+    function loadHistory(index) {
+      const history = JSON.parse(localStorage.getItem('retirement_history') || '[]');
+      const entry = history[index];
+      Object.assign(answers, JSON.parse(entry.answers));
+      document.getElementById('history-modal').classList.add('hidden');
+      showResult();
+    }
+
+    function restorePreviousData() {
+      const history = JSON.parse(localStorage.getItem('retirement_history') || '[]');
+      if (history.length === 0) { alert('前回データがありません'); return; }
+      Object.assign(answers, JSON.parse(history[0].answers));
+      document.getElementById('quiz-section').classList.remove('hidden');
+      document.getElementById('result-section').classList.add('hidden');
+      resetQuiz();
+      updateHistoryUI();
+    }
+
+    function resetQuiz() {
+      document.getElementById('quiz-section').classList.remove('hidden');
+      document.getElementById('result-section').classList.add('hidden');
+      for (let i = 2; i <= 8; i++) {
+        document.getElementById(`q${i}`).classList.add('hidden');
+      }
+      document.getElementById('q1').classList.remove('hidden');
+      document.getElementById('progress-bar').style.width = '0%';
+      document.getElementById('progress-text').textContent = '質問 1 / 8';
+    }
+
+    function clearHistory() {
+      localStorage.removeItem('retirement_history');
+      document.getElementById('history-list').innerHTML = '<p class="text-gray-500">履歴がありません</p>';
+      updateHistoryUI();
+    }
+
+    window.addEventListener('load', () => { updateHistoryUI(); });
   </script>
 <div class="max-w-2xl mx-auto px-4 mb-4">
 <!-- Related Services -->

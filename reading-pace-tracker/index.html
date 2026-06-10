@@ -14,6 +14,7 @@
   <link rel="canonical" href="https://appadaycreator.com/reading-pace-tracker/">
   <meta property="og:title" content="読書ペース計算【無料】積読管理・読了日を自動予測">
   <meta property="og:description" content="1日の読書ページ数から読了日を予測。積読本の管理、読書記録の保存も無料で対応。">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
   <meta property="og:url" content="https://appadaycreator.com/reading-pace-tracker/">
   <meta property="og:type" content="website">
 <meta property="og:locale" content="ja_JP" />
@@ -194,20 +195,24 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <h2>⏱️ 読書ペース・読了日計算</h2>
     <div class="form-grid">
       <div class="form-group">
-        <label>本の総ページ数</label>
-        <input type="number" id="totalPages" value="300" min="1" step="1">
+        <label>本の総ページ数 <span title="文庫本は200～250、単行本は300～400ページが目安です">❓</span></label>
+        <small style="color:#ffcc80; font-size:0.8rem">文庫本: 200～250 / 新書: 250～300 / 単行本: 300～500ページ</small>
+        <input type="number" id="totalPages" value="300" min="1" step="1" placeholder="300">
       </div>
       <div class="form-group">
         <label>現在のページ数（読んだページ）</label>
-        <input type="number" id="currentPage" value="0" min="0" step="1">
+        <small style="color:#ffcc80; font-size:0.8rem">まだ読んでいない場合は 0 を入力</small>
+        <input type="number" id="currentPage" value="0" min="0" step="1" placeholder="0">
       </div>
       <div class="form-group">
         <label>1日に読むページ数（目標）</label>
-        <input type="number" id="dailyPages" value="20" min="1" step="1">
+        <small style="color:#ffcc80; font-size:0.8rem">1日10～30ページが続けやすい目安です</small>
+        <input type="number" id="dailyPages" value="20" min="1" step="1" placeholder="20">
       </div>
       <div class="form-group">
         <label>読書時間の目安（分/日）</label>
-        <input type="number" id="dailyMinutes" value="30" min="1" step="5">
+        <small style="color:#ffcc80; font-size:0.8rem">朝10分 + 通勤20分 = 計30分 など</small>
+        <input type="number" id="dailyMinutes" value="30" min="1" step="5" placeholder="30">
       </div>
     </div>
     <button class="btn" onclick="calcPace()" aria-label="読了日を計算">読了日を計算する</button>
@@ -252,12 +257,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="add-form" id="addForm">
       <div class="form-group">
         <label>タイトル</label>
-        <input type="text" id="bookTitle" placeholder="本のタイトル" aria-label="本のタイトル">
+        <input type="text" id="bookTitle" placeholder="本のタイトル（例：火花）" aria-label="本のタイトル">
       </div>
       <div class="form-group">
-        <label>ページ数</label>
+        <label>ページ数 <span title="わからない場合はプリセットボタンを使用してください">❓</span></label>
         <div style="display: flex; gap: 0.3rem; align-items: center;">
-          <input type="number" id="bookPages" value="300" min="1" step="1" style="flex: 1;">
+          <input type="number" id="bookPages" value="300" min="1" step="1" style="flex: 1;" placeholder="300">
           <button class="btn-preset" onclick="setPagePreset(200)" aria-label="ページ数を文庫(200)に設定">文庫</button>
           <button class="btn-preset" onclick="setPagePreset(250)" aria-label="ページ数を新書(250)に設定">新書</button>
           <button class="btn-preset" onclick="setPagePreset(350)" aria-label="ページ数を単行本(350)に設定">単行本</button>
@@ -301,12 +306,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <h2>🎯 年間読書ペース診断</h2>
     <div class="form-grid">
       <div class="form-group">
-        <label>1日の読書時間（分）</label>
-        <input type="number" id="diagMinutes" value="30" min="1" step="5">
+        <label>1日の読書時間（分） <span title="毎日継続できる読書時間を入力してください">❓</span></label>
+        <small style="color:#ffcc80; font-size:0.8rem">朝10分 + 移動30分 など、実現可能な時間を入力</small>
+        <input type="number" id="diagMinutes" value="30" min="1" step="5" placeholder="30">
       </div>
       <div class="form-group">
         <label>1分あたりの読速（ページ）</label>
-        <input type="number" id="diagSpeed" value="0.7" min="0.1" step="0.1">
+        <small style="color:#ffcc80; font-size:0.8rem">一般的には0.5～1.0。速読は0.7が目安</small>
+        <input type="number" id="diagSpeed" value="0.7" min="0.1" step="0.1" placeholder="0.7">
       </div>
     </div>
     <button class="btn" onclick="calcYearly()" aria-label="年間読書量を計算">年間読書量を計算</button>
@@ -327,6 +334,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="value" id="readingLevel">-</div>
           <div class="unit"></div>
         </div>
+      </div>
+      <div id="levelDescription" style="margin-top:1rem; padding:1rem; background:rgba(255,152,0,0.1); border-left:4px solid #ff9800; border-radius:8px;">
+        <p id="levelDescText" style="color:#ffb74d; font-size:0.95rem; margin:0;"></p>
+      </div>
+      <div style="margin-top:1rem;">
+        <canvas id="yearlyChart" style="max-height:300px;"></canvas>
       </div>
     </div>
   </section>
@@ -477,7 +490,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     const current = parseInt(document.getElementById('currentPage').value) || 0;
     const daily = parseInt(document.getElementById('dailyPages').value) || 0;
     const minutes = parseInt(document.getElementById('dailyMinutes').value) || 0;
-    if (!total || !daily) { alert('値を入力してください'); return; }
+
+    // バリデーション
+    if (!total || total <= 0) { alert('本の総ページ数は1以上の数値を入力してください'); return; }
+    if (!daily || daily <= 0) { alert('1日に読むページ数は1以上の数値を入力してください'); return; }
+    if (current > total) { alert('現在のページ数は総ページ数以下の値を入力してください'); return; }
+
     const remain = Math.max(0, total - current);
     const days = Math.ceil(remain / daily);
     const finishDate = new Date();
@@ -589,6 +607,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               style="background:#3a3a3a;border:1px solid rgba(255,152,0,0.3);border-radius:6px;padding:0.3rem 0.5rem;color:#fff;font-size:0.82rem;width:80px;">
             <button class="action-btn" onclick="updateCurrentPage(${b.id}, document.getElementById('curp_${b.id}').value)" style="font-size:0.75rem;">💾 更新</button>
           </div>
+          <div style="margin-top:0.5rem;max-width:200px;">
+            <canvas id="chart_${b.id}" style="max-width:100%;"></canvas>
+          </div>
         </div>` : '';
       const finishedInfo = (b.status === 'done' && b.finishedAt) ? `<span style="color:#90caf9;">・読了: ${b.finishedAt}</span>` : '';
       return `
@@ -609,6 +630,37 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
       </div>`;
     }).join('');
+
+    // グラフ描画（読書中の本）
+    setTimeout(() => {
+      filtered.forEach(b => {
+        if (b.status === 'reading') {
+          const chartEl = document.getElementById(`chart_${b.id}`);
+          if (chartEl && window.Chart) {
+            const pct = b.pages > 0 ? Math.round((b.currentPage || 0) / b.pages * 100) : 0;
+            const ctx = chartEl.getContext('2d');
+            if (window[`chart_${b.id}`]) window[`chart_${b.id}`].destroy();
+            window[`chart_${b.id}`] = new Chart(ctx, {
+              type: 'doughnut',
+              data: {
+                labels: ['読了', '残り'],
+                datasets: [{
+                  data: [pct, 100 - pct],
+                  backgroundColor: ['#ff9800', '#444']
+                }]
+              },
+              options: {
+                responsive: true,
+                plugins: {
+                  legend: { position: 'bottom', labels: { font: { size: 11 } } },
+                  tooltip: { callbacks: { label: (ctx) => ctx.label + ': ' + ctx.parsed + '%' } }
+                }
+              }
+            });
+          }
+        }
+      });
+    }, 100);
   }
 
   function renderStats() {
@@ -654,17 +706,59 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   function calcYearly() {
     const minutes = parseFloat(document.getElementById('diagMinutes').value) || 0;
     const speed = parseFloat(document.getElementById('diagSpeed').value) || 0;
-    if (!minutes || !speed) { alert('値を入力してください'); return; }
+    if (!minutes || minutes <= 0) { alert('1日の読書時間は1以上の数値を入力してください'); return; }
+    if (!speed || speed <= 0) { alert('1分あたりの読速は0.1以上の数値を入力してください'); return; }
+
     const dailyPages = minutes * speed;
     const monthlyPages = dailyPages * 30;
     const yearlyPages = dailyPages * 365;
     const avgPages = 250;
-    const monthly = (monthlyPages / avgPages).toFixed(1);
-    const yearly = (yearlyPages / avgPages).toFixed(0);
-    const level = yearly < 12 ? '初心者' : yearly < 24 ? '読書家' : yearly < 52 ? '本の虫' : '読書王';
+    const monthly = parseFloat((monthlyPages / avgPages).toFixed(1));
+    const yearly = parseInt((yearlyPages / avgPages).toFixed(0));
+
+    let level, levelDesc;
+    if (yearly < 12) {
+      level = '初心者';
+      levelDesc = '📚 読書をこれから始める方、毎日少しずつ読む習慣をつけましょう。続けることが大切です。';
+    } else if (yearly < 24) {
+      level = '読書家';
+      levelDesc = '📖 月1冊が習慣化している素晴らしいペースです。様々なジャンルに挑戦してみましょう。';
+    } else if (yearly < 52) {
+      level = '本の虫';
+      levelDesc = '🦗 週に約1冊のペース。読書が生活の一部になっています。その調子で続けてください。';
+    } else {
+      level = '読書王';
+      levelDesc = '👑 ほぼ毎週新しい本を読了。読書の達人です。あなたのペースを周りにも共有してください。';
+    }
+
     document.getElementById('monthlyBooks').textContent = monthly;
     document.getElementById('yearlyBooks').textContent = yearly;
     document.getElementById('readingLevel').textContent = level;
+    document.getElementById('levelDescText').textContent = levelDesc;
+
+    // グラフ表示
+    const ctx = document.getElementById('yearlyChart').getContext('2d');
+    if (window.yearlyChartInstance) window.yearlyChartInstance.destroy();
+    window.yearlyChartInstance = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['月間読了冊数', '年間読了冊数（÷12）'],
+        datasets: [{
+          label: '冊数',
+          data: [monthly, yearly/12],
+          backgroundColor: ['rgba(255, 152, 0, 0.6)', 'rgba(230, 81, 0, 0.6)'],
+          borderColor: ['#ff9800', '#e65100'],
+          borderWidth: 2
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, max: Math.max(monthly, yearly/12) + 2 } }
+      }
+    });
+
     document.getElementById('yearlyResult').classList.remove('hidden');
   }
 

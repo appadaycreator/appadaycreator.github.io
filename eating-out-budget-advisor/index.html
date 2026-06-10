@@ -39,6 +39,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 }
 </script>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script>(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
 <script src="https://cdn.tailwindcss.com"></script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"このサービスは無料ですか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要でご利用いただけます。"}},{"@type":"Question","name":"入力データはどこに保存されますか？","acceptedAnswer":{"@type":"Answer","text":"お使いのデバイス内にのみ保存されます。外部送信は行いません。"}},{"@type":"Question","name":"結果はどのくらい正確ですか？","acceptedAnswer":{"@type":"Answer","text":"あくまで参考情報です。重要な判断の際は専門家にご相談ください。"}},{"@type":"Question","name":"どのような人が使っていますか？","acceptedAnswer":{"@type":"Answer","text":"初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}},{"@type":"Question","name":"結果をシェアできますか？","acceptedAnswer":{"@type":"Answer","text":"はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}},{"@type":"Question","name":"有料プランはありますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、すべての機能を完全無料でご利用いただけます。"}},{"@type":"Question","name":"計算結果は実際の金融商品に使えますか？","acceptedAnswer":{"@type":"Answer","text":"本ツールは参考情報の提供を目的としており、実際の投資・融資判断には専門家（ファイナンシャルプランナー等）にご相談ください。"}},{"@type":"Question","name":"入力した金額データはどこかに送られますか？","acceptedAnswer":{"@type":"Answer","text":"すべての計算はブラウザ内で完結します。サーバーへのデータ送信は一切行いません。"}}]}</script>
@@ -99,12 +100,15 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 }
 
 @media print{
-  header,footer,nav,button,.no-print,
+  header,footer,nav,.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
   [id*="affiliate"],[id*="banner"],
-  script,noscript{display:none!important}
-  body{background:#fff!important;color:#000!important;font-size:12pt}
+  #quizArea,#backBtn,#nextBtn,script,noscript{display:none!important}
+  button:not(#copyBtn):not(#printBtn){display:none!important}
+  body{background:#fff!important;color:#000!important;font-size:11pt}
   [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
+  #resultArea{display:block!important}
+  canvas{max-height:250px}
   a[href]::after{content:none!important}
 }
 
@@ -187,11 +191,30 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
           <div id="scoreMeter" class="h-4 rounded-full transition-all duration-700" style="width:50%"></div>
         </div>
         <p class="text-center text-sm font-bold" id="scoreLabel"></p>
+        <div style="max-width:300px;height:300px;margin:16px auto;" id="scoreChartContainer">
+          <canvas id="scoreChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Cost visualization -->
+      <div class="bg-gray-50 rounded-xl p-4 mb-4">
+        <h3 class="font-bold text-gray-800 mb-3">📊 月間支出内訳</h3>
+        <div style="max-width:300px;height:250px;margin:0 auto;" id="costChartContainer">
+          <canvas id="costChart"></canvas>
+        </div>
       </div>
 
       <div class="bg-red-50 rounded-xl p-4 mb-4">
         <h3 class="font-bold text-red-800 mb-2">💰 節約額試算</h3>
         <div id="savingCalc" class="text-sm text-red-700"></div>
+        <div class="flex gap-2 mt-3" style="flex-wrap:wrap">
+          <button onclick="copyResult()" id="copyBtn" class="flex-1 bg-white border-2 border-red-300 text-red-700 font-semibold py-2 px-3 rounded-xl hover:bg-red-50 transition-colors text-xs flex items-center justify-center gap-2 min-h-[44px]">
+            📋 コピー
+          </button>
+          <button onclick="printResult()" class="flex-1 bg-white border-2 border-red-300 text-red-700 font-semibold py-2 px-3 rounded-xl hover:bg-red-50 transition-colors text-xs flex items-center justify-center gap-2 min-h-[44px]">
+            🖨️ 印刷
+          </button>
+        </div>
       </div>
 
       <div class="bg-gray-50 rounded-xl p-4 mb-4">
@@ -232,7 +255,29 @@ const QUESTIONS = [
   {id:'motivation', q:'Q8. 食費節約への意欲は？', opts:['かなり節約したい','少し節約できればよい','現状でいい','食事の質を落としたくない']},
 ];
 
-let answers = {}, currentQ = 0;
+let answers = {}, currentQ = 0, chartInstances = {};
+
+// localStorage データの復元
+function loadAnswers() {
+  const saved = localStorage.getItem('eatingBudgetAnswers');
+  if (saved) {
+    try {
+      answers = JSON.parse(saved);
+      if (Object.keys(answers).length > 0) {
+        currentQ = Object.keys(answers).length;
+        if (currentQ >= QUESTIONS.length) {
+          showResult();
+          return;
+        }
+      }
+    } catch (e) {}
+  }
+}
+
+// localStorage へ保存
+function saveAnswers() {
+  localStorage.setItem('eatingBudgetAnswers', JSON.stringify(answers));
+}
 
 function renderQ() {
   const q = QUESTIONS[currentQ];
@@ -261,7 +306,11 @@ function renderQ() {
   document.querySelector('#questionContainer button')?.focus();
 }
 
-function selectOpt(i) { answers[QUESTIONS[currentQ].id] = i; renderQ(); }
+function selectOpt(i) {
+  answers[QUESTIONS[currentQ].id] = i;
+  saveAnswers();
+  renderQ();
+}
 function prevQ() { if (currentQ > 0) { currentQ--; renderQ(); } }
 function nextQ() {
   if (answers[QUESTIONS[currentQ].id] === undefined) {
@@ -363,6 +412,63 @@ function showResult() {
       📋 結果をコピー
     </button>`;
 
+  // グラフの初期化（既存の chart を破棄）
+  Object.values(chartInstances).forEach(c => c?.destroy?.());
+  chartInstances = {};
+
+  // スコアゲージチャート（円形）
+  setTimeout(() => {
+    const scoreCtx = document.getElementById('scoreChart');
+    if (scoreCtx && window.Chart) {
+      chartInstances.scoreChart = new Chart(scoreCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['スコア', '残り'],
+          datasets: [{
+            data: [score, 100 - score],
+            backgroundColor: [meterColors, '#e5e7eb'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: { enabled: false }
+          }
+        }
+      });
+    }
+  }, 100);
+
+  // 支出内訳グラフ（円グラフ）
+  setTimeout(() => {
+    const costCtx = document.getElementById('costChart');
+    if (costCtx && window.Chart) {
+      const remaining = Math.max(0, targetEatOut - totalEatOut);
+      chartInstances.costChart = new Chart(costCtx, {
+        type: 'doughnut',
+        data: {
+          labels: ['実際の外食費', '目標額までの余裕'],
+          datasets: [{
+            data: [totalEatOut, remaining],
+            backgroundColor: ['#ef4444', '#d1d5db'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { position: 'bottom', labels: { font: { size: 12 } } },
+            tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${ctx.parsed}円` } }
+          }
+        }
+      });
+    }
+  }, 100);
+
   // Tips based on answers（最多3個に制限）
   const tips = [];
   if (frequency >= 3) tips.push({ icon: '🍱', text: '週の外食回数を1〜2回に減らすだけで大きな節約に。「まとめ調理」で平日の手抜きをなくしましょう' });
@@ -396,6 +502,9 @@ function showResult() {
 
 function restart() {
   answers = {}; currentQ = 0;
+  saveAnswers();
+  Object.values(chartInstances).forEach(c => c?.destroy?.());
+  chartInstances = {};
   document.getElementById('resultArea').classList.add('hidden');
   document.getElementById('quizArea').classList.remove('hidden');
   renderQ();
@@ -408,10 +517,19 @@ function copyResult() {
   const text = `【外食費診断結果】\n判定: ${d.badge}\nスコア: ${d.score}/100\n削減可能額（月）: ${d.monthlySaving.toLocaleString()}円\n年間節約見込み: ${d.yearlySaving.toLocaleString()}円\nhttps://appadaycreator.com/eating-out-budget-advisor/`;
   navigator.clipboard.writeText(text).then(() => {
     const btn = document.getElementById('copyBtn');
-    if (btn) { btn.textContent = '✅ コピーしました'; setTimeout(() => { btn.innerHTML = '📋 結果をコピー'; }, 2000); }
+    if (btn) {
+      const origHTML = btn.innerHTML;
+      btn.textContent = '✅ コピーしました';
+      setTimeout(() => { btn.innerHTML = origHTML; }, 2000);
+    }
   }).catch(() => {});
 }
 
+function printResult() {
+  window.print();
+}
+
+loadAnswers();
 renderQ();
 </script>
 <div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px auto;max-width:680px;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">入力された値を計算式やスコアリングロジックで処理し、あなたに合った結果を算出します。本ツールの結果はあくまで参考情報です。重要な判断の際は専門家にご相談ください。</p></div>

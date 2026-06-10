@@ -248,25 +248,29 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="form-grid" style="margin-top:1rem;">
       <div class="form-group">
         <label>1回で何個作る（生産数）</label>
-        <input type="number" id="productionQty" value="1" min="1" step="1">
+        <input type="number" id="productionQty" placeholder="例: 1, 5, 10" value="1" min="1" step="1" aria-label="1回で何個作る（生産数）">
       </div>
       <div class="form-group">
         <label>制作時間（時間）</label>
-        <input type="number" id="workHours" value="3" min="0.5" step="0.5">
+        <input type="number" id="workHours" placeholder="例: 3, 5.5" value="3" min="0.5" step="0.5" aria-label="制作時間（時間）">
       </div>
       <div class="form-group">
         <label>時給換算（円/時間）</label>
-        <input type="number" id="hourlyRate" value="1000" min="0" step="100">
+        <input type="number" id="hourlyRate" placeholder="例: 1000, 1500" value="1000" min="0" step="100" aria-label="時給換算（円/時間）">
       </div>
       <div class="form-group" style="grid-column:1 / -1;">
         <label>販売価格 掛け率: <strong id="multiplierVal" style="color:#e040fb;">2.0</strong> 倍</label>
         <div class="slider-wrap">
           <input type="range" id="multiplier" min="1.0" max="5.0" step="0.1" value="2.0"
-                 oninput="document.getElementById('multiplierVal').textContent=parseFloat(this.value).toFixed(1)">
+                 oninput="document.getElementById('multiplierVal').textContent=parseFloat(this.value).toFixed(1)" aria-label="販売価格掛け率（1.0～5.0倍）">
         </div>
         <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:#888;margin-top:0.2rem;">
           <span>1.0倍（最低）</span><span>2.5倍（標準）</span><span>5.0倍（高級）</span>
         </div>
+      </div>
+      <div class="form-group">
+        <label>目標販売価格（達成度トラッキング用）</label>
+        <input type="number" id="targetPrice" placeholder="例: 5000, 8000" value="" min="0" step="100" aria-label="目標販売価格（達成度トラッキング用）">
       </div>
     </div>
     <button class="btn" onclick="calculate()">材料費・コストを計算する</button>
@@ -287,6 +291,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="label">制作費（時給込み）</div>
           <div class="value" id="totalWithLabor">-</div>
           <div class="unit">円/個</div>
+        </div>
+      </div>
+      <!-- 達成度トラッキング -->
+      <div id="achievementSection" style="margin-top:1.5rem;padding:1rem;background:rgba(255,215,64,0.1);border:1px solid rgba(255,215,64,0.3);border-radius:12px;display:none;">
+        <h3 style="font-size:0.95rem;color:#ffd740;margin-bottom:0.8rem;font-weight:600;">🎯 目標達成度</h3>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:1rem;align-items:center;">
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:0.85rem;color:#ccc;margin-bottom:0.4rem;">
+              <span id="achievementLabel">販売価格</span>
+              <span id="achievementPercent">0%</span>
+            </div>
+            <progress id="achievementBar" value="0" max="100" style="width:100%;height:24px;border-radius:12px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,215,64,0.3);accent-color:#ffd740;"></progress>
+            <div style="font-size:0.75rem;color:#888;margin-top:0.3rem;">現在: <span id="currentPrice">-</span>円 / 目標: <span id="targetPriceDisplay">-</span>円</div>
+          </div>
         </div>
       </div>
       <!-- グラフセクション -->
@@ -623,6 +641,23 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     // CSV用に結果を保存
     lastCalcResult = { qty, hours, hourly, multiplier: m, details, totalMat, perItem, laborCost, totalWithLabor, prices };
+
+    // M6: 達成度トラッキング
+    const currentPrice = prices[1].val; // 提案価格（中央値）
+    const targetPrice = parseFloat(document.getElementById('targetPrice').value);
+    if (targetPrice && targetPrice > 0) {
+      const achievement = Math.min(100, Math.round((currentPrice / targetPrice) * 100));
+      document.getElementById('achievementSection').style.display = 'block';
+      document.getElementById('achievementBar').value = achievement;
+      document.getElementById('achievementPercent').textContent = achievement + '%';
+      document.getElementById('currentPrice').textContent = Math.round(currentPrice).toLocaleString();
+      document.getElementById('targetPriceDisplay').textContent = Math.round(targetPrice).toLocaleString();
+      // localStorage に自動保存
+      localStorage.setItem('craftCalc_lastPrice', Math.round(currentPrice));
+      localStorage.setItem('craftCalc_targetPrice', Math.round(targetPrice));
+    } else {
+      document.getElementById('achievementSection').style.display = 'none';
+    }
 
     // グラフ描画
     drawMaterialChart(details);
@@ -1107,6 +1142,14 @@ AppADayCreatorでは、本ツール以外にもお金・家計カテゴリの便
 <!-- r17-mobile-ux -->
 <a href="#top" id="back-to-top" aria-label="ページトップへ戻る" style="display:none;position:fixed;bottom:24px;right:20px;background:#4f46e5;color:#fff;border:none;border-radius:50%;width:48px;height:48px;font-size:1.4rem;line-height:48px;text-align:center;text-decoration:none;box-shadow:0 4px 12px rgba(79,70,229,.4);z-index:9000;cursor:pointer" title="ページトップへ">↑</a>
 <script>
+// M6: ページロード時に前回の目標価格を復元
+(function() {
+  const savedTarget = localStorage.getItem('craftCalc_targetPrice');
+  if (savedTarget) {
+    document.getElementById('targetPrice').value = savedTarget;
+  }
+})();
+
 (function(){
   var btn = document.getElementById('back-to-top');
   if(!btn) return;

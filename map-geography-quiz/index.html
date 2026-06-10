@@ -139,6 +139,19 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
   <p style="color:#374151;margin:0 0 .75rem;line-height:1.75;font-size:.92rem">【遊び方】ページを開いたらすぐにスタートできます。スマートフォンにも対応しています。</p>
   <p style="color:#4b5563;margin:0;line-height:1.75;font-size:.9rem">当ツールで入力したデータはお使いのブラウザ内にのみ保存され、外部サーバーへ送信されることはありません。安心してご利用ください。</p>
 </div>
+
+<!-- M6: 目標スコア設定セクション -->
+<div style="background:#f3f0ff;border:1px solid #e9d5ff;border-radius:12px;padding:1.5rem;margin:1.5rem 0">
+  <h3 style="font-size:14px;font-weight:700;color:#6d28d9;margin:0 0 12px;">🎯 目標スコア設定</h3>
+  <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;">
+    <div style="flex:1;min-width:120px;">
+      <label style="display:block;font-size:13px;font-weight:600;color:#555;margin-bottom:4px;">目標スコア（1〜5点）</label>
+      <input type="number" id="goal-score-input" min="1" max="5" value="5" style="width:100%;padding:10px;border:1.5px solid #e9d5ff;border-radius:8px;font-size:15px;" />
+    </div>
+    <button class="btn" onclick="setGoalScore()" style="background:#6d28d9;flex:0 0 100px;min-height:44px;font-size:13px;padding:10px;">目標設定</button>
+  </div>
+  <div id="goal-info" style="margin-top:8px;font-size:12px;color:#6b7280;"></div>
+</div>
 <div style="background:#eaf4fb;border-left:4px solid #1976d2;padding:20px 24px;margin:24px 0;border-radius:0 8px 8px 0">
   <h3 style="font-size:1.1rem;font-weight:800;color:#1e3a5f">このツールでできること</h3>
   <p style="margin:8px 0 0;line-height:1.7;color:#1a1a2e">世界地図・日本地図の問題を解く地理クイズゲームです。国名・県名・首都・県庁所在地を地図上でクリックして答える形式で、楽しみながら地理を学べます。難易度調整も可能です。</p>
@@ -210,6 +223,17 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             <div style="font-size:1.6rem;font-weight:700;color:#6D28D9;margin-bottom:8px;">🎉 ゲーム終了！</div>
             <div id="final-score" style="font-size:2rem;font-weight:700;"></div>
             <div id="accuracy" style="font-size:1rem;color:#666;margin:12px 0;"></div>
+
+            <!-- M6: 目標達成率セクション -->
+            <div id="goal-achievement-section" style="background:#f3f0ff;border:1px solid #e9d5ff;border-radius:12px;padding:16px;margin:16px 0;text-align:center;display:none;">
+              <div style="font-size:12px;color:#6b7280;margin-bottom:8px;">📊 目標達成度</div>
+              <div style="font-size:28px;font-weight:700;color:#6d28d9;margin-bottom:4px;" id="achievement-rate">0%</div>
+              <div style="font-size:13px;color:#6b7280;margin-bottom:12px;line-height:1.6;">
+                <div id="goal-text">目標スコア設定なし</div>
+                <div id="prev-goal-text" style="margin-top:6px;font-size:12px;color:#9ca3af;"></div>
+              </div>
+              <div id="achievement-badge" style="font-size:48px;margin:8px 0;"></div>
+            </div>
 
             <!-- グラフセクション -->
             <div id="graph-section" style="margin:20px 0;display:none;">
@@ -380,12 +404,78 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
     }
     // ★以下変更不要★
     let score=0,lives=3,gameRunning=false;
+
+    // M6: 目標スコア設定・管理
+    function setGoalScore() {
+      const input = document.getElementById('goal-score-input');
+      const goalScore = parseInt(input.value) || 5;
+      if(goalScore < 1 || goalScore > 5) {
+        alert('目標スコアは1〜5点で設定してください');
+        return;
+      }
+      localStorage.setItem('mapGeoGoalScore', goalScore);
+      showGoalInfo();
+    }
+
+    function showGoalInfo() {
+      const goalScore = parseInt(localStorage.getItem('mapGeoGoalScore') || '5');
+      const goalInfoEl = document.getElementById('goal-info');
+      goalInfoEl.textContent = '✅ 目標: ' + goalScore + '点に設定しました';
+      setTimeout(function() { goalInfoEl.textContent = ''; }, 3000);
+    }
+
+    function getGoalScore() {
+      return parseInt(localStorage.getItem('mapGeoGoalScore') || '5');
+    }
+
+    function showGoalAchievement(actualScore) {
+      const goalScore = getGoalScore();
+      const achievement = Math.round((actualScore / goalScore) * 100);
+      const sectionEl = document.getElementById('goal-achievement-section');
+      const rateEl = document.getElementById('achievement-rate');
+      const goalTextEl = document.getElementById('goal-text');
+      const badgeEl = document.getElementById('achievement-badge');
+      const prevGoalEl = document.getElementById('prev-goal-text');
+
+      rateEl.textContent = achievement + '%';
+      goalTextEl.textContent = '目標: ' + goalScore + '点 / 実績: ' + actualScore + '点';
+
+      // 達成度に応じたバッジを表示
+      if(achievement >= 100) {
+        badgeEl.textContent = '🎖️ 目標達成！';
+      } else if(achievement >= 80) {
+        badgeEl.textContent = '🌟 あと少し！';
+      } else if(achievement >= 60) {
+        badgeEl.textContent = '💪 頑張ろう！';
+      } else {
+        badgeEl.textContent = '📈 次回へ！';
+      }
+
+      // 前回の目標と比較
+      const history = JSON.parse(localStorage.getItem('mapGeoScoreHistory') || '[]');
+      if(history.length >= 2) {
+        const prevAchievement = history[1].prevAchievementRate || null;
+        const prevGoalScore = history[1].goalScore || null;
+        if(prevGoalScore) {
+          const prevAch = history[1].accuracy; // 前回の達成率
+          if(prevAch !== achievement) {
+            const diff = achievement - prevAch;
+            const diffText = diff > 0 ? '📈 前回比+' + diff + '%' : '📉 前回比' + diff + '%';
+            prevGoalEl.textContent = diffText + ' (前回: ' + prevAch + '%)';
+          }
+        }
+      }
+
+      sectionEl.style.display = 'block';
+    }
+
     function startGame(){
       score=0;lives=3;gameRunning=true;
       document.getElementById('score').textContent=score;
       document.getElementById('start-screen').style.display='none';
       document.getElementById('game-area').style.display='block';
       document.getElementById('result').classList.remove('show');
+      document.getElementById('goal-achievement-section').style.display='none';
       initGame(); nextRound();
     }
     function onCorrect(){ score++; document.getElementById('score').textContent=score; nextRound(); }
@@ -401,6 +491,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
       document.getElementById('result').classList.add('show');
       saveScore(correctCount, totalCount, accuracy);
       loadAndRenderHistory();
+      showGoalAchievement(correctCount);
     }
 
     // localStorage関連機能
@@ -408,7 +499,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
       const history = JSON.parse(localStorage.getItem('mapGeoScoreHistory') || '[]');
       const now = new Date();
       const dateStr = now.getFullYear() + '/' + String(now.getMonth()+1).padStart(2,'0') + '/' + String(now.getDate()).padStart(2,'0') + ' ' + String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-      history.unshift({ date: dateStr, score: score, accuracy: accuracy });
+      const goalScore = getGoalScore();
+      history.unshift({ date: dateStr, score: score, accuracy: accuracy, goalScore: goalScore });
       if(history.length > 10) history.pop();
       localStorage.setItem('mapGeoScoreHistory', JSON.stringify(history));
     }
@@ -477,6 +569,13 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
     function printResult() {
       window.print();
     }
+
+    // ページ読み込み時の初期化
+    document.addEventListener('DOMContentLoaded', function() {
+      const goalScore = getGoalScore();
+      document.getElementById('goal-score-input').value = goalScore;
+      showGoalInfo();
+    });
 
     function copyResult() {
       const text = 'スコア: '+score+'点\n正答数: '+(Math.round((score/gQuestions.length)*100))+'\n日時: '+new Date().toLocaleString('ja-JP');

@@ -85,9 +85,13 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
   [class*="share"],[class*="affiliate"],[id*="share"],
   [id*="affiliate"],[id*="banner"],
   script,noscript{display:none!important}
-  body{background:#fff!important;color:#000!important;font-size:12pt}
+  body{background:#fff!important;color:#000!important;font-size:11pt;line-height:1.6}
   [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
   a[href]::after{content:none!important}
+  #result-content table{border-collapse:collapse;width:100%;margin:12pt 0}
+  #result-content th,#result-content td{border:1pt solid #999;padding:6pt;text-align:left}
+  #result-content th{background:#e0e0e0;font-weight:bold}
+  .page-break{page-break-after:always}
 }
 
 .card{background:#fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.08);overflow:hidden;}
@@ -370,6 +374,19 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     } catch(e) { console.warn('localStorage読み込み失敗'); }
   }
 
+  // P2-1: 初回ユーザー判定フラグ
+  function hasSeenHistoryPanel() {
+    try {
+      return localStorage.getItem('mba_advisor_history_shown') === 'true';
+    } catch(e) { return false; }
+  }
+
+  function markHistoryPanelShown() {
+    try {
+      localStorage.setItem('mba_advisor_history_shown', 'true');
+    } catch(e) {}
+  }
+
   // M3: localStorage に保存
   function saveToLocalStorage() {
     try {
@@ -410,11 +427,39 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     document.getElementById('prev-btn').classList.toggle('hidden', currentStep === 0);
     document.getElementById('next-btn').textContent = currentStep === questions.length - 1 ? '診断する' : '次へ';
 
-    let html = `<p class="font-semibold text-gray-800 mb-4">${q.text}</p><div class="space-y-2">`;
+    // P1-2: 説明テキスト（質問ごと）
+    const hints = {
+      'employment_type': '現在の雇用形態を選択してください。フリーランスの場合でもMBAは取得できます。',
+      'career_goal': 'MBA進学によって何を目指しますか？複数選択可の場合は最も重要な目的を1つ選んでください。',
+      'current_income': '現在の年収帯を選択してください。MBA取得後の年収アップ予測に使用します。',
+      'experience': '社会人としての総経験年数を選択してください。MBA適性の判定に用いられます。',
+      'style': 'どのスタイルでMBAを学びたいですか？仕事との両立可能性を考慮して選んでください。',
+      'english': '英語力を自己評価してください。TOEIC・TOEFL スコアがあれば参考にしてください。',
+      'admission_timeline': 'MBA入学をいつ予定していますか？準備期間と学習計画の参考になります。',
+      'work_balance': 'MBA進学時の仕事との両立方法を選択してください。生活設計に大きく影響します。'
+    };
+
+    let html = `<div>
+      <p class="font-semibold text-gray-800 mb-2">${q.text}</p>
+      <details style="margin-bottom:8px;cursor:pointer;">
+        <summary style="font-size:12px;color:#6b7280;padding:4px 0;list-style:none;">ℹ️ この質問について</summary>
+        <p style="font-size:12px;color:#6b7280;margin:6px 0 0;padding:8px;background:#f9fafb;border-radius:6px;border-left:2px solid #d1d5db;">${hints[q.id] || ''}</p>
+      </details>
+    </div>`;
+
+    // P1-2: 5件以上の場合はスクロール可能に
+    const needsScroll = q.options.length >= 5;
+    if (needsScroll) {
+      html += `<div style="max-height:300px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px;padding:4px;margin-top:8px;" class="space-y-2">`;
+    } else {
+      html += `<div class="space-y-2" style="margin-top:8px;">`;
+    }
+
     q.options.forEach(opt => {
       const checked = answers[q.id] === opt ? 'checked' : '';
-      html += `<label class="flex items-center gap-3 p-3 border border-gray-200 rounded-xl cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50">
-        <input type="radio" name="${q.id}" value="${opt}" ${checked} class="accent-blue-700" aria-label="入力フォーム"> <span class="text-sm">${opt}</span>
+      html += `<label style="display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer;min-height:48px;background:#fff;" class="hover:border-blue-400 transition has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50">
+        <input type="radio" name="${q.id}" value="${opt}" ${checked} style="min-width:20px;width:20px;height:20px;cursor:pointer;" class="accent-blue-700" aria-label="${opt}">
+        <span style="font-size:14px;flex:1;">${opt}</span>
       </label>`;
     });
     html += '</div>';
@@ -428,10 +473,36 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     return true;
   }
 
+  function validateAnswers() {
+    // P1-1: 矛盾検出・警告
+    const warnings = [];
+    const wantsOverseas = answers.style === '海外留学（1〜2年）';
+    const lowEnglish = ['わからない・テスト未受験', 'ほぼ使えない（TOEIC400未満）', '基礎レベル（TOEIC400-600）'].includes(answers.english);
+    const isEarlyCareer = ['1〜3年', '3〜5年'].includes(answers.experience);
+    const isFreelancer = answers.employment_type === 'フリーランス・個人事業主';
+
+    if (wantsOverseas && lowEnglish) {
+      warnings.push('⚠️ 海外留学を検討されていますが、英語レベルが基礎段階です。TOEFL100点相当の準備に1〜2年必要です');
+    }
+    if (isEarlyCareer && answers.career_goal !== 'その他') {
+      warnings.push('🎓 社会人経験が3〜5年未満でのMBA進学は稀です。まず実務経験を積んでから5〜7年後の進学がおすすめです');
+    }
+    if (isFreelancer && answers.career_goal === '起業・独立のためのネットワーク獲得' && answers.style !== 'オンラインMBA') {
+      warnings.push('💼 フリーランスの場合、通学制MBAは収入が不安定になるため、オンラインMBAがおすすめです');
+    }
+    return warnings;
+  }
+
   function nextStep() {
     if (!saveAnswer()) return;
     if (currentStep < questions.length - 1) { currentStep++; renderQuestion(); }
-    else showResult();
+    else {
+      const warnings = validateAnswers();
+      if (warnings.length > 0) {
+        window.pendingWarnings = warnings;
+      }
+      showResult();
+    }
   }
 
   function prevStep() {
@@ -549,6 +620,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     document.getElementById('result-section').classList.remove('hidden');
     document.getElementById('step-indicator').style.display = 'none';
 
+    // M3: 診断完了時に localStorage に保存
+    saveToLocalStorage();
+
     const recs = getRecommendations();
     const topRec = recs[0];
     const isEarlyCareer = ['1〜3年', '3〜5年'].includes(answers.experience);
@@ -577,8 +651,41 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     const topRecRoi = Math.round(topRec.expectedIncrease);
     const shareText = encodeURIComponent(`【MBA診断結果】${topRec.type}が私に最適！年収+${topRecRoi}万円アップ見込み #MBA診断`);
     const shareUrl = encodeURIComponent('https://appadaycreator.com/mba-career-advisor/');
+    const warnings = window.pendingWarnings || [];
+    const diagnosticTimestamp = new Date().toLocaleString('ja-JP');
+    const diagnosticConditionTable = `
+      <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-5 no-print">
+        <p class="text-sm font-semibold text-gray-700 mb-3">📋 この診断の条件</p>
+        <table style="width:100%;font-size:12px;border-collapse:collapse;">
+          <tbody>
+            ${questions.map(q => `
+              <tr style="border-bottom:1px solid #e5e7eb;">
+                <td style="padding:6px;font-weight:600;width:35%;background:#f9fafb;">${q.text}</td>
+                <td style="padding:6px;">${answers[q.id] || ''}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <p style="font-size:11px;color:#6b7280;margin-top:8px;margin-bottom:0;">診断日時：${diagnosticTimestamp}</p>
+      </div>
+    `;
     const html = `
-      <button onclick="copyResultToClipboard()" class="w-full py-2 px-3 bg-blue-700 hover:bg-blue-800 text-white rounded-lg font-semibold mb-3 text-sm transition">📋 診断結果をコピー</button>
+      <div style="text-align:right;font-size:12px;color:#9ca3af;margin-bottom:12px;no-print;display:none;" class="no-print">
+        診断日時：${diagnosticTimestamp}
+      </div>
+      ${warnings.length > 0 ? `
+        <div class="bg-yellow-50 border-l-4 border-yellow-500 rounded-xl p-4 mb-5">
+          <p class="text-sm font-semibold text-yellow-800 mb-2">⚠️ 入力内容の検討</p>
+          <div class="space-y-2">
+            ${warnings.map(w => `<p class="text-sm text-yellow-700">${w}</p>`).join('')}
+          </div>
+        </div>
+      ` : ''}
+      <div class="flex gap-2 mb-3 flex-wrap">
+        <button onclick="copyResultToClipboard()" class="flex-1 min-w-[140px] py-2 px-3 bg-blue-700 hover:bg-blue-800 text-white rounded-lg font-semibold text-sm transition">📋 コピー</button>
+        <button onclick="downloadResultAsCSV()" class="flex-1 min-w-[140px] py-2 px-3 bg-green-700 hover:bg-green-800 text-white rounded-lg font-semibold text-sm transition">📥 CSV</button>
+        <button onclick="window.print()" class="flex-1 min-w-[140px] py-2 px-3 bg-purple-700 hover:bg-purple-800 text-white rounded-lg font-semibold text-sm transition">🖨️ 印刷</button>
+      </div>
       <div class="flex gap-2 mb-4">
         <a href="https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}&via=appadaycreator" target="_blank" rel="noopener" class="flex-1 py-2 text-center text-white font-bold rounded-lg text-sm transition" style="background:#000;">Xでシェア</a>
         <a href="https://line.me/R/share?text=${shareText}%20${shareUrl}" target="_blank" rel="noopener" class="flex-1 py-2 text-center text-white font-bold rounded-lg text-sm transition" style="background:#06C755;">LINEでシェア</a>
@@ -633,6 +740,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <h3 class="font-bold text-gray-700 mb-3">MBA進学アドバイス</h3>
       <div class="space-y-3">
         ${advice.map(a => `<div class="flex gap-3 p-3 bg-gray-50 rounded-xl"><span class="text-xl">🎓</span><p class="text-sm text-gray-700">${a}</p></div>`).join('')}
+      </div>
+
+      <div style="margin-top:24px;page-break-before:avoid;">
+        ${diagnosticConditionTable}
       </div>`;
 
     document.getElementById('result-content').innerHTML = html;
@@ -729,7 +840,84 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     renderQuestion();
   }
 
+  // M10 & P2-2: CSV ダウンロード機能（診断条件・時刻精度追加）
+  function downloadResultAsCSV() {
+    const recs = getRecommendations();
+    const topRec = recs[0];
+    const now = new Date();
+    const timestamp = now.toLocaleString('ja-JP');
+    const fileTimestamp = now.toISOString().replace(/[-:T]/g, '').slice(0, 12); // YYYYMMDDHHmm形式
+
+    let csv = '【社会人MBA・大学院進学診断】\n';
+    csv += '診断日時,' + timestamp + '\n\n';
+
+    csv += '＝＝ 診断結果 ＝＝\n';
+    csv += '推奨MBA型,' + topRec.type + '\n';
+    csv += '費用目安,' + topRec.costText + '\n';
+    csv += '年収アップ見込み,' + Math.round(topRec.expectedIncrease) + '万円\n';
+    csv += '投資回収期間,' + (topRec.breakeven_years === '-' ? '要相談' : topRec.breakeven_years + '年') + '\n';
+    csv += topRec.detail + '\n\n';
+
+    csv += '＝＝ 診断条件（質問の回答） ＝＝\n';
+    csv += '質問,回答\n';
+    questions.forEach(q => {
+      csv += '"' + q.text + '","' + (answers[q.id] || '') + '"\n';
+    });
+
+    csv += '\n＝＝ MBA選択肢の比較 ＝＝\n';
+    csv += 'MBA名,費用目安,年収アップ,回収期間\n';
+    recs.forEach(rec => {
+      csv += '"' + rec.type + '","' + rec.costText + '","' + Math.round(rec.expectedIncrease) + '万円","' + (rec.breakeven_years === '-' ? '-' : rec.breakeven_years + '年') + '"\n';
+    });
+
+    const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'mba_diagnosis_' + fileTimestamp + '.csv';
+    link.click();
+  }
+
+  // M3: 初期化時に履歴を読み込み
+  loadFromLocalStorage();
+
+  // M3 & P2-1: 診断開始前に履歴パネルを表示（初回は自動展開）
+  function initHistoryPanel() {
+    const quizSection = document.getElementById('quiz-section');
+    if (!quizSection || history.length === 0) return;
+
+    const isFirstTime = !hasSeenHistoryPanel();
+    const historyHTML = `
+      <div id="history-panel" style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:12px;padding:12px;margin-bottom:12px;${isFirstTime ? 'display:block;' : 'display:none;'}">
+        <p style="font-weight:600;color:#1e40af;margin:0 0 8px;font-size:13px;">📝 過去の診断履歴</p>
+        <div style="max-height:150px;overflow-y:auto;">
+          ${history.map((h, i) => `
+            <button onclick="restoreFromHistory(${i})" style="display:block;width:100%;text-align:left;padding:8px;background:#fff;border:1px solid #e0e7ff;border-radius:6px;margin-bottom:4px;font-size:12px;color:#374151;cursor:pointer;min-height:44px;">
+              <strong>${h.timestamp.split(' ')[0]}</strong> — ${h.answers.employment_type || '未回答'}
+            </button>
+          `).join('')}
+        </div>
+        <button onclick="closeHistoryPanel()" style="width:100%;padding:6px;background:#dbeafe;color:#1e40af;border:none;border-radius:6px;margin-top:8px;font-size:12px;font-weight:600;cursor:pointer;">閉じる</button>
+      </div>
+    `;
+
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = `
+      <div style="text-align:center;margin-bottom:12px;">
+        <button onclick="toggleHistoryPanel();markHistoryPanelShown();" id="history-toggle-btn" style="padding:8px 16px;background:#4f46e5;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;">
+          📝 過去の診断（${history.length}件）
+        </button>
+      </div>
+      ${historyHTML}
+    `;
+    quizSection.parentNode.insertBefore(wrapper, quizSection);
+
+    if (isFirstTime) {
+      markHistoryPanelShown();
+    }
+  }
+
   renderQuestion();
+  initHistoryPanel();
 </script>
 <div class="max-w-2xl mx-auto px-4 mb-4">
 <!-- Related Services -->

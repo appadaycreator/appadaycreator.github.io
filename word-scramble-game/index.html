@@ -39,6 +39,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"ワードスクランブルゲーム","description":"バラバラになった文字を並べ替えて単語を作るゲーム。英語・日本語対応。登録不要・完全無料でご利用いただけます。","url":"https://appadaycreator.com/word-scramble-game/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"author":{"@type":"Organization","name":"AppADayCreator","url":"https://appadaycreator.com/"}}</script>
@@ -372,6 +374,21 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <div style="font-size:2rem;font-weight:900;color:#6D28D9;" id="finalScore"></div>
               <div style="font-size:14px;color:#5b21b6;margin-top:4px;" id="finalMsg"></div>
               <div style="font-size:12px;color:#888;margin-top:4px;" id="finalSub"></div>
+
+              <div style="margin-top:16px;padding:14px;background:#fff;border-radius:10px;margin:14px 0;">
+                <div style="font-size:12px;color:#666;font-weight:600;margin-bottom:8px;">正答率ゲージ</div>
+                <div style="position:relative;margin:8px 0;">
+                  <div style="height:24px;background:#e5e7eb;border-radius:12px;overflow:hidden;box-shadow:inset 0 2px 4px rgba(0,0,0,.1);">
+                    <div id="correctRateBar" style="height:100%;background:linear-gradient(90deg,#059669 0%,#10b981 100%);width:0%;transition:width 0.5s ease;"></div>
+                  </div>
+                  <div id="correctRateText" style="font-size:12px;color:#666;margin-top:4px;text-align:center;font-weight:600;">0%</div>
+                </div>
+              </div>
+
+              <div style="margin-top:12px;padding:14px;background:#fff;border-radius:10px;height:280px;display:flex;align-items:center;justify-content:center;">
+                <canvas id="scoreHistoryChart" width="400" height="150"></canvas>
+              </div>
+
               <div style="font-size:13px;color:#059669;margin-top:8px;font-weight:600;">🔥 最長連続正解: <span id="maxStreakDisplay">0</span> 問</div>
               <button class="btn" onclick="startGame()" style="margin-top:14px;width:100%;">もう一度プレイ</button>
             </div>
@@ -604,6 +621,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     let usedSlots = [];
     let streak = 0;
     let maxStreak = 0;
+    let scoreHistoryChart = null;
 
     document.addEventListener('DOMContentLoaded', () => {
       loadStats();
@@ -816,7 +834,81 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('finalMsg').textContent = msg;
       document.getElementById('finalSub').textContent = sub;
       document.getElementById('maxStreakDisplay').textContent = maxStreak;
+
+      // 正答率ゲージを表示
+      const correctRate = Math.round((score / wordList.length) * 100);
+      const rateBar = document.getElementById('correctRateBar');
+      const rateText = document.getElementById('correctRateText');
+      rateBar.style.width = '0%';
+      rateText.textContent = '0%';
+      setTimeout(() => {
+        rateBar.style.width = correctRate + '%';
+        rateText.textContent = correctRate + '%';
+      }, 100);
+
+      // スコア履歴グラフを生成
+      renderScoreHistoryChart();
+
       document.getElementById('result').classList.add('show');
+    }
+
+    function renderScoreHistoryChart() {
+      const canvas = document.getElementById('scoreHistoryChart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+
+      const recentScores = stats.scores.slice(-10).map(s => s);
+      const labels = Array.from({length: recentScores.length}, (_, i) => `${i + 1}`);
+
+      if (scoreHistoryChart) {
+        scoreHistoryChart.destroy();
+      }
+
+      scoreHistoryChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'スコア推移',
+            data: recentScores,
+            borderColor: '#6D28D9',
+            backgroundColor: 'rgba(109, 40, 217, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.3,
+            pointRadius: 4,
+            pointBackgroundColor: '#6D28D9',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2
+          }],
+          yAxis: {
+            beginAtZero: true,
+            max: 10
+          }
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              labels: { color: '#666', font: { size: 12 } }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 10,
+              ticks: { color: '#666', font: { size: 11 } },
+              grid: { color: '#e5e7eb' }
+            },
+            x: {
+              ticks: { color: '#666', font: { size: 11 } },
+              grid: { display: false }
+            }
+          }
+        }
+      });
     }
     </script>
 

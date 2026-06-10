@@ -134,6 +134,20 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
     <script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
   </div>
 
+  <!-- Goal Progress Panel -->
+  <div id="goalPanel" class="hidden bg-gradient-to-r from-purple-100 to-pink-100 rounded-2xl shadow p-4 mb-4">
+    <div class="flex justify-between items-start">
+      <div>
+        <h3 class="text-sm font-bold text-purple-900 mb-2">🎯 あなたの目標</h3>
+        <p class="text-xs text-purple-700" id="goalText">目標を設定しましょう</p>
+      </div>
+      <button onclick="openGoalModal()" class="text-xs bg-white hover:bg-gray-100 text-purple-700 font-bold px-3 py-1 rounded-lg transition-colors">
+        編集
+      </button>
+    </div>
+    <div id="goalProgress" class="mt-3"></div>
+  </div>
+
   <!-- Quiz -->
   <div id="quizArea" class="bg-white rounded-2xl shadow-lg p-6">
     <div class="mb-4">
@@ -178,6 +192,9 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
           <span class="text-sm font-bold text-gray-700" id="urgencyScoreNum"></span>
         </div>
         <div id="urgencyBreakdown" class="grid grid-cols-2 gap-2 text-xs"></div>
+        <div class="mt-4 bg-white rounded-lg p-3 border border-gray-200">
+          <canvas id="urgencyChart" height="200"></canvas>
+        </div>
       </div>
 
       <div class="bg-indigo-50 rounded-xl p-4 mb-4">
@@ -189,6 +206,17 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
       <div class="bg-blue-50 rounded-xl p-4 mb-4" id="costCompareBlock">
         <h3 class="font-bold text-blue-800 mb-2 text-sm">💸 修理 vs 買い替え コスト試算（5年間）</h3>
         <div id="costCompareTable"></div>
+        <div class="mt-4 bg-white rounded-lg p-3 border border-blue-200">
+          <canvas id="costChart" height="200"></canvas>
+        </div>
+      </div>
+
+      <!-- 省エネ効果グラフ -->
+      <div class="bg-purple-50 rounded-xl p-4 mb-4">
+        <h3 class="font-bold text-purple-800 mb-2 text-sm">📈 省エネ効果（5年間の累積節約）</h3>
+        <div class="bg-white rounded-lg p-3 border border-purple-200">
+          <canvas id="savingChart" height="200"></canvas>
+        </div>
       </div>
 
       <div class="bg-gray-50 rounded-xl p-4 mb-4">
@@ -207,12 +235,18 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
         <img src="https://www11.a8.net/0.gif?a8mat=4AVCO8+3ORU2Y+5JTC+5YRHE" width="1" height="1" style="display:none" alt="" loading="lazy">
       </div>
 
-      <div class="flex gap-2 mb-4">
-        <button id="copyResultBtn" onclick="copyResult()" class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl transition-colors" aria-label="📋 結果をコピー">
-          📋 結果をコピー
+      <div class="grid grid-cols-2 gap-2 mb-4">
+        <button id="copyResultBtn" onclick="copyResult()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm" aria-label="📋 コピー">
+          📋 コピー
         </button>
-        <button onclick="restart()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-colors" aria-label="🔄 もう一度診断する">
-          🔄 もう一度診断する
+        <button onclick="printResult()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm" aria-label="🖨️ 印刷">
+          🖨️ 印刷
+        </button>
+        <button onclick="exportCSV()" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm" aria-label="📥 CSV">
+          📥 CSV
+        </button>
+        <button onclick="restart()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-3 rounded-lg transition-colors text-sm" aria-label="🔄 再診断">
+          🔄 再診断
         </button>
       </div>
     </div>
@@ -229,6 +263,41 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
         <a href="https://appadaycreator.com/household-budget-analyzer/" class="flex items-center p-2 bg-gray-50 rounded-lg hover:bg-gray-100">
           <span class="text-lg mr-2">💰</span><span class="text-sm text-gray-700">家計分析ツール</span>
         </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Goal Setting Modal -->
+  <div id="goalModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onclick="closeGoalModal(event)">
+    <div class="bg-white rounded-2xl shadow-lg p-6 w-full max-w-sm mx-4" onclick="event.stopPropagation()">
+      <h2 class="text-lg font-bold text-gray-800 mb-4">🎯 目標を設定</h2>
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">年間節約目標額（円）</label>
+          <input type="number" id="goalSavings" placeholder="10000" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" value="10000">
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">購入予定時期</label>
+          <select id="goalMonth" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            <option>相談中</option>
+            <option>1〜3ヶ月以内</option>
+            <option>4〜6ヶ月以内</option>
+            <option>7〜12ヶ月以内</option>
+            <option>1年以上先</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">メモ</label>
+          <input type="text" id="goalMemo" placeholder="例：省エネエアコン、価格帯8〜15万円" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+        </div>
+      </div>
+      <div class="flex gap-2 mt-4">
+        <button onclick="saveGoalModal()" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 rounded-lg transition-colors">
+          保存
+        </button>
+        <button onclick="closeGoalModal()" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 rounded-lg transition-colors">
+          キャンセル
+        </button>
       </div>
     </div>
   </div>
@@ -436,6 +505,7 @@ function prevQ() {
 function showResult() {
   document.getElementById('quizArea').classList.add('hidden');
   document.getElementById('resultArea').classList.remove('hidden');
+  window.scrollTo(0, 0);
 
   var years = answers.years; // 0-4
   var symptom = answers.symptom; // 0-4
@@ -451,6 +521,18 @@ function showResult() {
   var elScore = [0, 1, 2, 1][electricity];
   var rpScore = [0, 0, 1, 2, 3][repair];
   var urgency = ysScore + syScore + elScore + rpScore;
+
+  // 診断結果をローカルストレージに保存
+  var appData = APPLIANCE_DATA[appliance] || APPLIANCE_DATA['その他'];
+  var savLow = Math.round(appData.savLow * SAVE_FACTOR[years]);
+  var savHigh = Math.round(appData.savHigh * SAVE_FACTOR[years]);
+  saveQuizHistory({
+    appliance: appliance,
+    urgency: urgency,
+    savingsLow: savLow,
+    savingsHigh: savHigh,
+    years: QUESTIONS[1].opts[years]
+  });
 
   var emoji, title, badge, badgeClass, desc;
   if (urgency >= 10) {
@@ -497,6 +579,20 @@ function showResult() {
 
   // 修理 vs 買い替えコスト比較
   renderCostCompare(appliance, repair, budget, years);
+
+  // グラフ描画（全て非同期で実行）
+  setTimeout(() => {
+    renderUrgencyChart(urgency, ysScore, syScore, elScore, rpScore);
+    var repairCost = REPAIR_COST_MID[repair];
+    var newCost = BUDGET_MID_MAP[budget];
+    var annualWaste = Math.round(appData.savLow * SAVE_FACTOR[years]);
+    var keepCost5y = repairCost + annualWaste * 5;
+    var buyCost5y = Math.max(0, newCost - annualWaste * 5);
+    if (annualWaste > 0 || repairCost > 0) {
+      renderCostChart(appliance, keepCost5y, buyCost5y);
+    }
+    renderSavingChart(years, appliance);
+  }, 100);
 
   // 選び方ポイント
   var tips = [];
@@ -547,6 +643,247 @@ function copyResult() {
     }, 2000);
   }).catch(() => alert('コピーに失敗しました'));
 }
+
+// localStorage関数：診断履歴の保存・読み込み
+function saveQuizHistory(result) {
+  try {
+    let history = JSON.parse(localStorage.getItem('quiz_history') || '[]');
+    result.timestamp = new Date().toISOString();
+    history.unshift(result);
+    if (history.length > 10) history = history.slice(0, 10);
+    localStorage.setItem('quiz_history', JSON.stringify(history));
+  } catch (e) {
+    console.warn('履歴保存失敗:', e);
+  }
+}
+
+function loadQuizHistory() {
+  try {
+    return JSON.parse(localStorage.getItem('quiz_history') || '[]');
+  } catch (e) {
+    return [];
+  }
+}
+
+// 目標設定・保存
+function saveGoal(target) {
+  try {
+    localStorage.setItem('quiz_goal', JSON.stringify(target));
+  } catch (e) {
+    console.warn('目標保存失敗:', e);
+  }
+}
+
+function loadGoal() {
+  try {
+    return JSON.parse(localStorage.getItem('quiz_goal') || 'null');
+  } catch (e) {
+    return null;
+  }
+}
+
+// Chart.js: 買い替え緊急度レーダーチャート
+function renderUrgencyChart(urgency, ysScore, syScore, elScore, rpScore) {
+  const canvas = document.getElementById('urgencyChart');
+  if (!canvas) return;
+
+  if (window.urgencyChartInstance) window.urgencyChartInstance.destroy();
+
+  window.urgencyChartInstance = new Chart(canvas, {
+    type: 'radar',
+    data: {
+      labels: ['使用年数', '故障状況', '電気代変化', '修理費'],
+      datasets: [{
+        label: '緊急度スコア',
+        data: [ysScore, syScore, elScore, rpScore],
+        fill: true,
+        backgroundColor: 'rgba(99, 102, 241, 0.2)',
+        borderColor: 'rgb(99, 102, 241)',
+        pointBackgroundColor: 'rgb(99, 102, 241)',
+        pointBorderColor: '#fff',
+        pointHoverBackgroundColor: '#fff',
+        pointHoverBorderColor: 'rgb(99, 102, 241)',
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        r: {
+          beginAtZero: true,
+          max: 4,
+          ticks: { stepSize: 1 }
+        }
+      }
+    }
+  });
+}
+
+// Chart.js: 修理 vs 買い替えコスト比較グラフ
+function renderCostChart(applianceName, keepCost5y, buyCost5y) {
+  const canvas = document.getElementById('costChart');
+  if (!canvas) return;
+
+  if (window.costChartInstance) window.costChartInstance.destroy();
+
+  window.costChartInstance = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: ['修理して使う', '今すぐ買い替え'],
+      datasets: [{
+        label: '5年間の総コスト（円）',
+        data: [keepCost5y, buyCost5y],
+        backgroundColor: [
+          keepCost5y <= buyCost5y ? 'rgba(34, 197, 94, 0.8)' : 'rgba(107, 114, 128, 0.8)',
+          buyCost5y <= keepCost5y ? 'rgba(34, 197, 94, 0.8)' : 'rgba(107, 114, 128, 0.8)'
+        ],
+        borderColor: [
+          keepCost5y <= buyCost5y ? 'rgb(34, 197, 94)' : 'rgb(107, 114, 128)',
+          buyCost5y <= keepCost5y ? 'rgb(34, 197, 94)' : 'rgb(107, 114, 128)'
+        ],
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: { legend: { display: true } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+}
+
+// Chart.js: 省エネ効果の年間・累積グラフ
+function renderSavingChart(yearsIdx, applianceName) {
+  const canvas = document.getElementById('savingChart');
+  if (!canvas) return;
+
+  if (window.savingChartInstance) window.savingChartInstance.destroy();
+
+  const appData = APPLIANCE_DATA[applianceName] || APPLIANCE_DATA['その他'];
+  const savLow = Math.round(appData.savLow * SAVE_FACTOR[yearsIdx]);
+  const savHigh = Math.round(appData.savHigh * SAVE_FACTOR[yearsIdx]);
+  const avgSav = Math.round((savLow + savHigh) / 2);
+
+  const years = Array.from({length: 6}, (_, i) => i);
+  const cumulativeSav = years.map(y => avgSav * y);
+
+  window.savingChartInstance = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: ['0年', '1年', '2年', '3年', '4年', '5年'],
+      datasets: [{
+        label: '累積節約額（円）',
+        data: cumulativeSav,
+        fill: true,
+        backgroundColor: 'rgba(168, 85, 247, 0.1)',
+        borderColor: 'rgb(168, 85, 247)',
+        tension: 0.3,
+        pointBackgroundColor: 'rgb(168, 85, 247)',
+        pointBorderColor: '#fff',
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: { legend: { display: true } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+}
+
+// 印刷機能
+function printResult() {
+  window.print();
+}
+
+// CSV エクスポート
+function exportCSV() {
+  const appliance = QUESTIONS[0].opts[answers.appliance];
+  const csvContent = [
+    ['家電買い替えタイミング診断 - CSV エクスポート'],
+    ['出力日時', new Date().toLocaleString()],
+    [''],
+    ['回答内容'],
+    ['Q1. 家電', appliance],
+    ['Q2. 使用年数', QUESTIONS[1].opts[answers.years]],
+    ['Q3. 故障状況', QUESTIONS[2].opts[answers.symptom]],
+    ['Q4. 電気代変化', QUESTIONS[3].opts[answers.electricity]],
+    ['Q5. 修理費', QUESTIONS[4].opts[answers.repair]],
+    ['Q6. 予算', QUESTIONS[5].opts[answers.budget]],
+    ['Q7. 優先事項', QUESTIONS[6].opts[answers.priority]],
+    ['Q8. 家族構成', QUESTIONS[7].opts[answers.family]],
+    [''],
+    ['診断結果'],
+    ['タイトル', document.getElementById('rTitle').textContent],
+    ['評価', document.getElementById('rBadge').textContent],
+    ['説明', document.getElementById('rDesc').textContent]
+  ].map(row => row.map(col => `"${col}"`).join(',')).join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.setAttribute('href', URL.createObjectURL(blob));
+  link.setAttribute('download', `appliance_diagnosis_${new Date().toISOString().slice(0, 10)}.csv`);
+  link.click();
+}
+
+// 目標設定機能
+function openGoalModal() {
+  const goal = loadGoal();
+  if (goal) {
+    document.getElementById('goalSavings').value = goal.savings || 10000;
+    document.getElementById('goalMonth').value = goal.month || '相談中';
+    document.getElementById('goalMemo').value = goal.memo || '';
+  }
+  document.getElementById('goalModal').classList.remove('hidden');
+}
+
+function closeGoalModal(event) {
+  if (event && event.target !== event.currentTarget) return;
+  document.getElementById('goalModal').classList.add('hidden');
+}
+
+function saveGoalModal() {
+  const goal = {
+    savings: parseInt(document.getElementById('goalSavings').value) || 10000,
+    month: document.getElementById('goalMonth').value,
+    memo: document.getElementById('goalMemo').value,
+    timestamp: new Date().toISOString()
+  };
+  saveGoal(goal);
+  displayGoalPanel();
+  closeGoalModal();
+}
+
+function displayGoalPanel() {
+  const goal = loadGoal();
+  const panel = document.getElementById('goalPanel');
+  if (!goal) {
+    panel.classList.add('hidden');
+    return;
+  }
+  panel.classList.remove('hidden');
+  document.getElementById('goalText').textContent = `目標: 年間 ${goal.savings.toLocaleString()}円 削減 / ${goal.month}`;
+
+  const progress = goal.savings > 0 ? Math.min(100, Math.round((goal.savings / 30000) * 100)) : 0;
+  document.getElementById('goalProgress').innerHTML = `
+    <div class="w-full bg-white rounded-full h-3 overflow-hidden mt-2">
+      <div class="h-3 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-500" style="width: ${progress}%"></div>
+    </div>
+    <div class="flex justify-between text-xs text-purple-700 mt-1">
+      <span>進捗: ${progress}%</span>
+      <span>${goal.savings.toLocaleString()}円</span>
+    </div>
+  `;
+}
+
+// 初期化：目標パネル表示
+displayGoalPanel();
 
 renderQuestion();
 </script>

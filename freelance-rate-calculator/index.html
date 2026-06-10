@@ -57,6 +57,12 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .btn:focus-visible { outline: 3px solid #0891B2; outline-offset: 3px; }
         input, select, textarea { width: 100%; padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: 15px; margin-top: 4px; font-family: inherit; min-height: 44px; }
         input:focus, select:focus, textarea:focus { outline: none; border-color: #0891B2; box-shadow: 0 0 0 3px #0891B222; }
+        input[type="range"] { width: 100%; height: 6px; border-radius: 5px; background: #e2e8f0; outline: none; -webkit-appearance: none; padding: 0; margin-top: 8px; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #0891B2; cursor: pointer; box-shadow: 0 2px 6px rgba(8,145,178,.3); }
+        input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #0891B2; cursor: pointer; border: none; box-shadow: 0 2px 6px rgba(8,145,178,.3); }
+        input[type="range"]:focus { box-shadow: 0 0 0 3px #0891B222; }
+        .help-icon { display: inline-block; width: 18px; height: 18px; line-height: 18px; text-align: center; background: #f0fdfa; color: #0891B2; border-radius: 50%; font-size: 12px; font-weight: bold; cursor: help; margin-left: 4px; vertical-align: text-top; }
+        .range-input { width: 100%; }
         label { font-size: 13px; font-weight: 600; color: #555; display: block; margin-top: 14px; margin-bottom: 2px; }
         .result { display: none; }
         .result.show { display: block; }
@@ -252,12 +258,21 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <span id="income-error" class="error-msg" style="display:none;color:#dc2626;font-size:12px;margin-top:4px;"></span>
           </div>
           <div class="input-group">
-            <label>年間稼働日数（日）</label>
-            <input type="number" id="work-days" placeholder="例: 220" min="1" max="365" value="220">
+            <label for="work-days">年間稼働日数（日）<span class="help-icon" title="営業日ベース。年間240日前後が一般的です">?</span></label>
+            <input type="range" id="work-days" min="100" max="365" value="220" class="range-input" aria-describedby="work-days-value">
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:#666;margin-top:4px;">
+              <span id="work-days-value">220日</span>
+              <span>目安: <strong>220日</strong>（年間営業日数）</span>
+            </div>
+            <input type="number" id="work-days-number" placeholder="例: 220" min="1" max="365" value="220" style="display:none;">
           </div>
           <div class="input-group">
-            <label>1日の稼働時間（時間）</label>
-            <input type="number" id="work-hours" placeholder="例: 8" min="1" max="24" value="8">
+            <label for="work-hours">1日の稼働時間（時間）<span class="help-icon" title="営業時間ベース。通常は6-10時間が目安">?</span></label>
+            <input type="range" id="work-hours" min="4" max="12" value="8" class="range-input" aria-describedby="work-hours-value">
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:#666;margin-top:4px;">
+              <span id="work-hours-value">8時間</span>
+              <span>目安: <strong>8時間</strong></span>
+            </div>
           </div>
           <div class="input-group">
             <label>年間経費・諸費用（円）</label>
@@ -511,9 +526,29 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <script>
     const BTN_COLOR = '#0891B2';
     document.addEventListener('DOMContentLoaded', () => {
-      document.querySelectorAll('input').forEach(inp => {
+      document.querySelectorAll('input[type="number"], input[type="text"], select').forEach(inp => {
         inp.addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });
       });
+
+      // Range slider synchronization
+      const workDaysRange = document.getElementById('work-days');
+      const workDaysValue = document.getElementById('work-days-value');
+      const workHoursRange = document.getElementById('work-hours');
+      const workHoursValue = document.getElementById('work-hours-value');
+
+      if (workDaysRange) {
+        workDaysRange.addEventListener('input', (e) => {
+          workDaysValue.textContent = e.target.value + '日';
+        });
+      }
+
+      if (workHoursRange) {
+        workHoursRange.addEventListener('input', (e) => {
+          workHoursValue.textContent = e.target.value + '時間';
+        });
+      }
+
+      loadCustomPresets();
     });
 
     function loadPreset(income) {
@@ -664,12 +699,32 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const taxRate = parseFloat(document.getElementById('tax-rate').value) || 30;
 
       const errorEl = document.getElementById('income-error');
+
+      // Enhanced validation
       if (annualIncome <= 0) {
         errorEl.style.display = 'block';
-        errorEl.textContent = '希望年収を入力してください（100万円以上）';
+        errorEl.textContent = '希望年収を1,000,000円以上入力してください';
+        errorEl.setAttribute('role', 'alert');
         document.getElementById('result').classList.remove('show');
         return;
       }
+
+      if (workDays > 365) {
+        errorEl.style.display = 'block';
+        errorEl.textContent = '稼働日数は365日以下にしてください（実際の営業日ベース）';
+        errorEl.setAttribute('role', 'alert');
+        document.getElementById('result').classList.remove('show');
+        return;
+      }
+
+      if (workHours < 1 || workHours > 24) {
+        errorEl.style.display = 'block';
+        errorEl.textContent = '1日の稼働時間は1〜24時間で指定してください';
+        errorEl.setAttribute('role', 'alert');
+        document.getElementById('result').classList.remove('show');
+        return;
+      }
+
       errorEl.style.display = 'none';
 
       // 必要売上の計算（経費・税金を考慮）
@@ -738,6 +793,97 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       });
       if (history.length > 5) history.pop();
       localStorage.setItem('freelance-history', JSON.stringify(history));
+    }
+
+    function generateShareMessage(hourlyRate) {
+      let message = '';
+      if (hourlyRate < 3000) {
+        message = `スキルアップを目指して！時間単価${Math.round(hourlyRate).toLocaleString()}円で計算しました`;
+      } else if (hourlyRate < 5000) {
+        message = `フリーランス標準単価を達成！時間単価${Math.round(hourlyRate).toLocaleString()}円は妥当です`;
+      } else if (hourlyRate < 8000) {
+        message = `プロフェッショナル水準！時間単価${Math.round(hourlyRate).toLocaleString()}円をキープしましょう`;
+      } else {
+        message = `エキスパート級！時間単価${Math.round(hourlyRate).toLocaleString()}円の実現を目指そう`;
+      }
+      return message + ' #フリーランス #単価計算 #副業';
+    }
+
+    function saveCustomPreset() {
+      const income = document.getElementById('annual-income').value;
+      const days = document.getElementById('work-days').value;
+      const hours = document.getElementById('work-hours').value;
+      const name = prompt('このプリセットに名前をつけてください（例：安定案件時）');
+
+      if (!name) return;
+
+      const presets = JSON.parse(localStorage.getItem('custom-presets') || '[]');
+      if (presets.length >= 5) {
+        alert('カスタムプリセットは最大5個まで保存できます');
+        return;
+      }
+
+      presets.push({ name, income, days, hours, created: new Date().toLocaleString('ja-JP') });
+      localStorage.setItem('custom-presets', JSON.stringify(presets));
+      alert(`「${name}」として保存しました！`);
+      loadCustomPresets();
+    }
+
+    function loadCustomPresets() {
+      const presets = JSON.parse(localStorage.getItem('custom-presets') || '[]');
+      if (presets.length === 0) return;
+
+      const container = document.querySelector('.quick-preset-btn').parentElement;
+      const existingCustom = container.querySelector('[data-custom-presets]');
+      if (existingCustom) existingCustom.remove();
+
+      if (presets.length > 0) {
+        const customDiv = document.createElement('div');
+        customDiv.setAttribute('data-custom-presets', 'true');
+        customDiv.style.display = 'grid';
+        customDiv.style.gridTemplateColumns = '1fr 1fr';
+        customDiv.style.gap = '8px';
+        customDiv.style.marginTop = '8px';
+        customDiv.style.paddingTop = '12px';
+        customDiv.style.borderTop = '1px solid #e2e8f0';
+
+        presets.forEach((p, idx) => {
+          const btn = document.createElement('button');
+          btn.className = 'quick-preset-btn';
+          btn.textContent = p.name;
+          btn.onclick = () => {
+            document.getElementById('annual-income').value = p.income;
+            document.getElementById('work-days').value = p.days;
+            document.getElementById('work-hours').value = p.hours;
+            calculate();
+          };
+          customDiv.appendChild(btn);
+        });
+
+        container.appendChild(customDiv);
+      }
+    }
+
+    function shareToTwitter() {
+      const hourlyRate = parseFloat(document.getElementById('hourly-rate').textContent.replace(/,/g, '')) || 0;
+      if (!hourlyRate) {
+        alert('先に計算を実行してください');
+        return;
+      }
+      const message = generateShareMessage(hourlyRate);
+      const url = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(message) + '&url=https%3A%2F%2Fappadaycreator.com%2Ffreelance-rate-calculator%2F';
+      window.open(url, '_blank', 'width=550,height=420');
+    }
+
+    function shareToLine() {
+      const hourlyRate = parseFloat(document.getElementById('hourly-rate').textContent.replace(/,/g, '')) || 0;
+      if (!hourlyRate) {
+        alert('先に計算を実行してください');
+        return;
+      }
+      const message = generateShareMessage(hourlyRate).replace(/ #[\w]+/g, '');
+      const url = 'https://line.me/R/msg/text/?' + encodeURIComponent(message + '\nhttps://appadaycreator.com/freelance-rate-calculator/');
+      window.open(url, '_blank');
     }
     </script>
 

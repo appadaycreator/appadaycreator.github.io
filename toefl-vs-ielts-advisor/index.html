@@ -41,6 +41,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
+    <!-- Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"TOEFL vs IELTS選択診断","description":"留学先・目的・現在のレベルからTOEFLとIELTSのどちらが有利か診断。登録不要・完全無料でご利用いただけます。","url":"https://appadaycreator.com/toefl-vs-ielts-advisor/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"author":{"@type":"Organization","name":"AppADayCreator","url":"https://appadaycreator.com/"}}</script>
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "TOEFL vs IELTS選択診断は無料で使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、完全無料でご利用いただけます。登録・ログイン・アプリのインストールも不要です。"}}, {"@type": "Question", "name": "何回でも診断できますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、何度でもご利用いただけます。条件を変えて繰り返し診断してみてください。"}}, {"@type": "Question", "name": "スマートフォンでも使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、スマートフォン・タブレット・PCすべてのデバイスに対応しています。"}}, {"@type": "Question", "name": "診断結果は保存されますか？", "acceptedAnswer": {"@type": "Answer", "text": "結果はブラウザには保存されません。スクリーンショットやSNSシェアでご記録ください。"}}, {"@type": "Question", "name": "入力したデータはサーバーに送信されますか？", "acceptedAnswer": {"@type": "Answer", "text": "いいえ。すべての処理はブラウザ内で完結し、個人情報・入力データのサーバー送信は行いません。"}}]}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"TOEFL vs IELTS選択診断【無料】無料診断・アドバイスの使い方","step":[{"@type":"HowToStep","position":1,"name":"必要事項を入力する","text":"フォームに必要な情報（数値・選択肢・条件）を入力または選択する"},{"@type":"HowToStep","position":2,"name":"診断・計算を実行する","text":"「診断する」「計算する」または「確認する」ボタンを押して結果を取得する"},{"@type":"HowToStep","position":3,"name":"結果・分析を確認する","text":"表示された診断結果・計算結果・グラフをじっくり確認する"},{"@type":"HowToStep","position":4,"name":"アドバイスを活用する","text":"結果に基づくアドバイスや提案を日常生活に取り入れる"},{"@type":"HowToStep","position":5,"name":"定期的に再チェックする","text":"生活変化に応じて定期的に再診断して進捗を追跡する"}]}</script>
@@ -305,7 +307,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
                 <div style="font-size:13px;color:#1e40af;margin-top:4px;" id="recSub"></div>
               </div>
               <div class="score-compare" id="scoreCompare"></div>
-              <div style="font-size:13px;font-weight:700;color:#1e3a8a;margin-bottom:8px;">おすすめの理由：</div>
+              <div style="margin-top:16px;padding-top:16px;border-top:1px solid #bfdbfe;"><canvas id="compatibilityChart" style="max-width:100%;"></canvas></div>
+              <div style="font-size:13px;font-weight:700;color:#1e3a8a;margin-bottom:8px;margin-top:16px;">おすすめの理由：</div>
               <ul class="reason-list" id="reasonList"></ul>
             </div>
           </div>
@@ -455,7 +458,25 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     
 <script>
 
-    document.addEventListener('DOMContentLoaded', () => {});
+    document.addEventListener('DOMContentLoaded', () => {
+      // localStorage から前回の診断データを復元
+      const savedAnswers = localStorage.getItem('toeflIeltsAnswers');
+      if (savedAnswers) {
+        try {
+          const answers = JSON.parse(savedAnswers);
+          document.querySelector(`input[name="q1"][value="${answers.q1}"]`).checked = true;
+          document.querySelector(`input[name="q2"][value="${answers.q2}"]`).checked = true;
+          document.querySelector(`input[name="q3"][value="${answers.q3}"]`).checked = true;
+          document.querySelector(`input[name="q4"][value="${answers.q4}"]`).checked = true;
+          document.querySelector(`input[name="q5"][value="${answers.q5}"]`).checked = true;
+          // 前回の診断を自動実行
+          diagnose();
+        } catch (e) {
+          console.error('localStorage復元エラー:', e);
+          localStorage.removeItem('toeflIeltsAnswers');
+        }
+      }
+    });
 
     function diagnose() {
       const q1 = document.querySelector('input[name=q1]:checked');
@@ -464,10 +485,30 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const q4 = document.querySelector('input[name=q4]:checked');
       const q5 = document.querySelector('input[name=q5]:checked');
 
-      if (!q1 || !q2 || !q3 || !q4 || !q5) {
-        alert('すべての質問に答えてください');
-        return;
-      }
+      // エラークリア
+      document.querySelectorAll('.q-section').forEach(s => s.classList.remove('error'));
+      document.querySelectorAll('.error-msg').forEach(m => m.remove());
+
+      // バリデーション: すべての質問に回答したか確認
+      const questions = [{elem: q1, section: document.querySelectorAll('.q-section')[0], label: 'Q1'},
+        {elem: q2, section: document.querySelectorAll('.q-section')[1], label: 'Q2'},
+        {elem: q3, section: document.querySelectorAll('.q-section')[2], label: 'Q3'},
+        {elem: q4, section: document.querySelectorAll('.q-section')[3], label: 'Q4'},
+        {elem: q5, section: document.querySelectorAll('.q-section')[4], label: 'Q5'}];
+
+      let hasError = false;
+      questions.forEach(q => {
+        if (!q.elem) {
+          q.section.classList.add('error');
+          const msg = document.createElement('div');
+          msg.className = 'error-msg';
+          msg.textContent = '✓ ' + q.label + 'を選択してください';
+          q.section.appendChild(msg);
+          hasError = true;
+        }
+      });
+
+      if (hasError) return;
 
       let toeflScore = 0;
       let ieltsScore = 0;
@@ -528,6 +569,31 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
       `;
 
+      // Chart.js でグラフを描画
+      if (window.Chart) {
+        const ctx = document.getElementById('compatibilityChart');
+        if (window.compatibilityChartInstance) {
+          window.compatibilityChartInstance.destroy();
+        }
+        window.compatibilityChartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['あなたの適合度'],
+            datasets: [
+              {label: 'TOEFL iBT', data: [toeflScore], backgroundColor: '#1D4ED8', borderRadius: 6},
+              {label: 'IELTS', data: [ieltsScore], backgroundColor: '#9CA3AF', borderRadius: 6}
+            ]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {legend: {display: true, position: 'top'}},
+            scales: {x: {beginAtZero: true, max: 15, grid: {color: '#E5E7EB'}}, y: {grid: {display: false}}}
+          }
+        });
+      }
+
       if (reasons.length === 0) reasons.push({ icon:'✅', text: `あなたの条件には${winner}がバランスよく合っています` });
       document.getElementById('reasonList').innerHTML = reasons.slice(0,4).map(r =>
         `<li><span>${r.icon}</span><span>${r.text}</span></li>`
@@ -562,6 +628,19 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const roadmapHtml = `<div style="margin-top:16px;padding:12px;background:#f8fafc;border-radius:10px;"><p style="font-size:13px;font-weight:700;color:#1e3a8a;margin-bottom:10px;">🎯 推奨の対策ロードマップ</p><ol style="font-size:12px;color:#475569;line-height:1.8;margin-left:16px;">${roadmaps[winner].map(step => `<li>${step}</li>`).join('')}</ol></div>`;
       const resultCard = document.getElementById('result').querySelector('.card');
       resultCard.insertAdjacentHTML('beforeend', roadmapHtml);
+
+      // localStorage に診断結果と選択値を保存
+      const answers = {q1: q1.value, q2: q2.value, q3: q3.value, q4: q4.value, q5: q5.value, timestamp: new Date().toLocaleString('ja-JP')};
+      localStorage.setItem('toeflIeltsAnswers', JSON.stringify(answers));
+
+      // 「新しく診断」ボタンを結果の上部に追加
+      const resetBtn = document.createElement('button');
+      resetBtn.className = 'btn';
+      resetBtn.textContent = '🔄 新しく診断する';
+      resetBtn.style.marginBottom = '12px';
+      resetBtn.onclick = () => { localStorage.removeItem('toeflIeltsAnswers'); location.reload(); };
+      const resultDiv = document.getElementById('result');
+      resultDiv.insertBefore(resetBtn, resultDiv.querySelector('.card'));
 
       document.getElementById('result').classList.add('show');
     }

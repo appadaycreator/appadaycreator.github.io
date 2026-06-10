@@ -35,6 +35,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -208,13 +209,25 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
                 <div class="fire-bar-wrap"><div class="fire-bar" id="fire-bar" style="width:0%;"></div></div>
                 <p id="fire-msg" style="font-size:13px;color:#475569;margin-top:4px;"></p>
               </div>
+              <div style="margin-top:20px;">
+                <canvas id="dividendChart" style="max-width:100%;margin-bottom:16px;"></canvas>
+                <canvas id="fireGaugeChart" style="max-width:100%;"></canvas>
+              </div>
               <div class="share-buttons">
                 <button type="button" class="share-btn" onclick="copyResult()">📋 コピー</button>
                 <button type="button" class="share-btn secondary" onclick="shareOnTwitter()">𝕏 ツイート</button>
                 <button type="button" class="share-btn secondary" onclick="shareOnLine()">💬 LINE共有</button>
+                <button type="button" class="share-btn secondary" onclick="window.print()">🖨️ 印刷</button>
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- 計算履歴セクション -->
+        <div class="card" id="history-section" style="margin-top:8px;display:none;">
+          <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#374151;">⏱️ 計算履歴</h3>
+          <div id="history-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+          <button type="button" onclick="clearHistory()" style="margin-top:12px;background:#f1f5f9;color:#334155;border:1.5px solid #cbd5e1;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;width:100%;">🗑️ 履歴をクリア</button>
         </div>
 
         <!-- 関連サービス -->
@@ -400,8 +413,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     
 <script>
 let calcTimeout;
+let dividendChart = null;
+let fireGaugeChart = null;
 
 document.addEventListener('DOMContentLoaded', () => {
+  loadFromStorage();
   ['assets','yield','tax','fire-target'].forEach(id => {
     const input = document.getElementById(id);
     input.addEventListener('input', () => {
@@ -411,11 +427,13 @@ document.addEventListener('DOMContentLoaded', () => {
         calcTimeout = setTimeout(calculate, 500);
       }
       validateInput(id);
+      saveToStorage(id);
     });
     input.addEventListener('keydown', e => {
       if (e.key === 'Enter') calculate();
     });
   });
+  renderHistory();
 });
 
 function setPreset(assets, yieldRate, taxRate) {
@@ -497,6 +515,8 @@ function calculate() {
   }
 
   document.getElementById('result').classList.add('show');
+  drawCharts(assets, yieldRate, taxRate, fireTarget, netMonthly);
+  addToHistory({assets, yieldRate, taxRate, fireTarget, netAnnual, netMonthly});
 }
 
 function copyResult() {
@@ -522,6 +542,119 @@ function shareOnLine() {
   const msg = `${assets}万円の資産で月額${monthly}円の配当収入`;
   const url = 'https://appadaycreator.com/dividend-income-simulator/';
   window.open(`https://line.me/R/msg/text/?${encodeURIComponent(msg)}%0a${encodeURIComponent(url)}`);
+}
+
+function drawCharts(assets, yieldRate, taxRate, fireTarget, netMonthly) {
+  const ctx1 = document.getElementById('dividendChart').getContext('2d');
+  const ctx2 = document.getElementById('fireGaugeChart').getContext('2d');
+
+  // 配当額推移グラフ
+  const assetRanges = [assets * 0.5, assets * 0.75, assets, assets * 1.25, assets * 1.5];
+  const dividends = assetRanges.map(a => Math.round(a * 10000 * (yieldRate / 100) * (taxRate / 100) / 12));
+
+  if (dividendChart) dividendChart.destroy();
+  dividendChart = new Chart(ctx1, {
+    type: 'line',
+    data: {
+      labels: assetRanges.map(a => Math.round(a) + '万'),
+      datasets: [{
+        label: '月額配当（税引き後）',
+        data: dividends,
+        borderColor: '#16A34A',
+        backgroundColor: '#16A34A22',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.3
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { font: { size: 12 } } } }, scales: { y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString() + '円' } } } }
+  });
+
+  // FIRE達成度ゲージ
+  if (fireTarget > 0) {
+    const fireMonthly = fireTarget * 10000;
+    const rate = Math.min(netMonthly / fireMonthly * 100, 100);
+    const remaining = 100 - rate;
+
+    if (fireGaugeChart) fireGaugeChart.destroy();
+    fireGaugeChart = new Chart(ctx2, {
+      type: 'doughnut',
+      data: {
+        labels: ['達成済み', '未達成'],
+        datasets: [{
+          data: [rate, remaining],
+          backgroundColor: [rate < 30 ? '#EF4444' : rate < 70 ? '#FBBF24' : '#16A34A', '#f0f0f0']
+        }]
+      },
+      options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom' } } }
+    });
+  }
+}
+
+function saveToStorage(id) {
+  const value = document.getElementById(id).value;
+  if (value) localStorage.setItem(`dividend_${id}`, value);
+  else localStorage.removeItem(`dividend_${id}`);
+}
+
+function loadFromStorage() {
+  ['assets', 'yield', 'tax', 'fire-target'].forEach(id => {
+    const stored = localStorage.getItem(`dividend_${id}`);
+    if (stored) document.getElementById(id).value = stored;
+  });
+}
+
+function addToHistory(data) {
+  const history = JSON.parse(localStorage.getItem('dividend_history') || '[]');
+  const entry = {timestamp: new Date().toLocaleString('ja-JP'), ...data};
+  history.unshift(entry);
+  if (history.length > 5) history.pop();
+  localStorage.setItem('dividend_history', JSON.stringify(history));
+  renderHistory();
+}
+
+function renderHistory() {
+  const history = JSON.parse(localStorage.getItem('dividend_history') || '[]');
+  const historyList = document.getElementById('history-list');
+  historyList.innerHTML = '';
+
+  if (history.length === 0) return;
+  document.getElementById('history-section').style.display = 'block';
+
+  history.forEach((entry, i) => {
+    const card = document.createElement('div');
+    card.style.cssText = 'background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;cursor:pointer;transition:all .2s';
+    card.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <p style="margin:0;font-size:12px;color:#64748b;">${entry.timestamp}</p>
+          <p style="margin:4px 0 0;font-size:14px;font-weight:700;color:#16A34A;">月額 ${Math.round(entry.netMonthly).toLocaleString()}円</p>
+        </div>
+        <button onclick="restoreHistory(${i})" style="background:#16A34A;color:white;border:none;padding:8px 12px;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600;">復元</button>
+      </div>
+    `;
+    historyList.appendChild(card);
+  });
+}
+
+function restoreHistory(index) {
+  const history = JSON.parse(localStorage.getItem('dividend_history') || '[]');
+  if (history[index]) {
+    const entry = history[index];
+    document.getElementById('assets').value = entry.assets;
+    document.getElementById('yield').value = entry.yieldRate;
+    document.getElementById('tax').value = entry.taxRate;
+    document.getElementById('fire-target').value = entry.fireTarget || '';
+    calculate();
+  }
+}
+
+function clearHistory() {
+  if (confirm('履歴を削除しますか？')) {
+    localStorage.removeItem('dividend_history');
+    document.getElementById('history-section').style.display = 'none';
+    document.getElementById('history-list').innerHTML = '';
+  }
 }
 </script>
 

@@ -35,6 +35,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -515,7 +516,66 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     const scores = {};
     let currentQ = 0;
     let currentResult = null;
+    let currentScores = null;
     const planEmojis = ['🚶', '🍽️', '🎬', '⭐', '☀️', '🌙', '🎉', '📸', '🎪', '💝'];
+    const HISTORY_KEY = 'datePlanDiagnosisHistory';
+    const MAX_HISTORY = 10;
+
+    function saveToHistory(diagnosis) {
+      try {
+        let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+        history.unshift({timestamp: new Date().toISOString(), ...diagnosis});
+        if (history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+      } catch(e) { console.error('履歴保存エラー:', e); }
+    }
+
+    function getHistory() {
+      try {
+        return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+      } catch(e) { return []; }
+    }
+
+    function clearHistory() {
+      if(confirm('診断履歴をすべて削除してもよろしいですか？')){
+        localStorage.removeItem(HISTORY_KEY);
+        alert('履歴を削除しました。');
+        location.reload();
+      }
+    }
+
+    function calculateMatchScore(result, scores) {
+      let match = 0;
+      const conditions = [
+        result.cond({budget: scores.budget, area: scores.area, relation: scores.relation, mood: scores.mood, time: scores.time})
+      ];
+      return conditions[0] ? 95 : 70;
+    }
+
+    function exportToCSV() {
+      if(!currentResult || !currentScores) return;
+      const date = new Date().toLocaleString('ja-JP');
+      const answers = [
+        QUESTIONS[0].options[currentScores.budget],
+        QUESTIONS[1].options[currentScores.area],
+        QUESTIONS[2].options[currentScores.relation],
+        QUESTIONS[3].options[currentScores.mood],
+        QUESTIONS[4].options[currentScores.time]
+      ];
+      const csv = `診断日時,${date}\n予算,${answers[0]}\nエリア,${answers[1]}\n関係性,${answers[2]}\n雰囲気,${answers[3]}\n時間,${answers[4]}\n結果,${currentResult.title}`;
+      const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `date-plan-${new Date().getTime()}.csv`;
+      link.click();
+    }
+
+    function exportToText() {
+      if(!currentResult || !currentScores) return;
+      const date = new Date().toLocaleString('ja-JP');
+      const text = `デートプラン診断結果\n\n診断日時: ${date}\n\n${currentResult.emoji} ${currentResult.title}\n${currentResult.subtitle}\n\n${currentResult.desc}\n\nおすすめコース:\n${currentResult.plans.map((p,i)=>`${i+1}. ${p}`).join('\n')}\n\n${currentResult.tip}\n\n詳細: https://appadaycreator.com/date-plan-advisor/`;
+      navigator.clipboard.writeText(text).then(() => alert('テキストをコピーしました！'));
+    }
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('q-total').textContent = QUESTIONS.length;
@@ -580,8 +640,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         time:     scores['time']     || 0
       };
 
+      currentScores = s;
       const result = RESULTS.find(r => r.cond(s)) || RESULTS[RESULTS.length - 1];
       currentResult = result;
+      const matchScore = calculateMatchScore(result, s);
+
+      saveToHistory({scores: s, result: {title: result.title, emoji: result.emoji}});
 
       document.getElementById('r-emoji').textContent  = result.emoji;
       document.getElementById('r-title').textContent   = result.title;
@@ -589,10 +653,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('r-desc').textContent    = result.desc;
       document.getElementById('r-tip').textContent     = result.tip;
 
-      // プラン詳細リスト（絵文字付き）
+      // マッチスコア・グラフを含めたプラン詳細
       document.getElementById('r-plans').innerHTML = `
         <div style="margin-top:14px;">
-          <div style="font-size:13px;font-weight:700;color:#BE185D;margin-bottom:8px;">📋 おすすめコース</div>
+          <div style="font-size:13px;font-weight:700;color:#BE185D;margin-bottom:8px;">⭐ マッチ度スコア</div>
+          <div style="background:linear-gradient(90deg, #FFC4D6 ${matchScore}%, #f0f0f0 ${matchScore}%);height:24px;border-radius:12px;margin-bottom:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;">
+            ${matchScore}%
+          </div>
+          <div style="font-size:13px;font-weight:700;color:#BE185D;margin-top:12px;margin-bottom:8px;">📋 おすすめコース</div>
           ${result.plans.map((p, i) => `
             <div style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid #FCE7F3;font-size:13px;color:#444;background:${i % 2 === 0 ? '#fff' : '#FFF7FB'};">
               <span style="font-size:16px;min-width:24px;">${planEmojis[i % planEmojis.length]}</span>
@@ -601,6 +669,25 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           `).join('')}
         </div>
       `;
+
+      // エクスポート・印刷ボタンを動的に追加
+      setTimeout(() => {
+        const shareSection = document.querySelector('.share-buttons');
+        if(shareSection && !shareSection.nextElementSibling.classList.contains('export-buttons')) {
+          const exportHTML = `
+            <div class="export-buttons" style="margin-top:16px;padding:12px;background:#f0f9ff;border-radius:10px;">
+              <p style="font-size:12px;font-weight:600;color:#1e3a8a;margin-bottom:8px;">💾 結果の保存・共有</p>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <button onclick="exportToCSV()" style="background:#1e3a8a;color:white;border:none;padding:8px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;">📥 CSV保存</button>
+                <button onclick="exportToText()" style="background:#1e3a8a;color:white;border:none;padding:8px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;">📋 テキストコピー</button>
+                <button onclick="window.print()" style="background:#1e3a8a;color:white;border:none;padding:8px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;">🖨️ 印刷</button>
+                <button onclick="clearHistory()" style="background:#dc2626;color:white;border:none;padding:8px;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600;">🗑️ 履歴削除</button>
+              </div>
+            </div>
+          `;
+          shareSection.insertAdjacentHTML('afterend', exportHTML);
+        }
+      }, 100);
 
       document.getElementById('result').classList.add('show');
     }

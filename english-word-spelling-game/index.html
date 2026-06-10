@@ -38,6 +38,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <!-- Clarity -->
 <script>(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   .letter-box { min-width: 2rem; height: 2.5rem; border-bottom: 3px solid #3b82f6; display: inline-flex; align-items: center; justify-content: center; font-size: 1.25rem; font-weight: bold; margin: 0 2px; transition: all 0.2s; }
   .letter-correct { border-color: #22c55e; color: #22c55e; }
@@ -257,8 +258,26 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
 
     <div class="bg-blue-50 rounded-xl p-4 mb-4">
       <h3 class="font-bold text-blue-700 text-sm mb-2">📊 学習進捗</h3>
-      <div id="statsChart" class="text-xs text-gray-600 font-mono" style="line-height:1.8;"></div>
-      <p id="statsSummary" class="text-xs text-gray-500 mt-2"></p>
+      <div style="position:relative;width:160px;height:160px;margin:0 auto 12px;">
+        <canvas id="accuracyGaugeChart"></canvas>
+      </div>
+      <p id="gaugeLabel" class="text-xs text-gray-600 text-center font-bold mb-3"></p>
+    </div>
+
+    <div class="bg-green-50 rounded-xl p-4 mb-4">
+      <h3 class="font-bold text-green-700 text-sm mb-3">📈 最近のプレイ履歴</h3>
+      <div style="position:relative;width:100%;height:200px;">
+        <canvas id="historyChart"></canvas>
+      </div>
+      <p id="historyLabel" class="text-xs text-gray-500 mt-2 text-center"></p>
+    </div>
+
+    <div class="bg-purple-50 rounded-xl p-4 mb-4">
+      <h3 class="font-bold text-purple-700 text-sm mb-3">🎯 難易度別スコア</h3>
+      <div style="position:relative;width:100%;height:200px;">
+        <canvas id="levelScoreChart"></canvas>
+      </div>
+      <p id="levelLabel" class="text-xs text-gray-500 mt-2 text-center"></p>
     </div>
 
     <div class="border border-green-200 rounded-xl p-4 bg-green-50 mb-4">
@@ -673,30 +692,141 @@ function getRecentStats() {
   return history.slice(-5).reverse();
 }
 
-function displayStatsChart() {
-  const stats = getRecentStats();
+function destroyChart(key) {
+  if (window.chartsToDestroy && window.chartsToDestroy[key] && window.chartsToDestroy[key].destroy) {
+    window.chartsToDestroy[key].destroy();
+    window.chartsToDestroy[key] = null;
+  }
+}
+
+window.chartsToDestroy = {};
+
+function displayAccuracyGauge(accuracy) {
+  destroyChart('gaugeChart');
+
+  const ctx = document.getElementById('accuracyGaugeChart').getContext('2d');
+  const color = accuracy >= 90 ? '#22c55e' : accuracy >= 70 ? '#3b82f6' : accuracy >= 50 ? '#f97316' : '#ef4444';
+
+  window.chartsToDestroy.gaugeChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['正答率', '不正解率'],
+      datasets: [{
+        data: [accuracy, 100 - accuracy],
+        backgroundColor: [color, '#e5e7eb'],
+        borderColor: ['#fff', '#fff'],
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: { legend: { display: false } },
+      cutout: '60%'
+    }
+  });
+
+  document.getElementById('gaugeLabel').textContent = `${accuracy}%`;
+}
+
+function displayHistoryChart(stats) {
+  destroyChart('historyChart');
+
   if (stats.length === 0) {
-    document.getElementById('statsChart').textContent = 'プレイ履歴がありません';
-    document.getElementById('statsSummary').textContent = '';
+    document.getElementById('historyLabel').textContent = 'プレイ履歴がありません';
     return;
   }
 
-  let chart = '', sumAcc = 0, totalScore = 0;
-  stats.forEach((s) => {
-    const bar = '█'.repeat(Math.round(s.accuracy / 10)) + '░'.repeat(10 - Math.round(s.accuracy / 10));
-    const dateStr = new Date(s.date).toLocaleDateString('ja-JP', {month:'numeric', day:'numeric'});
-    chart += `${dateStr} [${bar}] ${s.accuracy}%\n`;
-    sumAcc += s.accuracy;
-    totalScore += s.score;
-  });
-  document.getElementById('statsChart').textContent = chart;
+  const dates = stats.map(s => new Date(s.date).toLocaleDateString('ja-JP', {month:'numeric', day:'numeric'}));
+  const accuracies = stats.map(s => s.accuracy);
 
-  const avgAcc = Math.round(sumAcc / stats.length);
-  document.getElementById('statsSummary').textContent = `平均正答率: ${avgAcc}% | 合計スコア: ${totalScore}`;
+  const ctx = document.getElementById('historyChart').getContext('2d');
+  window.chartsToDestroy.historyChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: dates,
+      datasets: [{
+        label: '正答率',
+        data: accuracies,
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: '#3b82f6',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2,
+        pointRadius: 5
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { min: 0, max: 100, ticks: { stepSize: 20 } }
+      }
+    }
+  });
+
+  const avgAcc = Math.round(accuracies.reduce((a, b) => a + b, 0) / accuracies.length);
+  document.getElementById('historyLabel').textContent = `最近${accuracies.length}回の平均正答率: ${avgAcc}%`;
+}
+
+function displayLevelScoreChart() {
+  destroyChart('levelScoreChart');
+
+  const history = JSON.parse(localStorage.getItem('spellingHistory') || '[]');
+  const levelScores = { easy: 0, medium: 0, hard: 0, easyCount: 0, mediumCount: 0, hardCount: 0 };
+
+  history.forEach(h => {
+    levelScores[h.level] += h.score;
+    levelScores[h.level + 'Count']++;
+  });
+
+  const easyAvg = levelScores.easyCount > 0 ? Math.round(levelScores.easy / levelScores.easyCount) : 0;
+  const mediumAvg = levelScores.mediumCount > 0 ? Math.round(levelScores.medium / levelScores.mediumCount) : 0;
+  const hardAvg = levelScores.hardCount > 0 ? Math.round(levelScores.hard / levelScores.hardCount) : 0;
+
+  const ctx = document.getElementById('levelScoreChart').getContext('2d');
+  window.chartsToDestroy.levelScoreChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['初級', '中級', '上級'],
+      datasets: [{
+        label: '平均スコア',
+        data: [easyAvg, mediumAvg, hardAvg],
+        backgroundColor: ['#22c55e', '#3b82f6', '#a855f7']
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: 20 } }
+      }
+    }
+  });
+
+  const max = Math.max(easyAvg, mediumAvg, hardAvg);
+  document.getElementById('levelLabel').textContent = max > 0 ? `最高平均スコア: ${max}点` : 'データなし';
+}
+
+function displayStatsChart() {
+  const stats = getRecentStats();
+  const accuracy = totalAnswered > 0 ? Math.round((correctCount / totalAnswered) * 100) : 0;
+
+  displayAccuracyGauge(accuracy);
+  displayHistoryChart(stats);
+  displayLevelScoreChart();
 }
 
 function showResult() {
   clearInterval(timerInterval);
+  destroyChart('gaugeChart');
+  destroyChart('historyChart');
+  destroyChart('levelScoreChart');
   document.getElementById('gameScreen').classList.add('hidden');
   document.getElementById('resultScreen').classList.remove('hidden');
 
@@ -730,6 +860,9 @@ function showResult() {
 }
 
 function showStart() {
+  destroyChart('gaugeChart');
+  destroyChart('historyChart');
+  destroyChart('levelScoreChart');
   document.getElementById('resultScreen').classList.add('hidden');
   document.getElementById('startScreen').classList.remove('hidden');
 }

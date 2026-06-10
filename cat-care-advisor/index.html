@@ -411,6 +411,83 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     let cur=0, ageGroup='adult', typeScore={kitten:0, adult:0, senior:0, elderly:0};
 
+    // P1: 結果別のおすすめ商品
+    const recommendedProducts = {
+      kitten: [
+        {title:'子猫用フード（総合栄養食）',desc:'高タンパク質・DHA配合',link:'https://px.a8.net/svt/ejp?a8mat=3T3DZS+5K6DFQ+GK2+5ZMCH&a8ejpredirect=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F%25e5%25ad%2590%25e7%258c%25ab%25e7%2594%25a8%25e3%2583%2595%25e3%2583%25bc%25e3%2583%2589'},
+        {title:'爪とぎ・ぐねぐねおもちゃ',desc:'ストレス軽減・運動促進',link:'https://px.a8.net/svt/ejp?a8mat=3T3DZS+5K6DFQ+GK2+5ZMCH'},
+        {title:'ノミダニ予防セット',desc:'毎月の予防が必須',link:'https://px.a8.net/svt/ejp?a8mat=3T3DZS+5K6DFQ+GK2+5ZMCH'},
+      ],
+      adult: [
+        {title:'成猫用フード（体重管理）',desc:'バランス栄養・カロリー調整',link:'https://px.a8.net/svt/ejp?a8mat=3T3DZS+5K6DFQ+GK2+5ZMCH'},
+        {title:'歯磨きセット',desc:'歯周病予防が重要',link:'https://px.a8.net/svt/ejp?a8mat=3T3DZS+5K6DFQ+GK2+5ZMCH'},
+        {title:'トイレ砂（除臭・凝固性）',desc:'月1回の消費が目安',link:'https://px.a8.net/svt/ejp?a8mat=3T3DZS+5K6DFQ+GK2+5ZMCH'},
+      ],
+      senior: [
+        {title:'シニア用療法食（低リン）',desc:'腎臓病予防・長寿サポート',link:'https://px.a8.net/svt/ejp?a8mat=3T3DZS+5K6DFQ+GK2+5ZMCH'},
+        {title:'関節サプリメント',desc:'グルコサミン・コンドロイチン配合',link:'https://px.a8.net/svt/ejp?a8mat=3T3DZS+5K6DFQ+GK2+5ZMCH'},
+        {title:'温かいペットベッド',desc:'関節の負担軽減',link:'https://px.a8.net/svt/ejp?a8mat=3T3DZS+5K6DFQ+GK2+5ZMCH'},
+      ],
+      elderly: [
+        {title:'介護食（柔らか・栄養価高）',desc:'消化吸収を重視',link:'https://px.a8.net/svt/ejp?a8mat=3T3DZS+5K6DFQ+GK2+5ZMCH'},
+        {title:'温熱マット・ヒーター',desc:'温かく快適な寝床作成',link:'https://px.a8.net/svt/ejp?a8mat=3T3DZS+5K6DFQ+GK2+5ZMCH'},
+        {title:'ペット用医療用品',desc:'緩和ケア・日常のサポート',link:'https://px.a8.net/svt/ejp?a8mat=3T3DZS+5K6DFQ+GK2+5ZMCH'},
+      ],
+    };
+
+    // P2: クイズ進捗の保存
+    function saveQuizProgress() {
+      localStorage.setItem('cat_quiz_progress', JSON.stringify({
+        current: cur,
+        typeScore: typeScore,
+        timestamp: new Date().getTime()
+      }));
+    }
+
+    // P2: クイズ進捗の復元
+    function loadQuizProgress() {
+      const saved = localStorage.getItem('cat_quiz_progress');
+      return saved ? JSON.parse(saved) : null;
+    }
+
+    // P2: 前回の診断を再開するか確認
+    function checkAndOfferResume() {
+      const progress = loadQuizProgress();
+      if (progress && cur === 0 && progress.current > 0 && progress.current < QUESTIONS.length) {
+        // 保存から24時間以内かチェック
+        const hoursSaved = (new Date().getTime() - progress.timestamp) / (1000 * 60 * 60);
+        if (hoursSaved < 24) {
+          const resumeDialog = document.createElement('div');
+          resumeDialog.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
+          resumeDialog.innerHTML = `
+            <div style="background:white;border-radius:12px;padding:24px;max-width:400px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,0.2);">
+              <p style="font-size:16px;font-weight:700;color:#333;margin-bottom:8px;">診断の続きから始めますか？</p>
+              <p style="font-size:13px;color:#666;margin-bottom:20px;">前回 ${Math.floor(progress.current / QUESTIONS.length * 100)}% まで進みました</p>
+              <div style="display:flex;gap:10px;">
+                <button onclick="resumeQuiz(${progress.current}, '${JSON.stringify(progress.typeScore).replace(/'/g,"\\'")}')" style="flex:1;background:#F97316;color:white;border:none;padding:10px;border-radius:8px;font-weight:600;cursor:pointer;">再開する</button>
+                <button onclick="this.parentElement.parentElement.parentElement.remove();localStorage.removeItem('cat_quiz_progress');" style="flex:1;background:#e2e8f0;color:#333;border:none;padding:10px;border-radius:8px;font-weight:600;cursor:pointer;">最初から</button>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(resumeDialog);
+        }
+      }
+    }
+
+    function resumeQuiz(savedCur, savedScore) {
+      cur = savedCur;
+      typeScore = JSON.parse(savedScore);
+      document.querySelector('[style*="position:fixed"]')?.remove();
+      startQuizFromQuestion(cur);
+    }
+
+    function startQuizFromQuestion(startIdx) {
+      document.getElementById('quiz-start').style.display='none';
+      document.getElementById('quiz-area').style.display='block';
+      document.getElementById('q-total').textContent = QUESTIONS.length;
+      renderQ();
+    }
+
     function restoreResultFromURL() {
       const params = new URLSearchParams(window.location.search);
       const resultKey = params.get('result');
@@ -428,7 +505,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         document.getElementById('r-title').textContent = r.title;
         document.getElementById('r-desc').textContent  = r.desc;
         document.getElementById('r-care').innerHTML    = r.care + '<br><span style="font-size:12px;">目安費用：</span><span class="cost-badge">月¥' + r.monthlyMin.toLocaleString() + '〜¥' + r.monthlyMax.toLocaleString() + '</span>';
-        document.getElementById('r-points').innerHTML  = r.points.map(p=>`<p class="r-point">${p}</p>`).join('') + `<div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:12px"><h4 style="font-size:13px;font-weight:600;margin-bottom:8px;color:#374151">💰 費用内訳</h4><table style="width:100%;font-size:12px">${costTable}</table><div style="margin-top:10px;padding:8px;background:#f1f5f9;border-radius:6px;font-size:12px;color:#555"><p style="margin:4px 0"><strong>月額:</strong> ¥${r.monthlyMin.toLocaleString()}〜¥${r.monthlyMax.toLocaleString()}</p><p style="margin:4px 0"><strong>年額:</strong> ¥${yearlyMin.toLocaleString()}〜¥${yearlyMax.toLocaleString()}</p><p style="margin:4px 0;color:#9a3412"><strong>5年:</strong> ¥${(yearlyMin*5).toLocaleString()}〜¥${(yearlyMax*5).toLocaleString()}</p></div></div><div style="margin-top:12px;padding:12px;background:#f0fdf4;border-radius:8px;border:1px solid #86efac"><p style="font-size:12px;font-weight:600;color:#15803d;margin-bottom:8px">🔗 結果をシェア</p><div style="display:flex;gap:6px;flex-direction:column"><button style="background:#fff;border:1px solid #e2e8f0;padding:8px;border-radius:6px;font-size:12px;cursor:pointer;color:#555" onclick="navigator.clipboard.writeText('${shareTxt.replace(/'/g,"\\'")}'); alert('URLをコピーしました！')">📋 URLをコピー</button><a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(r.shareText)}&url=${encodeURIComponent(shareUrl)}" target="_blank" rel="noopener" style="background:#1DA1F2;color:white;padding:8px;border-radius:6px;font-size:12px;text-decoration:none;text-align:center;font-weight:600">𝕏 シェア</a><a href="https://line.me/R/msg/text/?${encodeURIComponent(shareTxt)}" target="_blank" rel="noopener" style="background:#00B900;color:white;padding:8px;border-radius:6px;font-size:12px;text-decoration:none;text-align:center;font-weight:600">LINE</a></div></div>`;
+
+        // P1: おすすめ商品を追加（URL復元時も）
+        const productsHtml = recommendedProducts[resultKey] ? `<div style="margin-top:14px;padding:12px;background:#fef3c7;border-radius:8px;border:1px solid #fbbf24"><p style="font-size:12px;font-weight:600;color:#92400e;margin:0 0 8px">🛍️ このプランにおすすめの商品</p><div style="display:flex;flex-direction:column;gap:8px">${recommendedProducts[resultKey].map(p=>`<a href="${p.link}" target="_blank" rel="noopener noreferrer" style="display:block;padding:8px;background:white;border-radius:6px;text-decoration:none;font-size:12px;color:#333"><strong>${p.title}</strong><br><span style="color:#666;font-size:11px">${p.desc}</span></a>`).join('')}</div></div>` : '';
+
+        document.getElementById('r-points').innerHTML  = r.points.map(p=>`<p class="r-point">${p}</p>`).join('') + productsHtml + `<div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:12px"><h4 style="font-size:13px;font-weight:600;margin-bottom:8px;color:#374151">💰 費用内訳</h4><table style="width:100%;font-size:12px">${costTable}</table><div style="margin-top:10px;padding:8px;background:#f1f5f9;border-radius:6px;font-size:12px;color:#555"><p style="margin:4px 0"><strong>月額:</strong> ¥${r.monthlyMin.toLocaleString()}〜¥${r.monthlyMax.toLocaleString()}</p><p style="margin:4px 0"><strong>年額:</strong> ¥${yearlyMin.toLocaleString()}〜¥${yearlyMax.toLocaleString()}</p><p style="margin:4px 0;color:#9a3412"><strong>5年:</strong> ¥${(yearlyMin*5).toLocaleString()}〜¥${(yearlyMax*5).toLocaleString()}</p></div></div><div style="margin-top:12px;padding:12px;background:#f0fdf4;border-radius:8px;border:1px solid #86efac"><p style="font-size:12px;font-weight:600;color:#15803d;margin-bottom:8px">🔗 結果をシェア</p><div style="display:flex;gap:6px;flex-direction:column"><button style="background:#fff;border:1px solid #e2e8f0;padding:8px;border-radius:6px;font-size:12px;cursor:pointer;color:#555" onclick="navigator.clipboard.writeText('${shareTxt.replace(/'/g,"\\'")}'); alert('URLをコピーしました！')">📋 URLをコピー</button><a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(r.shareText)}&url=${encodeURIComponent(shareUrl)}" target="_blank" rel="noopener" style="background:#1DA1F2;color:white;padding:8px;border-radius:6px;font-size:12px;text-decoration:none;text-align:center;font-weight:600">𝕏 シェア</a><a href="https://line.me/R/msg/text/?${encodeURIComponent(shareTxt)}" target="_blank" rel="noopener" style="background:#00B900;color:white;padding:8px;border-radius:6px;font-size:12px;text-decoration:none;text-align:center;font-weight:600">LINE</a></div></div>`;
         document.getElementById('result').classList.add('show');
 
         // グラフを描画
@@ -436,7 +517,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }
     }
 
-    document.addEventListener('DOMContentLoaded', restoreResultFromURL);
+    document.addEventListener('DOMContentLoaded', function(){
+      restoreResultFromURL();
+      checkAndOfferResume(); // P2: 前回の診断を再開するか確認
+    });
 
     function startQuiz() {
       cur=0; typeScore={kitten:0, adult:0, senior:0, elderly:0};
@@ -478,6 +562,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         }
       }
       cur++;
+      saveQuizProgress(); // P2: 進捗を保存
       if (cur >= QUESTIONS.length) { showResult(); return; }
       renderQ();
     }
@@ -502,11 +587,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('r-title').textContent = r.title;
       document.getElementById('r-desc').textContent  = r.desc;
       document.getElementById('r-care').innerHTML    = r.care + '<br><span style="font-size:12px;">目安費用：</span><span class="cost-badge">月¥' + r.monthlyMin.toLocaleString() + '〜¥' + r.monthlyMax.toLocaleString() + '</span>';
-      document.getElementById('r-points').innerHTML  = r.points.map(p=>`<p class="r-point">${p}</p>`).join('') + `<div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:12px"><h4 style="font-size:13px;font-weight:600;margin-bottom:8px;color:#374151">💰 費用内訳</h4><table style="width:100%;font-size:12px">${costTable}</table><div style="margin-top:10px;padding:8px;background:#f1f5f9;border-radius:6px;font-size:12px;color:#555"><p style="margin:4px 0"><strong>月額:</strong> ¥${r.monthlyMin.toLocaleString()}〜¥${r.monthlyMax.toLocaleString()}</p><p style="margin:4px 0"><strong>年額:</strong> ¥${yearlyMin.toLocaleString()}〜¥${yearlyMax.toLocaleString()}</p><p style="margin:4px 0;color:#9a3412"><strong>5年:</strong> ¥${(yearlyMin*5).toLocaleString()}〜¥${(yearlyMax*5).toLocaleString()}</p></div></div><div style="margin-top:12px;padding:12px;background:#f0fdf4;border-radius:8px;border:1px solid #86efac"><p style="font-size:12px;font-weight:600;color:#15803d;margin-bottom:8px">🔗 結果をシェア</p><div style="display:flex;gap:6px;flex-direction:column"><button style="background:#fff;border:1px solid #e2e8f0;padding:8px;border-radius:6px;font-size:12px;cursor:pointer;color:#555" onclick="navigator.clipboard.writeText('${shareTxt.replace(/'/g,"\\'")}'); alert('URLをコピーしました！')">📋 URLをコピー</button><a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(r.shareText)}&url=${encodeURIComponent(shareUrl)}" target="_blank" rel="noopener" style="background:#1DA1F2;color:white;padding:8px;border-radius:6px;font-size:12px;text-decoration:none;text-align:center;font-weight:600">𝕏 シェア</a><a href="https://line.me/R/msg/text/?${encodeURIComponent(shareTxt)}" target="_blank" rel="noopener" style="background:#00B900;color:white;padding:8px;border-radius:6px;font-size:12px;text-decoration:none;text-align:center;font-weight:600">LINE</a></div></div>`;
+
+      // P1: おすすめ商品を追加
+      const productsHtml = recommendedProducts[best] ? `<div style="margin-top:14px;padding:12px;background:#fef3c7;border-radius:8px;border:1px solid #fbbf24"><p style="font-size:12px;font-weight:600;color:#92400e;margin:0 0 8px">🛍️ このプランにおすすめの商品</p><div style="display:flex;flex-direction:column;gap:8px">${recommendedProducts[best].map(p=>`<a href="${p.link}" target="_blank" rel="noopener noreferrer" style="display:block;padding:8px;background:white;border-radius:6px;text-decoration:none;font-size:12px;color:#333"><strong>${p.title}</strong><br><span style="color:#666;font-size:11px">${p.desc}</span></a>`).join('')}</div></div>` : '';
+
+      document.getElementById('r-points').innerHTML  = r.points.map(p=>`<p class="r-point">${p}</p>`).join('') + productsHtml + `<div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:12px"><h4 style="font-size:13px;font-weight:600;margin-bottom:8px;color:#374151">💰 費用内訳</h4><table style="width:100%;font-size:12px">${costTable}</table><div style="margin-top:10px;padding:8px;background:#f1f5f9;border-radius:6px;font-size:12px;color:#555"><p style="margin:4px 0"><strong>月額:</strong> ¥${r.monthlyMin.toLocaleString()}〜¥${r.monthlyMax.toLocaleString()}</p><p style="margin:4px 0"><strong>年額:</strong> ¥${yearlyMin.toLocaleString()}〜¥${yearlyMax.toLocaleString()}</p><p style="margin:4px 0;color:#9a3412"><strong>5年:</strong> ¥${(yearlyMin*5).toLocaleString()}〜¥${(yearlyMax*5).toLocaleString()}</p></div></div><div style="margin-top:12px;padding:12px;background:#f0fdf4;border-radius:8px;border:1px solid #86efac"><p style="font-size:12px;font-weight:600;color:#15803d;margin-bottom:8px">🔗 結果をシェア</p><div style="display:flex;gap:6px;flex-direction:column"><button style="background:#fff;border:1px solid #e2e8f0;padding:8px;border-radius:6px;font-size:12px;cursor:pointer;color:#555" onclick="navigator.clipboard.writeText('${shareTxt.replace(/'/g,"\\'")}'); alert('URLをコピーしました！')">📋 URLをコピー</button><a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(r.shareText)}&url=${encodeURIComponent(shareUrl)}" target="_blank" rel="noopener" style="background:#1DA1F2;color:white;padding:8px;border-radius:6px;font-size:12px;text-decoration:none;text-align:center;font-weight:600">𝕏 シェア</a><a href="https://line.me/R/msg/text/?${encodeURIComponent(shareTxt)}" target="_blank" rel="noopener" style="background:#00B900;color:white;padding:8px;border-radius:6px;font-size:12px;text-decoration:none;text-align:center;font-weight:600">LINE</a></div></div>`;
       document.getElementById('result').classList.add('show');
 
       // グラフを描画
       renderCostChart(r);
+
+      // P2: 診断完了時にローカルストレージをクリア
+      localStorage.removeItem('cat_quiz_progress');
     }
 
     function saveResultToStorage(result) {
@@ -607,6 +699,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function goBack() {
       if (cur > 0) {
         cur--;
+        saveQuizProgress(); // P2: 戻る時も進捗を保存
         renderQ();
       }
     }

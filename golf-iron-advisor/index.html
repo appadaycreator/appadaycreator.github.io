@@ -18,8 +18,7 @@
 <link rel="manifest" href="./manifest.json">
 <meta name="theme-color" content="#1A3D2B">
     <meta name="description" content="スイング速度・体格を入力するだけでゴルフアイアンのおすすめ番手・シャフト硬さ・メーカーを無料診断。初心者〜上級者まで対応。100種類以上のクラブDBで科学的に自動判定。2026年最新版。">
-    <meta name="keywords" content="ゴルフアイアン,おすすめ,アイアン選び方,番手,シャフト硬さ,スイング速度,診断,クラブ選び,ゴルフギア,初心者,中級者">
-    <meta name="author" content="Golf Iron Advisor">
+<meta name="author" content="Golf Iron Advisor">
     <meta name="robots" content="index, follow">
 
     <!-- PWA -->
@@ -171,6 +170,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 button,input[type=submit],input[type=button],[class*=btn]{min-height:44px;cursor:pointer;transition:opacity .15s,transform .1s;}
 button:active,[class*=btn]:active{opacity:.75;transform:scale(.98);}
 select,input[type=text],input[type=number],input[type=email],textarea{min-height:44px;font-size:16px;}
+/* M2: Enhanced validation styling */
+input[type=number].border-green-500,input[type=text].border-green-500{border-color:#22c55e!important;background-color:#f0fdf4!important;box-shadow:0 0 0 3px rgba(34,197,94,0.1)!important;transition:all 0.2s ease;}
+input[type=number].border-red-500,input[type=text].border-red-500{border-color:#ef4444!important;background-color:#fef2f2!important;box-shadow:0 0 0 3px rgba(239,68,68,0.1)!important;animation:shake 0.3s ease-in-out;}
+/* M2: Validation error styling */
+#height-error,#weight-error,#headspeedInput-error,#handicapInput-error{font-weight:600;padding:6px 8px;border-left:3px solid #ef4444;background:#fee2e2;border-radius:2px;margin-top:4px!important;}
+/* M2: Validation checkmark */
+.validation-check{display:inline-block;margin-left:8px;color:#22c55e;font-weight:bold;font-size:1.2rem;animation:checkmark-pop 0.3s ease-out;}
+@keyframes checkmark-pop{0%{transform:scale(0);opacity:0;}100%{transform:scale(1);opacity:1;}}
+@keyframes shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-3px);}75%{transform:translateX(3px);}}
 [id*=result]:not(style):not(script),[id*=output]:not(style):not(script){border-left:4px solid #7c3aed;padding-left:16px;margin-top:16px;}
 @media(max-width:640px){[class*=max-w],[class*=container],[class*=wrapper]{padding:12px 16px!important;}button,[class*=btn]{width:100%;font-size:15px;}}
 /* P39: コンフェティアニメーション */
@@ -663,6 +671,10 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
 
                         <!-- Step 1: Basic Info -->
                         <div id="step-1" class="card-premium hidden">
+                            <div id="step1ErrorSummary" class="hidden mb-4 bg-red-50 border-2 border-red-300 rounded-lg p-4">
+                                <p class="text-sm font-bold text-red-800 mb-2">⚠️ 次のエラーを修正してください</p>
+                                <ul id="step1ErrorList" class="text-sm text-red-700 list-disc list-inside space-y-1"></ul>
+                            </div>
                             <div class="flex items-center justify-between mb-6">
                                 <h2 class="text-xl font-bold" data-translate="step1-title">基本情報</h2>
                                 <span class="help-icon text-green-600 text-xl cursor-pointer">❓</span>
@@ -670,25 +682,39 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                             <div class="space-y-6">
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2"
-                                        data-translate="height">身長 (cm)</label>
-                                    <input type="number" id="height" min="140" max="200" step="1" inputmode="decimal"
-                                        class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
-                                        placeholder="例: 170"
-                                        aria-label="身長を入力してください"
-                                        aria-describedby="height-hint"
-                                        oninput="validateNumberInput(this, 140, 200)">
+                                        data-translate="height">身長 (cm) <span style="color:#ef4444;font-weight:bold">※</span></label>
+                                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                                        <input type="number" id="height" min="140" max="200" step="1" inputmode="decimal"
+                                            class="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                                            placeholder="例: 170"
+                                            aria-label="身長を入力してください"
+                                            aria-describedby="height-hint"
+                                            oninput="validateNumberInput(this, 140, 200); window._syncHeightSlider && window._syncHeightSlider()">
+                                        <span class="validation-check hidden" aria-hidden="true">✓</span>
+                                    </div>
+                                    <input type="range" id="heightSlider" min="140" max="200" value="170" step="1"
+                                        class="w-full h-2 bg-green-100 rounded-lg appearance-none cursor-pointer accent-green-500"
+                                        style="padding:8px 0"
+                                        oninput="window._syncHeightInput && window._syncHeightInput()">
                                     <p id="height-hint" class="text-xs text-gray-500 mt-1">140cm〜200cmの範囲で入力してください</p>
                                     <p id="height-error" class="text-xs text-red-500 mt-1 hidden"></p>
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 mb-2"
-                                        data-translate="weight">体重 (kg)</label>
-                                    <input type="number" id="weight" min="40" max="120" step="1" inputmode="decimal"
-                                        class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
-                                        placeholder="例: 70"
-                                        aria-label="体重を入力してください"
-                                        aria-describedby="weight-hint"
-                                        oninput="validateNumberInput(this, 40, 120)">
+                                        data-translate="weight">体重 (kg) <span style="color:#ef4444;font-weight:bold">※</span></label>
+                                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                                        <input type="number" id="weight" min="40" max="120" step="1" inputmode="decimal"
+                                            class="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                                            placeholder="例: 70"
+                                            aria-label="体重を入力してください"
+                                            aria-describedby="weight-hint"
+                                            oninput="validateNumberInput(this, 40, 120); window._syncWeightSlider && window._syncWeightSlider()">
+                                        <span class="validation-check hidden" aria-hidden="true">✓</span>
+                                    </div>
+                                    <input type="range" id="weightSlider" min="40" max="120" value="70" step="1"
+                                        class="w-full h-2 bg-green-100 rounded-lg appearance-none cursor-pointer accent-green-500"
+                                        style="padding:8px 0"
+                                        oninput="window._syncWeightInput && window._syncWeightInput()">
                                     <p id="weight-hint" class="text-xs text-gray-500 mt-1">40kg〜120kgの範囲で入力してください</p>
                                     <p id="weight-error" class="text-xs text-red-500 mt-1 hidden"></p>
                                 </div>
@@ -790,14 +816,17 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                 <label class="block text-sm font-semibold text-green-800 mb-2">
                                     <span class="mr-1">🚩</span>ハンディキャップ（任意・分かる方のみ）
                                 </label>
-                                <div class="flex items-center gap-3">
-                                    <input type="number" id="handicapInput" min="0" max="54" step="1"
-                                           placeholder="例: 18"
-                                           class="w-28 px-3 py-2 border-2 border-green-300 rounded-lg text-center font-bold text-gray-800 focus:border-green-500 focus:outline-none text-base"
-                                           style="font-size:16px;"
-                                           oninput="validateNumberInput(this, 0, 54)">
+                                <div class="flex items-center gap-3 flex-wrap">
+                                    <div style="display:flex;align-items:center;gap:4px">
+                                        <input type="number" id="handicapInput" min="0" max="54" step="1"
+                                               placeholder="例: 18"
+                                               class="w-28 px-3 py-2 border-2 border-green-300 rounded-lg text-center font-bold text-gray-800 focus:border-green-500 focus:outline-none text-base"
+                                               style="font-size:16px;"
+                                               oninput="validateNumberInput(this, 0, 54)">
+                                        <span class="validation-check hidden" aria-hidden="true">✓</span>
+                                    </div>
                                     <span class="text-sm text-green-700">（0〜54 / 未入力でもOK）</span>
-                                    <p id="handicapInput-error" class="text-xs text-red-500 mt-1 hidden"></p>
+                                    <p id="handicapInput-error" class="text-xs text-red-500 w-full hidden"></p>
                                 </div>
                                 <p class="text-xs text-green-600 mt-2">入力するとスキルレベル判定の精度が上がります。HCP 0-10→上級 / 11-20→中級 / 21-28→アマ / 29+→初心者</p>
                             </div>
@@ -817,11 +846,14 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                 <div class="bg-green-50 rounded-xl p-5 border border-green-200">
                                     <label class="block font-semibold text-gray-800 mb-3">ヘッドスピード（m/s）を入力</label>
                                     <div class="flex items-center gap-3">
-                                        <input type="number" id="headspeedInput" min="20" max="70" step="0.5"
-                                               placeholder="例: 40"
-                                               class="w-32 text-center text-2xl font-bold border-2 border-green-300 rounded-lg px-3 py-2 focus:outline-none focus:border-green-500"
-                                               inputmode="decimal"
-                                               oninput="validateNumberInput(this, 20, 70)">
+                                        <div style="display:flex;align-items:center;gap:6px">
+                                            <input type="number" id="headspeedInput" min="20" max="70" step="0.5"
+                                                   placeholder="例: 40"
+                                                   class="w-32 text-center text-2xl font-bold border-2 border-green-300 rounded-lg px-3 py-2 focus:outline-none focus:border-green-500"
+                                                   inputmode="decimal"
+                                                   oninput="validateNumberInput(this, 20, 70)">
+                                            <span class="validation-check hidden text-2xl" aria-hidden="true">✓</span>
+                                        </div>
                                         <span class="text-gray-600 font-medium text-lg">m/s</span>
                                     </div>
                                     <p id="headspeedInput-error" class="text-xs text-red-500 mt-1 hidden"></p>
@@ -1767,6 +1799,168 @@ document.addEventListener('click', function(e) {
         console.error("[Diagnosis] save error:", e);
       }
     }
+
+    /* M2: スライダーと数値フィールドの双方向バインド */
+    window._syncHeightInput = function() {
+      try {
+        var slider = document.getElementById('heightSlider');
+        var input = document.getElementById('height');
+        if (slider && input) input.value = slider.value;
+      } catch(e) { console.warn("[Slider] sync height error:", e); }
+    };
+    window._syncHeightSlider = function() {
+      try {
+        var slider = document.getElementById('heightSlider');
+        var input = document.getElementById('height');
+        if (slider && input && input.value) slider.value = input.value;
+      } catch(e) { console.warn("[Slider] sync height slider error:", e); }
+    };
+    window._syncWeightInput = function() {
+      try {
+        var slider = document.getElementById('weightSlider');
+        var input = document.getElementById('weight');
+        if (slider && input) input.value = slider.value;
+      } catch(e) { console.warn("[Slider] sync weight error:", e); }
+    };
+    window._syncWeightSlider = function() {
+      try {
+        var slider = document.getElementById('weightSlider');
+        var input = document.getElementById('weight');
+        if (slider && input && input.value) slider.value = input.value;
+      } catch(e) { console.warn("[Slider] sync weight slider error:", e); }
+    };
+
+    /* M2: バリデーション一括表示 */
+    window._validateStep1 = function() {
+      try {
+        var height = document.getElementById('height');
+        var weight = document.getElementById('weight');
+        var errors = [];
+        var errorSummary = document.getElementById('step1ErrorSummary');
+        var errorList = document.getElementById('step1ErrorList');
+
+        if (!height || !height.value) {
+          errors.push('身長を入力してください');
+        } else if (height.value < 140 || height.value > 200) {
+          errors.push('身長は140〜200cmの範囲で入力してください');
+        }
+
+        if (!weight || !weight.value) {
+          errors.push('体重を入力してください');
+        } else if (weight.value < 40 || weight.value > 120) {
+          errors.push('体重は40〜120kgの範囲で入力してください');
+        }
+
+        if (errors.length > 0) {
+          errorList.innerHTML = '';
+          errors.forEach(function(err) {
+            var li = document.createElement('li');
+            li.textContent = err;
+            errorList.appendChild(li);
+          });
+          errorSummary.classList.remove('hidden');
+          return false;
+        } else {
+          errorSummary.classList.add('hidden');
+          return true;
+        }
+      } catch(e) {
+        console.error("[Validation] error:", e);
+        return true;
+      }
+    };
+
+    /* M2: スキップ時の確認ダイアログ */
+    window._skipStep1WithConfirmation = function() {
+      try {
+        var shouldSkip = window.confirm('身長・体重を省略して、平均値（身長170cm、体重70kg）で診断を進めます。よろしいですか？');
+        if (shouldSkip && window._skipStep1) {
+          window._skipStep1();
+        }
+      } catch(e) {
+        console.error("[SkipDialog] error:", e);
+      }
+    };
+
+    /* M2: 「次へ」ボタンにバリデーション機能を追加 */
+    document.addEventListener('DOMContentLoaded', function() {
+      try {
+        var nextBtn1 = document.getElementById('next-1');
+        if (nextBtn1) {
+          var originalOnclick = nextBtn1.onclick;
+          nextBtn1.onclick = function(e) {
+            if (!window._validateStep1()) {
+              e.preventDefault();
+              e.stopPropagation();
+              return false;
+            }
+            if (originalOnclick) originalOnclick.call(this, e);
+          };
+        }
+      } catch(e) { console.warn("[NextButton] setup error:", e); }
+    });
+
+    /* M2: スキップボタンを確認ダイアログ付きに置き換え */
+    document.addEventListener('DOMContentLoaded', function() {
+      try {
+        var skipBtn = document.getElementById('skip-step1');
+        if (skipBtn) {
+          skipBtn.onclick = function(e) {
+            e.preventDefault();
+            window._skipStep1WithConfirmation();
+          };
+        }
+      } catch(e) { console.warn("[SkipButton] setup error:", e); }
+    });
+
+    /* P2: 自動復元プロンプト */
+    document.addEventListener('DOMContentLoaded', function() {
+      try {
+        var savedData = safeGetItem('golfIronFormData', null);
+        if (savedData && savedData.height && savedData.weight) {
+          var shouldRestore = window.confirm('前回入力した身長（' + savedData.height + 'cm）・体重（' + savedData.weight + 'kg）を復元しますか？');
+          if (shouldRestore) {
+            document.getElementById('height').value = savedData.height;
+            document.getElementById('weight').value = savedData.weight;
+            document.getElementById('heightSlider').value = savedData.height;
+            document.getElementById('weightSlider').value = savedData.weight;
+            if (savedData.age) document.getElementById('age').value = savedData.age;
+          }
+        }
+      } catch(e) { console.warn("[AutoRestore] error:", e); }
+    });
+
+    /* P2: フォーム送信時の成功フィードバック */
+    window._showSuccessFeedback = function(btn) {
+      try {
+        if (!btn) return;
+        var originalText = btn.textContent;
+        btn.textContent = '✓ 完了';
+        btn.style.opacity = '0.7';
+        btn.disabled = true;
+        setTimeout(function() {
+          btn.textContent = originalText;
+          btn.style.opacity = '1';
+          btn.disabled = false;
+        }, 600);
+      } catch(e) { console.warn("[Feedback] error:", e); }
+    };
+
+    /* フォームデータ保存（既存のsaveToHistoryと連携） */
+    window._saveFormData = function() {
+      try {
+        var height = document.getElementById('height');
+        var weight = document.getElementById('weight');
+        var age = document.getElementById('age');
+        if (height && weight) {
+          safeSetItem('golfIronFormData', {
+            height: height.value,
+            weight: weight.value,
+            age: age ? age.value : ''
+          });
+        }
+      } catch(e) { console.warn("[FormSave] error:", e); }
+    };
     </script>
 
     <!-- A3: 広告スロット -->
@@ -2741,22 +2935,34 @@ function validateNumberInput(input, min, max) {
 
   if (!errorEl) return;
 
+  // Find checkmark (look in parent div and siblings)
+  let checkmark = input.nextElementSibling;
+  if (!checkmark || !checkmark.classList.contains('validation-check')) {
+    const parent = input.closest('div[style*="display:flex"]');
+    if (parent) {
+      checkmark = parent.querySelector('.validation-check');
+    }
+  }
+
   if (input.value === '' || isNaN(value)) {
-    input.classList.remove('border-red-500');
+    input.classList.remove('border-red-500', 'border-green-500', 'bg-green-50');
     input.classList.add('border-gray-300');
     errorEl.classList.add('hidden');
+    if (checkmark) checkmark.classList.add('hidden');
     return;
   }
 
   if (value < min || value > max) {
-    input.classList.remove('border-gray-300');
+    input.classList.remove('border-green-500', 'border-gray-300', 'bg-green-50');
     input.classList.add('border-red-500');
-    errorEl.textContent = `${min}〜${max}の範囲で入力してください`;
+    errorEl.innerHTML = `<strong>⚠️ エラー:</strong> ${min}〜${max}の範囲で入力してください`;
     errorEl.classList.remove('hidden');
+    if (checkmark) checkmark.classList.add('hidden');
   } else {
-    input.classList.remove('border-red-500');
-    input.classList.add('border-gray-300');
+    input.classList.remove('border-red-500', 'border-gray-300');
+    input.classList.add('border-green-500', 'bg-green-50');
     errorEl.classList.add('hidden');
+    if (checkmark) checkmark.classList.remove('hidden');
   }
 }
 </script>

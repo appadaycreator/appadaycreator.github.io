@@ -177,14 +177,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <canvas id="radarChart" style="max-width:100%;height:300px;margin:16px 0;"></canvas>
               <p id="score-explanation" style="font-size:13px;color:#555;line-height:1.7;margin-top:12px;"></p>
             </div>
-            <div style="margin-top:16px;display:flex;gap:8px;flex-direction:column;">
-              <button class="btn" onclick="downloadResultImage()" style="background:linear-gradient(135deg,#8B5CF6,#6D28D9);font-size:15px;font-weight:600;">📸 結果をPNGで保存</button>
+            <div id="result-buttons" style="margin-top:16px;display:flex;gap:8px;flex-direction:column;">
+              <button class="btn" onclick="downloadResultImage()" style="background:linear-gradient(135deg,#8B5CF6,#6D28D9);font-size:15px;font-weight:600;" aria-label="診断結果をPNG形式で保存">📸 結果をPNGで保存</button>
+              <button class="btn" onclick="copyResultText(lastResult, lastScores)" style="background:#666;font-size:14px;" aria-label="診断結果をクリップボードにコピー">📋 結果をコピー</button>
+              <button class="btn" onclick="downloadCSV(ans, lastResult, lastScores)" style="background:#666;font-size:14px;" aria-label="診断結果をCSV形式でダウンロード">📥 CSVダウンロード</button>
               <div style="display:flex;gap:8px;margin-top:8px;">
-                <a id="share-twitter" href="#" target="_blank" style="flex:1;background:linear-gradient(135deg,#1DA1F2,#1a8cd8);color:white;padding:12px;border-radius:8px;text-align:center;font-size:15px;font-weight:600;text-decoration:none;display:inline-block;min-height:48px;display:flex;align-items:center;justify-content:center;">𝕏 シェア</a>
-                <a id="share-line" href="#" target="_blank" style="flex:1;background:linear-gradient(135deg,#00B900,#008C00);color:white;padding:12px;border-radius:8px;text-align:center;font-size:15px;font-weight:600;text-decoration:none;display:inline-block;min-height:48px;display:flex;align-items:center;justify-content:center;">LINE</a>
+                <a id="share-twitter" href="#" target="_blank" aria-label="診断結果をXでシェア" style="flex:1;background:linear-gradient(135deg,#1DA1F2,#1a8cd8);color:white;padding:14px;border-radius:8px;text-align:center;font-size:14px;font-weight:600;text-decoration:none;display:flex;align-items:center;justify-content:center;min-height:56px;transition:opacity .2s;cursor:pointer;">𝕏 シェア</a>
+                <a id="share-line" href="#" target="_blank" aria-label="診断結果をLINEでシェア" style="flex:1;background:linear-gradient(135deg,#00B900,#008C00);color:white;padding:14px;border-radius:8px;text-align:center;font-size:14px;font-weight:600;text-decoration:none;display:flex;align-items:center;justify-content:center;min-height:56px;transition:opacity .2s;cursor:pointer;">LINE</a>
               </div>
             </div>
-            <button class="btn" style="margin-top:16px;background:#999;" onclick="location.reload()">もう一度診断</button>
+            <button class="btn" style="margin-top:16px;background:#999;" onclick="location.reload()" aria-label="クイズをリセットしてもう一度診断を開始">もう一度診断</button>
           </div>
         </div>
 
@@ -432,6 +434,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     const BTN='#10B981'; let cur=0; const ans=[];
     const STORAGE_KEY='salary-negotiation-history';
     const MAX_HISTORY=3;
+    let comparisonResults = [];
 
     // localStorage 履歴管理関数
     function saveToHistory(answers, result) {
@@ -454,7 +457,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         const d=new Date(h.date);
         const dateStr=d.toLocaleDateString('ja-JP');
         const timeStr=d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
-        return `<button onclick="restoreFromHistory(${i})" style="text-align:left;padding:12px;background:#fff;border:1px solid #bfdbfe;border-radius:8px;cursor:pointer;font-size:13px;color:#374151;transition:all .2s;"><strong>${h.title.split('—')[0].trim()}</strong><br><span style="color:#6b7280;font-size:12px;">${dateStr} ${timeStr}</span></button>`;
+        return `<button onclick="restoreFromHistory(${i})" aria-label="${dateStr} ${timeStr}の診断結果を復元" style="text-align:left;padding:12px;background:#fff;border:1px solid #bfdbfe;border-radius:8px;cursor:pointer;font-size:13px;color:#374151;transition:all .2s;"><strong>${h.title.split('—')[0].trim()}</strong><br><span style="color:#6b7280;font-size:12px;">${dateStr} ${timeStr}</span></button>`;
       }).join('');
     }
     function restoreFromHistory(idx) {
@@ -513,13 +516,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('q-total').textContent=QUESTIONS.length;
       displayHistory();
     });
-    function startQuiz(){ cur=0;ans.length=0; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); renderQ(); }
+    function startQuiz(){ cur=0;ans.length=0;comparisonResults=[]; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); document.getElementById('r-title').textContent=''; document.getElementById('r-desc').innerHTML=''; document.getElementById('total-score').textContent='0%'; document.getElementById('score-bar').style.width='0%'; document.getElementById('score-explanation').innerHTML=''; document.getElementById('result').innerHTML = '<div class="card" id="result-card" style="border-left:5px solid #10B981;background:linear-gradient(135deg,#fafafa,#f0f9ff);"><h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;color:#10B981;"></h3><p id="r-desc" style="color:#444;font-size:14px;line-height:1.8;"></p><div style="margin-top:20px;padding-top:16px;border-top:1px solid #e2e8f0;"><h4 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#333;">📊 診断スコア</h4><div style="background:#fff;border-radius:10px;padding:14px;margin-bottom:12px;border:1px solid #e2e8f0;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;"><span style="font-size:13px;font-weight:600;color:#555;">交渉準備総合スコア</span><span id="total-score" style="font-size:22px;font-weight:700;color:#10B981;">0%</span></div><div style="height:12px;background:#f1f5f9;border-radius:6px;overflow:hidden;"><div id="score-bar" style="height:100%;background:linear-gradient(90deg,#10B981,#0ea5e9);width:0%;transition:width .5s ease-out;"></div></div></div><canvas id="radarChart" style="max-width:100%;height:300px;margin:16px 0;"></canvas><p id="score-explanation" style="font-size:13px;color:#555;line-height:1.7;margin-top:12px;"></p></div></div></div>'; renderQ(); }
     function renderQ(){
       const q=QUESTIONS[cur];
       document.getElementById('q-num').textContent=cur+1;
       document.getElementById('q-bar').style.width=((cur+1)/QUESTIONS.length*100)+'%';
       document.getElementById('q-text').textContent=q.text;
-      document.getElementById('q-options').innerHTML=q.opts.map((o,i)=>`<button class="quiz-opt" onclick="answer(${i})">${o}</button>`).join('');
+      document.getElementById('q-options').innerHTML=q.opts.map((o,i)=>`<button class="quiz-opt" onclick="answer(${i})" aria-label="${q.text} 選択肢${i+1}: ${o}">${o}</button>`).join('');
     }
     function answer(idx){ ans.push({idx}); cur++; if(cur>=QUESTIONS.length) showResult(); else renderQ(); }
     function downloadResultImage(){
@@ -546,17 +549,95 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('share-twitter').href='https://twitter.com/intent/tweet?text='+encodeURIComponent(text)+' #給与交渉&url='+encodeURIComponent(url);
       document.getElementById('share-line').href='https://line.me/R/msg/text/?'+encodeURIComponent(text+'\n'+url);
     }
+    // 比較機能: 別シナリオ追加
+    function addComparison(result, scores) {
+      comparisonResults.push({result, scores, answers: [...ans]});
+      showComparisonView();
+    }
+    function showComparisonView() {
+      const resultEl = document.getElementById('result');
+      if(comparisonResults.length <= 1) return;
+      let compHTML = '<div style="margin-top:20px;padding:16px;background:#f0f9ff;border-radius:10px;border:1px solid #0284c7;"><h4 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#0284c7;">🔀 複数シナリオ比較</h4>';
+      compHTML += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:12px;">';
+      comparisonResults.forEach((c, i) => {
+        compHTML += `<div style="background:#fff;padding:10px;border-radius:6px;border:1px solid #e2e8f0;"><div style="font-weight:600;margin-bottom:4px;color:${c.result.color};">${i+1}. ${c.result.title.split('—')[0].trim()}</div><div style="color:#666;">スコア: ${Math.round(c.scores.reduce((a,b)=>a+b,0)/c.scores.length)}%</div></div>`;
+      });
+      compHTML += '</div></div>';
+      resultEl.insertAdjacentHTML('beforeend', compHTML);
+    }
+    // エクスポート機能: コピー
+    function copyResultText(result, scores) {
+      const totalScore = Math.round(scores.reduce((a,b)=>a+b,0)/scores.length);
+      const text = `【給与交渉シミュレーター診断結果】\n\n診断タイプ: ${result.title.split('—')[0].trim()}\n交渉準備スコア: ${totalScore}%\n\n【アドバイス】\n${result.desc.replace(/<br>/g, '\n').replace(/<[^>]*>/g, '')}\n\n\n診断URL: https://appadaycreator.com/salary-negotiation-advisor/`;
+      navigator.clipboard.writeText(text).then(() => showToast('📋 結果をコピーしました！')).catch(() => showToast('コピーに失敗しました'));
+    }
+    // エクスポート機能: CSV
+    function downloadCSV(answers, result, scores) {
+      const totalScore = Math.round(scores.reduce((a,b)=>a+b,0)/scores.length);
+      const date = new Date().toLocaleString('ja-JP');
+      let csv = 'データ,値\n';
+      csv += `診断実施日時,${date}\n`;
+      csv += `診断タイプ,${result.type}\n`;
+      csv += `交渉準備スコア,${totalScore}%\n`;
+      QUESTIONS.forEach((q, i) => {
+        const ansIdx = answers[i]?.idx || 0;
+        const ansText = q.opts[ansIdx];
+        csv += `"${q.text}","${ansText}"\n`;
+      });
+      scores.forEach((s, i) => csv += `Q${i+1}スコア,${s}%\n`);
+      const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'salary-negotiation-result-' + new Date().toISOString().split('T')[0] + '.csv';
+      link.click();
+      showToast('📥 CSVをダウンロードしました！');
+    }
+    // タイプ別CTA生成
+    function getTypeCTA(type) {
+      const ctas = {
+        aggressive: {
+          title: '💼 高年収求人を探す',
+          links: [
+            {text: 'MyVision（転職相談・無料）', href: 'https://px.a8.net/svt/ejp?a8mat=4B3TF5+8CQ7U2+5B0Y+5Z6WY'},
+            {text: 'OpenWork（年収・評判情報）', href: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642'}
+          ]
+        },
+        'data-driven': {
+          title: '📊 市場相場データを確認',
+          links: [
+            {text: '業界・職種別年収比較ツール', href: 'https://appadaycreator.com/salary-comparison-tool/'},
+            {text: 'Glassdoor年収情報', href: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ7+18PTPM+1O96+699KI'}
+          ]
+        },
+        'research-first': {
+          title: '🔍 転職エージェント相談',
+          links: [
+            {text: 'MyVision（転職相談・無料）', href: 'https://px.a8.net/svt/ejp?a8mat=4B3TF5+8CQ7U2+5B0Y+5Z6WY'},
+            {text: 'リクルートエージェント', href: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ5+C2OQY2+14CS+68EPE'}
+          ]
+        },
+        'long-term': {
+          title: '📈 スキルアップ・キャリア学習',
+          links: [
+            {text: 'ファイナンシャルアカデミー講座', href: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FIIWRU+1IRY+1TKOKI'},
+            {text: 'Udemy キャリア講座', href: 'https://px.a8.net/svt/ejp?a8mat=4B3WJA+86RVSA+3XCC+64C3M'}
+          ]
+        }
+      };
+      return ctas[type] || {title: 'ご利用ガイド', links: []};
+    }
+    let lastResult = {}; let lastScores = [];
     function showResult(){
       document.getElementById('quiz-area').style.display='none';
       const r=getResult(ans);
+      lastResult = r; lastScores = calculateScores(ans);
       document.getElementById('r-title').textContent=r.title;
       document.getElementById('r-title').style.color=r.color;
       document.getElementById('r-desc').innerHTML=r.desc;
       const card=document.getElementById('result-card');
       card.style.borderLeftColor=r.color;
       card.style.background='linear-gradient(135deg,#fafafa,'+r.color+'11)';
-      // スコア計算・表示
-      const scores=calculateScores(ans);
+      const scores=lastScores;
       const totalScore=getTotalScore(scores);
       document.getElementById('total-score').textContent=totalScore+'%';
       document.getElementById('score-bar').style.width=totalScore+'%';
@@ -568,10 +649,24 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         'research-first':'🔍 調査先行型のあなたは情報収集を優先しましょう。転職エージェントに相談して市場価値を診断してもらい、根拠を作ることが重要です。',
         'long-term':'🤝 長期型のあなたは段階的な昇給戦略が有効です。上司との対話を重ねて信頼を積み重ね、継続的なキャリアアップを目指しましょう。'
       };
-      document.getElementById('score-explanation').textContent=explanations[r.type]||'診断結果に基づいて、最適な交渉戦略を選択してください。';
+      let scoreExpl = explanations[r.type] || '診断結果に基づいて、最適な交渉戦略を選択してください。';
+      scoreExpl += '<div style="margin-top:12px;padding:10px;background:#fff;border-radius:6px;font-size:12px;color:#666;"><strong>📋 スコア内訳:</strong><br>';
+      QUESTIONS.forEach((q, i) => {
+        const ansText = q.opts[ans[i]?.idx || 0];
+        scoreExpl += `<span style="color:#666;">Q${i+1}: ${ansText} → ${scores[i]}%</span><br>`;
+      });
+      scoreExpl += '</div>';
+      document.getElementById('score-explanation').innerHTML=scoreExpl;
+
+      // タイプ別CTA挿入
+      const cta = getTypeCTA(r.type);
+      const ctaHTML = '<div style="margin-top:16px;padding:14px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;"><h4 style="font-size:13px;font-weight:700;margin-bottom:10px;color:#374151;">' + cta.title + '</h4>';
+      let ctaLinks = cta.links.slice(0, 2).map(l => `<a href="${l.href}" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;background:${r.color};color:white;padding:8px 14px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;margin-right:8px;margin-bottom:6px;">${l.text} →</a>`).join('');
+      const ctaSection = ctaHTML + ctaLinks + '</div>';
+      document.getElementById('r-desc').insertAdjacentHTML('afterend', ctaSection);
+
       document.getElementById('result').classList.add('show');
       updateShareLinks();
-      // localStorage に保存
       if(ans.length>0) saveToHistory(ans,r);
     }
     </script>

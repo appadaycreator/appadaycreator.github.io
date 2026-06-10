@@ -507,6 +507,9 @@ export class CosmicTypingApp {
       this.elements.totalErrorsDisplay.textContent = results.totalErrors;
     }
 
+    // M4-P1: グラフを初期化・描画
+    this._initResultCharts(results);
+
     this.updateButtonStates();
   }
 
@@ -557,6 +560,9 @@ export class CosmicTypingApp {
     } else {
       if (bestBanner) bestBanner.classList.add('hidden');
     }
+
+    // M4-P1: タイムアタック結果用グラフを初期化
+    this._initTimeAttackResultCharts(results);
 
     // 自己ベスト表示を更新
     const bestWpmEl = document.getElementById('ta-bestWPM');
@@ -707,6 +713,181 @@ export class CosmicTypingApp {
       this._liveChart.data.datasets[0].data.shift();
     }
     this._liveChart.update('none');
+  }
+
+  // M4-P1: 結果画面用グラフ初期化
+  _initResultCharts(results) {
+    if (!window.Chart) return;
+
+    // 自己ベスト記録を確認
+    const bestWPM = parseFloat(localStorage.getItem('cosmicTyping_bestWPM') || '0');
+    if (results.wpm > bestWPM) {
+      localStorage.setItem('cosmicTyping_bestWPM', results.wpm.toFixed(1));
+    }
+
+    // スコアバーグラフ
+    this._drawScoreBar(results.wpm, bestWPM);
+    // 正確率ゲージ
+    this._drawAccuracyGauge(results.accuracy);
+  }
+
+  // WPMスコアバーを描画
+  _drawScoreBar(wpm, bestWPM) {
+    const canvas = document.getElementById('scoreBarChart');
+    if (!canvas || !window.Chart) return;
+
+    if (this._resultScoreChart) this._resultScoreChart.destroy();
+
+    const ctx = canvas.getContext('2d');
+    const targetWPM = 100; // 目標値
+    const percentage = Math.min((wpm / targetWPM) * 100, 100);
+
+    let color = '#9ca3af'; // グレー
+    if (percentage >= 80) color = '#10b981'; // グリーン
+    else if (percentage >= 50) color = '#f59e0b'; // オレンジ
+
+    this._resultScoreChart = new window.Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['WPM'],
+        datasets: [{
+          label: 'スコア',
+          data: [wpm],
+          backgroundColor: [color],
+          borderRadius: 4,
+          borderWidth: 0
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        animation: { duration: 800 },
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { max: 100, ticks: { color: '#9ca3af', font: { size: 10 } }, grid: { color: 'rgba(75,85,99,0.3)' } },
+          y: { ticks: { color: '#9ca3af' }, grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  // 正確率ゲージを描画
+  _drawAccuracyGauge(accuracy) {
+    const canvas = document.getElementById('accuracyGaugeChart');
+    if (!canvas || !window.Chart) return;
+
+    if (this._resultAccuracyChart) this._resultAccuracyChart.destroy();
+
+    const ctx = canvas.getContext('2d');
+    let color = '#ef4444'; // レッド
+    if (accuracy >= 95) color = '#06b6d4'; // シアン
+    else if (accuracy >= 90) color = '#10b981'; // グリーン
+    else if (accuracy >= 80) color = '#f59e0b'; // オレンジ
+
+    const remaining = 100 - accuracy;
+
+    this._resultAccuracyChart = new window.Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['正確率', ''],
+        datasets: [{
+          data: [accuracy, remaining],
+          backgroundColor: [color, 'rgba(75,85,99,0.3)'],
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        animation: { duration: 800 },
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false }
+        }
+      }
+    });
+  }
+
+  // M4-P1: タイムアタック結果用グラフ初期化
+  _initTimeAttackResultCharts(results) {
+    if (!window.Chart) return;
+    this._drawTimeAttackScoreBar(results.wpm);
+    this._drawTimeAttackAccuracyGauge(results.accuracy);
+  }
+
+  // タイムアタック用スコアバー
+  _drawTimeAttackScoreBar(wpm) {
+    const canvas = document.getElementById('taScoreBarChart');
+    if (!canvas || !window.Chart) return;
+
+    if (this._taResultScoreChart) this._taResultScoreChart.destroy();
+
+    const ctx = canvas.getContext('2d');
+    const targetWPM = 80;
+    const percentage = Math.min((wpm / targetWPM) * 100, 100);
+
+    let color = '#9ca3af';
+    if (percentage >= 80) color = '#10b981';
+    else if (percentage >= 50) color = '#f59e0b';
+
+    this._taResultScoreChart = new window.Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['WPM'],
+        datasets: [{
+          label: 'スコア',
+          data: [wpm],
+          backgroundColor: [color],
+          borderRadius: 4,
+          borderWidth: 0
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        animation: { duration: 800 },
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { max: 80, ticks: { color: '#9ca3af', font: { size: 10 } }, grid: { color: 'rgba(75,85,99,0.3)' } },
+          y: { ticks: { color: '#9ca3af' }, grid: { display: false } }
+        }
+      }
+    });
+  }
+
+  // タイムアタック用正確率ゲージ
+  _drawTimeAttackAccuracyGauge(accuracy) {
+    const canvas = document.getElementById('taAccuracyGaugeChart');
+    if (!canvas || !window.Chart) return;
+
+    if (this._taResultAccuracyChart) this._taResultAccuracyChart.destroy();
+
+    const ctx = canvas.getContext('2d');
+    let color = '#ef4444';
+    if (accuracy >= 95) color = '#06b6d4';
+    else if (accuracy >= 90) color = '#10b981';
+    else if (accuracy >= 80) color = '#f59e0b';
+
+    const remaining = 100 - accuracy;
+
+    this._taResultAccuracyChart = new window.Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: ['正確率', ''],
+        datasets: [{
+          data: [accuracy, remaining],
+          backgroundColor: [color, 'rgba(75,85,99,0.3)'],
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        animation: { duration: 800 },
+        plugins: {
+          legend: { display: false },
+          tooltip: { enabled: false }
+        }
+      }
+    });
   }
 
   pausePractice() {

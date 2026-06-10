@@ -35,6 +35,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -199,15 +200,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
               <div>
                 <label style="font-size:12px;color:#666;">月齢</label>
+                <small style="display:block;font-size:11px;color:#999;margin-bottom:4px;">生後何ヶ月か入力（0〜36）</small>
                 <input id="baby-month" type="number" placeholder="6" min="0" max="36" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;margin-top:4px;">
               </div>
               <div>
                 <label style="font-size:12px;color:#666;">達成日</label>
+                <small style="display:block;font-size:11px;color:#999;margin-bottom:4px;">マイルストーン達成時の日付</small>
                 <input id="baby-date" type="date" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;margin-top:4px;">
               </div>
             </div>
             <div>
               <label style="font-size:12px;color:#666;">マイルストーン</label>
+              <small style="display:block;font-size:11px;color:#999;margin-bottom:4px;">お子さんが達成した発達段階を選択</small>
               <select id="baby-milestone" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;margin-top:4px;" onchange="toggleCustom(this.value)">
                 <option>首が座った</option><option>寝返り</option><option>お座り</option><option>はいはい</option><option>つかまり立ち</option>
                 <option>一人立ち</option><option>初めて歩いた</option><option>初めての言葉</option><option>離乳食スタート</option><option>その他</option>
@@ -216,6 +220,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             </div>
             <div>
               <label style="font-size:12px;color:#666;">メモ・エピソード</label>
+              <small style="display:block;font-size:11px;color:#999;margin-bottom:4px;">当時の様子や印象をメモ（任意）</small>
               <input id="baby-memo" type="text" placeholder="ニコニコしながら初めて…" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;margin-top:4px;">
             </div>
           </div>
@@ -223,6 +228,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
         <div id="result" class="result">
           <div id="list-area"></div>
+          <div id="graph-area" style="margin-top:16px;"></div>
         </div>
 
         <!-- AF: テアトルアカデミー -->
@@ -360,6 +366,23 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       save([]); render();
     }
 
+    function printRecord(){
+      window.print();
+    }
+
+    function exportCSV(){
+      const data=load();
+      if(!data.length){ alert('記録がありません'); return; }
+      const header='日付,月齢,マイルストーン,メモ\n';
+      const rows=data.map(x=>`"${x.date}","${x.month??''}","${x.milestone}","${x.memo}"`).join('\n');
+      const csv=header+rows;
+      const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+      const link=document.createElement('a');
+      link.href=URL.createObjectURL(blob);
+      link.download='baby-milestones.csv';
+      link.click();
+    }
+
     function renderSummary(data){
       const achieved=new Set(data.map(x=>x.milestone));
       const doneCount=MILESTONES.filter(m=>achieved.has(m)).length;
@@ -373,12 +396,53 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       summary.innerHTML=`<div class="card" style="margin-bottom:8px;padding:16px;"><p style="font-size:12px;font-weight:700;color:#374151;margin-bottom:8px;">📊 達成状況 <span style="color:#3B82F6;">${doneCount}/${MILESTONES.length}</span> 件</p><div style="display:flex;flex-wrap:wrap;gap:2px;">${html}</div></div>`;
     }
 
+    function renderGraph(data){
+      if(!data.length) return;
+      const graphArea=document.getElementById('graph-area');
+      graphArea.innerHTML='<div class="card" style="margin-bottom:10px;"><h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">📈 成長傾向</h3><canvas id="growth-chart" style="max-height:300px;"></canvas></div>';
+      const monthMap={};
+      data.forEach(x=>{
+        if(x.month!=null && x.month!==''){
+          monthMap[x.month]=(monthMap[x.month]||0)+1;
+        }
+      });
+      const months=Object.keys(monthMap).sort((a,b)=>Number(a)-Number(b)).map(Number);
+      const counts=months.map(m=>monthMap[m]);
+      setTimeout(()=>{
+        const ctx=document.getElementById('growth-chart').getContext('2d');
+        new Chart(ctx,{
+          type:'bar',
+          data:{
+            labels:months.map(m=>`生後${m}ヶ月`),
+            datasets:[{
+              label:'達成イベント数',
+              data:counts,
+              backgroundColor:'#3B82F6',
+              borderColor:'#1E40AF',
+              borderWidth:2,
+              borderRadius:6,
+              barThickness:'60%'
+            }]
+          },
+          options:{
+            responsive:true,
+            maintainAspectRatio:true,
+            plugins:{legend:{display:false}},
+            scales:{
+              y:{beginAtZero:true,max:Math.max(...counts,5),ticks:{stepSize:1}}
+            }
+          }
+        });
+      },0);
+    }
+
     function render(){
       const data=load();
       renderSummary(data);
       if(!data.length){ document.getElementById('result').classList.remove('show'); return; }
       document.getElementById('result').classList.add('show');
-      document.getElementById('list-area').innerHTML=`<h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">🎠 成長記録（${data.length}件）</h3>`+
+      renderGraph(data);
+      document.getElementById('list-area').innerHTML=`<h3 style="font-size:16px;font-weight:700;margin-bottom:12px;">🎠 成長記録（${data.length}件）</h3><div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;"><button onclick="printRecord()" style="background:#f0f0f0;border:1.5px solid #ddd;color:#333;padding:8px 14px;border-radius:6px;font-size:13px;cursor:pointer;flex:1;min-width:120px;font-weight:600;">📄 印刷</button><button onclick="exportCSV()" style="background:#f0f0f0;border:1.5px solid #ddd;color:#333;padding:8px 14px;border-radius:6px;font-size:13px;cursor:pointer;flex:1;min-width:120px;font-weight:600;">💾 CSV出力</button></div>`+
       data.map(x=>`
         <div class="card" style="margin-bottom:10px;border-left:4px solid #3B82F6;">
           <div style="display:flex;align-items:center;gap:10px;">

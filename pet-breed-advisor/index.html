@@ -294,7 +294,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
       </div>
 
-      <button onclick="location.reload()" class="w-full bg-orange-600 text-white font-bold py-3 rounded-xl hover:bg-orange-700 transition">もう一度診断する</button>
+      <button onclick="resetDiagnosis()" class="w-full bg-orange-600 text-white font-bold py-3 rounded-xl hover:bg-orange-700 transition">もう一度診断する</button>
     </div>
   
 <section aria-labelledby="faq-h" class="bg-white rounded-2xl shadow-md p-4 mb-4" style="max-width:740px;margin-left:auto;margin-right:auto">
@@ -426,6 +426,57 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     const totalQ = 8;
     let currentQ = 1;
 
+    // ローカルストレージ キー定義
+    const STORAGE_ANSWERS_KEY = 'petBreedAdvisor_answers';
+    const STORAGE_HISTORY_KEY = 'petBreedAdvisor_history';
+    const MAX_HISTORY = 5;
+
+    // ローカルストレージへ回答を保存
+    function saveAnswersToStorage() {
+      localStorage.setItem(STORAGE_ANSWERS_KEY, JSON.stringify(answers));
+    }
+
+    // ローカルストレージから回答を読み込み
+    function loadAnswersFromStorage() {
+      const saved = localStorage.getItem(STORAGE_ANSWERS_KEY);
+      if (saved) {
+        const loaded = JSON.parse(saved);
+        Object.assign(answers, loaded);
+        return true;
+      }
+      return false;
+    }
+
+    // 診断結果を履歴に追加
+    function addToHistory(result) {
+      let history = [];
+      const savedHistory = localStorage.getItem(STORAGE_HISTORY_KEY);
+      if (savedHistory) {
+        history = JSON.parse(savedHistory);
+      }
+      const entry = {
+        timestamp: new Date().toISOString(),
+        displayDate: new Date().toLocaleString('ja-JP'),
+        result
+      };
+      history.unshift(entry);
+      if (history.length > MAX_HISTORY) {
+        history = history.slice(0, MAX_HISTORY);
+      }
+      localStorage.setItem(STORAGE_HISTORY_KEY, JSON.stringify(history));
+    }
+
+    // 履歴を取得
+    function getHistory() {
+      const saved = localStorage.getItem(STORAGE_HISTORY_KEY);
+      return saved ? JSON.parse(saved) : [];
+    }
+
+    // 履歴を削除
+    function clearHistory() {
+      localStorage.removeItem(STORAGE_HISTORY_KEY);
+    }
+
     // 指定した質問番号を表示し、保存済み回答をハイライトする
     function showQuestion(q) {
       document.querySelectorAll('.question-block').forEach(el => el.classList.add('hidden'));
@@ -447,11 +498,24 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if (currentQ > 1) showQuestion(currentQ - 1);
     }
 
+    // 前回データから復元
+    function restoreLastResult() {
+      const history = getHistory();
+      if (history.length > 0) {
+        const lastResult = history[0];
+        // 質問セクションを隠し、結果を表示
+        document.getElementById('quiz-section').classList.add('hidden');
+        document.getElementById('result-section').classList.remove('hidden');
+        renderResultWithHistory(lastResult.result);
+      }
+    }
+
     document.querySelectorAll('.quiz-btn').forEach(btn => {
       btn.addEventListener('click', function() {
         const q = parseInt(this.dataset.q);
         const v = this.dataset.v;
         answers[q] = v;
+        saveAnswersToStorage();
         document.querySelectorAll(`[data-q="${q}"]`).forEach(b => b.classList.remove('border-orange-500','bg-orange-100'));
         this.classList.add('border-orange-500','bg-orange-100');
         setTimeout(() => {
@@ -460,6 +524,26 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           } else { showResult(); }
         }, 300);
       });
+    });
+
+    // 診断をリセット
+    function resetDiagnosis() {
+      Object.keys(answers).forEach(key => delete answers[key]);
+      localStorage.removeItem(STORAGE_ANSWERS_KEY);
+      document.getElementById('result-section').classList.add('hidden');
+      document.getElementById('quiz-section').classList.remove('hidden');
+      showQuestion(1);
+    }
+
+    // ページ読み込み時に前回のデータを復元するか確認
+    window.addEventListener('DOMContentLoaded', function() {
+      const history = getHistory();
+      if (history.length > 0) {
+        const restored = loadAnswersFromStorage();
+        if (restored && confirm('前回の診断データが見つかりました。復元しますか？')) {
+          restoreLastResult();
+        }
+      }
     });
 
     function showResult() {
@@ -474,6 +558,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const budget = answers[6];
       const travel = answers[7];
       const existing = answers[8];
+
+      // 結果オブジェクトを作成（履歴保存用）
+      const result = {
+        home, family, absence, activity, allergy, budget, travel, existing
+      };
 
       let dogScore = 0, catScore = 0, smallAnimalScore = 0, fishScore = 0;
 
@@ -627,7 +716,282 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </a>
         </div>`;
 
+      // 印刷・エクスポート・履歴管理ボタンを追加
+      html += `
+        <div class="bg-gray-50 rounded-xl p-4 mb-6 border border-gray-200">
+          <p class="text-sm font-semibold text-gray-700 mb-3">📥 結果をエクスポート</p>
+          <div class="flex gap-2 flex-wrap">
+            <button onclick="printResult()" style="flex:1;min-width:120px;padding:10px;background:#4f46e5;color:white;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-size:14px;">🖨️ 印刷する</button>
+            <button onclick="copyResultToClipboard()" style="flex:1;min-width:120px;padding:10px;background:#10b981;color:white;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-size:14px;">📋 テキストコピー</button>
+          </div>
+        </div>
+      `;
+
+      // 履歴パネルを追加
+      const history = getHistory();
+      if (history.length > 1) {
+        html += `
+          <div class="bg-blue-50 rounded-xl p-4 mb-6 border border-blue-200">
+            <p class="text-sm font-semibold text-blue-800 mb-3">📊 診断履歴</p>
+            <div class="space-y-2 max-h-48 overflow-y-auto">
+        `;
+        for (let i = 1; i < history.length && i < 6; i++) {
+          const hist = history[i];
+          const date = hist.displayDate.substring(0, hist.displayDate.lastIndexOf(':'));
+          html += `<p class="text-xs text-gray-600" style="padding:8px;background:#fff;border-radius:6px;">${date}</p>`;
+        }
+        html += `
+            </div>
+            <button onclick="clearHistory();alert('履歴がクリアされました。');location.reload();" style="margin-top:10px;width:100%;padding:8px;background:#e0b0ff;color:#6b21a8;border:none;border-radius:6px;font-weight:bold;cursor:pointer;font-size:12px;">🗑️ 履歴をクリア</button>
+          </div>
+        `;
+      }
+
       document.getElementById('result-content').innerHTML = html;
+
+      // グローバル変数に結果を保存（印刷・コピー用）
+      window.lastResultData = {
+        topPet,
+        allPets,
+        answers
+      };
+
+      // 履歴に追加
+      addToHistory(result);
+    }
+
+    // 結果を印刷する
+    function printResult() {
+      window.print();
+    }
+
+    // 結果をクリップボードにコピー
+    function copyResultToClipboard() {
+      if (!window.lastResultData) return;
+      const data = window.lastResultData;
+      const topPet = data.topPet;
+
+      let text = `=== ペット種類・品種選び診断 結果 ===\n\n`;
+      text += `📊 あなたにおすすめ: ${topPet.type} ${topPet.emoji}\n\n`;
+      text += `説明: ${topPet.desc}\n\n`;
+      text += `💰 月額コスト目安: ${topPet.cost}\n`;
+      text += `⚠️ 注意点: ${topPet.caution}\n\n`;
+      text += `おすすめ品種:\n`;
+      topPet.breeds.forEach(b => {
+        text += `  • ${b.name} (${b.trait})\n`;
+      });
+      text += `\n--- 全ペットタイプスコア ---\n`;
+      data.allPets.forEach(pet => {
+        text += `${pet.emoji} ${pet.type}: ${pet.score}点\n`;
+      });
+      text += `\n結果URL: https://appadaycreator.com/pet-breed-advisor/\n`;
+      text += `生成日時: ${new Date().toLocaleString('ja-JP')}\n`;
+
+      navigator.clipboard.writeText(text).then(() => {
+        alert('結果をクリップボードにコピーしました！');
+      }).catch(err => {
+        alert('コピーに失敗しました：' + err);
+      });
+    }
+
+    // 履歴から結果を表示（復元用）
+    function renderResultWithHistory(result) {
+      const home = result.home;
+      const family = result.family;
+      const absence = result.absence;
+      const activity = result.activity;
+      const allergy = result.allergy;
+      const budget = result.budget;
+      const travel = result.travel;
+      const existing = result.existing;
+
+      let dogScore = 0, catScore = 0, smallAnimalScore = 0, fishScore = 0;
+
+      if (home === 'house') dogScore += 3;
+      else if (home === 'apt-large') { dogScore += 1; catScore += 2; }
+      else { catScore += 2; smallAnimalScore += 2; fishScore += 1; }
+
+      if (family === 'kids-young') { dogScore += 2; catScore += 1; }
+      else if (family === 'single') { catScore += 2; smallAnimalScore += 2; }
+      else { dogScore += 1; catScore += 2; }
+
+      if (absence === 'home') dogScore += 3;
+      else if (absence === 'half') { dogScore += 1; catScore += 2; }
+      else if (absence === 'full') { catScore += 2; smallAnimalScore += 2; }
+      else { fishScore += 3; smallAnimalScore += 1; }
+
+      if (activity === 'active') dogScore += 3;
+      else if (activity === 'moderate') dogScore += 1;
+      else { catScore += 2; smallAnimalScore += 1; }
+
+      if (allergy === 'severe') { fishScore += 3; smallAnimalScore += 1; }
+      else if (allergy === 'mild') { catScore -= 1; dogScore -= 1; fishScore += 1; }
+
+      if (travel === 'frequent') { fishScore += 2; smallAnimalScore += 1; }
+      else if (travel === 'regular') { fishScore += 1; }
+
+      if (budget === 'low') { fishScore += 2; smallAnimalScore += 1; }
+      else if (budget === 'premium') dogScore += 1;
+
+      const allPets = [
+        { id: 'dog', emoji: '🐕', type: '犬（イヌ）', score: Math.max(0, dogScore), breeds: [
+            {name:'トイプードル', trait:'抜け毛少・賢い'},
+            {name:'チワワ', trait:'小型・番犬気質'},
+            {name:'ポメラニアン', trait:'ふわふわ・活発'},
+            {name:'ミニチュアダックス', trait:'長胴・穴掘り好き'}
+          ], desc: '愛情深くコミュニケーション豊か。散歩が必要で一緒に外を楽しめます。', cost: '3〜5万円/月', caution: '留守番が苦手な犬種が多い。しつけと毎日の散歩が必要' },
+        { id: 'cat', emoji: '🐈', type: '猫（ネコ）', score: Math.max(0, catScore), breeds: [
+            {name:'スコティッシュフォールド', trait:'折れ耳・穏やか'},
+            {name:'アメリカンショートヘア', trait:'丈夫・万能'},
+            {name:'マンチカン', trait:'短足・好奇心旺盛'},
+            {name:'ノルウェージャン', trait:'長毛・寒冷地向き'}
+          ], desc: '独立心が高く、留守番が得意。マンション向きでグルーミングが楽しい。', cost: '1〜2万円/月', caution: '室内環境の充実が重要。脱走防止対策も必須' },
+        { id: 'small', emoji: '🐹', type: '小動物（ハムスター・うさぎ等）', score: Math.max(0, smallAnimalScore), breeds: [
+            {name:'ハムスター', trait:'夜行性・省スペース'},
+            {name:'うさぎ', trait:'鳴き声なし・温厚'},
+            {name:'モルモット', trait:'昼行性・人懐こい'},
+            {name:'フェレット', trait:'活発・知能高め'}
+          ], desc: 'コンパクトで飼育スペースが少なくてもOK。比較的低コスト。', cost: '3千〜1万円/月', caution: '夜行性の動物も多い。温度管理が重要' },
+        { id: 'fish', emoji: '🐠', type: '魚・水生生物', score: Math.max(0, fishScore), breeds: [
+            {name:'金魚', trait:'丈夫・長寿'},
+            {name:'メダカ', trait:'省スペース・超低コスト'},
+            {name:'ベタ', trait:'単独飼育・美麗'},
+            {name:'コリドラス', trait:'底物・混泳向き'}
+          ], desc: 'アレルギーフリー。旅行中もある程度放置OK。癒し効果が高い。', cost: '5千〜1.5万円/月（初期水槽代別）', caution: '水質管理・水換えが定期的に必要' }
+      ];
+
+      const sorted = [...allPets].sort((a,b) => b.score - a.score);
+      const topPet = sorted[0];
+
+      renderChart(allPets);
+
+      let html = `
+        <div class="bg-orange-50 border-2 border-orange-400 rounded-xl p-5 mb-6 text-center">
+          <div class="text-5xl mb-2">${topPet.emoji}</div>
+          <h3 class="text-2xl font-bold text-orange-700">あなたには「${topPet.type}」がおすすめ</h3>
+          <p class="text-gray-600 mt-3">${topPet.desc}</p>
+        </div>
+
+        <div class="mb-6">
+          <h4 class="font-bold text-gray-700 mb-3">📌 おすすめ品種例</h4>
+          <div class="flex flex-wrap gap-2">
+            ${topPet.breeds.map(b => `<span class="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm" title="${b.trait}">${b.name} <span class="text-orange-500 text-xs">（${b.trait}）</span></span>`).join('')}
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+          <div class="bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl p-4 border border-orange-200">
+            <p class="text-xs text-gray-600 mb-1">💰 目安月額コスト</p>
+            <p class="font-bold text-orange-700 text-lg">${topPet.cost}</p>
+          </div>
+          <div class="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-xl p-4 border border-blue-200">
+            <p class="text-xs text-gray-600 mb-1">⏱️ 初期準備時間</p>
+            <p class="font-bold text-blue-700 text-lg">${topPet.id === 'dog' ? '2-3週間' : topPet.id === 'cat' ? '1-2週間' : topPet.id === 'small' ? '数日' : '数日'}</p>
+          </div>
+        </div>
+
+        <div class="bg-yellow-50 border border-yellow-300 rounded-xl p-4 mb-6">
+          <p class="font-semibold text-yellow-800 mb-2">⚠️ 注意点</p>
+          <p class="text-sm text-gray-700">${topPet.caution}</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div class="bg-green-50 rounded-xl p-4 border border-green-200">
+            <h4 class="font-bold text-green-800 mb-3">✅ メリット</h4>
+            <ul class="text-sm text-gray-700 space-y-1">
+              ${topPet.id === 'dog' ? '<li>• コミュニケーションが取りやすい</li><li>• 心身の健康が向上</li><li>• しつけで絆が深まる</li>' : topPet.id === 'cat' ? '<li>• 独立心が高い</li><li>• 留守番が得意</li><li>• 手入れが比較的楽</li>' : topPet.id === 'small' ? '<li>• 場所を取らない</li><li>• 低コスト</li><li>• 初心者向き</li>' : '<li>• アレルギーなし</li><li>• 世話が比較的簡単</li><li>• 癒し効果が高い</li>'}
+            </ul>
+          </div>
+          <div class="bg-red-50 rounded-xl p-4 border border-red-200">
+            <h4 class="font-bold text-red-800 mb-3">❌ デメリット</h4>
+            <ul class="text-sm text-gray-700 space-y-1">
+              ${topPet.id === 'dog' ? '<li>• 毎日散歩が必須</li><li>• しつけに時間が必要</li><li>• 留守番が困難</li>' : topPet.id === 'cat' ? '<li>• 爪とぎで傷がつく</li><li>• トイレの臭い対策が必要</li><li>• 独立心が強い</li>' : topPet.id === 'small' ? '<li>• 寿命が短い</li><li>• 温度管理が必要</li><li>• 触れ合いは限定的</li>' : '<li>• 水質管理の手間</li><li>• 病気の治療が難しい</li><li>• 触れ合いができない</li>'}
+            </ul>
+          </div>
+        </div>
+
+        <div class="bg-blue-50 rounded-xl p-4 mb-6">
+          <p class="font-bold text-blue-800 mb-3">🏡 飼い始める前のチェックリスト</p>
+          <ul class="text-sm text-gray-700 space-y-2">
+            <li>✅ マンション・集合住宅の場合は「ペット可」物件か確認</li>
+            <li>✅ 家族全員（アレルギー含む）の同意を得る</li>
+            <li>✅ 最寄りの動物病院を確認しておく</li>
+            <li>✅ 旅行時の預け先（ペットホテル等）を検討</li>
+            <li>✅ 迎える前にペット保険の加入を検討</li>
+          </ul>
+        </div>
+
+        <h3 class="font-bold text-gray-800 mb-4 text-lg">📊 ペットタイプ別 詳細比較</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          ${allPets.map(pet => `
+            <div class="border-2 ${pet.id === topPet.id ? 'border-orange-400 bg-orange-50' : 'border-gray-200'} rounded-xl p-4">
+              <div class="flex items-start justify-between mb-3">
+                <div>
+                  <div class="text-3xl">${pet.emoji}</div>
+                  <p class="font-bold text-gray-800 mt-1">${pet.type}</p>
+                </div>
+                <div class="text-right">
+                  <div class="text-2xl font-bold text-orange-600">${pet.score}</div>
+                  <div class="w-20 h-2 bg-gray-200 rounded-full mt-1">
+                    <div class="h-full bg-orange-500 rounded-full" style="width: ${(pet.score / 15) * 100}%"></div>
+                  </div>
+                </div>
+              </div>
+              <p class="text-xs text-gray-600 mb-2">${pet.desc}</p>
+              <p class="text-sm font-semibold text-gray-700">💰 ${pet.cost}</p>
+              ${pet.id === topPet.id ? '<p class="text-xs text-orange-600 font-bold mt-2">⭐ あなたに最適</p>' : ''}
+            </div>
+          `).join('')}
+        </div>`;
+
+      html += `
+        <div class="flex gap-3 mb-6">
+          <a href="https://line.me/R/share?text=${encodeURIComponent('ペット種類・品種選び診断 - 私には「' + topPet.type + '」がおすすめ！あなたも試してみて')}&url=https://appadaycreator.com/pet-breed-advisor/" target="_blank" rel="noopener"
+             style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:10px;border-radius:8px;font-size:14px;font-weight:bold;text-decoration:none;">
+            LINEでシェア
+          </a>
+          <a href="https://twitter.com/intent/tweet?text=${encodeURIComponent('ペット診断で「' + topPet.type + '」がおすすめと出ました！')}&url=https://appadaycreator.com/pet-breed-advisor/&via=appadaycreator" target="_blank" rel="noopener"
+             style="flex:1;display:block;text-align:center;background:#000;color:white;padding:10px;border-radius:8px;font-size:14px;font-weight:bold;text-decoration:none;">
+            Xでシェア
+          </a>
+        </div>`;
+
+      html += `
+        <div class="bg-gray-50 rounded-xl p-4 mb-6 border border-gray-200">
+          <p class="text-sm font-semibold text-gray-700 mb-3">📥 結果をエクスポート</p>
+          <div class="flex gap-2 flex-wrap">
+            <button onclick="printResult()" style="flex:1;min-width:120px;padding:10px;background:#4f46e5;color:white;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-size:14px;">🖨️ 印刷する</button>
+            <button onclick="copyResultToClipboard()" style="flex:1;min-width:120px;padding:10px;background:#10b981;color:white;border:none;border-radius:8px;font-weight:bold;cursor:pointer;font-size:14px;">📋 テキストコピー</button>
+          </div>
+        </div>
+      `;
+
+      const history = getHistory();
+      if (history.length > 1) {
+        html += `
+          <div class="bg-blue-50 rounded-xl p-4 mb-6 border border-blue-200">
+            <p class="text-sm font-semibold text-blue-800 mb-3">📊 診断履歴</p>
+            <div class="space-y-2 max-h-48 overflow-y-auto">
+        `;
+        for (let i = 1; i < history.length && i < 6; i++) {
+          const hist = history[i];
+          const date = hist.displayDate.substring(0, hist.displayDate.lastIndexOf(':'));
+          html += `<p class="text-xs text-gray-600" style="padding:8px;background:#fff;border-radius:6px;">${date}</p>`;
+        }
+        html += `
+            </div>
+            <button onclick="clearHistory();alert('履歴がクリアされました。');location.reload();" style="margin-top:10px;width:100%;padding:8px;background:#e0b0ff;color:#6b21a8;border:none;border-radius:6px;font-weight:bold;cursor:pointer;font-size:12px;">🗑️ 履歴をクリア</button>
+          </div>
+        `;
+      }
+
+      document.getElementById('result-content').innerHTML = html;
+
+      window.lastResultData = {
+        topPet,
+        allPets,
+        answers
+      };
     }
 
     function renderChart(pets) {

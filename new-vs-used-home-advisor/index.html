@@ -432,6 +432,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     const answers = {};
     const totalQ = 8;
     const STORAGE_KEY = 'homeAdvisorAnswers';
+    const GOALS_KEY = 'homeAdvisorGoals';
 
     // localStorage に回答を保存
     function saveAnswers() {
@@ -639,6 +640,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const usedTotal = usedCost + reformCost;
 
       let html = `
+        <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;justify-content:center">
+          <button onclick="printResult()" style="background:#6366f1;color:white;padding:10px 16px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">📄 印刷</button>
+          <button onclick="downloadCSV()" style="background:#10b981;color:white;padding:10px 16px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">📊 CSV</button>
+          <button onclick="downloadText()" style="background:#f59e0b;color:white;padding:10px 16px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap">📋 テキスト</button>
+        </div>
+
         <div class="border-2 ${recColor} rounded-xl p-5 mb-4 text-center">
           <div class="text-3xl mb-1">🏡</div>
           <h3 class="text-xl font-bold">あなたには「${recommendation}」がおすすめ</h3>
@@ -724,6 +731,42 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </ol>
         </div>`;
 
+      // マイ目標セクション HTML を生成・追加
+      const previousGoal = loadGoal();
+      let goalHtml = `<div style="background:#f0f9ff;border:2px solid #0ea5e9;border-radius:12px;padding:16px;margin-bottom:16px;">
+        <p style="font-size:14px;font-weight:700;color:#0369a1;margin:0 0 12px">🎯 マイ目標・目標進捗</p>`;
+
+      if (previousGoal) {
+        const scoreDiff = newScore - previousGoal.newScore;
+        const usedDiff = usedScore - previousGoal.usedScore;
+        const costDiff = newCost - previousGoal.newCost;
+        goalHtml += `<div style="background:#fff;border:1px solid #bae6fd;border-radius:8px;padding:12px;margin-bottom:10px">
+          <p style="font-size:12px;color:#0c4a6e;margin:0 0 8px;font-weight:600">前回の診断との比較</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+            <div style="background:#f0fdf4;padding:8px;border-radius:6px;text-align:center">
+              <p style="font-size:11px;color:#4b5563;margin:0">新築スコア</p>
+              <p style="font-size:16px;font-weight:800;color:#${scoreDiff>0?'16a34a':'ef4444'};margin:4px 0 0">${scoreDiff>0?'+':''}\${scoreDiff}</p>
+            </div>
+            <div style="background:#dbeafe;padding:8px;border-radius:6px;text-align:center">
+              <p style="font-size:11px;color:#4b5563;margin:0">中古スコア</p>
+              <p style="font-size:16px;font-weight:800;color:#${usedDiff>0?'3b82f6':'ef4444'};margin:4px 0 0">${usedDiff>0?'+':''}\${usedDiff}</p>
+            </div>
+            <div style="background:#fff3cd;padding:8px;border-radius:6px;text-align:center">
+              <p style="font-size:11px;color:#4b5563;margin:0">新築予算</p>
+              <p style="font-size:16px;font-weight:800;color:#${costDiff<0?'16a34a':'ef4444'};margin:4px 0 0">${costDiff<0?'△':'+'}${Math.abs(costDiff)}</p>
+            </div>
+          </div>
+          <p style="font-size:11px;color:#9ca3af;margin:8px 0 0">※前回診断日: \${new Date(previousGoal.timestamp).toLocaleDateString('ja-JP')}</p>
+        </div>`;
+      } else {
+        goalHtml += `<p style="font-size:12px;color:#64748b;margin:0 0 8px">初回診断です。次回診断時に比較結果が表示されます。</p>`;
+      }
+
+      goalHtml += `<button onclick="saveCurrentGoal()" style="width:48%;background:#0ea5e9;color:white;padding:8px 12px;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;margin-right:4%">💾 目標として保存</button>
+        <button onclick="clearGoal()" style="width:48%;background:#ef4444;color:white;padding:8px 12px;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">🗑️ 目標をリセット</button>
+      </div>`;
+
+      html += goalHtml;
       document.getElementById('result-content').innerHTML = html;
 
       // 結果データを保存（コピー機能で使用）
@@ -799,6 +842,105 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         }
       }, 100);
     }
+    function saveCurrentGoal() {
+      if (!window._lastResult) return alert('結果がありません');
+      const r = window._lastResult;
+      const goal = {
+        newScore: r.newScore,
+        usedScore: r.usedScore,
+        newCost: r.newCost,
+        usedTotal: r.usedTotal,
+        timestamp: new Date().getTime()
+      };
+      try {
+        localStorage.setItem(GOALS_KEY, JSON.stringify(goal));
+        alert('✅ 目標として保存しました！次回診断時に比較結果が表示されます。');
+      } catch (e) {
+        console.warn('目標保存エラー:', e);
+      }
+    }
+
+    function loadGoal() {
+      try {
+        const saved = localStorage.getItem(GOALS_KEY);
+        return saved ? JSON.parse(saved) : null;
+      } catch (e) {
+        console.warn('目標読込エラー:', e);
+        return null;
+      }
+    }
+
+    function clearGoal() {
+      if (!confirm('目標をリセットしてもよろしいですか？')) return;
+      try {
+        localStorage.removeItem(GOALS_KEY);
+        alert('✅ 目標をリセットしました');
+        location.reload();
+      } catch (e) {
+        console.warn('目標削除エラー:', e);
+      }
+    }
+
+    function printResult() {
+      window.print();
+    }
+
+    function downloadCSV() {
+      if (!window._lastResult) return alert('結果がありません');
+      const r = window._lastResult;
+      const headers = ['診断結果', '値'];
+      const data = [
+        ['推奨', r.recommendation],
+        ['新築スコア', r.newScore],
+        ['中古スコア', r.usedScore],
+        ['新築予想費用（万円）', r.newCost],
+        ['中古物件価格（万円）', r.usedCost],
+        ['リノベーション費用（万円）', r.usedTotal - r.usedCost],
+        ['中古+リノベ合計（万円）', r.usedTotal],
+        ['費用差（万円）', Math.abs(r.newCost - r.usedTotal)],
+        ['診断日時', new Date().toLocaleString('ja-JP')]
+      ];
+      let csv = headers.join(',') + '\n';
+      data.forEach(row => csv += row.map(cell => `"${cell}"`).join(',') + '\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `新築vs中古診断結果_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+    }
+
+    function downloadText() {
+      if (!window._lastResult) return alert('結果がありません');
+      const r = window._lastResult;
+      const text = [
+        '【新築 vs 中古住宅 診断結果】',
+        `推奨: ${r.recommendation}`,
+        `新築スコア: ${r.newScore}点`,
+        `中古スコア: ${r.usedScore}点`,
+        '',
+        `▼ 費用試算`,
+        `新築: 約${r.newCost}万円`,
+        `中古物件: 約${r.usedCost}万円`,
+        `リノベーション: 約${r.usedTotal - r.usedCost}万円`,
+        `中古＋リノベ合計: 約${r.usedTotal}万円`,
+        `差額: 約${Math.abs(r.newCost - r.usedTotal)}万円（${r.newCost > r.usedTotal ? '中古の方が安い' : '新築の方が安い'}）`,
+        '',
+        `▼ 新築のポイント`,
+        ...r.newPros.map(p => `・${p}`),
+        '',
+        `▼ 中古のポイント`,
+        ...r.usedPros.map(p => `・${p}`),
+        '',
+        `診断日時: ${new Date().toLocaleString('ja-JP')}`,
+        `診断ツール: https://appadaycreator.com/new-vs-used-home-advisor/`
+      ].join('\n');
+      const blob = new Blob([text], { type: 'text/plain;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `新築vs中古診断結果_${new Date().toISOString().split('T')[0]}.txt`;
+      link.click();
+    }
+
     // ページ読み込み時に前回の回答を復元
     document.addEventListener('DOMContentLoaded', restoreAnswers);
   </script>

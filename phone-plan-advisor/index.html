@@ -144,6 +144,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <p style="color:#666;font-size:14px;margin-bottom:8px;">月間データ使用量・通話頻度・予算からドコモ・au・ソフトバンク・格安SIMの最適プランを診断します</p>
           <ul style="font-size:13px;color:#94a3b8;margin:0 0 16px 16px;"><li>質問数：5問</li><li>所要時間：約1分</li></ul>
           <button class="btn" onclick="startQuiz()">診断スタート →</button>
+          <div id="goal-section" style="margin-top:16px;padding-top:16px;border-top:1px solid #e5e7eb;">
+            <p style="font-size:13px;font-weight:600;color:#6b7280;margin-bottom:8px;">🎯 目標設定（オプション）</p>
+            <p style="font-size:12px;color:#94a3b8;margin-bottom:10px;">月額料金の削減目標を設定して、診断結果との比較ができます</p>
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+              <input type="number" id="goal-input" placeholder="月々の削減目標（例: 3000）" value="" min="0" max="50000" style="flex:1;" onchange="updateGoal()">
+              <button class="btn" style="flex:0;width:60px;padding:10px 14px;font-size:14px;" onclick="updateGoal()">設定</button>
+            </div>
+            <div id="goal-status" style="font-size:12px;color:#6b7280;"></div>
+          </div>
           <div id="start-history-section" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e5e7eb;">
             <p style="font-size:13px;font-weight:600;color:#6b7280;margin-bottom:8px;">📋 最近の診断結果</p>
             <div id="start-history-list"></div>
@@ -170,6 +179,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div id="r-price-wrap" style="display:none;">
               <div class="plan-price" id="r-price"></div>
               <div id="r-savings"></div>
+            </div>
+            <div id="goal-achievement-wrap" style="display:none;background:#f0f9ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px;margin:12px 0;">
+              <p style="font-size:12px;font-weight:600;color:#1e40af;margin:0 0 8px;">🎯 目標達成度</p>
+              <div id="goal-progress-bar" style="background:#e0e7ff;height:20px;border-radius:6px;overflow:hidden;margin-bottom:6px;">
+                <div id="goal-progress-fill" style="background:#3b82f6;height:100%;transition:width .3s;width:0%;display:flex;align-items:center;justify-content:center;">
+                  <span id="goal-percent" style="font-size:10px;font-weight:700;color:white;line-height:1;"></span>
+                </div>
+              </div>
+              <p id="goal-achievement-text" style="font-size:12px;color:#1e40af;margin:0;font-weight:600;"></p>
             </div>
             <div id="chart-container" style="margin:16px 0;"></div>
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
@@ -431,6 +449,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     // localStorage key
     const STORAGE_KEY_HISTORY = 'phone_plan_history';
     const STORAGE_KEY_CURRENT = 'phone_plan_current';
+    const STORAGE_KEY_GOAL = 'phone_plan_goal';
 
     function saveToHistory(result) {
       const history = JSON.parse(localStorage.getItem(STORAGE_KEY_HISTORY) || '[]');
@@ -460,6 +479,81 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function clearHistory() {
       localStorage.removeItem(STORAGE_KEY_HISTORY);
       renderHistorySection();
+    }
+
+    function saveGoal(amount) {
+      if (amount && amount > 0) {
+        localStorage.setItem(STORAGE_KEY_GOAL, JSON.stringify({
+          amount: parseInt(amount),
+          setDate: new Date().toLocaleString('ja-JP')
+        }));
+      }
+    }
+
+    function getGoal() {
+      const goal = JSON.parse(localStorage.getItem(STORAGE_KEY_GOAL) || 'null');
+      return goal;
+    }
+
+    function updateGoal() {
+      const input = document.getElementById('goal-input');
+      const amount = input.value.trim();
+      if (!amount || amount <= 0) {
+        alert('0より大きい数値を入力してください');
+        return;
+      }
+      saveGoal(amount);
+      input.value = amount;
+      renderGoalStatus();
+    }
+
+    function renderGoalStatus() {
+      const goal = getGoal();
+      const goalStatus = document.getElementById('goal-status');
+      if (goal) {
+        const input = document.getElementById('goal-input');
+        input.value = goal.amount;
+        goalStatus.innerHTML = `<p style="margin:0;color:#059669;font-weight:600;">✓ 目標設定済み: 月々${goal.amount.toLocaleString()}円削減</p>`;
+      } else {
+        goalStatus.innerHTML = '';
+      }
+    }
+
+    function calculateGoalAchievement(saving, goal) {
+      if (!goal || goal.amount <= 0) return null;
+      const percent = Math.min(Math.round((saving / goal.amount) * 100), 100);
+      return {
+        percent: percent,
+        achieved: saving >= goal.amount,
+        message: saving >= goal.amount
+          ? `🎉 目標達成！ ${saving.toLocaleString()}円 / ${goal.amount.toLocaleString()}円`
+          : `あと${(goal.amount - saving).toLocaleString()}円で目標達成！ ${saving.toLocaleString()}円 / ${goal.amount.toLocaleString()}円`
+      };
+    }
+
+    function renderGoalAchievement(saving) {
+      const goal = getGoal();
+      const wrap = document.getElementById('goal-achievement-wrap');
+      if (!goal) {
+        wrap.style.display = 'none';
+        return;
+      }
+
+      const achievement = calculateGoalAchievement(saving, goal);
+      if (!achievement) {
+        wrap.style.display = 'none';
+        return;
+      }
+
+      wrap.style.display = 'block';
+      document.getElementById('goal-progress-fill').style.width = achievement.percent + '%';
+      const percentSpan = document.getElementById('goal-percent');
+      if (achievement.percent > 5) {
+        percentSpan.textContent = achievement.percent + '%';
+      } else {
+        percentSpan.textContent = '';
+      }
+      document.getElementById('goal-achievement-text').textContent = achievement.message;
     }
 
     function renderHistorySection() {
@@ -522,6 +616,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('q-total').textContent = QUESTIONS.length;
       renderHistorySection();
+      renderGoalStatus();
     });
 
     function startQuiz() {
@@ -664,6 +759,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       // 履歴に保存
       saveToHistory(r);
       renderHistorySection();
+
+      // 目標達成度表示
+      renderGoalAchievement(saving);
 
       document.getElementById('result').classList.add('show');
       document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'start' });

@@ -178,8 +178,40 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
           <button class="btn" style="margin-top:20px;" tabindex="7" onclick="calculate()">ポイントを計算する</button>
 
+          <!-- M6: 目標設定・達成度トラッキング -->
+          <div class="card" style="margin-top:16px;background:#f0fdf4;border-left:4px solid #10b981;">
+            <h3 style="font-size:13px;font-weight:700;color:#166534;margin-bottom:8px;">🎯 目標ポイント設定（オプション）</h3>
+            <p style="font-size:12px;color:#166534;margin-bottom:10px;">年間で獲得したいポイント数を設定すると、達成度が自動で表示されます</p>
+            <div style="display:flex;gap:8px;align-items:flex-end;">
+              <div style="flex:1;">
+                <label for="goal-points" style="margin-top:0;">目標年間ポイント数</label>
+                <input type="number" id="goal-points" placeholder="50000" min="0" inputmode="numeric" style="border-color:#bbf7d0;">
+              </div>
+              <button onclick="saveGoal()" style="background:#10b981;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;height:44px;white-space:nowrap;">目標を保存</button>
+            </div>
+          </div>
+
           <div class="result" id="result" style="margin-top:16px;">
             <div class="card" style="padding:16px;">
+              <!-- M6: 達成度表示 -->
+              <div id="goal-progress" style="display:none;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;margin-bottom:14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                  <span style="font-size:13px;font-weight:600;color:#166534;">🎯 目標達成度</span>
+                  <span id="goal-percentage" style="font-size:14px;font-weight:700;color:#10b981;"></span>
+                </div>
+                <div style="background:#fff;border-radius:4px;height:8px;overflow:hidden;margin-bottom:6px;">
+                  <div id="goal-bar" style="height:100%;background:linear-gradient(90deg,#10b981,#34d399);border-radius:4px;width:0%;transition:width .6s ease;"></div>
+                </div>
+                <div style="font-size:11px;color:#166534;">
+                  <span id="goal-summary"></span>
+                </div>
+              </div>
+
+              <!-- 前回計算結果の表示 -->
+              <div id="prev-result" style="display:none;background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;padding:10px;margin-bottom:14px;font-size:12px;color:#3730a3;">
+                <strong>📊 前回との比較:</strong> <span id="prev-comparison"></span>
+              </div>
+
               <!-- Export/Print buttons -->
               <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
                 <button class="btn" style="flex:1;min-width:100px;background:#10b981;font-size:14px;padding:10px;" onclick="copyToClipboard()" title="結果をコピー">📋 コピー</button>
@@ -427,6 +459,69 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     let currentMode = 'simple';
     let comparisonChartInstance = null;
     let categoryChartInstance = null;
+    let lastCalculation = null;
+
+    // M6: 目標達成度と前回計算結果のロード
+    window.addEventListener('load', function() {
+      try {
+        const goal = localStorage.getItem('cc-goal');
+        if (goal) {
+          document.getElementById('goal-points').value = goal;
+        }
+        const lastCalc = localStorage.getItem('cc-last-calc');
+        if (lastCalc) {
+          lastCalculation = JSON.parse(lastCalc);
+        }
+      } catch {}
+    });
+
+    // M6: 目標値の保存
+    function saveGoal() {
+      const goal = parseInt(document.getElementById('goal-points')?.value, 10);
+      if (!goal || goal <= 0) {
+        alert('1以上の目標ポイント数を入力してください');
+        return;
+      }
+      try {
+        localStorage.setItem('cc-goal', goal);
+      } catch {}
+      alert('目標を保存しました');
+    }
+
+    // M6: 達成度の表示
+    function showGoalProgress(bestYearly) {
+      const goal = parseInt(localStorage.getItem('cc-goal'), 10);
+      if (!goal) return;
+
+      const percentage = Math.min(Math.round(bestYearly / goal * 100), 100);
+      const remaining = Math.max(goal - bestYearly, 0);
+
+      document.getElementById('goal-percentage').textContent = percentage + '%';
+      document.getElementById('goal-bar').style.width = percentage + '%';
+
+      let summary = '';
+      if (percentage >= 100) {
+        summary = `✅ 目標達成！${(bestYearly - goal).toLocaleString()}pt 上回ることができます`;
+      } else {
+        summary = `あと ${remaining.toLocaleString()}pt で目標達成 (${(goal - bestYearly).toLocaleString()}pt 必要)`;
+      }
+      document.getElementById('goal-summary').textContent = summary;
+      document.getElementById('goal-progress').style.display = 'block';
+    }
+
+    // M6: 前回計算結果との比較
+    function showPrevComparison(currentYearly) {
+      const prev = lastCalculation;
+      if (!prev) return;
+
+      const diff = currentYearly - prev.yearly;
+      const diffStr = diff >= 0 ? `+${diff.toLocaleString()}pt` : `${diff.toLocaleString()}pt`;
+      const trend = diff >= 0 ? '📈 増加' : '📉 減少';
+
+      document.getElementById('prev-comparison').innerHTML =
+        `前回: ${prev.yearly.toLocaleString()}pt → 今回: ${currentYearly.toLocaleString()}pt (${trend} ${diffStr})`;
+      document.getElementById('prev-result').style.display = 'block';
+    }
 
     function switchMode(mode) {
       currentMode = mode;
@@ -437,6 +532,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         t.setAttribute('aria-selected', t.dataset.mode === mode ? 'true' : 'false');
       });
       document.getElementById('result').classList.remove('show');
+      document.getElementById('goal-progress').style.display = 'none';
+      document.getElementById('prev-result').style.display = 'none';
     }
 
     function updateTotal() {
@@ -535,6 +632,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if (currentMode === 'detail') {
         createCategoryChart(cats, results[0].card);
       }
+
+      // M6: 目標達成度とトラッキング
+      const bestYearly = results[0]?.yearly || 0;
+      showGoalProgress(bestYearly);
+      showPrevComparison(bestYearly);
+      lastCalculation = { yearly: bestYearly, mode: currentMode, timestamp: new Date().toLocaleString('ja-JP') };
+      try {
+        localStorage.setItem('cc-last-calc', JSON.stringify(lastCalculation));
+      } catch {}
 
       setTimeout(() => document.getElementById('result').scrollIntoView({behavior:'smooth', block:'nearest'}), 80);
     }

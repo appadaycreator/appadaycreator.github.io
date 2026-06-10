@@ -34,6 +34,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <!-- Error Handler -->
   <script>window.onerror=function(m,s,l,c,e){console.warn('Error:',m);return true;};window.addEventListener('unhandledrejection',function(e){console.warn('Rejection:',e.reason);});</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"このサービスは無料ですか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要でご利用いただけます。"}},{"@type":"Question","name":"入力データはどこに保存されますか？","acceptedAnswer":{"@type":"Answer","text":"お使いのデバイス内にのみ保存されます。外部送信は行いません。"}},{"@type":"Question","name":"結果はどのくらい正確ですか？","acceptedAnswer":{"@type":"Answer","text":"あくまで参考情報です。重要な判断の際は専門家にご相談ください。"}},{"@type":"Question","name":"どのような人が使っていますか？","acceptedAnswer":{"@type":"Answer","text":"初心者から専門家まで、多くの方にご利用いただいています。特に決断が必要な場面で活躍します。"}},{"@type":"Question","name":"結果をシェアできますか？","acceptedAnswer":{"@type":"Answer","text":"はい、診断結果はスクリーンショットやURLで友人・家族とシェアできます。"}},{"@type":"Question","name":"有料プランはありますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ、すべての機能を完全無料でご利用いただけます。"}}]}</script>
@@ -94,13 +96,18 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 }
 
 @media print{
-  header,footer,nav,button,.no-print,
+  header,footer,nav,.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
   [id*="affiliate"],[id*="banner"],
+  .related-link,.related-tools,
+  #history-section,
   script,noscript{display:none!important}
+  button{display:none!important}
   body{background:#fff!important;color:#000!important;font-size:12pt}
   [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
+  #score-bar-container,#score-value,#chart-container{display:block!important}
   a[href]::after{content:none!important}
+  .card{box-shadow:none!important;border:1px solid #ddd!important}
 }
 
 .card{background:#fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.08);overflow:hidden;}
@@ -243,7 +250,37 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div id="result-section" class="hidden">
       <div class="bg-white rounded-2xl shadow-md p-6 mb-6">
         <h2 class="text-2xl font-bold text-center mb-6 text-green-700">あなたの食事制限タイプと対応食品</h2>
+        <div class="bg-green-50 rounded-xl p-4 mb-4 text-center">
+          <p class="text-sm text-gray-600 mb-2">食事制限の厳しさスコア</p>
+          <h3 id="score-value" class="text-4xl font-bold text-green-700 mb-2">0</h3>
+          <div id="score-bar-container" class="w-full bg-gray-200 rounded-full h-3 mb-2">
+            <div id="score-bar" class="bg-green-500 h-3 rounded-full transition-all duration-300" style="width:0%"></div>
+          </div>
+          <p class="text-xs text-gray-500">制限が厳しいほどスコアが高くなります</p>
+        </div>
+        <div id="chart-container" class="mb-4" style="display:none;position:relative;height:250px;">
+          <canvas id="resultChart"></canvas>
+        </div>
         <div id="result-content"></div>
+      </div>
+      <div class="bg-blue-50 rounded-2xl shadow-md p-4 mb-6">
+        <h3 class="text-lg font-bold mb-4 text-blue-800">📥 結果をダウンロード・共有</h3>
+        <div class="flex flex-wrap gap-2">
+          <button onclick="downloadResultAsCSV()" class="flex-1 bg-blue-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-blue-700 transition text-sm">
+            📊 CSV でダウンロード
+          </button>
+          <button onclick="copyResultToClipboard()" class="flex-1 bg-purple-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-purple-700 transition text-sm">
+            📋 テキストをコピー
+          </button>
+          <button onclick="window.print()" class="flex-1 bg-gray-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-gray-700 transition text-sm">
+            🖨️ PDF で印刷
+          </button>
+        </div>
+      </div>
+      <div id="history-section" class="bg-gray-50 rounded-2xl shadow-md p-4 mb-6">
+        <h3 class="text-lg font-bold mb-4 text-gray-800">📜 診断履歴</h3>
+        <div id="history-list" class="space-y-2 max-h-60 overflow-y-auto"></div>
+        <button onclick="loadSampleHistoryOrEmpty()" class="mt-2 w-full text-xs text-gray-500 py-1 hover:text-gray-700">履歴を消去</button>
       </div>
 
       <div class="bg-green-50 border border-green-200 rounded-2xl p-6 mb-6">
@@ -422,13 +459,72 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 </section>
 <script>
     let answers = {};
+    let resultData = {};
     const totalQ = 8;
+
+    // M3: localStorage から前回の診断を復元
+    function loadPreviousAnswers() {
+      const saved = localStorage.getItem('foodAdvisor_answers');
+      return saved ? JSON.parse(saved) : null;
+    }
+
+    // M3: 回答をlocalStorageに保存
+    function saveAnswers() {
+      localStorage.setItem('foodAdvisor_answers', JSON.stringify(answers));
+      saveToHistory(answers);
+    }
+
+    // M3: 診断結果を履歴に保存
+    function saveToHistory(answerSet) {
+      const history = JSON.parse(localStorage.getItem('foodAdvisor_history') || '[]');
+      const timestamp = new Date().toLocaleString('ja-JP');
+      const reason = answerSet[2] || '不明';
+      const reasonLabel = {allergy: 'アレルギー', religion: '宗教制限', health: '健康管理', diet: 'ダイエット', vegan: 'ビーガン', intolerance: '不耐症'}[reason] || '診断';
+      history.unshift({timestamp, reason, answerSet, reasonLabel});
+      if (history.length > 5) history.pop();
+      localStorage.setItem('foodAdvisor_history', JSON.stringify(history));
+    }
+
+    // M3: 履歴から復元
+    function restoreFromHistory(historyItem) {
+      answers = historyItem.answerSet;
+      for (let i = 1; i <= totalQ; i++) {
+        document.getElementById(`q${i}`).classList.toggle('hidden', i !== 1);
+        document.querySelectorAll(`[data-q="${i}"]`).forEach(b => b.classList.remove('border-green-500','bg-green-100'));
+        const v = answers[i];
+        if (v) {
+          document.querySelector(`[data-q="${i}"][data-v="${v}"]`).classList.add('border-green-500','bg-green-100');
+        }
+      }
+      document.getElementById('progress-bar').style.width = '100%';
+      document.getElementById('progress-text').textContent = '診断完了！';
+      showResult();
+    }
+
+    // M3: 履歴を表示
+    function displayHistory() {
+      const history = JSON.parse(localStorage.getItem('foodAdvisor_history') || '[]');
+      const historyList = document.getElementById('history-list');
+      historyList.innerHTML = '';
+      if (history.length === 0) {
+        historyList.innerHTML = '<p class="text-xs text-gray-500 py-2">診断履歴がまだありません</p>';
+        return;
+      }
+      history.forEach((item, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'w-full text-left bg-white p-3 rounded-lg border border-gray-200 hover:bg-green-50 transition text-xs';
+        btn.innerHTML = `<div class="font-semibold text-gray-800">${item.reasonLabel}</div><div class="text-gray-500 text-xs mt-1">${item.timestamp}</div>`;
+        btn.onclick = () => restoreFromHistory(item);
+        historyList.appendChild(btn);
+      });
+    }
 
     document.querySelectorAll('.quiz-btn').forEach(btn => {
       btn.addEventListener('click', function() {
         const q = parseInt(this.dataset.q);
         const v = this.dataset.v;
         answers[q] = v;
+        saveAnswers();
         document.querySelectorAll(`[data-q="${q}"]`).forEach(b => b.classList.remove('border-green-500','bg-green-100'));
         this.classList.add('border-green-500','bg-green-100');
         setTimeout(() => {
@@ -438,7 +534,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             document.getElementById('progress-bar').style.width = (q/totalQ*100)+'%';
             document.getElementById('progress-text').textContent = `質問 ${q+1} / ${totalQ}`;
           } else {
-            /* P2-5: 進捗バーを100%にしてから結果へ */
             document.getElementById('progress-bar').style.width = '100%';
             document.getElementById('progress-text').textContent = '診断完了！';
             setTimeout(showResult, 300);
@@ -447,7 +542,127 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       });
     });
 
-    /* P2-6: リセット関数（location.reload()の代替） */
+    // M4: スコア計算（0-100）
+    function calculateScore() {
+      const strictnessMap = {strict: 25, moderate: 17, light: 8, preference: 0};
+      const reasonMap = {allergy: 25, religion: 20, health: 20, diet: 15, vegan: 15, intolerance: 20};
+      const allergenMap = {none: 0, wheat: 5, milk: 5, egg: 5, soy: 4, seafood: 4};
+
+      const strictness = strictnessMap[answers[3]] || 0;
+      const reason = reasonMap[answers[2]] || 0;
+      const allergen = allergenMap[answers[1]] || 0;
+      const cooking = answers[4] === 'daily' ? -5 : answers[4] === 'often' ? -2 : 0;
+      const budget = answers[8] === 'high' ? 5 : answers[8] === 'delivery' ? 8 : 0;
+
+      let score = strictness + reason + allergen + cooking + budget;
+      return Math.min(Math.max(score, 0), 100);
+    }
+
+    // M4: グラフ描画
+    function drawResultChart() {
+      const allergen = answers[1];
+      const reason = answers[2];
+
+      const allergenAdvice = {
+        egg: {avoid: '卵・卵黄・卵白・マヨネーズ', replace: ['亜麻仁水', '豆腐マヨ', '卵不使用パン'], count: 3},
+        milk: {avoid: '牛乳・チーズ・バター', replace: ['豆乳', 'オーツミルク', 'アーモンドミルク'], count: 3},
+        wheat: {avoid: '小麦粉・パン・パスタ', replace: ['米粉パン', '米粉麺', 'そば'], count: 3},
+        soy: {avoid: '豆腐・味噌・醤油', replace: ['ひよこ豆', 'レンズ豆', 'ブラックビーンズ'], count: 3},
+        seafood: {avoid: 'エビ・カニ・魚', replace: ['鶏肉', '豚肉', '植物性DHA'], count: 3},
+        none: {avoid: 'なし', replace: ['全般OK'], count: 0}
+      };
+
+      const advice = allergenAdvice[allergen] || allergenAdvice.none;
+      const avoidCount = allergen === 'none' ? 0 : 5;
+      const replaceCount = advice.count;
+
+      const ctx = document.getElementById('resultChart');
+      if (!ctx) return;
+
+      const chartCanvas = ctx.getContext('2d');
+      if (window.resultChartInstance) {
+        window.resultChartInstance.destroy();
+      }
+
+      window.resultChartInstance = new Chart(chartCanvas, {
+        type: 'doughnut',
+        data: {
+          labels: ['避けるべき食品', '代替食品の選択肢'],
+          datasets: [{
+            data: [avoidCount, replaceCount + 3],
+            backgroundColor: ['#ef4444', '#10b981'],
+            borderColor: ['#ffffff', '#ffffff'],
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {position: 'bottom', labels: {font: {size: 12}, padding: 15}},
+            tooltip: {callbacks: {label: ctx => `${ctx.label}: ${ctx.parsed}個`}}
+          }
+        }
+      });
+    }
+
+    /* M10: CSV ダウンロード */
+    function downloadResultAsCSV() {
+      const allergenMap = {egg: '卵', milk: '乳', wheat: '小麦', soy: '大豆', seafood: '甲殻類', none: 'なし'};
+      const reasonMap = {allergy: '食物アレルギー', religion: '宗教制限', health: '健康管理', diet: 'ダイエット', vegan: 'ビーガン', intolerance: '不耐症'};
+
+      const timestamp = new Date().toLocaleString('ja-JP');
+      const csvContent = [
+        '食事制限・アレルギー対応診断 結果エクスポート',
+        `診断日時,${timestamp}`,
+        '',
+        'アレルゲン,' + (allergenMap[answers[1]] || 'N/A'),
+        '制限理由,' + (reasonMap[answers[2]] || 'N/A'),
+        '厳しさレベル,' + (answers[3] || 'N/A'),
+        '料理頻度,' + (answers[4] || 'N/A'),
+        '外食頻度,' + (answers[5] || 'N/A'),
+        '',
+        'スコア,' + calculateScore(),
+        '',
+        'ご利用ブラウザで結果を確認することをお勧めします'
+      ].join('\n');
+
+      const blob = new Blob([csvContent], {type: 'text/csv;charset=utf-8;'});
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `foodAdvisor_${timestamp.replace(/[/:]/g, '')}.csv`;
+      link.click();
+    }
+
+    /* M10: テキストコピー */
+    function copyResultToClipboard() {
+      const allergenMap = {egg: '卵', milk: '乳', wheat: '小麦', soy: '大豆', seafood: '甲殻類', none: 'なし'};
+      const reasonMap = {allergy: '食物アレルギー', religion: '宗教制限', health: '健康管理', diet: 'ダイエット', vegan: 'ビーガン', intolerance: '不耐症'};
+
+      const text = `【食事制限・アレルギー対応診断 結果】
+
+アレルゲン: ${allergenMap[answers[1]] || 'N/A'}
+制限理由: ${reasonMap[answers[2]] || 'N/A'}
+厳しさレベル: ${answers[3] || 'N/A'}
+スコア: ${calculateScore()}/100
+
+https://appadaycreator.com/food-restriction-advisor/`;
+
+      navigator.clipboard.writeText(text).then(() => {
+        alert('結果をコピーしました');
+      }).catch(() => {
+        alert('コピーに失敗しました');
+      });
+    }
+
+    /* M3: 履歴消去 */
+    function loadSampleHistoryOrEmpty() {
+      if (confirm('診断履歴を消去しますか？')) {
+        localStorage.removeItem('foodAdvisor_history');
+        displayHistory();
+      }
+    }
+
     function resetQuiz() {
       answers = {};
       for (let i = 1; i <= totalQ; i++) {
@@ -467,6 +682,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function showResult() {
       document.getElementById('quiz-section').classList.add('hidden');
       document.getElementById('result-section').classList.remove('hidden');
+
+      // M4: スコア計算と表示
+      const score = calculateScore();
+      document.getElementById('score-value').textContent = score;
+      document.getElementById('score-bar').style.width = score + '%';
+
+      // M4: グラフ描画
+      setTimeout(() => {
+        document.getElementById('chart-container').style.display = 'block';
+        drawResultChart();
+      }, 100);
+
+      // M3: 履歴表示
+      displayHistory();
 
       const allergen = answers[1];
       const reason = answers[2];
@@ -657,6 +886,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('share-line-result').href = 'https://line.me/R/share?text=' + shareText;
       document.getElementById('share-x-result').href = 'https://twitter.com/intent/tweet?text=' + shareText + '&via=appadaycreator';
     }
+
+    // M3: ページロード時に履歴を表示する初期化
+    document.addEventListener('DOMContentLoaded', function() {
+      displayHistory();
+    });
   </script>
 <div class="max-w-2xl mx-auto px-4 mb-4">
 <!-- Related Services -->

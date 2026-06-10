@@ -288,7 +288,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             </div>
             <div style="border-bottom:1px solid #f1f5f9;padding-bottom:12px;">
               <p style="font-size:14px;font-weight:600;color:#374151;margin-bottom:4px;">Q: 診断結果は保存されますか？</p>
-              <p style="font-size:13px;color:#6b7280;line-height:1.7;">A: 結果はブラウザには保存されません。スクリーンショットやSNSシェアでご記録ください。</p>
+              <p style="font-size:13px;color:#6b7280;line-height:1.7;">A: はい、診断結果はブラウザの localStorage に自動保存されます。結果画面に「診断履歴（直近3件）」として表示されます。ブラウザのサイトデータを削除するまで保持されます。</p>
             </div>
             <div style="border-bottom:1px solid #f1f5f9;padding-bottom:12px;">
               <p style="font-size:14px;font-weight:600;color:#374151;margin-bottom:4px;">Q: 入力したデータはサーバーに送信されますか？</p>
@@ -432,6 +432,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       saveToHistory(currentResult);
       renderChart(typeScore);
       displayHistory();
+      displayGoalTracking(best, typeScore);
     }
 
     function saveToHistory(result) {
@@ -531,6 +532,94 @@ ${result.points.join('\n')}
       a.download = `家具配置診断_${timestamp.replace(/[^\w]/g, '_')}.txt`;
       a.click();
       URL.revokeObjectURL(url);
+    }
+
+    function setGoal(goalType) {
+      const goal = {type: goalType, setDate: new Date().toLocaleString('ja-JP')};
+      localStorage.setItem('furnitureGoal', JSON.stringify(goal));
+      updateGoalDisplay();
+      alert(`✨ 目標を設定しました: ${RESULTS[goalType].title}\n\n今後の診断でこの目標に対する達成度を表示します。`);
+    }
+
+    function clearGoal() {
+      localStorage.removeItem('furnitureGoal');
+      updateGoalDisplay();
+      alert('目標をクリアしました。');
+    }
+
+    function displayGoalTracking(currentType, currentScores) {
+      const goalData = JSON.parse(localStorage.getItem('furnitureGoal') || 'null');
+      if (!goalData) {
+        renderGoalCard(null, null, null);
+        return;
+      }
+
+      const goalType = goalData.type;
+      const goalResult = RESULTS[goalType];
+      const currentScore = Math.max(...Object.values(currentScores));
+      const goalScore = 6;
+      const achievementPercent = Math.min(100, Math.round((currentScore / goalScore) * 100));
+
+      renderGoalCard(goalType, goalResult, achievementPercent);
+    }
+
+    function renderGoalCard(goalType, goalResult, achievementPercent) {
+      const goalCard = document.createElement('div');
+      goalCard.className = 'card';
+      goalCard.id = 'goalCard';
+      goalCard.style.marginTop = '16px';
+
+      if (!goalResult) {
+        goalCard.innerHTML = `
+          <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#374151;">🎯 目標設定</h3>
+          <p style="font-size:13px;color:#6b7280;margin-bottom:12px;line-height:1.7;">この配置スタイルを目標に設定すれば、次回の診断で達成度を追跡できます。</p>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <button onclick="setGoal('minimal')" style="background:#fff;border:2px solid #D97706;color:#D97706;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">✨ ${RESULTS.minimal.emoji} ${RESULTS.minimal.title} を目標に</button>
+            <button onclick="setGoal('cozy')" style="background:#fff;border:2px solid #8B5CF6;color:#8B5CF6;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">✨ ${RESULTS.cozy.emoji} ${RESULTS.cozy.title} を目標に</button>
+            <button onclick="setGoal('work')" style="background:#fff;border:2px solid #2563EB;color:#2563EB;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">✨ ${RESULTS.work.emoji} ${RESULTS.work.title} を目標に</button>
+            <button onclick="setGoal('storage')" style="background:#fff;border:2px solid #059669;color:#059669;padding:10px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">✨ ${RESULTS.storage.emoji} ${RESULTS.storage.title} を目標に</button>
+          </div>
+        `;
+      } else {
+        const colors = {minimal: '#D97706', cozy: '#8B5CF6', work: '#2563EB', storage: '#059669'};
+        const color = colors[goalType];
+        goalCard.innerHTML = `
+          <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#374151;">🎯 現在の目標</h3>
+          <div style="background:#f8fafc;border:2px solid ${color};border-radius:10px;padding:12px;margin-bottom:12px;">
+            <div style="font-size:18px;margin-bottom:6px;">${goalResult.emoji} ${goalResult.title}</div>
+            <div style="font-size:12px;color:#6b7280;">目標設定日: ${JSON.parse(localStorage.getItem('furnitureGoal')).setDate}</div>
+          </div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:12px;">
+            <div style="font-size:12px;color:#666;margin-bottom:6px;">達成度</div>
+            <div style="height:24px;background:#f1f5f9;border-radius:6px;overflow:hidden;margin-bottom:8px;">
+              <div style="height:100%;width:${achievementPercent}%;background:${color};transition:width .3s ease;"></div>
+            </div>
+            <div style="font-size:16px;font-weight:700;color:${color};text-align:center;">${achievementPercent}%</div>
+          </div>
+          <button onclick="clearGoal()" style="width:100%;background:#fff;border:1px solid #e2e8f0;color:#6b7280;padding:10px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;transition:.2s;">目標をリセット</button>
+        `;
+      }
+
+      const existingGoalCard = document.getElementById('goalCard');
+      if (existingGoalCard) {
+        existingGoalCard.replaceWith(goalCard);
+      } else {
+        const chartContainer = document.getElementById('chartContainer');
+        if (chartContainer && chartContainer.parentNode) {
+          chartContainer.parentNode.insertBefore(goalCard, chartContainer.nextSibling);
+        }
+      }
+    }
+
+    function updateGoalDisplay() {
+      const resultDiv = document.getElementById('result');
+      if (resultDiv && resultDiv.classList.contains('show')) {
+        const best = currentResult ? currentResult.type : null;
+        const scores = currentResult ? currentResult.scores : null;
+        if (best && scores) {
+          displayGoalTracking(best, scores);
+        }
+      }
     }
     </script>
 

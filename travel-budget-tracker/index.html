@@ -41,6 +41,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"旅行予算管理ツール","description":"旅行の予算配分（交通・宿泊・食事・観光）を管理。実績vs計画を比較。登録不要・完全無料でご利用いただけます。","url":"https://appadaycreator.com/travel-budget-tracker/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"author":{"@type":"Organization","name":"AppADayCreator","url":"https://appadaycreator.com/"}}</script>
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "旅行予算管理ツールは無料で使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、完全無料・登録不要でご利用いただけます。"}}, {"@type": "Question", "name": "記録データはどこに保存されますか？", "acceptedAnswer": {"@type": "Answer", "text": "ご使用のブラウザのローカルストレージに保存されます。他のデバイスとは共有されません。"}}, {"@type": "Question", "name": "ブラウザを閉じても記録は残りますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、同じブラウザを使う限りデータは保持されます。"}}, {"@type": "Question", "name": "記録を削除するにはどうすればいいですか？", "acceptedAnswer": {"@type": "Answer", "text": "リセットボタン、またはブラウザのサイトデータをクリアすることで削除できます。"}}, {"@type": "Question", "name": "スマートフォンで利用できますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、スマートフォン・タブレット・PCすべてでご利用いただけます。"}}]}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"旅行予算管理ツール【無料】記録・管理アプリの使い方","step":[{"@type":"HowToStep","position":1,"name":"必要事項を入力する","text":"フォームに必要な情報（数値・選択肢・条件）を入力または選択する"},{"@type":"HowToStep","position":2,"name":"診断・計算を実行する","text":"「診断する」「計算する」または「確認する」ボタンを押して結果を取得する"},{"@type":"HowToStep","position":3,"name":"結果・分析を確認する","text":"表示された診断結果・計算結果・グラフをじっくり確認する"},{"@type":"HowToStep","position":4,"name":"アドバイスを活用する","text":"結果に基づくアドバイスや提案を日常生活に取り入れる"},{"@type":"HowToStep","position":5,"name":"定期的に再チェックする","text":"生活変化に応じて定期的に再診断して進捗を追跡する"}]}</script>
@@ -110,8 +112,18 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
           background: #fff;
         }
     
+#budgetChartContainer { text-align: center; margin: 20px 0; }
+#budgetChart { max-width: 300px; margin: 0 auto; }
+.export-buttons { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.export-btn { flex: 1; min-width: 140px; background: #10b981; color: white; border: none; padding: 11px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; min-height: 44px; transition: opacity 0.2s; }
+.export-btn:hover { opacity: 0.9; }
+.export-btn:active { transform: scale(0.98); }
+.export-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.toast { position: fixed; bottom: 20px; right: 20px; background: #1f2937; color: white; padding: 12px 20px; border-radius: 8px; font-size: 13px; z-index: 9999; animation: slideIn 0.3s ease; }
+@keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@media (max-width: 480px) { #budgetChart { max-width: 240px; } .export-buttons { flex-direction: column; } .export-btn { width: 100%; } .toast { left: 16px; right: 16px; bottom: 16px; } }
 @media print{
-  header,footer,nav,button,.no-print,
+  header,footer,nav,button,.no-print,.export-buttons,
   [class*="share"],[class*="affiliate"],[id*="share"],
   [id*="affiliate"],[id*="banner"],
   script,noscript{display:none!important}
@@ -258,8 +270,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
         <div class="result" id="result" style="margin-top:12px;">
           <div class="card">
-            <h3 style="font-size:14px;font-weight:700;margin-bottom:8px;color:#2563EB;">📊 サマリー</h3>
+            <h3 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#2563EB;">📊 サマリー</h3>
+            <div id="budgetChartContainer" style="margin-bottom:16px;">
+              <canvas id="budgetChart"></canvas>
+            </div>
             <div id="summary"></div>
+            <div class="export-buttons">
+              <button class="export-btn" onclick="printResult()" title="ブラウザの印刷機能を開きます">🖨️ 印刷する</button>
+              <button class="export-btn" id="exportCsvBtn" onclick="exportCSV()" title="CSVファイルをダウンロードします">📥 CSVダウンロード</button>
+              <button class="export-btn" onclick="copyToClipboard()" title="結果をクリップボードにコピーします">📋 結果をコピー</button>
+            </div>
           </div>
         </div>
 
@@ -505,6 +525,136 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         ${budgetRow}
         <div style="margin-top:8px;font-size:12px;color:#999;">記録件数: ${entries.length}件</div>
       `;
+      initChart();
+      updateExportButtons();
+    }
+
+    // グラフ初期化・描画
+    let chartInstance = null;
+    function initChart() {
+      const cats = {};
+      entries.forEach(e => {
+        cats[e.category] = (cats[e.category] || 0) + e.amount;
+      });
+
+      const catNames = Object.keys(cats).sort((a,b) => cats[b] - cats[a]);
+      const catData = catNames.map(k => cats[k]);
+      const catLabels = catNames.map(k => CAT_LABELS[k] || k);
+      const catColors = {
+        transport: '#DBEAFE',
+        hotel: '#FEF9C3',
+        food: '#DCFCE7',
+        sightseeing: '#FCE7F3',
+        other: '#F3F4F6'
+      };
+      const chartColors = catNames.map(k => catColors[k] || '#E5E7EB');
+
+      const ctx = document.getElementById('budgetChart')?.getContext('2d');
+      if (!ctx) return;
+
+      if (chartInstance) chartInstance.destroy();
+
+      chartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: catLabels,
+          datasets: [{
+            data: catData,
+            backgroundColor: chartColors,
+            borderColor: '#fff',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                font: { size: 12, family: "'Inter', 'Noto Sans JP', sans-serif" },
+                padding: 12,
+                usePointStyle: true,
+                pointStyle: 'circle'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // エクスポートボタンの有効/無効
+    function updateExportButtons() {
+      const btn = document.getElementById('exportCsvBtn');
+      if (btn) {
+        btn.disabled = entries.length === 0;
+      }
+    }
+
+    // 印刷機能
+    function printResult() {
+      window.print();
+    }
+
+    // CSVエクスポート機能
+    function exportCSV() {
+      if (entries.length === 0) {
+        showToast('記録がありません');
+        return;
+      }
+
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+      const filename = `travel-budget-${dateStr}.csv`;
+
+      const header = '日付,カテゴリ,内容,金額,予算\n';
+      const rows = entries.map(e =>
+        `${e.date},${CAT_LABELS[e.category] || e.category},${e.desc},${e.amount},${e.budget || ''}`
+      ).join('\n');
+
+      const csv = header + rows;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      link.click();
+
+      showToast('CSVをダウンロードしました');
+    }
+
+    // テキストコピー機能
+    function copyToClipboard() {
+      if (entries.length === 0) {
+        showToast('記録がありません');
+        return;
+      }
+
+      const total = entries.reduce((s, e) => s + e.amount, 0);
+      const cats = {};
+      entries.forEach(e => {
+        cats[e.category] = (cats[e.category] || 0) + e.amount;
+      });
+
+      let text = `旅行予算管理ツール - 支出結果\n\n合計支出: ¥${total.toLocaleString()}\n\n`;
+      text += `カテゴリ別:\n`;
+      Object.entries(cats).sort((a,b) => b[1]-a[1]).forEach(([k,v]) => {
+        text += `${CAT_LABELS[k] || k}: ¥${v.toLocaleString()}\n`;
+      });
+
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('結果をコピーしました');
+      }).catch(() => {
+        showToast('コピーに失敗しました');
+      });
+    }
+
+    // トースト表示（自動消去）
+    function showToast(message) {
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 2000);
     }
     </script>
 

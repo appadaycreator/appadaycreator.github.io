@@ -45,6 +45,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
 <script>(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -202,6 +203,22 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
         <div id="coverageList" class="space-y-2 text-sm"></div>
       </div>
 
+      <div class="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 mb-4 no-print">
+        <h3 class="font-bold text-blue-800 mb-3">📊 補償スコア</h3>
+        <div id="scoreGauge" class="mb-3">
+          <div class="flex justify-between items-center mb-2">
+            <span class="text-sm text-gray-700">補償満足度</span>
+            <span id="scoreValue" class="text-2xl font-bold text-blue-600">0/100</span>
+          </div>
+          <div class="w-full bg-gray-300 rounded-full h-4 overflow-hidden">
+            <div id="scoreBar" class="h-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full" style="width:0%"></div>
+          </div>
+        </div>
+        <div id="chartContainer" style="position:relative;height:250px;margin:10px 0;">
+          <canvas id="coverageChart" style="max-height:250px;"></canvas>
+        </div>
+      </div>
+
       <div class="bg-yellow-50 rounded-xl p-4 mb-4">
         <h3 class="font-bold text-yellow-800 mb-2">⚠️ 注意事項</h3>
         <div id="warnings" class="text-sm text-yellow-700 space-y-1"></div>
@@ -244,6 +261,23 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
           📖 ヨンデミーで旅行・英会話を学ぶ
         </a>
         <img src="https://www11.a8.net/0.gif?a8mat=4AVCO8+3ORU2Y+5JTC+5YRHE" width="1" height="1" style="display:none" alt="" loading="lazy">
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 mb-3 no-print">
+        <button onclick="printResult()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-lg text-sm transition-colors">
+          🖨️ 印刷する
+        </button>
+        <button onclick="copyResultText()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-lg text-sm transition-colors">
+          📋 結果をコピー
+        </button>
+      </div>
+
+      <div id="historySection" class="bg-amber-50 rounded-xl p-4 mb-4 no-print hidden">
+        <h3 class="font-bold text-amber-800 mb-2">📜 診断履歴から復元</h3>
+        <div id="historyList" class="space-y-2 mb-3"></div>
+        <button onclick="clearDiagnosisHistory()" class="w-full bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 rounded-lg text-sm">
+          🗑️ 履歴をクリア
+        </button>
       </div>
 
       <div class="flex gap-3">
@@ -489,6 +523,13 @@ function showResult() {
     '🔁 複数の保険会社を比較検討してから加入しましょう'
   ];
   document.getElementById('tips').innerHTML = tips.map(t => `<p>• ${t}</p>`).join('');
+
+  // M4対応: グラフを描画
+  renderResultChart();
+
+  // M3対応: 診断履歴を保存・初期化
+  saveDiagnosisState();
+  setTimeout(initHistoryUI, 100);
 }
 
 function encodeResult() {
@@ -508,6 +549,149 @@ function copyResultURL() {
   const url = `${window.location.origin}${window.location.pathname}?result=${encoded}`;
   navigator.clipboard.writeText(url).then(() => {
     alert('結果URLをコピーしました！友人に共有できます。');
+  });
+}
+
+// M3対応: localStorage へ診断状態を保存
+function saveDiagnosisState() {
+  const history = JSON.parse(localStorage.getItem('tia_diagnosis_history') || '[]');
+  const timestamp = new Date().toLocaleString('ja-JP');
+  const destNames = ['東南アジア','東アジア','ヨーロッパ','北米','オセアニア','中南米・中東・アフリカ'];
+  const summary = `${timestamp} - ${destNames[answers.dest] || '?'} ${answers.days + 1}日`;
+
+  const entry = { timestamp, summary, answers: JSON.parse(JSON.stringify(answers)) };
+  history.unshift(entry);
+  if (history.length > 5) history.pop();
+  localStorage.setItem('tia_diagnosis_history', JSON.stringify(history));
+}
+
+// 診断履歴から復元
+function loadFromHistory(index) {
+  const history = JSON.parse(localStorage.getItem('tia_diagnosis_history') || '[]');
+  if (history[index]) {
+    answers = history[index].answers;
+    showResult();
+  }
+}
+
+// 履歴をクリア
+function clearDiagnosisHistory() {
+  if (confirm('診断履歴をすべてクリアしますか？')) {
+    localStorage.removeItem('tia_diagnosis_history');
+    document.getElementById('historySection').classList.add('hidden');
+  }
+}
+
+// 履歴UIを初期化
+function initHistoryUI() {
+  const history = JSON.parse(localStorage.getItem('tia_diagnosis_history') || '[]');
+  const historyList = document.getElementById('historyList');
+  const historySection = document.getElementById('historySection');
+
+  if (history.length === 0) {
+    historySection.classList.add('hidden');
+    return;
+  }
+
+  historySection.classList.remove('hidden');
+  historyList.innerHTML = history.map((entry, idx) => `
+    <button onclick="loadFromHistory(${idx})" class="w-full text-left p-2 bg-white border border-amber-200 rounded hover:bg-amber-100 text-sm text-gray-700">
+      ↩️ ${entry.summary}
+    </button>
+  `).join('');
+}
+
+// M4対応: グラフで結果を可視化
+function renderResultChart() {
+  if (typeof Chart === 'undefined') return;
+
+  const dest = answers.dest;
+  const days = answers.days;
+  const activity = answers.activity || [];
+  const cardIns = answers.cardInsurance;
+
+  // 補償スコア計算（0-100）
+  let score = 50;
+  if (dest >= 3) score += 15;
+  if (days >= 2) score += 10;
+  if (activity.length >= 2) score += 5;
+  if (cardIns === 1 || cardIns === 2) score += 15;
+  score = Math.min(100, score);
+
+  document.getElementById('scoreValue').textContent = `${score}/100`;
+  document.getElementById('scoreBar').style.width = `${score}%`;
+
+  // 円グラフ: 補償内容
+  const canvas = document.getElementById('coverageChart');
+  if (!canvas) return;
+
+  if (window.coverageChartInstance) {
+    window.coverageChartInstance.destroy();
+  }
+
+  const coverageData = [
+    { label: '医療費', value: 35, color: '#3b82f6' },
+    { label: '救援費用', value: 20, color: '#8b5cf6' },
+    { label: '賠償責任', value: 20, color: '#ec4899' },
+    { label: 'その他', value: 25, color: '#f59e0b' }
+  ];
+
+  window.coverageChartInstance = new Chart(canvas, {
+    type: 'doughnut',
+    data: {
+      labels: coverageData.map(d => d.label),
+      datasets: [{
+        data: coverageData.map(d => d.value),
+        backgroundColor: coverageData.map(d => d.color),
+        borderColor: '#fff',
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 12 } } }
+      }
+    }
+  });
+}
+
+// M10対応: 印刷機能
+function printResult() {
+  window.print();
+}
+
+// M10対応: 結果をテキストでコピー
+function copyResultText() {
+  const dest = answers.dest;
+  const days = answers.days;
+  const destNames = ['東南アジア','東アジア','ヨーロッパ','北米','オセアニア','中南米・中東・アフリカ'];
+  const costTable = [
+    ['1,000〜2,000円', '800〜1,500円', '1,500〜2,500円', '2,500〜4,000円', '2,000〜3,500円', '2,500〜5,000円'],
+    ['1,500〜3,000円', '1,200〜2,500円', '2,500〜4,500円', '4,000〜7,000円', '3,500〜6,000円', '4,000〜8,000円'],
+    ['2,500〜5,000円', '2,000〜4,000円', '4,000〜7,000円', '7,000〜12,000円', '6,000〜10,000円', '7,000〜14,000円'],
+    ['4,000〜8,000円', '3,000〜6,000円', '7,000〜13,000円', '12,000〜22,000円', '10,000〜18,000円', '12,000〜24,000円'],
+    ['8,000〜18,000円', '6,000〜12,000円', '15,000〜30,000円', '25,000〜50,000円', '20,000〜40,000円', '25,000〜60,000円']
+  ];
+  const costRange = (costTable[days] || costTable[0])[(dest >= 0 && dest <= 5) ? dest : 0];
+
+  const text = `【海外旅行保険診断結果】
+
+旅行先: ${destNames[dest] || '不明'}
+旅行日数: ${['2〜3日', '4〜7日', '8〜14日', '15〜30日', '31日以上'][days] || '不明'}
+
+【推奨補償額】
+保険料の目安: ${costRange}
+傷害・疾病医療費: ${dest >= 3 ? '1億円以上' : dest >= 2 ? '5,000万円以上' : '2,000万円以上'}
+
+【診断時刻】
+${new Date().toLocaleString('ja-JP')}
+
+診断詳細はURLをご確認ください。`;
+
+  navigator.clipboard.writeText(text).then(() => {
+    alert('診断結果をコピーしました！');
   });
 }
 

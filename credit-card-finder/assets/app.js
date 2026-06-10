@@ -216,6 +216,8 @@ function renderQuestion(idx){
     const btn = document.createElement('button');
     btn.className = 'opt' + (answers[q.id]===i ? ' selected' : '');
     btn.setAttribute('aria-pressed', answers[q.id]===i ? 'true':'false');
+    btn.setAttribute('aria-label', opt.label + (opt.sub ? ': ' + opt.sub : ''));
+    btn.setAttribute('title', opt.sub ? `${opt.label} - ${opt.sub}` : opt.label);
     btn.innerHTML = `
       <span class="oico">${iconSVG(opt.icon||q.icon)}</span>
       <span class="otext">${opt.label}<span class="osub">${opt.sub||''}</span></span>

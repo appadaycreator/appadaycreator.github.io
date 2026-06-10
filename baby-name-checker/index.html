@@ -35,6 +35,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <!-- Chart.js for diagnosis score visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -190,12 +192,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="card" id="form-mode" style="display:none;">
           <h2 style="font-size:18px;font-weight:700;margin-bottom:12px;">👶 赤ちゃん名前チェッカー</h2>
           <p style="color:#666;font-size:14px;margin-bottom:16px;">候補の名前を入力してください。詳細な診断結果が表示されます。</p>
-          <label style="font-weight:600;color:#333;margin-bottom:4px;display:block;">赤ちゃんのお名前（漢字）</label>
+          <label for="nameKanji" style="font-weight:600;color:#333;margin-bottom:2px;display:flex;align-items:center;gap:4px;cursor:pointer;padding:6px 0;">
+            赤ちゃんのお名前（漢字）
+            <span title="常用漢字またはひらがなで2〜4文字が目安です" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;background:#e0e7ff;color:#3B82F6;border-radius:50%;font-size:12px;font-weight:700;cursor:help;">?</span>
+          </label>
           <input id="nameKanji" type="text" placeholder="例: 太郎、美咲、陽太" maxlength="10" style="margin-bottom:2px;" oninput="validateNameInput()">
-          <div id="kanji-error" style="display:none;color:#ef4444;font-size:12px;margin-bottom:12px;"></div>
-          <label style="font-weight:600;color:#333;margin-bottom:4px;display:block;margin-top:12px;">読み方（ひらがな）</label>
+          <p style="font-size:12px;color:#6b7280;margin-top:4px;margin-bottom:12px;">💡 漢字またはひらがなのみ対応。常用漢字・人名用漢字が目安です。</p>
+          <div id="kanji-error" style="display:none;color:#dc2626;font-size:12px;margin-bottom:12px;background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:8px 12px;"></div>
+          <label for="nameReading" style="font-weight:600;color:#333;margin-bottom:2px;display:flex;align-items:center;gap:4px;margin-top:12px;cursor:pointer;padding:6px 0;">
+            読み方（ひらがな）
+            <span title="すべてひらがなで、漢字の読み方を正確に入力してください" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;background:#e0e7ff;color:#3B82F6;border-radius:50%;font-size:12px;font-weight:700;cursor:help;">?</span>
+          </label>
           <input id="nameReading" type="text" placeholder="例: たろう、みさき、はると" maxlength="10" style="margin-bottom:2px;" oninput="validateNameInput()">
-          <div id="reading-error" style="display:none;color:#ef4444;font-size:12px;margin-bottom:16px;"></div>
+          <p style="font-size:12px;color:#6b7280;margin-top:4px;margin-bottom:12px;">💡 漢字の読み方をひらがなで入力。小書き（ゃ、ゅ、ょ等）もOK。</p>
+          <div id="reading-error" style="display:none;color:#dc2626;font-size:12px;margin-bottom:16px;background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:8px 12px;"></div>
           <button id="diagnose-btn" class="btn" onclick="diagnoseName()">診断する →</button>
           <button class="btn" style="background:#ccc;opacity:0.7;margin-top:8px;" onclick="backToStart()">戻る</button>
         </div>
@@ -458,20 +468,26 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const kanjiError = document.getElementById('kanji-error');
       const readingError = document.getElementById('reading-error');
       const diagnoseBtn = document.getElementById('diagnose-btn');
+      const kanjiInput = document.getElementById('nameKanji');
+      const readingInput = document.getElementById('nameReading');
       let isValid = true;
 
       kanjiError.style.display = 'none';
       readingError.style.display = 'none';
+      kanjiInput.style.borderColor = '#e2e8f0';
+      readingInput.style.borderColor = '#e2e8f0';
 
       if (kanji && !/^[^\x00-\x7F]+$/.test(kanji)) {
         kanjiError.textContent = '漢字またはひらがなのみ入力可能です';
         kanjiError.style.display = 'block';
+        kanjiInput.style.borderColor = '#ef4444';
         isValid = false;
       }
 
       if (reading && !/^[ぁ-ん]*$/.test(reading)) {
         readingError.textContent = 'ひらがなのみ入力可能です';
         readingError.style.display = 'block';
+        readingInput.style.borderColor = '#ef4444';
         isValid = false;
       }
 
@@ -703,10 +719,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div style="margin-top:12px;padding:12px;background:#FEF9C3;border-radius:10px;font-size:12px;color:#92400E;line-height:1.7;">
           ⚠️ この診断はアンケート回答に基づく参考情報です。実際の命名は戸籍担当窓口や姓名判断専門家にもご相談ください。
         </div>
+        <div style="margin-top:16px;background:#f9fafb;border-radius:10px;padding:16px;margin-bottom:14px;">
+          <div style="font-size:12px;font-weight:700;color:#1D4ED8;margin-bottom:12px;">📈 診断スコア比較チャート</div>
+          <canvas id="scoreChart" style="max-height:280px;"></canvas>
+        </div>
         <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
-          <button onclick="copyResult()" aria-label="診断結果をクリップボードにコピー" style="flex:1;min-width:140px;padding:10px 16px;background:#10b981;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;touch-action:manipulation;">📋 結果をコピー</button>
-          <button onclick="shareToLine()" aria-label="診断結果をLINEで共有" style="flex:1;min-width:140px;padding:10px 16px;background:#00b900;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;touch-action:manipulation;">💬 LINEでシェア</button>
-          <button onclick="shareToTwitter()" aria-label="診断結果をTwitterで共有" style="flex:1;min-width:140px;padding:10px 16px;background:#1da1f2;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;touch-action:manipulation;">𝕏 ツイート</button>
+          <button onclick="printResult()" aria-label="診断結果を印刷" style="flex:1;min-width:140px;padding:10px 16px;background:#8b5cf6;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;touch-action:manipulation;">🖨️ 印刷</button>
+          <button onclick="copyResult()" aria-label="診断結果をクリップボードにコピー" style="flex:1;min-width:140px;padding:10px 16px;background:#10b981;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;touch-action:manipulation;">📋 コピー</button>
+          <button onclick="shareToLine()" aria-label="診断結果をLINEで共有" style="flex:1;min-width:140px;padding:10px 16px;background:#00b900;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;touch-action:manipulation;">💬 LINE</button>
+          <button onclick="shareToTwitter()" aria-label="診断結果をTwitterで共有" style="flex:1;min-width:140px;padding:10px 16px;background:#1da1f2;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;touch-action:manipulation;">𝕏</button>
         </div>
       `;
       localStorage.setItem('babyNameChecker', JSON.stringify({
@@ -719,6 +740,54 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         timestamp: new Date().toISOString()
       }));
       document.getElementById('result').classList.add('show');
+
+      // Chart.js による診断スコア可視化（M4実装）
+      setTimeout(() => {
+        const ctx = document.getElementById('scoreChart');
+        if (ctx && typeof Chart !== 'undefined') {
+          if (window.scoreChartInstance) window.scoreChartInstance.destroy();
+          window.scoreChartInstance = new Chart(ctx, {
+            type: 'radar',
+            data: {
+              labels: ['読みやすさ', '画数バランス', '個性度', '全体調和'],
+              datasets: [{
+                label: '診断スコア',
+                data: [readabilityScore, strokeScore, uniquenessScore, harmonyScore],
+                fill: true,
+                borderColor: '#3B82F6',
+                backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                pointBackgroundColor: '#3B82F6',
+                pointBorderColor: '#fff',
+                pointHoverBackgroundColor: '#fff',
+                pointHoverBorderColor: '#3B82F6',
+                tension: 0.4
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: true,
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: function(context) {
+                      return Math.round(context.parsed.r) + '点';
+                    }
+                  }
+                }
+              },
+              scales: {
+                r: {
+                  beginAtZero: true,
+                  max: 100,
+                  grid: { color: '#e5e7eb' },
+                  ticks: { stepSize: 20, font: { size: 11 } }
+                }
+              }
+            }
+          });
+        }
+      }, 100);
     }
 
     function copyResult() {
@@ -742,6 +811,40 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const url = 'https://appadaycreator.com/baby-name-checker/';
       const text = encodeURIComponent(\`赤ちゃん名前チェッカーで診断！\${document.getElementById('r-title').textContent} #無料診断ツール #赤ちゃん\`);
       window.open(\`https://twitter.com/intent/tweet?text=\${text}&url=\${url}\`, '_blank');
+    }
+
+    function printResult() {
+      // M10実装: 印刷機能
+      const title = document.getElementById('r-title').textContent;
+      const desc = document.getElementById('r-desc').innerText;
+      const printWindow = window.open('', '_blank');
+      const css = \`
+        <style>
+          body { font-family: 'Noto Sans JP', sans-serif; line-height: 1.6; color: #333; margin: 20px; }
+          h2 { color: #3B82F6; margin-bottom: 20px; }
+          p { margin-bottom: 12px; }
+          canvas { max-width: 100%; margin: 20px 0; }
+          @media print { body { margin: 0; } }
+        </style>
+      \`;
+      const now = new Date().toLocaleDateString('ja-JP');
+      const content = \`
+        <html>
+        <head><meta charset="UTF-8">\${css}</head>
+        <body>
+          <h2>\${title}</h2>
+          <p><strong>診断日時:</strong> \${now}</p>
+          <hr>
+          \${desc.split('\\n').map(line => \`<p>\${line}</p>\`).join('')}
+          <p style="margin-top: 30px; font-size: 12px; color: #999;">
+            赤ちゃん名前チェッカー - https://appadaycreator.com/baby-name-checker/
+          </p>
+        </body>
+        </html>
+      \`;
+      printWindow.document.write(content);
+      printWindow.document.close();
+      setTimeout(() => printWindow.print(), 250);
     }
     </script>
 

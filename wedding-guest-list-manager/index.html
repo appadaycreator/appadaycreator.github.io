@@ -207,6 +207,24 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <input type="text" id="guestNote" placeholder="例: アレルギー対応（卵）・遠方から来場予定" style="margin-bottom:0;" aria-label="メモを入力">
           <button class="btn" style="margin-top:16px;" aria-label="ゲストを追加する" onclick="addEntry()">ゲストを追加する</button>
         </div>
+
+        <div class="card" style="margin-top:12px;background:#f9fafb;">
+          <h2 style="font-size:16px;font-weight:700;margin-bottom:12px;">🎯 目標設定</h2>
+          <p style="font-size:13px;color:#666;margin-bottom:14px;line-height:1.6;">招待予定ゲスト数の目標を設定して、出席確認の進捗を追跡しましょう。</p>
+          <div style="display:grid;grid-template-columns:1fr 100px;gap:10px;margin-bottom:12px;">
+            <div>
+              <label style="font-size:13px;font-weight:600;color:#374151;">目標ゲスト数 <span style="cursor:help;color:#999;font-weight:bold;margin-left:4px;font-size:12px;" title="招待予定のゲスト人数">？</span></label>
+              <input type="number" id="goalGuests" placeholder="例: 100" min="1" max="999" style="margin-bottom:0;" aria-label="目標ゲスト数を入力">
+            </div>
+            <div style="display:flex;align-items:flex-end;">
+              <button class="btn" style="margin:0;background:#10b981;" onclick="setGoal()" aria-label="目標を設定">設定</button>
+            </div>
+          </div>
+          <div id="goal-status" style="padding:12px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;display:none;">
+            <p style="font-size:12px;color:#666;margin:0;">目標が未設定です。目標値を入力して「設定」をクリック</p>
+          </div>
+        </div>
+
         <div class="card" style="margin-top:12px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
             <h2 style="font-size:16px;font-weight:700;">📋 ゲスト一覧</h2>
@@ -233,6 +251,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <button class="btn" style="flex:1;min-width:120px;background:#8b5cf6;padding:10px 14px;font-size:13px;" onclick="copyToClipboard()" title="テキストをクリップボードにコピー">📋 コピー</button>
             </div>
             <div id="summary"></div>
+            <div id="goal-achievement" style="display:none;padding:16px;background:#f0fdf4;border:2px solid #86efac;border-radius:10px;margin-top:12px;">
+              <p style="font-size:12px;font-weight:600;color:#166534;margin:0 0 8px;">🎯 出席確認進捗</p>
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+                <div style="flex:1;">
+                  <div style="height:24px;background:#e0e7ff;border-radius:12px;overflow:hidden;border:1px solid #c7d2fe;">
+                    <div id="goal-bar" style="height:100%;background:linear-gradient(to right,#10b981,#059669);width:0%;transition:width 0.3s ease;"></div>
+                  </div>
+                </div>
+                <div id="goal-percent" style="font-size:16px;font-weight:700;color:#059669;min-width:50px;text-align:right;">0%</div>
+              </div>
+              <p id="goal-text" style="font-size:12px;color:#166534;margin:0;line-height:1.6;"></p>
+            </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;">
               <div style="position:relative;height:250px;">
                 <canvas id="statusChart" style="max-height:250px;"></canvas>
@@ -401,6 +431,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <script>
     const BTN_COLOR = '#EC4899';
     const STORAGE_KEY = 'wedding-guest-list-manager-entries';
+    const GOAL_STORAGE_KEY = 'wedding-guest-goal';
+    const GOAL_HISTORY_KEY = 'wedding-guest-goal-history';
     let entries = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
     let currentFilter = 'all';
     let statusChart = null;
@@ -409,7 +441,68 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     document.addEventListener('DOMContentLoaded', () => {
       renderEntries();
       updateSummary();
+      loadGoal();
     });
+
+    function setGoal() {
+      const goalInput = document.getElementById('goalGuests');
+      const goal = parseInt(goalInput.value);
+      if (!goal || goal < 1) {
+        alert('1以上の数値を入力してください');
+        return;
+      }
+      const prevGoal = localStorage.getItem(GOAL_STORAGE_KEY);
+      localStorage.setItem(GOAL_STORAGE_KEY, goal);
+      localStorage.setItem(GOAL_HISTORY_KEY, JSON.stringify({
+        value: goal,
+        date: new Date().toISOString().split('T')[0],
+        prevValue: prevGoal ? parseInt(prevGoal) : null
+      }));
+      goalInput.value = '';
+      updateGoalDisplay();
+      updateSummary();
+    }
+
+    function loadGoal() {
+      const goal = localStorage.getItem(GOAL_STORAGE_KEY);
+      if (goal) {
+        document.getElementById('goalGuests').value = goal;
+      }
+      updateGoalDisplay();
+    }
+
+    function updateGoalDisplay() {
+      const goal = localStorage.getItem(GOAL_STORAGE_KEY);
+      const statusDiv = document.getElementById('goal-status');
+      if (!goal) {
+        statusDiv.style.display = 'block';
+        statusDiv.innerHTML = '<p style="font-size:12px;color:#666;margin:0;">目標が未設定です。目標値を入力して「設定」をクリック</p>';
+      } else {
+        statusDiv.style.display = 'none';
+      }
+      updateAchievementGauge();
+    }
+
+    function updateAchievementGauge() {
+      const goal = parseInt(localStorage.getItem(GOAL_STORAGE_KEY));
+      const gaugeDiv = document.getElementById('goal-achievement');
+      if (!goal) {
+        gaugeDiv.style.display = 'none';
+        return;
+      }
+      const attending = entries.filter(e => e.status === 'attending').length;
+      const percent = Math.min(100, Math.round(attending / goal * 100));
+      const history = JSON.parse(localStorage.getItem(GOAL_HISTORY_KEY) || 'null');
+      let compText = '';
+      if (history && history.prevValue && history.prevValue !== goal) {
+        const diff = goal - history.prevValue;
+        compText = `<br>前回の目標: ${history.prevValue}名 (${diff > 0 ? '+' : ''}${diff}名)`;
+      }
+      document.getElementById('goal-bar').style.width = percent + '%';
+      document.getElementById('goal-percent').textContent = percent + '%';
+      document.getElementById('goal-text').innerHTML = `出席確認: <strong>${attending}名 / ${goal}名</strong> (${goal - attending}名未確認)${compText}`;
+      gaugeDiv.style.display = 'block';
+    }
 
     function addEntry() {
       const name = document.getElementById('guestName').value.trim();
@@ -429,6 +522,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
       renderEntries();
       updateSummary();
+      updateAchievementGauge();
       // フォームをリセット
       document.querySelectorAll('input:not([type="submit"])').forEach(i => i.value = '');
       document.getElementById('guestStatus').value = 'pending';
@@ -441,6 +535,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
       renderEntries();
       updateSummary();
+      updateAchievementGauge();
     }
 
     function changeStatus(id, newStatus) {
@@ -450,6 +545,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
         renderEntries();
         updateSummary();
+        updateAchievementGauge();
       }
     }
 

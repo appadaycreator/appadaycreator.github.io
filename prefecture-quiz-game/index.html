@@ -40,6 +40,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <!-- Clarity -->
 <script>(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
 <style>
   .card-flip { perspective: 1000px; }
   .quiz-option { transition: all 0.2s; }
@@ -252,6 +253,12 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
       <h2 class="text-2xl font-bold text-gray-800 mb-2" id="resultTitle">結果発表！</h2>
       <p class="text-gray-600" id="resultLevel"></p>
     </div>
+    <!-- パフォーマンスランク -->
+    <div class="text-center mb-4">
+      <div class="text-5xl font-bold mb-2" id="performanceRank" style="color:#f97316;">S</div>
+      <p class="text-sm text-gray-600" id="rankComment">素晴らしい成績です</p>
+    </div>
+
     <div class="grid grid-cols-3 gap-3 mb-6">
       <div class="bg-orange-50 rounded-xl p-3 text-center">
         <div class="text-2xl font-bold text-orange-600" id="finalScore">0</div>
@@ -266,12 +273,52 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
         <div class="text-xs text-gray-500">正答率</div>
       </div>
     </div>
+
+    <!-- グラフセクション -->
+    <div class="bg-white rounded-xl border border-gray-200 p-4 mb-6">
+      <h3 class="text-sm font-bold text-gray-700 mb-4">📊 パフォーマンス分析</h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- 正答率ゲージ -->
+        <div style="text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+          <p class="text-xs text-gray-500 mb-2">正答率</p>
+          <canvas id="accuracyGaugeChart" style="max-width:150px;max-height:150px;margin:0 auto;"></canvas>
+        </div>
+        <!-- スコア推移グラフ -->
+        <div style="display:flex;flex-direction:column;">
+          <p class="text-xs text-gray-500 mb-2">スコア推移（過去5回）</p>
+          <canvas id="scoreLineChart" style="max-height:150px;"></canvas>
+        </div>
+      </div>
+      <!-- 難易度別スコア比較 -->
+      <div style="margin-top:16px;">
+        <p class="text-xs text-gray-500 mb-2">難易度別スコア比較</p>
+        <canvas id="difficultyBarChart" style="max-height:150px;max-width:100%;"></canvas>
+      </div>
+    </div>
+
     <div class="bg-yellow-50 rounded-xl p-4 mb-4">
       <p class="text-sm text-yellow-800" id="newHighScore"></p>
     </div>
     <div id="pq-ranking-display" style="margin-bottom:12px;"></div>
     <!-- 間違いノート -->
     <div id="pq-wrong-answers" style="margin-bottom:12px;background:#fff0f0;border-radius:10px;padding:10px;font-size:0.82em;max-height:130px;overflow-y:auto;"></div>
+
+    <!-- シェアボタン -->
+    <div class="bg-blue-50 rounded-xl p-4 mb-4 border border-blue-200">
+      <p class="text-xs font-bold text-blue-700 mb-3">📤 結果をシェア</p>
+      <div class="grid grid-cols-2 gap-2">
+        <a id="share-line" href="#" target="_blank" rel="noopener noreferrer" class="block bg-green-500 hover:bg-green-600 text-white text-center py-2 px-3 rounded-lg text-sm font-medium transition-colors">
+          💬 LINE
+        </a>
+        <a id="share-x" href="#" target="_blank" rel="noopener noreferrer" class="block bg-black hover:bg-gray-800 text-white text-center py-2 px-3 rounded-lg text-sm font-medium transition-colors">
+          𝕏 ポスト
+        </a>
+        <a id="share-challenge" href="#" target="_blank" rel="noopener noreferrer" class="block bg-purple-500 hover:bg-purple-600 text-white text-center py-2 px-3 rounded-lg text-sm font-medium transition-colors col-span-2">
+          🏆 チャレンジを共有
+        </a>
+      </div>
+    </div>
+
     <div class="grid grid-cols-2 gap-3 mb-6">
       <button onclick="startGame()" class="bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl transition-colors">もう一回！</button>
       <button onclick="showStart()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl transition-colors">設定変更</button>
@@ -574,6 +621,100 @@ function nextQuestion() {
   else showQuestion();
 }
 
+// パフォーマンスランク判定関数
+function getPerformanceRank(score, accuracy) {
+  if (accuracy >= 80) return { rank: 'S', color: '#f97316', comment: '🏆 マスター級！素晴らしい成績です' };
+  else if (accuracy >= 60) return { rank: 'A', color: '#3b82f6', comment: '⭐ 優秀です！もう少しで完璧' };
+  else if (accuracy >= 40) return { rank: 'B', color: '#10b981', comment: '📚 まずまず。練習を続けましょう' };
+  else return { rank: 'C', color: '#6b7280', comment: '🌱 初心者。これから上達します' };
+}
+
+// グラフレンダリング関数
+function renderPerformanceCharts(currentScore, currentAccuracy, allRankings) {
+  // 1. 正答率ゲージ
+  const ctx1 = document.getElementById('accuracyGaugeChart');
+  if (ctx1) {
+    new Chart(ctx1, {
+      type: 'doughnut',
+      data: {
+        labels: ['正答率', '未正解'],
+        datasets: [{
+          data: [currentAccuracy, 100 - currentAccuracy],
+          backgroundColor: ['#10b981', '#f3f4f6'],
+          borderColor: ['#059669', '#e5e7eb'],
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: { legend: { display: false }, tooltip: { enabled: true } },
+        cutout: '70%'
+      }
+    });
+  }
+
+  // 2. スコア推移グラフ（過去5回）
+  const scoreHistory = allRankings.slice(0, 5).map(r => r.score).reverse();
+  const dateHistory = allRankings.slice(0, 5).map(r => r.date).reverse();
+  const ctx2 = document.getElementById('scoreLineChart');
+  if (ctx2 && scoreHistory.length > 0) {
+    new Chart(ctx2, {
+      type: 'line',
+      data: {
+        labels: dateHistory,
+        datasets: [{
+          label: 'スコア',
+          data: scoreHistory,
+          borderColor: '#f97316',
+          backgroundColor: 'rgba(249, 115, 22, 0.1)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          pointRadius: 4,
+          pointBackgroundColor: '#f97316'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { font: { size: 10 } } } },
+        interaction: { intersect: false, mode: 'index' }
+      }
+    });
+  }
+
+  // 3. 難易度別スコア比較
+  const easyMax = allRankings.filter(r => r.diff === 'easy').map(r => r.score).sort((a, b) => b - a)[0] || 0;
+  const mediumMax = allRankings.filter(r => r.diff === 'medium').map(r => r.score).sort((a, b) => b - a)[0] || 0;
+  const hardMax = allRankings.filter(r => r.diff === 'hard').map(r => r.score).sort((a, b) => b - a)[0] || 0;
+
+  const ctx3 = document.getElementById('difficultyBarChart');
+  if (ctx3) {
+    new Chart(ctx3, {
+      type: 'bar',
+      data: {
+        labels: ['初級', '中級', '上級'],
+        datasets: [{
+          label: '最高スコア',
+          data: [easyMax, mediumMax, hardMax],
+          backgroundColor: ['#10b981', '#3b82f6', '#f97316'],
+          borderRadius: 6,
+          borderSkipped: false
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        indexAxis: 'x',
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { font: { size: 10 } } } }
+      }
+    });
+  }
+}
+
 function showResult() {
   document.getElementById('quizScreen').classList.add('hidden');
   document.getElementById('resultScreen').classList.remove('hidden');
@@ -582,6 +723,12 @@ function showResult() {
   document.getElementById('finalScore').textContent = score;
   document.getElementById('correctCount').textContent = correct + '/' + questions.length;
   document.getElementById('accuracy').textContent = accuracy + '%';
+
+  // パフォーマンスランク表示
+  const rankInfo = getPerformanceRank(score, accuracy);
+  document.getElementById('performanceRank').textContent = rankInfo.rank;
+  document.getElementById('performanceRank').style.color = rankInfo.color;
+  document.getElementById('rankComment').textContent = rankInfo.comment;
 
   let emoji, title, level;
   if (accuracy >= 90) { emoji = '🏆'; title = '地理マスター！'; level = '素晴らしい！あなたは日本地理の達人です！'; }
@@ -594,14 +741,40 @@ function showResult() {
   document.getElementById('resultLevel').textContent = level;
 
   const hs = parseInt(localStorage.getItem('prefQuizHS') || '0');
+  const resultScreen = document.getElementById('resultScreen');
   if (score > hs) {
     localStorage.setItem('prefQuizHS', score);
     document.getElementById('newHighScore').textContent = '🎉 新記録達成！ハイスコア: ' + score + '点';
     document.getElementById('highScore').textContent = score + '点';
+    // 新記録時のビジュアル強調
+    if (resultScreen) {
+      resultScreen.style.background = 'linear-gradient(135deg, #fef3c7 0%, #fff7ed 100%)';
+      resultScreen.style.borderLeft = '4px solid #f97316';
+    }
   } else {
     document.getElementById('newHighScore').textContent = '現在のハイスコア: ' + hs + '点';
+    if (resultScreen) {
+      resultScreen.style.background = '#ffffff';
+      resultScreen.style.borderLeft = 'none';
+    }
   }
   // ランキング保存・表示
+  let allRankings = [];
+  try {
+    const rk = JSON.parse(localStorage.getItem('pq_ranking') || '[]');
+    rk.push({ score, acc: accuracy, diff: selectedDifficulty, date: new Date().toLocaleDateString('ja-JP',{month:'numeric',day:'numeric'}) });
+    rk.sort((a,b)=>b.score-a.score);
+    allRankings = rk;
+    localStorage.setItem('pq_ranking', JSON.stringify(rk.slice(0,5)));
+    const el = document.getElementById('pq-ranking-display');
+    if (el) el.innerHTML = '<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;">' +
+      '<p style="font-size:.72rem;font-weight:700;color:#6b7280;margin-bottom:6px;">🏅 ランキング（Top5）</p>' +
+      rk.slice(0,5).map((r,i)=>`<div style="display:flex;justify-content:space-between;font-size:.78rem;padding:2px 0;border-bottom:1px solid #f3f4f6;"><span>${['🥇','🥈','🥉','4位','5位'][i]} ${r.date}</span><span style="font-weight:700;color:#f97316">${r.score}点</span><span style="color:#6b7280">${r.acc}%</span></div>`).join('') + '</div>';
+  } catch(e) {}
+
+  // グラフレンダリング
+  setTimeout(() => renderPerformanceCharts(score, accuracy, allRankings), 100);
+
   // 間違いノート表示
   const wrongEl = document.getElementById('pq-wrong-answers');
   if (wrongEl) {
@@ -616,16 +789,6 @@ function showResult() {
       wrongEl.innerHTML = '<div style="color:#16a34a;text-align:center;padding:6px;">✨ 全問正解！</div>';
     }
   }
-  try {
-    const rk = JSON.parse(localStorage.getItem('pq_ranking') || '[]');
-    rk.push({ score, acc: accuracy, diff: selectedDifficulty, date: new Date().toLocaleDateString('ja-JP',{month:'numeric',day:'numeric'}) });
-    rk.sort((a,b)=>b.score-a.score);
-    localStorage.setItem('pq_ranking', JSON.stringify(rk.slice(0,5)));
-    const el = document.getElementById('pq-ranking-display');
-    if (el) el.innerHTML = '<div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;">' +
-      '<p style="font-size:.72rem;font-weight:700;color:#6b7280;margin-bottom:6px;">🏅 ランキング（Top5）</p>' +
-      rk.slice(0,5).map((r,i)=>`<div style="display:flex;justify-content:space-between;font-size:.78rem;padding:2px 0;border-bottom:1px solid #f3f4f6;"><span>${['🥇','🥈','🥉','4位','5位'][i]} ${r.date}</span><span style="font-weight:700;color:#f97316">${r.score}点</span><span style="color:#6b7280">${r.acc}%</span></div>`).join('') + '</div>';
-  } catch(e) {}
 
   // シェアリンクをスコア付きで動的更新
   const url = 'https://appadaycreator.com/prefecture-quiz-game/';

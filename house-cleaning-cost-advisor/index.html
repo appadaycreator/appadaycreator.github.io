@@ -21,6 +21,7 @@
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <!-- GTM -->
     <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
     <!-- Clarity -->
@@ -502,7 +503,62 @@ AppADayCreatorでは、本ツール以外にもお金・家計カテゴリの便
       try { return JSON.parse(localStorage.getItem('cleaning_history') || '[]'); } catch(e) { return []; }
     }
 
-    const BTN='#6366F1'; let cur=0; let ans=[];
+    const BTN='#6366F1'; let cur=0; let ans=[]; let lastScores=[0,0,0,0];
+
+    function drawCharts() {
+      if(!window.Chart) return;
+      const colors = ['#f97316', '#3b82f6', '#10b981', '#8b5cf6'];
+      const labels = ['DIY節約', 'スポット', '定期', '徹底'];
+
+      // 円グラフ（スコア分布）
+      const scoreCtx = document.getElementById('scoreChart');
+      if(scoreCtx && lastScores) {
+        new Chart(scoreCtx, {
+          type: 'doughnut',
+          data: {
+            labels: labels,
+            datasets: [{
+              data: lastScores,
+              backgroundColor: colors,
+              borderColor: '#fff',
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 8 } } }
+          }
+        });
+      }
+
+      // 横棒グラフ（予算範囲）
+      const budgetCtx = document.getElementById('budgetChart');
+      if(budgetCtx) {
+        const budgetData = RESULTS.map(r => r.budget[1]/1000);
+        new Chart(budgetCtx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: '最大予算（万円）',
+              data: budgetData,
+              backgroundColor: colors,
+              borderColor: colors,
+              borderWidth: 1
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: { x: { beginAtZero: true, ticks: { font: { size: 10 } } }, y: { ticks: { font: { size: 11 } } } },
+            plugins: { legend: { display: false } }
+          }
+        });
+      }
+    }
+
     document.addEventListener('DOMContentLoaded',()=>{
       document.getElementById('q-total').textContent=QUESTIONS.length;
       const lastAnswers = loadLastAnswers();
@@ -572,6 +628,7 @@ AppADayCreatorでは、本ツール以外にもお金・家計カテゴリの便
     function showResult(){
       document.getElementById('quiz-area').style.display='none';
       const { result, scores, best } = getResult(ans);
+      lastScores = scores;
       document.getElementById('r-title').textContent=result.title;
       document.getElementById('r-desc').textContent=result.desc;
 
@@ -582,15 +639,20 @@ AppADayCreatorでは、本ツール以外にもお金・家計カテゴリの便
       document.getElementById('score-section').innerHTML = `
         <div style="background:#f0f4ff;border-radius:12px;padding:16px;margin:16px 0;">
           <h4 style="font-size:13px;font-weight:700;color:#6366f1;margin-bottom:12px;">📊 あなたの掃除スタイルスコア</h4>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
             <div><p style="font-size:11px;color:#666;margin:0 0 4px;">DIY節約プラン</p>${drawProgressBar(scores[0], 10, 140)}</div>
             <div><p style="font-size:11px;color:#666;margin:0 0 4px;">スポット依頼</p>${drawProgressBar(scores[1], 10, 140)}</div>
             <div><p style="font-size:11px;color:#666;margin:0 0 4px;">定期クリーニング</p>${drawProgressBar(scores[2], 10, 140)}</div>
             <div><p style="font-size:11px;color:#666;margin:0 0 4px;">徹底クリーニング</p>${drawProgressBar(scores[3], 10, 140)}</div>
           </div>
-          <p style="font-size:12px;color:#666;text-align:center;margin:0;">推奨予算: ¥${result.budget[0].toLocaleString()} 〜 ¥${result.budget[1].toLocaleString()}</p>
+          <p style="font-size:12px;color:#666;text-align:center;margin:0 0 16px;">推奨予算: ¥${result.budget[0].toLocaleString()} 〜 ¥${result.budget[1].toLocaleString()}</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:12px;">
+            <div><canvas id="scoreChart" style="max-width:100%;height:auto;"></canvas></div>
+            <div><canvas id="budgetChart" style="max-width:100%;height:auto;"></canvas></div>
+          </div>
         </div>
       `;
+      setTimeout(drawCharts, 50);
 
       const history = loadHistory();
       if(history.length > 1) {

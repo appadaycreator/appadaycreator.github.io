@@ -35,6 +35,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -84,6 +85,13 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .quiz-opt:disabled { opacity:0.5; cursor:not-allowed; }
         .r-tip { background:#f5f3ff; border-radius:8px; padding:10px 12px; margin-top:10px; font-size:13px; color:#6b21a8; line-height:1.6; }
         .r-share { margin-top:14px; display:flex; gap:8px; flex-wrap:wrap; }
+        .history-section { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; margin-bottom:16px; }
+        .history-item { background:white; padding:10px 12px; border-radius:6px; margin-bottom:6px; border-left:3px solid #7c3aed; cursor:pointer; font-size:13px; transition:background .2s; }
+        .history-item:hover { background:#f5f3ff; }
+        .history-time { font-size:11px; color:#999; }
+        .history-delete { float:right; background:none; border:none; color:#999; cursor:pointer; font-size:16px; padding:0; }
+        .score-gauge { max-width:300px; margin:16px auto; }
+        .score-label { font-size:13px; font-weight:600; color:#374151; text-align:center; margin-top:8px; }
 
     
 @media print{
@@ -140,6 +148,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <p style="color:#666;font-size:14px;margin-bottom:8px;">相手・シーン・予算・好みの5問に答えるだけで、ぴったりのギフトカテゴリと具体的な商品例をご提案します。</p>
           <ul style="font-size:13px;color:#94a3b8;margin:0 0 16px 16px;"><li>質問数：5問</li><li>所要時間：約1分</li></ul>
           <button class="btn" onclick="startQuiz()">診断スタート →</button>
+          <div id="history-restore" style="display:none;background:#e0e7ff;border:1px solid #7c3aed;border-radius:8px;padding:12px;margin-top:12px;font-size:13px;color:#374151;">
+            <p style="margin:0 0 8px;">前回の診断結果が見つかりました。</p>
+            <button class="btn" style="background:#4f46e5;font-size:14px;margin-bottom:6px;" onclick="restoreAnswers()">前回の回答を復元</button>
+            <button class="btn" style="background:#999;font-size:14px;" onclick="startFreshQuiz()">新規診断を開始</button>
+          </div>
+        </div>
+        <div class="card" id="history-list-card" style="display:none;">
+          <h3 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#374151;">📋 過去の診断結果（最大10件）</h3>
+          <div id="history-list"></div>
+          <button class="btn" style="background:#999;margin-top:8px;font-size:14px;" onclick="clearAllHistory()">すべて削除</button>
         </div>
         <div id="quiz-area" style="display:none;">
           <div style="font-size:12px;color:#999;margin-bottom:8px;">
@@ -157,7 +175,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="result" id="result">
           <div class="card">
             <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;color:#7c3aed;"></h3>
-            <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
+            <div class="score-gauge">
+              <canvas id="score-chart"></canvas>
+              <div id="score-label" class="score-label"></div>
+            </div>
+            <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;margin-top:12px;"></p>
             <div id="r-tip" class="r-tip"></div>
             <div id="r-examples" style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 12px;margin-top:10px;font-size:13px;color:#15803d;line-height:1.6;display:none;"></div>
             <div id="r-share-preview" style="background:#e0e7ff;border-left:3px solid #7c3aed;border-radius:4px;padding:10px;margin:10px 0;font-size:12px;color:#4338ca;display:none;">📋 <span id="r-share-text"></span></div>
@@ -165,7 +187,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <a id="r-share-x" href="" target="_blank" rel="noopener" aria-label="診断結果をXでシェア" style="background:#1DA1F2;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">𝕏 結果をシェア</a>
               <a id="r-share-line" href="" target="_blank" rel="noopener" aria-label="診断結果をLINEでシェア" style="background:#00B900;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">LINE</a>
             </div>
-            <button class="btn" style="margin-top:12px;" onclick="location.reload()">もう一度診断</button>
+            <button class="btn" style="margin-top:12px;background:#4f46e5;" onclick="startQuiz()">別の条件で診断</button>
+            <button class="btn" style="margin-top:8px;background:#999;" onclick="location.reload()">最初に戻る</button>
           </div>
         </div>
 
@@ -335,10 +358,60 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     ];
 
     const BUDGET_LABEL = ['〜3,000円','3,000〜10,000円','10,000〜30,000円','30,000〜50,000円','50,000円以上'];
+    let cur = 0;
+    const ans = [];
+    let scoreChart = null;
 
     function budgetTip(budget, low, mid, high) {
       const tip = budget <= 1 ? low : budget <= 3 ? mid : high;
       return '💡 ' + BUDGET_LABEL[budget] + 'なら：' + tip;
+    }
+
+    function calcScore(answers) {
+      const recv = answers[0]?.idx ?? 0;
+      const scene = answers[1]?.idx ?? 0;
+      const budget = answers[2]?.idx ?? 0;
+      const pref = answers[3]?.idx ?? 0;
+      const form = answers[4]?.idx ?? 0;
+
+      const recvScore = [80, 75, 90, 70, 85][recv] || 75;
+      const sceneScore = [85, 90, 80, 75, 85][scene] || 80;
+      const budgetScore = (budget + 1) * 16;
+      const overallScore = Math.round((recvScore + sceneScore + budgetScore) / 3);
+
+      return { overall: Math.min(100, overallScore), recv: recvScore, scene: sceneScore };
+    }
+
+    function drawScoreChart(score) {
+      const canvas = document.getElementById('score-chart');
+      if (!canvas) return;
+
+      if (scoreChart) scoreChart.destroy();
+
+      scoreChart = new Chart(canvas, {
+        type: 'doughnut',
+        data: {
+          labels: ['推奨度'],
+          datasets: [{
+            data: [score.overall, 100 - score.overall],
+            backgroundColor: [
+              score.overall >= 80 ? '#10b981' : score.overall >= 60 ? '#f59e0b' : '#ef4444',
+              '#e5e7eb'
+            ],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: { enabled: false }
+          }
+        }
+      });
+
+      const color = score.overall >= 80 ? '✅ 高推奨' : score.overall >= 60 ? '⚠️ 中程度' : '❌ 要検討';
+      document.getElementById('score-label').innerHTML = `<strong>推奨スコア: ${score.overall}点</strong> ${color}`;
     }
 
     function getResult(answers) {
@@ -398,11 +471,103 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       return { title, desc, tip, examples };
     }
 
-    let cur = 0;
-    const ans = [];
+    function saveAnswerToStorage(qIdx, optIdx) {
+      localStorage.setItem('giftQuiz_q' + qIdx, optIdx);
+    }
+
+    function getAnswerFromStorage(qIdx) {
+      return localStorage.getItem('giftQuiz_q' + qIdx);
+    }
+
+    function hasStoredAnswers() {
+      return localStorage.getItem('giftQuiz_q0') !== null;
+    }
+
+    function loadStoredAnswers() {
+      ans.length = 0;
+      for (let i = 0; i < QUESTIONS.length; i++) {
+        const saved = getAnswerFromStorage(i);
+        if (saved !== null) ans.push({ idx: parseInt(saved) });
+        else break;
+      }
+      return ans.length === QUESTIONS.length ? ans : null;
+    }
+
+    function clearStoredAnswers() {
+      for (let i = 0; i < QUESTIONS.length; i++) {
+        localStorage.removeItem('giftQuiz_q' + i);
+      }
+    }
+
+    function saveHistory(result) {
+      let hist = JSON.parse(localStorage.getItem('giftQuiz_history') || '[]');
+      const item = {
+        id: Date.now(),
+        title: result.title,
+        time: new Date().toLocaleString('ja-JP'),
+        answers: ans.map(a => a.idx)
+      };
+      hist.unshift(item);
+      if (hist.length > 10) hist.pop();
+      localStorage.setItem('giftQuiz_history', JSON.stringify(hist));
+    }
+
+    function getHistory() {
+      return JSON.parse(localStorage.getItem('giftQuiz_history') || '[]');
+    }
+
+    function renderHistory() {
+      const hist = getHistory();
+      const histCard = document.getElementById('history-list-card');
+      const histList = document.getElementById('history-list');
+
+      if (hist.length === 0) {
+        histCard.style.display = 'none';
+        return;
+      }
+
+      histCard.style.display = 'block';
+      histList.innerHTML = hist.map((item, i) => `
+        <div class="history-item">
+          <span onclick="loadHistoryResult(${i})">${item.title}</span>
+          <button class="history-delete" onclick="deleteHistoryItem(${i})">×</button>
+          <div class="history-time">${item.time}</div>
+        </div>
+      `).join('');
+    }
+
+    function loadHistoryResult(idx) {
+      const hist = getHistory();
+      if (hist[idx]) {
+        ans.length = 0;
+        hist[idx].answers.forEach(a => ans.push({ idx: a }));
+        cur = QUESTIONS.length;
+        showResult();
+      }
+    }
+
+    function deleteHistoryItem(idx) {
+      let hist = JSON.parse(localStorage.getItem('giftQuiz_history') || '[]');
+      hist.splice(idx, 1);
+      localStorage.setItem('giftQuiz_history', JSON.stringify(hist));
+      renderHistory();
+    }
+
+    function clearAllHistory() {
+      if (confirm('すべての履歴を削除してもよろしいですか？')) {
+        localStorage.removeItem('giftQuiz_history');
+        renderHistory();
+      }
+    }
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('q-total').textContent = QUESTIONS.length;
+      renderHistory();
+
+      if (hasStoredAnswers()) {
+        document.getElementById('history-restore').style.display = 'block';
+      }
+
       document.addEventListener('keydown', (e) => {
         const quizArea = document.getElementById('quiz-area');
         if (quizArea.style.display === 'none') return;
@@ -417,12 +582,29 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     });
 
     function startQuiz() {
+      clearStoredAnswers();
       cur = 0;
       ans.length = 0;
       document.getElementById('quiz-start').style.display = 'none';
       document.getElementById('quiz-area').style.display = 'block';
       document.getElementById('result').classList.remove('show');
       renderQ();
+    }
+
+    function startFreshQuiz() {
+      clearStoredAnswers();
+      document.getElementById('history-restore').style.display = 'none';
+      startQuiz();
+    }
+
+    function restoreAnswers() {
+      const saved = loadStoredAnswers();
+      if (saved && saved.length === QUESTIONS.length) {
+        cur = QUESTIONS.length;
+        document.getElementById('quiz-start').style.display = 'none';
+        document.getElementById('quiz-area').style.display = 'none';
+        showResult();
+      }
     }
 
     function renderQ() {
@@ -432,7 +614,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('q-text').textContent = q.text;
       document.getElementById('q-back').style.display = cur > 0 ? 'inline-flex' : 'none';
       const optsEl = document.getElementById('q-options');
-      optsEl.innerHTML = q.opts.map((o, i) => `<button class="quiz-opt" onclick="answer(${i})" data-idx="${i}">${o}</button>`).join('');
+      optsEl.innerHTML = q.opts.map((o, i) => {
+        const saved = getAnswerFromStorage(cur);
+        const selected = saved === String(i);
+        return `<button class="quiz-opt${selected ? ' selected' : ''}" onclick="answer(${i})" data-idx="${i}">${o}</button>`;
+      }).join('');
       optsEl.classList.remove('quiz-fade');
       void optsEl.offsetWidth;
       optsEl.classList.add('quiz-fade');
@@ -444,6 +630,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const buttons = optsEl.querySelectorAll('.quiz-opt');
       buttons.forEach(b => b.disabled = true);
       buttons[idx].classList.add('selected');
+      saveAnswerToStorage(cur, idx);
       ans.push({ idx });
       cur++;
       setTimeout(() => {
@@ -462,28 +649,30 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function showResult() {
       document.getElementById('quiz-area').style.display = 'none';
       const r = getResult(ans);
+      const score = calcScore(ans);
+
       document.getElementById('r-title').textContent = r.title;
       document.getElementById('r-desc').textContent = r.desc;
       document.getElementById('r-tip').textContent = r.tip;
 
-      // Display examples
+      setTimeout(() => drawScoreChart(score), 100);
+
       if (r.examples && r.examples.length > 0) {
         document.getElementById('r-examples').innerHTML = '🛒 <strong>具体例:</strong> ' + r.examples.join(' / ');
         document.getElementById('r-examples').style.display = 'block';
       }
 
-      // Generate share text
       const baseShareText = '【ギフト診断結果】' + r.title + ' #プレゼント診断 #ギフト選び';
       const shareText = encodeURIComponent(baseShareText);
       const shareUrl = encodeURIComponent('https://appadaycreator.com/gift-advisor/');
 
-      // Display share preview
       document.getElementById('r-share-text').textContent = baseShareText;
       document.getElementById('r-share-preview').style.display = 'block';
 
-      // Set share URLs
       document.getElementById('r-share-x').href = 'https://twitter.com/intent/tweet?text=' + shareText + '&url=' + shareUrl;
       document.getElementById('r-share-line').href = 'https://line.me/R/msg/text/?' + shareText + '%0A' + shareUrl;
+
+      saveHistory(r);
       document.getElementById('result').classList.add('show');
     }
     </script>

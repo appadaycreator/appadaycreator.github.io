@@ -179,6 +179,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="font-bold text-pink-700">施術注意点</div>
         </div>
       </div>
+      <div id="currentGoalDisplay" class="bg-blue-100 border border-blue-300 rounded-xl p-3 mb-3 text-center hidden">
+        <p class="text-xs text-blue-700 font-bold">🎯 現在の目標スコア: <span id="displayGoalScore">-</span>点</p>
+      </div>
+
       <button onclick="startDiagnosis()" class="w-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-400 hover:to-rose-400 text-white font-bold py-3 rounded-xl text-lg transition shadow-md" aria-label="💇 診断スタート！">
         💇 診断スタート！
       </button>
@@ -228,6 +232,54 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="bg-gray-50 rounded-xl p-4 mb-4">
           <h3 class="font-bold text-gray-700 mb-3 text-sm">📈 診断スコアレーダー</h3>
           <canvas id="radarChart" style="max-width:100%;height:250px;"></canvas>
+        </div>
+
+        <!-- 目標設定・達成度トラッキング（M6） -->
+        <div id="goalTrackingSection" class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+          <h3 class="font-bold text-blue-700 mb-3 text-sm">🎯 目標設定・達成度トラッキング</h3>
+
+          <div class="mb-4">
+            <label class="block text-xs font-bold text-gray-700 mb-2">
+              目標スコア：<span id="goalScoreDisplay">-</span> 点
+            </label>
+            <div class="flex gap-2 items-center">
+              <input type="range" id="goalScoreInput" min="0" max="24" value="12" class="flex-1 h-2 bg-gray-300 rounded-lg appearance-none" onchange="updateGoalDisplay()">
+              <button onclick="saveGoal()" class="bg-blue-500 hover:bg-blue-400 text-white font-bold py-1 px-3 rounded text-xs transition">💾 保存</button>
+            </div>
+            <p class="text-xs text-gray-500 mt-1">スライダーで目標スコアを設定して保存しましょう</p>
+          </div>
+
+          <div class="grid gap-3">
+            <!-- 達成度表示 -->
+            <div id="achievementDisplay" class="hidden">
+              <div class="flex justify-between items-center mb-1">
+                <span class="text-xs font-bold text-blue-700">達成度</span>
+                <span class="text-sm font-bold text-blue-600"><span id="achievementPercent">0</span>%</span>
+              </div>
+              <div class="bg-white border border-blue-200 rounded h-3 overflow-hidden">
+                <div id="achievementBar" class="bg-gradient-to-r from-blue-400 to-blue-600 h-full" style="width:0%"></div>
+              </div>
+            </div>
+
+            <!-- 前回との比較 -->
+            <div id="comparisonDisplay" class="hidden bg-white border border-blue-100 rounded p-2">
+              <p class="text-xs font-bold text-gray-700 mb-1">前回との比較</p>
+              <div class="flex justify-between items-center text-xs">
+                <span class="text-gray-600">前回スコア</span>
+                <span id="previousScore" class="font-bold text-gray-700">-</span>
+              </div>
+              <div class="flex justify-between items-center text-xs mt-1">
+                <span class="text-gray-600">今回スコア</span>
+                <span id="currentScore" class="font-bold text-blue-700">-</span>
+              </div>
+              <div class="flex justify-between items-center text-xs mt-1 pt-1 border-t border-gray-200">
+                <span class="text-gray-600">変化</span>
+                <span id="scoreChange" class="font-bold">-</span>
+              </div>
+            </div>
+          </div>
+
+          <button onclick="resetGoal()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold py-1 rounded mt-3 transition">🔄 目標をリセット</button>
         </div>
 
         <!-- スコア内訳グラフ -->
@@ -521,6 +573,87 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
       // レーダーチャート描画
       requestAnimationFrame(() => drawRadarChart(scores));
+
+      // M6: 目標達成度を表示
+      displayGoalProgress(scores);
+    }
+
+    // M6: 目標設定・達成度トラッキング機能
+    function loadGoal() {
+      const stored = localStorage.getItem('salonGoal');
+      return stored ? JSON.parse(stored) : null;
+    }
+
+    function updateGoalDisplay() {
+      const goalScore = parseInt(document.getElementById('goalScoreInput').value);
+      document.getElementById('goalScoreDisplay').textContent = goalScore;
+    }
+
+    function saveGoal() {
+      const goalScore = parseInt(document.getElementById('goalScoreInput').value);
+      const goal = {
+        score: goalScore,
+        date: new Date().toLocaleString('ja-JP')
+      };
+      localStorage.setItem('salonGoal', JSON.stringify(goal));
+      alert(`🎯 目標スコア ${goalScore}点を保存しました！`);
+    }
+
+    function resetGoal() {
+      if(!confirm('目標をリセットしてもよろしいですか？')) return;
+      localStorage.removeItem('salonGoal');
+      document.getElementById('goalScoreInput').value = '12';
+      updateGoalDisplay();
+      document.getElementById('achievementDisplay').classList.add('hidden');
+      document.getElementById('comparisonDisplay').classList.add('hidden');
+      alert('🔄 目標がリセットされました');
+    }
+
+    function displayGoalProgress(scores) {
+      const goal = loadGoal();
+      const history = loadHistory();
+
+      // 目標が設定されていない場合は非表示
+      if(!goal) {
+        document.getElementById('achievementDisplay').classList.add('hidden');
+        return;
+      }
+
+      // 現在のトータルスコアを計算
+      const currentTotal = scores.damage + scores.curly + scores.volume + scores.gray;
+
+      // 達成度を計算（目標スコアに対する割合）
+      const achievementPercent = Math.min(100, Math.round((currentTotal / goal.score) * 100));
+
+      // 達成度表示を更新
+      const achievementDisplay = document.getElementById('achievementDisplay');
+      achievementDisplay.classList.remove('hidden');
+      document.getElementById('achievementPercent').textContent = achievementPercent;
+      document.getElementById('achievementBar').style.width = achievementPercent + '%';
+      document.getElementById('currentScore').textContent = currentTotal + '点';
+
+      // 前回診断との比較
+      if(history.length > 1) {
+        const previousEntry = history[1];
+        const previousTotal = previousEntry.scores.damage + previousEntry.scores.curly + previousEntry.scores.volume + previousEntry.scores.gray;
+        const diff = currentTotal - previousTotal;
+
+        const comparisonDisplay = document.getElementById('comparisonDisplay');
+        comparisonDisplay.classList.remove('hidden');
+        document.getElementById('previousScore').textContent = previousTotal + '点';
+
+        const changeEl = document.getElementById('scoreChange');
+        if(diff > 0) {
+          changeEl.textContent = `📈 +${diff}点 (改善)`;
+          changeEl.style.color = '#22c55e';
+        } else if(diff < 0) {
+          changeEl.textContent = `📉 ${diff}点`;
+          changeEl.style.color = '#ef4444';
+        } else {
+          changeEl.textContent = '→ 同等';
+          changeEl.style.color = '#6b7280';
+        }
+      }
     }
 
     function restart() {
@@ -528,6 +661,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('historyScreen').classList.add('hidden');
       document.getElementById('topScreen').classList.remove('hidden');
       updateHistoryBtn();
+      updateCurrentGoalDisplay();
+    }
+
+    function updateCurrentGoalDisplay() {
+      const goal = loadGoal();
+      const goalDisplay = document.getElementById('currentGoalDisplay');
+      if(goal) {
+        document.getElementById('displayGoalScore').textContent = goal.score;
+        goalDisplay.classList.remove('hidden');
+      } else {
+        goalDisplay.classList.add('hidden');
+      }
     }
 
     // 現在の診断結果を取得

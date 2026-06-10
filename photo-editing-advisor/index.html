@@ -41,6 +41,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"写真・動画編集ソフト選び診断","description":"用途・スキル・予算から最適な写真・動画編集ソフトを診断提案。登録不要・完全無料でご利用いただけます。","url":"https://appadaycreator.com/photo-editing-advisor/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"author":{"@type":"Organization","name":"AppADayCreator","url":"https://appadaycreator.com/"}}</script>
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [{"@type": "Question", "name": "写真・動画編集ソフト選び診断は無料で使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、完全無料でご利用いただけます。登録・ログイン・アプリのインストールも不要です。"}}, {"@type": "Question", "name": "何回でも診断できますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、何度でもご利用いただけます。条件を変えて繰り返し診断してみてください。"}}, {"@type": "Question", "name": "スマートフォンでも使えますか？", "acceptedAnswer": {"@type": "Answer", "text": "はい、スマートフォン・タブレット・PCすべてのデバイスに対応しています。"}}, {"@type": "Question", "name": "診断結果は保存されますか？", "acceptedAnswer": {"@type": "Answer", "text": "結果はブラウザには保存されません。スクリーンショットやSNSシェアでご記録ください。"}}, {"@type": "Question", "name": "入力したデータはサーバーに送信されますか？", "acceptedAnswer": {"@type": "Answer", "text": "いいえ。すべての処理はブラウザ内で完結し、個人情報・入力データのサーバー送信は行いません。"}}]}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"写真・動画編集ソフト選び診断の使い方","step":[{"@type":"HowToStep","position":1,"name":"診断スタートを押す","text":"ページを開いたら「診断スタート →」ボタンをクリックして5問の診断を開始する"},{"@type":"HowToStep","position":2,"name":"用途・スキルを選択する","text":"主な用途（写真/動画/SNS/RAW）・経験レベル・月々の予算を順番に選ぶ"},{"@type":"HowToStep","position":3,"name":"デバイス・優先事項を選ぶ","text":"使うデバイス（Windows/Mac/スマホ）と重視すること（簡単さ/品質/AI/オフライン）を選択する"},{"@type":"HowToStep","position":4,"name":"診断結果を確認する","text":"5問回答後に最適な写真・動画編集ソフトが自動的に提案される"},{"@type":"HowToStep","position":5,"name":"結果をシェアする","text":"おすすめソフトを確認し、SNSで友人・家族にシェアしてソフト選びの参考にしてもらう"}]}</script>
@@ -463,25 +464,53 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('r-share').innerHTML=
         `<a href="https://twitter.com/intent/tweet?text=${txt}&url=${url}" target="_blank" rel="noopener" style="background:#1DA1F2;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">𝕏 結果をシェア</a>`+
         `<a href="https://line.me/R/msg/text/?${txt}%0A${url}" target="_blank" rel="noopener" style="background:#00B900;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">LINE</a>`;
-      // M4: スコアグラフの表示
+      // M4: Chart.jsでスコアグラフを表示
       if (answers) {
         const scores = getScores(answers);
-        let chartHtml = '';
-        RESULTS.forEach((result, idx) => {
-          const score = scores[idx];
-          const pct = Math.round((score / 10) * 100);
-          const isBest = resultIdx !== undefined && idx === resultIdx;
-          chartHtml += `
-            <div class="score-bar" style="${isBest ? 'font-weight:700;' : ''}">
-              <div class="score-label">${result.title}</div>
-              <div class="score-container">
-                <div class="score-fill" style="width:${Math.max(pct, 5)}%;${isBest ? 'background: linear-gradient(to right, #7c3aed, #6d28d9);' : ''}">${score > 2 ? score : ''}</div>
-              </div>
-              <div class="score-value">${score}</div>
-            </div>
-          `;
-        });
-        document.getElementById('score-chart').innerHTML = chartHtml;
+        const labels = RESULTS.map(r => r.title.replace(/[📱🎬🖼️🎨🖥️✨]/g, '').trim());
+        const chartContainer = document.getElementById('score-chart');
+        chartContainer.innerHTML = '<canvas id="match-chart" style="max-height:300px;"></canvas>';
+
+        setTimeout(() => {
+          const ctx = document.getElementById('match-chart').getContext('2d');
+          new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: labels,
+              datasets: [{
+                label: 'マッチスコア',
+                data: scores,
+                backgroundColor: scores.map((score, idx) => idx === resultIdx ? '#7c3aed' : '#c7d2fe'),
+                borderColor: '#7c3aed',
+                borderWidth: 2,
+                borderRadius: 8,
+                hoverBackgroundColor: '#8b5cf6'
+              }]
+            },
+            options: {
+              indexAxis: 'y',
+              responsive: true,
+              maintainAspectRatio: true,
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: (ctx) => `スコア: ${ctx.parsed.x}`
+                  }
+                }
+              },
+              scales: {
+                x: {
+                  beginAtZero: true,
+                  max: 10,
+                  ticks: { stepSize: 2 },
+                  grid: { color: '#f1f5f9' }
+                },
+                y: { grid: { display: false } }
+              }
+            }
+          });
+        }, 0);
       }
       const details=`<div style="margin-bottom:10px;"><strong>💡 対象ユーザー</strong>: ${r.targetUsers}</div>`+
         `<div style="margin-bottom:10px;"><strong>⭐ 学習難易度</strong>: ${r.difficulty}</div>`+

@@ -211,9 +211,40 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
         </a>
       </div>
 
-      <button id="copyBtn" onclick="copyResult()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl transition-colors mb-2">
-        📋 結果をコピー
-      </button>
+      <div id="targetSection" class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 hidden">
+        <h3 class="font-bold text-blue-800 mb-3">🎯 目標設定・達成度トラッキング（M6）</h3>
+        <div class="space-y-2">
+          <div>
+            <label for="targetAmount" class="text-sm text-blue-700 font-medium block mb-1">月額目標金額を設定 (円):</label>
+            <input type="number" id="targetAmount" placeholder="例: 50000" class="w-full px-3 py-2 border border-blue-300 rounded-lg text-sm" min="0" step="10000">
+          </div>
+          <button onclick="setTarget()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg text-sm">目標を設定</button>
+        </div>
+        <div id="achievementDisplay" class="mt-4 pt-4 border-t border-blue-200 hidden">
+          <p class="text-sm text-blue-700 mb-2"><strong>達成率:</strong> <span id="achievementRate" class="font-bold text-lg text-blue-600">0%</span></p>
+          <div class="w-full bg-blue-200 rounded-full h-3 mb-2">
+            <div id="achievementBar" class="bg-blue-600 h-3 rounded-full transition-all duration-500" style="width:0%"></div>
+          </div>
+          <p class="text-xs text-blue-600" id="comparisonText"></p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 mb-2">
+        <button id="copyBtn" onclick="copyResult()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-3 rounded-xl transition-colors">
+          📋 コピー
+        </button>
+        <button onclick="printResult()" class="bg-green-100 hover:bg-green-200 text-green-700 font-bold py-3 rounded-xl transition-colors">
+          📄 印刷
+        </button>
+      </div>
+      <div class="grid grid-cols-2 gap-2 mb-2">
+        <button onclick="downloadTxt()" class="bg-orange-100 hover:bg-orange-200 text-orange-700 font-bold py-3 rounded-xl transition-colors">
+          📝 テキスト
+        </button>
+        <button onclick="downloadCsv()" class="bg-orange-100 hover:bg-orange-200 text-orange-700 font-bold py-3 rounded-xl transition-colors">
+          📊 CSV
+        </button>
+      </div>
       <button onclick="restart()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl transition-colors">
         🔄 もう一度診断する
       </button>
@@ -490,6 +521,16 @@ function showResult() {
     '🖥 こども家庭庁ポータル（www.cfa.go.jp）',
   ];
   document.getElementById('windowList').innerHTML = windows.map(w => `<p>• ${w}</p>`).join('');
+
+  // M6: 目標設定セクション表示
+  const targetSection = document.getElementById('targetSection');
+  const savedTarget = localStorage.getItem('childcare_target');
+  if (savedTarget) {
+    targetSection.classList.remove('hidden');
+    updateAchievementDisplay(parseFloat(savedTarget));
+  } else {
+    targetSection.classList.remove('hidden');
+  }
 }
 
 // M4: グラフ生成関数
@@ -568,20 +609,149 @@ function generateCharts(benefits, totalYearly) {
   }
 }
 
-function copyResult() {
+function getResultText() {
   const eligible = lastBenefits.filter(b => b.status === 'eligible');
   const totalYearly = eligible.reduce((s, b) => s + (b.yearlyAmount || 0), 0);
   const totalMan = Math.floor(totalYearly / 10000);
   const lines = ['【育児支援・給付金チェッカー 診断結果】', ''];
   if (totalMan > 0) lines.push(`年間 約${totalMan.toLocaleString()}万円 の給付・支援が受けられる可能性があります`, '');
+
+  // M6: 目標達成率を含める
+  const targetAmount = localStorage.getItem('childcare_target');
+  if (targetAmount) {
+    const target = parseFloat(targetAmount);
+    const monthlyTotal = totalYearly / 12;
+    const rate = Math.min(100, Math.round((monthlyTotal / target) * 100));
+    lines.push(`目標達成率: ${rate}% (月額目安: ¥${Math.round(monthlyTotal).toLocaleString()} / 目標: ¥${target.toLocaleString()})`, '');
+  }
+
   eligible.forEach(b => lines.push(`✅ ${b.name}：${b.amount}`, `   ${b.desc}`, ''));
   lines.push('詳細：https://appadaycreator.com/childcare-support-finder/');
-  navigator.clipboard.writeText(lines.join('\n')).then(() => {
+  return lines.join('\n');
+}
+
+function copyResult() {
+  const text = getResultText();
+  navigator.clipboard.writeText(text).then(() => {
     const btn = document.getElementById('copyBtn');
     btn.textContent = '✅ コピーしました！';
     btn.classList.add('bg-green-100', 'text-green-700');
-    setTimeout(() => { btn.textContent = '📋 結果をコピー'; btn.classList.remove('bg-green-100', 'text-green-700'); }, 1500);
+    setTimeout(() => { btn.textContent = '📋 コピー'; btn.classList.remove('bg-green-100', 'text-green-700'); }, 1500);
   }).catch(() => alert('コピーに失敗しました。ブラウザの制限によりご利用いただけません。'));
+}
+
+// M10: 印刷機能
+function printResult() {
+  window.print();
+}
+
+// M10: テキストダウンロード機能
+function downloadTxt() {
+  const eligible = lastBenefits.filter(b => b.status === 'eligible');
+  const totalYearly = eligible.reduce((s, b) => s + (b.yearlyAmount || 0), 0);
+  const text = getResultText();
+  const now = new Date();
+  const dateStr = now.toISOString().split('T')[0];
+  const filename = `育児支援チェッカー結果_${dateStr}.txt`;
+
+  const blob = new Blob([text], { type: 'text/plain; charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// M10: CSVダウンロード機能
+function downloadCsv() {
+  const eligible = lastBenefits.filter(b => b.status === 'eligible');
+  const totalYearly = eligible.reduce((s, b) => s + (b.yearlyAmount || 0), 0);
+  const now = new Date();
+  const dateStr = now.toISOString().split('T')[0];
+
+  // CSV ヘッダー
+  const rows = [
+    ['育児支援・給付金チェッカー 診断結果'],
+    ['診断日', dateStr],
+    [''],
+    ['支援制度名', '月額/年額', '説明'],
+  ];
+
+  // 総合サマリー
+  const totalMan = Math.floor(totalYearly / 10000);
+  rows.push(['【合計】年間約' + totalMan + '万円']);
+  rows.push(['']);
+
+  // 各給付金をCSV形式で追加
+  eligible.forEach(b => {
+    rows.push([
+      b.name,
+      b.amount,
+      b.desc
+    ]);
+  });
+
+  // CSV文字列に変換（ダブルクォートエスケープ対応）
+  const csv = rows.map(row =>
+    row.map(cell => {
+      if (typeof cell !== 'string') cell = String(cell);
+      // ダブルクォート、カンマ、改行を含む場合はクォート
+      if (cell.includes('"') || cell.includes(',') || cell.includes('\n')) {
+        return '"' + cell.replace(/"/g, '""') + '"';
+      }
+      return cell;
+    }).join(',')
+  ).join('\n');
+
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv; charset=utf-8' }); // BOM付きUTF-8
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `育児支援チェッカー結果_${dateStr}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// M6: 目標設定機能
+function setTarget() {
+  const input = document.getElementById('targetAmount');
+  const value = parseFloat(input.value);
+
+  if (isNaN(value) || value <= 0) {
+    alert('0より大きい数値を入力してください');
+    return;
+  }
+
+  localStorage.setItem('childcare_target', value.toString());
+  updateAchievementDisplay(value);
+  input.value = '';
+}
+
+// M6: 達成率表示更新
+function updateAchievementDisplay(targetAmount) {
+  const eligible = lastBenefits.filter(b => b.status === 'eligible');
+  const totalYearly = eligible.reduce((s, b) => s + (b.yearlyAmount || 0), 0);
+  const monthlyTotal = totalYearly / 12;
+  const rate = Math.min(100, Math.round((monthlyTotal / targetAmount) * 100));
+
+  document.getElementById('achievementDisplay').classList.remove('hidden');
+  document.getElementById('achievementRate').textContent = `${rate}%`;
+  document.getElementById('achievementBar').style.width = `${rate}%`;
+
+  // 前回との比較（制度数）
+  const prevCount = localStorage.getItem('childcare_prev_count');
+  if (prevCount) {
+    const currentCount = eligible.length;
+    const diff = currentCount - parseInt(prevCount);
+    const changeText = diff > 0 ? `前回比: +${diff}制度` : diff < 0 ? `前回比: ${diff}制度` : '前回比: 変化なし';
+    document.getElementById('comparisonText').textContent = changeText;
+  }
+  localStorage.setItem('childcare_prev_count', eligible.length.toString());
 }
 
 function restart() {

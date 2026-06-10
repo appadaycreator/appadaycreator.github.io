@@ -37,6 +37,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -167,8 +168,21 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:10px;color:#7c3aed;"></h3>
             <div id="r-colors" style="display:flex;gap:10px;margin:10px 0 14px;"></div>
             <p id="r-skin" style="font-size:13px;color:#7c3aed;font-weight:600;margin-bottom:10px;padding:6px 10px;background:#f5f3ff;border-radius:6px;display:none;"></p>
+
+            <!-- グラフ表示 -->
+            <div id="chart-container" style="margin:16px 0;max-width:100%;height:300px;display:none;">
+              <canvas id="resultChart" style="width:100%;height:100%;"></canvas>
+            </div>
+
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
             <div id="r-share" style="display:flex;gap:8px;margin:14px 0 0;flex-wrap:wrap;"></div>
+
+            <!-- 印刷・エクスポート機能 -->
+            <div style="display:flex;gap:8px;margin:12px 0 0;flex-wrap:wrap;">
+              <button style="background:#4b5563;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:14px;cursor:pointer;min-height:44px;flex:1;min-width:100px;" onclick="printResult()" aria-label="結果を印刷">🖨️ 印刷</button>
+              <button style="background:#6b7280;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:14px;cursor:pointer;min-height:44px;flex:1;min-width:100px;" onclick="copyResult()" aria-label="結果をコピー">📋 コピー</button>
+            </div>
+
             <button class="btn" style="margin-top:12px;" onclick="startQuiz()" aria-label="もう一度診断">もう一度診断</button>
           </div>
         </div>
@@ -216,7 +230,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             </div>
             <div style="border-bottom:1px solid #f1f5f9;padding-bottom:12px;">
               <p style="font-size:14px;font-weight:600;color:#374151;margin-bottom:4px;">Q: 診断結果は保存されますか？</p>
-              <p style="font-size:13px;color:#6b7280;line-height:1.7;">A: 結果はブラウザには保存されません。スクリーンショットやSNSシェアでご記録ください。</p>
+              <p style="font-size:13px;color:#6b7280;line-height:1.7;">A: はい、診断結果は自動的にブラウザ内に保存されます。最大20件まで履歴が保持され、何度でも見返すことができます。ブラウザのサイトデータを削除するとクリアされます。</p>
             </div>
             <div style="border-bottom:1px solid #f1f5f9;padding-bottom:12px;">
               <p style="font-size:14px;font-weight:600;color:#374151;margin-bottom:4px;">Q: 入力したデータはサーバーに送信されますか？</p>
@@ -354,6 +368,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       '✨ 標準的な肌色に馴染む万能カラー提案',
       '✨ オークル系肌色に馴染みやすいカラーをセレクト'
     ];
+    const CATEGORY_NAMES = ['フレンチネイル','春色ネイル','アースカラー','アートネイル','シアーネイル'];
+
     function getResult(answers) {
       const scores = [0,0,0,0,0];
       const a = answers.map(x => x.idx);
@@ -373,10 +389,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if(a[4]===2) scores[3]+=1;
       if(a[4]===3) scores[3]+=2;
       const best = scores.indexOf(Math.max(...scores));
-      return RESULTS[best];
+      return { result: RESULTS[best], scores, best };
     }
-    let cur=0; const ans=[];
+
+    let cur=0; const ans=[]; let lastResult=null; let chartInstance=null;
+
     document.addEventListener('DOMContentLoaded',()=>{ document.getElementById('q-total').textContent=QUESTIONS.length; });
+
+    function saveHistory(result, answers) {
+      let history = JSON.parse(localStorage.getItem('nailAdvisorHistory') || '[]');
+      history.push({ timestamp: new Date().toISOString(), result: result.title, answers, scores: result.scores, best: result.best });
+      if(history.length > 20) history.shift();
+      localStorage.setItem('nailAdvisorHistory', JSON.stringify(history));
+    }
+
     function startQuiz(){
       cur=0; ans.length=0;
       document.getElementById('quiz-start').style.display='none';
@@ -394,25 +420,112 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function answer(idx){ ans.push({idx}); cur++; if(cur>=QUESTIONS.length) showResult(); else renderQ(); }
     function showResult(){
       document.getElementById('quiz-area').style.display='none';
-      const r=getResult(ans);
+      const resultData = getResult(ans);
+      const r = resultData.result;
+      lastResult = { title: r.title, desc: r.desc, colors: r.colors, answers: ans.map(a=>a.idx), scores: resultData.scores, categoryNames: CATEGORY_NAMES };
+
       document.getElementById('r-title').textContent=r.title;
       document.getElementById('r-desc').textContent=r.desc;
-      // カラースウォッチ表示
       document.getElementById('r-colors').innerHTML=r.colors.map(c=>`<span title="${c}" style="width:40px;height:40px;border-radius:50%;background:${c};border:2px solid #e5e7eb;display:inline-block;box-shadow:0 2px 6px rgba(0,0,0,0.12);"></span>`).join('');
-      // 肌色別パーソナライズコメント
+
       const skinIdx=ans[0]?.idx ?? 0;
       const skinEl=document.getElementById('r-skin');
       skinEl.textContent=SKIN_COMMENTS[skinIdx]||'';
       skinEl.style.display='block';
-      // SNSシェアボタン
+
       const shareText=encodeURIComponent('ネイルデザイン診断結果：'+r.title+'\n');
       const shareUrl=encodeURIComponent('https://appadaycreator.com/nail-design-advisor/');
       document.getElementById('r-share').innerHTML=
         `<a href="https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}" target="_blank" rel="noopener" aria-label="診断結果をXでシェア" style="background:#1DA1F2;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;min-height:44px;">𝕏 結果をシェア</a>`+
         `<a href="https://line.me/R/msg/text/?${shareText}${shareUrl}" target="_blank" rel="noopener" aria-label="診断結果をLINEでシェア" style="background:#00B900;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;min-height:44px;">LINE</a>`;
+
+      drawChart(resultData.scores);
+      saveHistory(resultData, ans);
+
       document.getElementById('result').classList.add('show');
-      // 結果へスクロール
       document.getElementById('result').scrollIntoView({behavior:'smooth',block:'start'});
+    }
+
+    function drawChart(scores) {
+      const ctx = document.getElementById('resultChart');
+      if(!ctx) return;
+
+      if(chartInstance) chartInstance.destroy();
+
+      const chartContainer = document.getElementById('chart-container');
+      chartContainer.style.display='block';
+
+      chartInstance = new Chart(ctx, {
+        type: 'radar',
+        data: {
+          labels: CATEGORY_NAMES,
+          datasets: [{
+            label: 'スタイル適合度',
+            data: scores,
+            backgroundColor: 'rgba(124, 58, 237, 0.2)',
+            borderColor: '#7c3aed',
+            borderWidth: 2,
+            pointBackgroundColor: '#7c3aed',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 4,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            r: {
+              beginAtZero: true,
+              max: 10,
+              ticks: { font: { size: 11 } },
+              grid: { color: 'rgba(0,0,0,0.05)' }
+            }
+          },
+          plugins: {
+            legend: { labels: { font: { size: 12 } } }
+          }
+        }
+      });
+    }
+
+    function printResult() {
+      if(!lastResult) return;
+      const printWindow = window.open('', '_blank');
+      const content = `
+<!DOCTYPE html>
+<html lang="ja">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ネイルデザイン診断結果</title>
+<style>body{font-family:'Noto Sans JP',sans-serif;max-width:800px;margin:0 auto;padding:20px;background:#fff;color:#333;}h1{color:#7c3aed;font-size:24px;margin-bottom:10px;}p{line-height:1.8;margin:10px 0;}strong{color:#7c3aed;}.colors{display:flex;gap:10px;margin:15px 0;}.colors span{width:50px;height:50px;border-radius:50%;border:2px solid #ddd;display:inline-block;}.footer{text-align:center;margin-top:30px;font-size:12px;color:#999;border-top:1px solid #eee;padding-top:15px;}</style>
+</head>
+<body>
+<h1>${lastResult.title}</h1>
+<p><strong>診断結果詳細：</strong></p>
+<p>${lastResult.desc}</p>
+<div class="colors">${lastResult.colors.map(c=>`<span style="background:${c}"></span>`).join('')}</div>
+<div class="footer"><p>ネイルデザイン選び診断<br><a href="https://appadaycreator.com/nail-design-advisor/">https://appadaycreator.com/nail-design-advisor/</a></p></div>
+</body></html>`;
+      printWindow.document.write(content);
+      printWindow.document.close();
+      setTimeout(()=>printWindow.print(), 250);
+    }
+
+    function copyResult() {
+      if(!lastResult) return;
+      const text = `${lastResult.title}\n\n${lastResult.desc}\n\nhttps://appadaycreator.com/nail-design-advisor/`;
+      navigator.clipboard.writeText(text).then(()=>{
+        alert('結果をコピーしました！');
+      }).catch(err=>{
+        console.error('コピー失敗:', err);
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        alert('結果をコピーしました！');
+      });
     }
     </script>
     <!-- r31-use-cases -->

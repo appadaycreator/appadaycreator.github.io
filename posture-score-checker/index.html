@@ -84,9 +84,11 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .tag { border-radius:12px; padding:3px 10px; font-size:12px; }
         .tag-warn { background:#fee2e2; color:#b91c1c; }
         .tag-good { background:#dcfce7; color:#166534; }
-        .q-option-btn { width:100%; padding:12px; margin-bottom:8px; border:2px solid #e5e7eb; border-radius:10px; font-size:14px; cursor:pointer; background:#fff; text-align:left; transition:.2s; }
+        .q-option-btn { width:100%; padding:12px; margin-bottom:8px; border:2px solid #e5e7eb; border-radius:10px; font-size:14px; cursor:pointer; background:#fff; text-align:left; transition:.2s; position:relative; }
         .q-option-btn:hover { border-color:#EA580C; background:#FFF7ED; }
         .q-option-btn:focus-visible { outline:3px solid #EA580C; outline-offset:2px; }
+        .q-option-btn.selected { background:#EA580C; color:#fff; border-color:#EA580C; font-weight:600; }
+        .q-option-btn.selected::after { content:'✓'; position:absolute; right:12px; top:50%; transform:translateY(-50%); font-weight:700; font-size:16px; }
         .score-priority { display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:12px; margin-right:6px; }
         .priority-high { background:#fecaca; color:#991b1b; }
         .priority-medium { background:#fcd34d; color:#854d0e; }
@@ -164,6 +166,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div id="q-options" class="space-y-2"></div>
         </div>
         <div class="result" id="result">
+          <!-- スティッキー アクションバー（モバイル最適化） -->
+          <div id="sticky-actions" style="position:sticky;top:0;z-index:100;background:white;border-bottom:1px solid #e2e8f0;padding:8px 16px;margin:-16px -16px 12px;box-shadow:0 2px 4px rgba(0,0,0,0.05);display:none;">
+            <button class="btn" style="background:#4f46e5;margin:0;font-size:13px;padding:8px 12px;min-height:40px;" onclick="startQuiz()">📊 別の条件で比較診断</button>
+          </div>
           <div class="card">
             <h3 id="r-title" style="font-size:18px;font-weight:700;margin-bottom:8px;color:#EA580C;"></h3>
             <p id="r-desc" style="color:#444;font-size:14px;line-height:1.7;"></p>
@@ -177,7 +183,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div id="r-exercises"></div>
             <div id="r-graphs" style="margin-top:20px;"></div>
             <div id="r-history" style="margin-top:20px;"></div>
-            <button class="btn" style="margin-top:16px;" onclick="location.reload()">もう一度診断</button>
+            <div style="display:flex;gap:8px;margin-top:16px;flex-direction:column">
+              <button class="btn" style="background:#4f46e5;margin:0;" onclick="startQuiz()">📊 別の条件で比較診断</button>
+              <button class="btn" style="margin:0;opacity:0.7;" onclick="location.reload()">🔄 すべてリセット</button>
+            </div>
           </div>
         </div>
 
@@ -342,51 +351,61 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     const QUESTIONS = [
       {
         text: '1. 座っているとき、背中が丸まっていることが多いですか？',
+        desc: '背中全体が丸い状態（猫背）で、肩が前に出ていないか確認してください。猫背は首・肩・腰に大きな負担をかけます。',
         options: ['ほとんどない', 'たまにある', 'よくある', 'ほぼいつも'],
         key: 'hunchback'
       },
       {
         text: '2. スマホを見るとき、首が前に大きく倒れていますか？',
+        desc: '首が前に出ると、わずかな角度でも首・肩に大きな負担がかかります。鏡で側面の姿勢を確認してみましょう。',
         options: ['ほとんどない', 'たまにある', 'よくある', 'ほぼいつも'],
         key: 'neckforward'
       },
       {
         text: '3. 長時間座ると、腰や背中が痛くなりますか？',
+        desc: '座位で長時間の痛みは、椅子の高さ・背もたれ・デスク配置が原因の場合が多いです。',
         options: ['ほとんどない', 'たまにある', 'よくある', 'ほぼいつも'],
         key: 'backpain'
       },
       {
         text: '4. 立ったとき、お腹が前に出て腰が反り気味ですか？',
+        desc: '腰が反っている（反り腰）と、腰部に過度な負担がかかります。脇を見たときに腰部に溝が深くないか確認してください。',
         options: ['ほとんどない', 'たまにある', 'よくある', 'ほぼいつも'],
         key: 'lordosis'
       },
       {
         text: '5. 肩が前に巻き込んでいる（巻き肩）と感じますか？',
+        desc: '両腕を自然に垂らしたとき、手のひらが後ろを向いているか確認してください。前を向いていれば巻き肩の可能性があります。',
         options: ['ほとんどない', 'たまにある', 'よくある', 'ほぼいつも'],
         key: 'roundshoulder'
       },
       {
         text: '6. デスクワーク・スマホ使用は1日何時間ですか？',
+        desc: '長時間の同じ姿勢は、首・肩・腰に蓄積的な負担をかけます。実際の使用時間を概算で選択してください。',
         options: ['2時間未満', '2〜4時間', '4〜6時間', '6時間以上'],
         key: 'desktime'
       },
       {
         text: '7. 週に1回以上、意識してストレッチや運動をしていますか？',
+        desc: '運動習慣は姿勢改善の最重要因です。軽いストレッチでも毎日の積み重ねが効果的です。',
         options: ['週3回以上', '週1〜2回', '月数回', 'ほとんどしない'],
         key: 'exercise'
       },
       {
         text: '8. 歩くとき、つま先が外側を向きやすいですか（外股歩き）？',
+        desc: 'つま先が外側を向く歩き方は、膝・腰・股関節に負担をかけます。鏡で歩く姿勢を確認してみましょう。',
         options: ['ほとんどない', 'たまにある', 'よくある', 'ほぼいつも'],
         key: 'toesout'
       },
       {
         text: '9. 足を組む・頬杖をつく癖がありますか？',
+        desc: '無意識の習慣（足を組む・頬杖・腰掛け方）が姿勢の乱れを加速させます。日常で意識できるかチェック。',
         options: ['ほとんどない', 'たまにある', 'よくある', 'ほぼいつも'],
         key: 'badhabit'
       },
       {
         text: '10. 枕の高さや寝姿勢について意識していますか？',
+        desc: '寝ている間の姿勢も姿勢習慣に大きく影響します。起床時に首・肩が痛くないか確認してみましょう。',
         options: ['よく意識している', 'たまに意識する', 'あまり意識しない', 'まったく意識しない'],
         key: 'sleep'
       },
@@ -395,9 +414,23 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     let currentQ = 0;
     let currentResult = null;
 
+    // アフィリエイト商品データセット（スコアに基づいた推薦）
+    const affiliateProducts = [
+      { score: [0, 50], name: 'ヨガスタジオLAVA', url: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ7+18PTPM+1O96+699KI', desc: '身体改善のプロに相談してみませんか？' },
+      { score: [41, 100], name: 'RIZAP GOLF', url: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ7+5UTRHM+CW6+BF23HE', desc: 'フォーム改善のプロフェッショナル' },
+      { score: [0, 100], name: 'ハピタス', url: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642', desc: 'ポイント還元で節約生活をサポート' }
+    ];
+
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('q-total').textContent = QUESTIONS.length;
     });
+
+    function getAffiliateRecommendations(score) {
+      return affiliateProducts
+        .filter(p => score >= p.score[0] && score <= p.score[1])
+        .slice(0, 2)
+        .map(p => ({ name: p.name, url: p.url, desc: p.desc }));
+    }
 
     function startQuiz() {
       currentQ = 0; Object.keys(scores).forEach(k => delete scores[k]);
@@ -411,16 +444,41 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const q = QUESTIONS[currentQ];
       document.getElementById('q-num').textContent = currentQ + 1;
       document.getElementById('q-bar').style.width = ((currentQ + 1) / QUESTIONS.length * 100) + '%';
-      document.getElementById('q-text').textContent = q.text;
+      document.getElementById('q-text').innerHTML = `${q.text} <button class="tooltip-btn" type="button" aria-label="質問の説明" title="${q.desc}" onclick="showTooltip(event, '${q.desc.replace(/'/g, '\\\'')}')" style="background:none;border:none;color:#EA580C;font-size:16px;font-weight:700;cursor:pointer;margin-left:6px;padding:0;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;">?</button>`;
       document.getElementById('q-options').innerHTML = q.options.map((opt, i) =>
         `<button class="q-option-btn" onclick="answer(${i})">${opt}</button>`).join('');
     }
 
+    function showTooltip(event, desc) {
+      event.preventDefault();
+      const existing = document.getElementById('tooltip-popup');
+      if (existing) existing.remove();
+
+      const tooltip = document.createElement('div');
+      tooltip.id = 'tooltip-popup';
+      tooltip.style.cssText = 'position:fixed;background:#FFF7ED;border:1.5px solid #fed7aa;border-radius:10px;padding:12px;font-size:13px;color:#333;max-width:280px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.15);';
+      tooltip.textContent = desc;
+
+      document.body.appendChild(tooltip);
+
+      const btn = event.target;
+      const rect = btn.getBoundingClientRect();
+      tooltip.style.top = (rect.bottom + 8) + 'px';
+      tooltip.style.left = (rect.left - 140 + rect.width / 2) + 'px';
+
+      setTimeout(() => tooltip.remove(), 5000);
+    }
+
     function answer(idx) {
       scores[QUESTIONS[currentQ].key] = (scores[QUESTIONS[currentQ].key] || 0) + idx;
-      currentQ++;
-      if (currentQ >= QUESTIONS.length) { showResult(); return; }
-      renderQuestion();
+      const btns = document.querySelectorAll('.q-option-btn');
+      btns.forEach(b => b.classList.remove('selected'));
+      btns[idx].classList.add('selected');
+      setTimeout(() => {
+        currentQ++;
+        if (currentQ >= QUESTIONS.length) { showResult(); return; }
+        renderQuestion();
+      }, 300);
     }
 
     function saveToStorage(result) {
@@ -461,13 +519,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     }
 
     function renderGraphs(result, history) {
-      let html = '<div style="font-weight:700;font-size:14px;color:#EA580C;margin-bottom:12px;">📊 スコア分析</div>';
+      let html = '<div style="font-weight:700;font-size:16px;color:#EA580C;margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid #fed7aa;">📊 スコア分析</div>';
 
       if (history.length > 1) {
-        html += '<div style="margin-bottom:16px;"><canvas id="scoreChart" width="400" height="200"></canvas></div>';
+        html += '<div style="margin-bottom:16px;"><div style="font-size:13px;font-weight:600;color:#555;margin-bottom:8px;text-align:center;">📈 スコア推移（過去5回）</div><canvas id="scoreChart" width="400" height="160" style="max-width:100%;"></canvas></div>';
       }
 
-      html += '<div style="margin-bottom:16px;"><canvas id="categoryChart" width="400" height="200"></canvas></div>';
+      html += '<div><div style="font-size:13px;font-weight:600;color:#555;margin-bottom:8px;text-align:center;">📊 カテゴリ別スコア</div><canvas id="categoryChart" width="400" height="160" style="max-width:100%;"></canvas></div>';
 
       document.getElementById('r-graphs').innerHTML = html;
 
@@ -490,16 +548,42 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             label: 'スコア推移',
             data: recent.map(r => r.score),
             borderColor: '#EA580C',
-            backgroundColor: '#EA580C30',
+            backgroundColor: '#EA580C22',
+            borderWidth: 2,
             fill: true,
-            tension: 0.4
+            tension: 0.4,
+            pointBackgroundColor: '#EA580C',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 4
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true, max: 100 } }
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#1f2937',
+              padding: 10,
+              cornerRadius: 8,
+              titleFont: { size: 13, weight: 'bold' },
+              bodyFont: { size: 12 },
+              callbacks: { afterLabel: function() { return '点'; } }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100,
+              grid: { color: '#f0f0f0', drawBorder: false },
+              ticks: { color: '#999', font: { size: 12 } }
+            },
+            x: {
+              grid: { display: false },
+              ticks: { color: '#999', font: { size: 12 } }
+            }
+          }
         }
       });
     }
@@ -522,14 +606,38 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           datasets: [{
             label: 'カテゴリ別スコア',
             data: categories.map(c => Math.max(0, c.score)),
-            backgroundColor: ['#16a34a', '#d97706', '#ea580c', '#3b82f6']
+            backgroundColor: ['#16a34a', '#d97706', '#ea580c', '#3b82f6'],
+            borderRadius: 6,
+            borderSkipped: false
           }]
         },
         options: {
+          indexAxis: 'y',
           responsive: true,
           maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true, max: 25 } }
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#1f2937',
+              padding: 10,
+              cornerRadius: 8,
+              titleFont: { size: 13, weight: 'bold' },
+              bodyFont: { size: 12 },
+              callbacks: { label: function(ctx) { return ctx.parsed.x + '点'; } }
+            }
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              max: 25,
+              grid: { color: '#f0f0f0', drawBorder: false },
+              ticks: { color: '#999', font: { size: 11 } }
+            },
+            y: {
+              grid: { display: false },
+              ticks: { color: '#555', font: { size: 12, weight: '600' } }
+            }
+          }
         }
       });
     }
@@ -630,11 +738,55 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
         <p style="text-align:center;font-size:12px;color:#888;margin-top:4px;">姿勢スコア（100点満点）</p>`;
 
+      // アフィリエイトCTA を結果表示後に追加
+      const recommendations = getAffiliateRecommendations(pct);
+      if (recommendations.length > 0) {
+        const affiliateCta = `
+          <div style="background:#FFF7ED;border:1.5px solid #fed7aa;border-radius:10px;padding:14px;margin-top:16px;">
+            <p style="font-size:13px;font-weight:600;color:#EA580C;margin:0 0 10px;text-align:center;">💡 あなたのスコアに合わせたおすすめサービス</p>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              ${recommendations.map(r => `
+                <a href="${r.url}" target="_blank" rel="nofollow noopener noreferrer" style="display:block;background:#EA580C;color:white;padding:10px 14px;border-radius:8px;font-size:13px;font-weight:600;text-align:center;text-decoration:none;transition:opacity 0.2s;"><span style="display:block;font-size:12px;opacity:0.9;">${r.desc}</span><strong>${r.name}</strong></a>
+              `).join('')}
+            </div>
+          </div>`;
+        document.getElementById('r-score-wrap').innerHTML += affiliateCta;
+      }
+
       document.getElementById('r-exercises').innerHTML =
         `<div style="font-weight:700;font-size:14px;color:#EA580C;margin-bottom:8px;">🏋️ おすすめ改善エクサイズ</div>` +
         exercises.map(e => `<div class="exercise-card"><h4>${e.name}</h4><p>${e.desc}</p></div>`).join('');
 
       const history = getHistory();
+
+      // 前回比較セクションを追加（2回目以降の診断）
+      if (history.length > 1) {
+        const prevScore = history[1].score;
+        const diff = pct - prevScore;
+        const diffSign = diff > 0 ? '↑ ' : diff < 0 ? '↓ ' : '→ ';
+        const diffColor = diff > 0 ? '#16a34a' : diff < 0 ? '#dc2626' : '#888';
+        const diffHtml = `
+          <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:14px;margin-top:14px;">
+            <p style="font-weight:700;font-size:13px;color:#374151;margin:0 0 8px;">📈 前回比較</p>
+            <div style="display:flex;align-items:center;gap:12px;font-size:14px;">
+              <div style="flex:1;text-align:center;">
+                <p style="color:#888;font-size:12px;margin:0 0 4px;">前回スコア</p>
+                <p style="font-weight:700;font-size:18px;color:#666;margin:0;">${prevScore}点</p>
+              </div>
+              <div style="color:#ccc;">→</div>
+              <div style="flex:1;text-align:center;">
+                <p style="color:#888;font-size:12px;margin:0 0 4px;">今回スコア</p>
+                <p style="font-weight:700;font-size:18px;color:#EA580C;margin:0;">${pct}点</p>
+              </div>
+              <div style="flex:1;text-align:center;">
+                <p style="color:#888;font-size:12px;margin:0 0 4px;">変化</p>
+                <p style="font-weight:700;font-size:18px;color:${diffColor};margin:0;">${diffSign}${Math.abs(diff)}点</p>
+              </div>
+            </div>
+          </div>`;
+        document.getElementById('r-score-wrap').innerHTML += diffHtml;
+      }
+
       renderGraphs(currentResult, history);
 
       document.getElementById('result').classList.add('show');

@@ -19,6 +19,7 @@
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8b3v");</script>
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
@@ -186,6 +187,19 @@
       <div style="background:#f0f9ff;padding:12px;border-radius:8px;">
         <div style="font-size:12px;color:#666;margin-bottom:4px;">✅ 合計所要時間</div>
         <div id="total-time" style="font-size:22px;font-weight:700;color:#2563EB;"></div>
+      </div>
+      <div id="charts-container" style="margin-top:16px;display:none;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+          <div style="background:white;padding:12px;border-radius:8px;border:1px solid #e2e8f0;">
+            <canvas id="timeRatioChart" height="200"></canvas>
+          </div>
+          <div style="background:white;padding:12px;border-radius:8px;border:1px solid #e2e8f0;">
+            <canvas id="stayTimeChart" height="200"></canvas>
+          </div>
+        </div>
+        <div style="background:white;padding:12px;border-radius:8px;border:1px solid #e2e8f0;">
+          <canvas id="progressChart" height="100"></canvas>
+        </div>
       </div>
       <button type="button" class="btn" style="margin-top:12px;background:#666;" onclick="clearResults()">修正する</button>
     </div>
@@ -454,6 +468,8 @@ function formatTime(minutes) {
   const m = minutes%60;
   return h>0 ? h+'時間'+m+'分' : m+'分';
 }
+let chartInstances = { timeRatio: null, stayTime: null, progress: null };
+
 function calculate() {
   if(SPOTS.length === 0) { showError('最低1つのスポットを追加してください'); return; }
 
@@ -489,10 +505,106 @@ function calculate() {
   document.getElementById('total-time').textContent = formatTime(totalTime) +
     (endTimeStr ? ' (終了: '+endTimeStr+')' : '');
   document.getElementById('result').classList.add('show');
+
+  // グラフ描画
+  renderCharts(totalStayTime, travelTime, totalTime, transport, travelCost);
+
   saveData();
+}
+
+function renderCharts(stayTime, travelTime, totalTime, transport, cost) {
+  const chartsContainer = document.getElementById('charts-container');
+  chartsContainer.style.display = 'block';
+
+  // グラフ1: 移動時間 vs 滞在時間の割合（円グラフ）
+  const ctx1 = document.getElementById('timeRatioChart').getContext('2d');
+  if(chartInstances.timeRatio) chartInstances.timeRatio.destroy();
+  chartInstances.timeRatio = new Chart(ctx1, {
+    type: 'doughnut',
+    data: {
+      labels: ['滞在時間', '移動時間'],
+      datasets: [{
+        data: [stayTime, travelTime],
+        backgroundColor: ['#2563EB', '#64748B'],
+        borderWidth: 2,
+        borderColor: '#fff'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 8 } },
+        tooltip: { callbacks: { label: (ctx) => formatTime(ctx.parsed) } }
+      }
+    }
+  });
+
+  // グラフ2: 各スポットの滞在時間（横棒グラフ）
+  const ctx2 = document.getElementById('stayTimeChart').getContext('2d');
+  if(chartInstances.stayTime) chartInstances.stayTime.destroy();
+  const spotNames = SPOTS.map(s => s.name.length>8 ? s.name.substring(0,8)+'...' : s.name);
+  const spotTimes = SPOTS.map(s => s.time);
+  chartInstances.stayTime = new Chart(ctx2, {
+    type: 'bar',
+    data: {
+      labels: spotNames,
+      datasets: [{
+        label: '滞在時間（分）',
+        data: spotTimes,
+        backgroundColor: '#10B981',
+        borderRadius: 4,
+        borderWidth: 0
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (ctx) => formatTime(ctx.parsed.x) } }
+      },
+      scales: {
+        x: { beginAtZero: true, ticks: { callback: (v) => v+'分' } }
+      }
+    }
+  });
+
+  // グラフ3: スケジュール進行状況（プログレスバー）
+  const ctx3 = document.getElementById('progressChart').getContext('2d');
+  if(chartInstances.progress) chartInstances.progress.destroy();
+  const stayPercentage = Math.round(stayTime/totalTime*100);
+  const travelPercentage = 100 - stayPercentage;
+  chartInstances.progress = new Chart(ctx3, {
+    type: 'bar',
+    data: {
+      labels: ['全体スケジュール'],
+      datasets: [
+        { label: '滞在時間', data: [stayPercentage], backgroundColor: '#2563EB', borderWidth: 0 },
+        { label: '移動時間', data: [travelPercentage], backgroundColor: '#64748B', borderWidth: 0 }
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 8 } },
+        tooltip: { callbacks: { label: (ctx) => ctx.label + ': ' + ctx.parsed.x + '%' } }
+      },
+      scales: {
+        x: { stacked: true, max: 100, ticks: { callback: (v) => v+'%' } }
+      }
+    }
+  });
 }
 function clearResults() {
   document.getElementById('result').classList.remove('show');
+  document.getElementById('charts-container').style.display = 'none';
+  if(chartInstances.timeRatio) { chartInstances.timeRatio.destroy(); chartInstances.timeRatio = null; }
+  if(chartInstances.stayTime) { chartInstances.stayTime.destroy(); chartInstances.stayTime = null; }
+  if(chartInstances.progress) { chartInstances.progress.destroy(); chartInstances.progress = null; }
 }
 
 function saveData() {

@@ -28,6 +28,7 @@
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
     window.onerror = function(msg, src, line, col, err) { console.error('Global error:', msg, src, line, col, err); return false; };
     window.addEventListener('unhandledrejection', function(e) { console.error('Unhandled rejection:', e.reason); });
@@ -213,7 +214,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div id="resultTypeDesc" class="text-sm text-gray-500"></div>
         </div>
 
-        <div id="scoreChart" class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4"></div>
+        <div style="position: relative; height: 300px; width: 100%;" class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+          <canvas id="scoreChart"></canvas>
+        </div>
 
         <div id="resultDetail" class="bg-purple-50 rounded-xl p-4 mb-4 text-sm text-gray-700 leading-relaxed"></div>
 
@@ -235,6 +238,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
           <h3 class="font-bold text-amber-700 mb-2">💡 スタイリングのコツ</h3>
           <div id="stylingTips" class="text-sm text-gray-700 grid gap-1"></div>
+        </div>
+
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+          <h3 class="font-bold text-blue-700 mb-2">📋 診断履歴</h3>
+          <div id="historyList" class="text-sm text-gray-700 space-y-1"></div>
         </div>
 
         <div class="grid grid-cols-3 gap-2 mb-2">
@@ -429,35 +437,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         natural: total > 0 ? Math.round(lastScores.natural / total * 100) : 0
       };
 
-      const scoreHtml = `
-        <div class="space-y-3">
-          <div class="flex items-center gap-3">
-            <span class="text-lg">💎</span>
-            <div class="flex-1">
-              <div class="text-xs font-bold text-purple-700 mb-1">ストレート: ${lastScores.straight}点</div>
-              <div class="bg-gray-200 rounded-full h-3"><div class="bg-purple-500 h-3 rounded-full" style="width:${pct.straight}%"></div></div>
-            </div>
-            <span class="text-sm font-bold text-gray-600 w-10 text-right">${pct.straight}%</span>
-          </div>
-          <div class="flex items-center gap-3">
-            <span class="text-lg">🌊</span>
-            <div class="flex-1">
-              <div class="text-xs font-bold text-pink-700 mb-1">ウェーブ: ${lastScores.wave}点</div>
-              <div class="bg-gray-200 rounded-full h-3"><div class="bg-pink-500 h-3 rounded-full" style="width:${pct.wave}%"></div></div>
-            </div>
-            <span class="text-sm font-bold text-gray-600 w-10 text-right">${pct.wave}%</span>
-          </div>
-          <div class="flex items-center gap-3">
-            <span class="text-lg">🌿</span>
-            <div class="flex-1">
-              <div class="text-xs font-bold text-amber-700 mb-1">ナチュラル: ${lastScores.natural}点</div>
-              <div class="bg-gray-200 rounded-full h-3"><div class="bg-amber-500 h-3 rounded-full" style="width:${pct.natural}%"></div></div>
-            </div>
-            <span class="text-sm font-bold text-gray-600 w-10 text-right">${pct.natural}%</span>
-          </div>
-        </div>
-      `;
-      document.getElementById('scoreChart').innerHTML = scoreHtml;
 
       document.getElementById('resultDetail').textContent = t.detail;
       document.getElementById('goodItems').innerHTML = t.good.map(i=>`<span class="item-tag bg-green-100 text-green-700">${i}</span>`).join('');
@@ -516,6 +495,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>`;
         document.getElementById('resultScreen').insertAdjacentHTML('beforeend', reviewsHtml);
       }
+
+      // 診断結果をローカルストレージに保存
+      saveDiagnosis(typeKey);
+
+      // Chart.js でグラフ描画
+      setTimeout(() => renderChart(), 100);
     }
 
     function restart() {
@@ -552,6 +537,119 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         console.error(e);
       });
     }
+
+    // 診断結果をローカルストレージに保存
+    function saveDiagnosis(typeKey) {
+      const history = JSON.parse(localStorage.getItem('diagnosisHistory') || '[]');
+      const timestamp = new Date().toLocaleString('ja-JP');
+      const record = {
+        date: timestamp,
+        typeKey: typeKey,
+        typeName: types[typeKey].name,
+        scores: lastScores,
+        answers: answers
+      };
+      history.unshift(record);
+      if(history.length > 10) history.pop();
+      localStorage.setItem('diagnosisHistory', JSON.stringify(history));
+      loadHistory();
+    }
+
+    // 履歴を読込・表示
+    function loadHistory() {
+      const history = JSON.parse(localStorage.getItem('diagnosisHistory') || '[]');
+      const historyList = document.getElementById('historyList');
+      if(!historyList) return;
+
+      if(history.length === 0) {
+        historyList.innerHTML = '<p class="text-gray-400 text-xs">診断履歴がまだありません</p>';
+        return;
+      }
+
+      let html = '<div class="space-y-2">';
+      history.forEach((record, idx) => {
+        const emoji = {straight: '💎', wave: '🌊', natural: '🌿', mixed: '✨'}[record.typeKey] || '❓';
+        html += `
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;font-size:12px;display:flex;justify-content:space-between;align-items:center;">
+            <div style="flex:1">
+              <span style="font-weight:bold;color:#1e293b;font-size:13px;">${emoji} ${record.typeName}</span>
+              <br><span style="color:#94a3b8;font-size:11px;">${record.date}</span>
+            </div>
+            <button onclick="restoreDiagnosis(${idx})" style="background:#7c3aed;color:white;border:none;border-radius:6px;padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;margin-left:8px;">復元</button>
+          </div>
+        `;
+      });
+      html += '</div>';
+      historyList.innerHTML = html;
+    }
+
+    // 履歴から復元
+    function restoreDiagnosis(idx) {
+      const history = JSON.parse(localStorage.getItem('diagnosisHistory') || '[]');
+      const record = history[idx];
+      if(!record) return;
+
+      answers = record.answers;
+      lastScores = record.scores;
+      document.getElementById('topScreen').classList.add('hidden');
+      document.getElementById('quizScreen').classList.add('hidden');
+      document.getElementById('resultScreen').classList.remove('hidden');
+      showResult();
+    }
+
+    // Chart.js でスコアをグラフ化
+    function renderChart() {
+      const canvasElement = document.getElementById('scoreChart');
+      if(!canvasElement || !window.Chart) return;
+
+      const total = lastScores.straight + lastScores.wave + lastScores.natural || 1;
+      const pct = {
+        straight: total > 0 ? Math.round(lastScores.straight / total * 100) : 0,
+        wave: total > 0 ? Math.round(lastScores.wave / total * 100) : 0,
+        natural: total > 0 ? Math.round(lastScores.natural / total * 100) : 0
+      };
+
+      // 既存のグラフがあれば破棄
+      if(window.scoreChartInstance) {
+        window.scoreChartInstance.destroy();
+      }
+
+      const ctx = canvasElement.getContext('2d');
+      window.scoreChartInstance = new Chart(ctx, {
+        type: 'radar',
+        data: {
+          labels: ['💎 ストレート', '🌊 ウェーブ', '🌿 ナチュラル'],
+          datasets: [{
+            label: 'スコア',
+            data: [lastScores.straight, lastScores.wave, lastScores.natural],
+            borderColor: '#7c3aed',
+            backgroundColor: 'rgba(124, 58, 237, 0.2)',
+            borderWidth: 2,
+            pointRadius: 5,
+            pointBackgroundColor: '#7c3aed',
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            r: {
+              max: 20,
+              ticks: { backdropColor: 'transparent' }
+            }
+          }
+        }
+      });
+    }
+
+    // ページロード時に履歴を読込
+    document.addEventListener('DOMContentLoaded', () => {
+      loadHistory();
+    });
   </script>
 <div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px auto;max-width:680px;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2><p style="font-size:12px;color:#6b7280;line-height:1.7;">入力された値を計算式やスコアリングロジックで処理し、あなたに合った結果を算出します。本ツールの結果はあくまで参考情報です。重要な判断の際は専門家にご相談ください。</p></div>
 <section style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 16px;margin-top:16px;max-width:720px;margin-left:auto;margin-right:auto;">

@@ -94,6 +94,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
             .result-value { font-size: 28px; }
             .bar-label { width: 56px; }
             .bar-val { width: 64px; font-size: 11px; }
+            [style*="display:flex"][style*="gap:8px"][style*="margin-top:16px"] { flex-direction: column; }
         }
         /* ─ ツールチップ ─ */
         .tooltip-icon { display: inline-block; width: 18px; height: 18px; margin-left: 6px; background: #6366f1; color: white; border-radius: 50%; text-align: center; line-height: 18px; font-size: 12px; font-weight: bold; cursor: help; position: relative; }
@@ -102,15 +103,19 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .tooltip-icon:hover .tooltip-text { display: block; }
         @media (max-width: 480px) { .tooltip-text { font-size: 11px; white-space: normal; max-width: 200px; } }
         /* ── サービス固有CSS ── */
-@media print{
-  header,footer,nav,button,.no-print,
-  [class*="share"],[class*="affiliate"],[id*="share"],
-  [id*="affiliate"],[id*="banner"],
-  script,noscript{display:none!important}
-  body{background:#fff!important;color:#000!important;font-size:12pt}
-  [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
-  a[href]::after{content:none!important}
-}
+        @keyframes slideUp {
+          from { bottom: -60px; opacity: 0; }
+          to { bottom: 20px; opacity: 1; }
+        }
+        @media print{
+          header,footer,nav,button,.no-print,
+          [class*="share"],[class*="affiliate"],[id*="share"],
+          [id*="affiliate"],[id*="banner"],
+          script,noscript{display:none!important}
+          body{background:#fff!important;color:#000!important;font-size:12pt}
+          [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
+          a[href]::after{content:none!important}
+        }
 
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
@@ -212,6 +217,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               </div>
             </div>
             <p id="detail" style="color:#666;font-size:12px;margin-top:10px;line-height:1.7;"></p>
+            <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
+              <button class="btn-sub" onclick="copyResultToClipboard()" aria-label="結果をクリップボードにコピー" style="flex:1;min-width:140px;">📋 結果をコピー</button>
+              <button class="btn-sub" onclick="downloadResultAsCSV()" aria-label="結果をCSVでダウンロード" style="flex:1;min-width:140px;">📥 CSVダウンロード</button>
+              <button class="btn-sub" onclick="window.print()" aria-label="計算結果を印刷" style="flex:1;min-width:140px;">🖨 印刷する</button>
+            </div>
+            <div id="copyToast" style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#4338ca;color:white;padding:12px 20px;border-radius:8px;font-size:14px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,0.2);z-index:1001;animation:slideUp .3s ease;">✓ コピーしました</div>
           </div>
         </div>
 
@@ -569,6 +580,90 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         const el = document.getElementById(k); if (el) d[k] = el.value;
       });
       try { localStorage.setItem('ncalc_v2', JSON.stringify(d)); } catch(e) {}
+    }
+
+    // 結果をクリップボードにコピー
+    function copyResultToClipboard() {
+      const income = document.getElementById('income')?.value || '';
+      const age = document.getElementById('age')?.value || '';
+      const facilityType = document.getElementById('facilityType')?.value || '';
+      const region = document.getElementById('region')?.value || '';
+      const months = document.getElementById('months')?.value || '';
+      const childOrder = document.getElementById('childOrder')?.value || '';
+      const output = document.getElementById('output')?.textContent || '';
+      const detail = document.getElementById('detail')?.textContent || '';
+
+      const text = `保育園・幼稚園費用計算 結果
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+【入力条件】
+世帯年収: ${income}万円
+子どもの年齢: ${age}歳
+施設種別: ${FACILITY_NAMES[facilityType] || '選択なし'}
+地域: ${REGION_NAMES[region] || '選択なし'}
+利用月数: ${months}ヶ月
+子どもの順番: ${['', '第1子', '第2子（保育料 半額）', '第3子以降（保育料 無料）'][childOrder] || '選択なし'}
+
+【計算結果】
+月額費用: ${output}
+
+【補足】
+${detail}
+
+計算日: ${new Date().toLocaleString('ja-JP')}`;
+
+      navigator.clipboard.writeText(text).then(() => {
+        const toast = document.getElementById('copyToast');
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 1500);
+      }).catch(err => alert('コピーに失敗しました'));
+    }
+
+    // 結果をCSVファイルでダウンロード
+    function downloadResultAsCSV() {
+      const income = document.getElementById('income')?.value || '';
+      const age = document.getElementById('age')?.value || '';
+      const facilityType = document.getElementById('facilityType')?.value || '';
+      const region = document.getElementById('region')?.value || '';
+      const months = document.getElementById('months')?.value || '';
+      const childOrder = document.getElementById('childOrder')?.value || '';
+      const output = document.getElementById('output')?.textContent || '';
+
+      // テーブル行を抽出
+      const tbody = document.getElementById('breakdownBody');
+      const rows = [];
+      rows.push(['計算条件', '']);
+      rows.push(['世帯年収(万円)', income]);
+      rows.push(['子どもの年齢(歳)', age]);
+      rows.push(['施設種別', FACILITY_NAMES[facilityType] || '']);
+      rows.push(['地域', REGION_NAMES[region] || '']);
+      rows.push(['利用月数(ヶ月)', months]);
+      rows.push(['子どもの順番', ['', '第1子', '第2子（保育料 半額）', '第3子以降（保育料 無料）'][childOrder] || '']);
+      rows.push(['', '']);
+      rows.push(['計算結果', '']);
+
+      if (tbody) {
+        tbody.querySelectorAll('tr').forEach(tr => {
+          const cells = tr.querySelectorAll('td');
+          if (cells.length >= 2) {
+            rows.push([cells[0].textContent.trim(), cells[1].textContent.trim()]);
+          }
+        });
+      }
+
+      // CSV形式に変換
+      const csv = rows.map(r => `"${r[0].replace(/"/g, '""')}","${r[1].replace(/"/g, '""')}"`).join('\n');
+      const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+      const blob = new Blob([bom, csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.href = url;
+      const now = new Date();
+      const dateStr = now.getFullYear() + '' + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
+      link.download = `nursery-calc-${dateStr}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     }
 
     document.addEventListener('DOMContentLoaded', () => {

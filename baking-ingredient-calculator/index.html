@@ -95,6 +95,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://appadaycreator.com/"},{"@type":"ListItem","position":2,"name":"計算機/お金","item":"https://appadaycreator.com/category/finance/"},{"@type":"ListItem","position":3,"name":"お菓子・パン材料計算ツール【無料】簡単・無料計算","item":"https://appadaycreator.com/baking-ingredient-calculator/"}]}</script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" integrity="sha384-T8wEhLAThv47YPVKW6W8PUkNsAJHGfz8TQYzQFHcHJr7wHUEJb0Q3c3TbvYS5sN+" crossorigin="anonymous"></script>
 </head>
 <body>
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -202,8 +203,25 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
                 <p style="font-size:14px;color:#555;margin:0;"><span id="scaling-ratio" style="font-size:20px;font-weight:700;color:#7c3aed;">-</span> 倍</p>
                 <p style="font-size:12px;color:#888;margin-top:4px;">各材料をこの倍率で計算してください</p>
               </div>
+              <!-- グラフ表示 -->
+              <div id="chart-container" style="margin-bottom:16px;display:none;">
+                <div style="margin-bottom:16px;">
+                  <p style="font-size:13px;font-weight:600;color:#555;margin-bottom:8px;">📈 スケーリング倍率</p>
+                  <canvas id="scaling-chart" style="max-height:200px;"></canvas>
+                </div>
+                <div>
+                  <p style="font-size:13px;font-weight:600;color:#555;margin-bottom:8px;">📊 材料別計算結果</p>
+                  <canvas id="ingredients-chart" style="max-height:250px;"></canvas>
+                </div>
+              </div>
               <div id="output" style="font-size:14px;color:#333;"></div>
               <p id="detail" style="color:#666;font-size:13px;margin-top:8px;"></p>
+              <!-- エクスポートボタン -->
+              <div id="export-buttons" style="display:none;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:12px;border-top:1px solid #e2e8f0;padding-top:12px;">
+                <button type="button" onclick="printResults()" aria-label="計算結果を印刷" style="background:#3b82f6;color:white;border:none;padding:10px 12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;text-align:center;line-height:1.3;">📄 印刷</button>
+                <button type="button" onclick="downloadCSV()" aria-label="計算結果をCSVダウンロード" style="background:#10b981;color:white;border:none;padding:10px 12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;text-align:center;line-height:1.3;">📥 CSV</button>
+                <button type="button" onclick="copyMarkdown()" aria-label="計算結果をテキストコピー" style="background:#8b5cf6;color:white;border:none;padding:10px 12px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;text-align:center;line-height:1.3;">📋 Copy</button>
+              </div>
             </div>
           </div>
         </div>
@@ -360,10 +378,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
 
 <script>
-    // P1・P2改善版: エラー表示・localStorage・コピー機能
+    // M4・M10統合版: グラフ化＆エクスポート機能
     const UNIT_HINTS = {
       小麦粉: 'g', 砂糖: 'g', バター: 'g', 牛乳: 'ml', 卵: 'g',
       ココア: 'g', ベーキングパウダー: 'g', 塩: 'g', 油: 'ml', 生クリーム: 'ml'
+    };
+
+    // 計算結果を保持（グラフ・エクスポート用）
+    let lastCalculationData = {
+      scalingRatio: 1,
+      originalPeople: 1,
+      targetPeople: 1,
+      ingredients: []
     };
 
     function showError(msg) {
@@ -376,58 +402,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     function hideError() {
       document.getElementById('error-display').style.display = 'none';
-    }
-
-    function formatNumber(n) {
-      const num = parseFloat(n);
-      if (isNaN(num)) return n;
-      const str = num.toFixed(2);
-      return str.replace(/\.00$/, '').replace(/\.0$/, '');
-    }
-
-    function saveToLocalStorage() {
-      const data = {
-        original: document.getElementById('original').value,
-        target: document.getElementById('target').value,
-        ingredients: []
-      };
-      document.querySelectorAll('.ingredient-row').forEach(row => {
-        data.ingredients.push({
-          name: row.querySelector('.ingredient-name').value,
-          amount: row.querySelector('.ingredient-amount').value,
-          unit: row.querySelector('.ingredient-unit').value
-        });
-      });
-      localStorage.setItem('bakingCalc_data', JSON.stringify(data));
-    }
-
-    function loadFromLocalStorage() {
-      const data = JSON.parse(localStorage.getItem('bakingCalc_data') || 'null');
-      if (!data) return;
-      document.getElementById('original').value = data.original || '';
-      document.getElementById('target').value = data.target || '';
-      const list = document.getElementById('ingredients-list');
-      const rows = list.querySelectorAll('.ingredient-row');
-      rows.forEach((row, idx) => {
-        if (idx === 0) {
-          row.querySelector('.ingredient-name').value = data.ingredients[0]?.name || '';
-          row.querySelector('.ingredient-amount').value = data.ingredients[0]?.amount || '';
-          row.querySelector('.ingredient-unit').value = data.ingredients[0]?.unit || 'g';
-        } else {
-          row.remove();
-        }
-      });
-      data.ingredients.forEach((ing, idx) => {
-        if (idx > 0) addIngredient();
-      });
-      const updatedRows = list.querySelectorAll('.ingredient-row');
-      updatedRows.forEach((row, idx) => {
-        if (idx >= 1 && data.ingredients[idx]) {
-          row.querySelector('.ingredient-name').value = data.ingredients[idx].name || '';
-          row.querySelector('.ingredient-amount').value = data.ingredients[idx].amount || '';
-          row.querySelector('.ingredient-unit').value = data.ingredients[idx].unit || 'g';
-        }
-      });
     }
 
     function addIngredient() {
@@ -459,7 +433,6 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const rows = document.querySelectorAll('.ingredient-row').length;
       if (rows > 1) {
         btn.closest('.ingredient-row').remove();
-        saveToLocalStorage();
       } else {
         showError('⚠️ 最低1行の材料は必要です');
       }
@@ -475,87 +448,247 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.querySelectorAll('.ingredient-amount').forEach(el => el.value = '');
       document.querySelectorAll('.ingredient-unit').forEach(el => el.value = 'g');
       document.getElementById('result').classList.remove('show');
-      document.getElementById('copy-btn').style.display = 'none';
+      document.getElementById('export-buttons').style.display = 'none';
+      document.getElementById('chart-container').style.display = 'none';
       hideError();
-      localStorage.removeItem('bakingCalc_data');
-    }
-
-    function copyResults() {
-      const ratio = document.getElementById('scaling-ratio').textContent;
-      const output = document.getElementById('output');
-      const ingredients = [];
-      output.querySelectorAll('div[style*="grid"]').forEach(div => {
-        ingredients.push(div.textContent);
-      });
-      const text = `スケーリング倍率: ${ratio}倍\n\n${ingredients.join('\n')}`;
-      navigator.clipboard.writeText(text).then(() => {
-        const btn = document.getElementById('copy-btn');
-        btn.textContent = '✓ コピーしました';
-        setTimeout(() => { btn.textContent = '✓ コピー'; }, 2000);
-      }).catch(err => {
-        showError('⚠️ コピーに失敗しました');
-      });
+      localStorage.removeItem('bakingData');
+      if (window.scalingChartInstance) window.scalingChartInstance.destroy();
+      if (window.ingredientsChartInstance) window.ingredientsChartInstance.destroy();
     }
 
     function calculate() {
       hideError();
-      const original = parseFloat(document.getElementById('original').value) || 0;
-      const target = parseFloat(document.getElementById('target').value) || 0;
+      const originalPeople = parseFloat(document.getElementById('original').value);
+      const targetPeople = parseFloat(document.getElementById('target').value);
 
-      if (original <= 0) {
-        showError('⚠️ 元のレシピ人数を入力してください（0より大きい値）');
-        return;
-      }
-      if (target <= 0) {
-        showError('⚠️ 作りたい人数を入力してください（0より大きい値）');
+      if (!originalPeople || !targetPeople || originalPeople <= 0 || targetPeople <= 0) {
+        showError('元のレシピ人数と作りたい人数は、1以上の数値で入力してください。');
         return;
       }
 
-      const ratio = (target / original).toFixed(2);
+      const scalingRatio = targetPeople / originalPeople;
+      const roundedRatio = Math.round(scalingRatio * 100) / 100;
+
+      // 材料リストを取得
       const ingredients = [];
       document.querySelectorAll('.ingredient-row').forEach(row => {
         const name = row.querySelector('.ingredient-name').value.trim();
-        const amount = parseFloat(row.querySelector('.ingredient-amount').value) || 0;
+        const amount = parseFloat(row.querySelector('.ingredient-amount').value);
         const unit = row.querySelector('.ingredient-unit').value;
-        if (name && amount > 0) {
-          const newAmount = (amount * ratio).toFixed(2);
-          ingredients.push({ name, amount: formatNumber(amount), unit, newAmount: formatNumber(newAmount) });
+        if (name && amount) {
+          const calculatedAmount = Math.round(amount * scalingRatio * 1000) / 1000;
+          ingredients.push({ name, originalAmount: amount, calculatedAmount, unit });
         }
       });
 
       if (ingredients.length === 0) {
-        showError('⚠️ 材料を1つ以上入力してください');
+        showError('材料を少なくとも1つ入力してください。');
         return;
       }
 
-      document.getElementById('scaling-ratio').textContent = ratio;
-      let resultHtml = '<div style="display:flex;flex-direction:column;gap:8px;">';
-      ingredients.forEach(ing => {
-        resultHtml += `<div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;padding:10px;background:#e0e7ff;border-radius:6px;">
-          <span style="font-weight:600;color:#333;">${ing.name}</span>
-          <span style="text-align:right;color:#7c3aed;font-weight:700;">${ing.amount}${ing.unit} → <strong>${ing.newAmount}${ing.unit}</strong></span>
-        </div>`;
-      });
-      resultHtml += '</div>';
-      document.getElementById('output').innerHTML = resultHtml;
-      document.getElementById('detail').textContent = `合計 ${ingredients.length} 個の材料をスケーリングしました`;
+      // 計算結果をグローバル変数に保存
+      lastCalculationData = {
+        scalingRatio: roundedRatio,
+        originalPeople,
+        targetPeople,
+        ingredients
+      };
+
+      // 画面に表示
+      document.getElementById('scaling-ratio').textContent = roundedRatio;
+      document.getElementById('output').innerHTML = ingredients
+        .map(ing => `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;">
+          <strong>${ing.name}</strong><br>
+          <span style="font-size:13px;color:#888;">${ing.originalAmount}${ing.unit} → <strong style="color:#7c3aed;font-size:15px;">${ing.calculatedAmount}${ing.unit}</strong></span>
+        </div>`)
+        .join('');
+
+      document.getElementById('detail').textContent = `計算した材料数: ${ingredients.length}件`;
       document.getElementById('result').classList.add('show');
-      document.getElementById('copy-btn').style.display = 'block';
-      saveToLocalStorage();
+      document.getElementById('export-buttons').style.display = 'grid';
+      document.getElementById('chart-container').style.display = 'block';
+
+      // localStorage に保存
+      localStorage.setItem('bakingData', JSON.stringify(lastCalculationData));
+
+      // グラフを描画
+      drawCharts();
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      loadFromLocalStorage();
-      ['original', 'target'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-          el.addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });
-          el.addEventListener('change', saveToLocalStorage);
+    // グラフ描画関数
+    function drawCharts() {
+      const data = lastCalculationData;
+
+      // スケーリング倍率グラフ（折れ線）
+      const scalingCtx = document.getElementById('scaling-chart').getContext('2d');
+      if (window.scalingChartInstance) window.scalingChartInstance.destroy();
+      window.scalingChartInstance = new Chart(scalingCtx, {
+        type: 'line',
+        data: {
+          labels: ['元の人数', '目標人数', 'スケーリング倍率'],
+          datasets: [{
+            label: '数値',
+            data: [data.originalPeople, data.targetPeople, null],
+            borderColor: '#7c3aed',
+            backgroundColor: 'rgba(124, 58, 237, 0.1)',
+            borderWidth: 3,
+            pointRadius: 6,
+            pointBackgroundColor: '#7c3aed',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: Math.max(data.originalPeople, data.targetPeople, 3)
+            }
+          }
         }
       });
-      document.querySelectorAll('.ingredient-name, .ingredient-amount, .ingredient-unit').forEach(el => {
-        el.addEventListener('change', saveToLocalStorage);
+
+      // 材料別計算結果グラフ（横棒）
+      const ingredientsCtx = document.getElementById('ingredients-chart').getContext('2d');
+      if (window.ingredientsChartInstance) window.ingredientsChartInstance.destroy();
+      window.ingredientsChartInstance = new Chart(ingredientsCtx, {
+        type: 'bar',
+        data: {
+          labels: data.ingredients.map(i => i.name),
+          datasets: [
+            {
+              label: '元の量',
+              data: data.ingredients.map(i => i.originalAmount),
+              backgroundColor: '#d1d5db',
+              borderRadius: 4
+            },
+            {
+              label: '計算後',
+              data: data.ingredients.map(i => i.calculatedAmount),
+              backgroundColor: '#7c3aed',
+              borderRadius: 4
+            }
+          ]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { position: 'top' }
+          },
+          scales: {
+            x: { beginAtZero: true }
+          }
+        }
       });
+    }
+
+    // 印刷機能
+    function printResults() {
+      window.print();
+    }
+
+    // CSV ダウンロード
+    function downloadCSV() {
+      const data = lastCalculationData;
+      const date = new Date().toISOString().slice(0, 10);
+      const filename = `baking-result-${date}.csv`;
+
+      let csv = 'お菓子・パン材料計算ツール 計算結果\n\n';
+      csv += `元のレシピ人数,${data.originalPeople}\n`;
+      csv += `作りたい人数,${data.targetPeople}\n`;
+      csv += `スケーリング係数,${data.scalingRatio}倍\n\n`;
+      csv += '材料名,元の量,単位,計算後の量\n';
+      data.ingredients.forEach(ing => {
+        csv += `${ing.name},${ing.originalAmount},${ing.unit},${ing.calculatedAmount}\n`;
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      link.click();
+    }
+
+    // Markdown 形式でコピー
+    function copyMarkdown() {
+      const data = lastCalculationData;
+      let markdown = `# お菓子・パン材料計算結果\n\n`;
+      markdown += `**元のレシピ人数**: ${data.originalPeople}人\n`;
+      markdown += `**作りたい人数**: ${data.targetPeople}人\n`;
+      markdown += `**スケーリング係数**: ${data.scalingRatio}倍\n\n`;
+      markdown += `## 材料別計算結果\n\n`;
+      markdown += `| 材料名 | 元の量 | 計算後 |\n`;
+      markdown += `|--------|--------|--------|\n`;
+      data.ingredients.forEach(ing => {
+        markdown += `| ${ing.name} | ${ing.originalAmount}${ing.unit} | ${ing.calculatedAmount}${ing.unit} |\n`;
+      });
+
+      navigator.clipboard.writeText(markdown).then(() => {
+        const btn = document.querySelector('[onclick="copyMarkdown()"]');
+        const originalText = btn.textContent;
+        btn.textContent = '✓ コピーしました';
+        setTimeout(() => { btn.textContent = originalText; }, 3000);
+      }).catch(e => showError('⚠️ コピーに失敗しました'));
+    }
+
+    // ページ読み込み時に localStorage から復元
+    window.addEventListener('DOMContentLoaded', function() {
+      const saved = localStorage.getItem('bakingData');
+      if (saved) {
+        lastCalculationData = JSON.parse(saved);
+        document.getElementById('original').value = lastCalculationData.originalPeople;
+        document.getElementById('target').value = lastCalculationData.targetPeople;
+
+        // 材料行を復元
+        const list = document.getElementById('ingredients-list');
+        list.querySelectorAll('.ingredient-row').forEach((row, idx) => {
+          if (idx > 0) row.remove();
+        });
+
+        lastCalculationData.ingredients.forEach((ing, idx) => {
+          if (idx > 0) addIngredient();
+        });
+
+        const rows = list.querySelectorAll('.ingredient-row');
+        lastCalculationData.ingredients.forEach((ing, idx) => {
+          if (rows[idx]) {
+            rows[idx].querySelector('.ingredient-name').value = ing.name;
+            rows[idx].querySelector('.ingredient-amount').value = ing.originalAmount;
+            rows[idx].querySelector('.ingredient-unit').value = ing.unit;
+          }
+        });
+
+        // 結果表示
+        document.getElementById('result').classList.add('show');
+        document.getElementById('export-buttons').style.display = 'grid';
+        document.getElementById('chart-container').style.display = 'block';
+        document.getElementById('scaling-ratio').textContent = lastCalculationData.scalingRatio;
+        document.getElementById('output').innerHTML = lastCalculationData.ingredients
+          .map(ing => `<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;">
+            <strong>${ing.name}</strong><br>
+            <span style="font-size:13px;color:#888;">${ing.originalAmount}${ing.unit} → <strong style="color:#7c3aed;font-size:15px;">${ing.calculatedAmount}${ing.unit}</strong></span>
+          </div>`)
+          .join('');
+        document.getElementById('detail').textContent = `計算した材料数: ${lastCalculationData.ingredients.length}件`;
+        drawCharts();
+      }
+
+      // Enter キーで計算実行
+      ['original', 'target'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });
+      });
+
+      // 材料行のユニット自動選択
       document.querySelectorAll('.ingredient-name').forEach(nameEl => {
         nameEl.addEventListener('blur', () => {
           const hint = UNIT_HINTS[nameEl.value.trim()];

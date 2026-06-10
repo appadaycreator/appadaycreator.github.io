@@ -25,8 +25,9 @@
     "url": "https://appadaycreator.com/world-geography-quiz/",
     "description": "世界の国名・首都・国旗・大陸を当てるクイズゲーム。196カ国対応、難易度3段階。",
     "applicationCategory": "GameApplication",
-    "operatingSystem": "Web"
-  }
+    "operatingSystem": "Web",
+  "image": "https://appadaycreator.com/world-geography-quiz/ogp.png"
+}
   </script>
   <!-- Google Tag Manager -->
   <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
@@ -38,6 +39,7 @@
   <!-- Google AdSense -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script>
     window.onerror = function(msg, src, line, col, err) {
       console.error('Global error:', msg, src, line, col, err);
@@ -63,6 +65,7 @@
 /* Phase 8: Mobile Optimization */
 input, select, textarea { font-size: 16px !important; }
 button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min-width: 48px; touch-action: manipulation; }
+.diff-btn, .reg-btn, .q-btn { min-height: 48px !important; }
 @media (max-width: 640px) {
   body { font-size: 16px; }
   .max-w-lg { padding-left: 1rem; padding-right: 1rem; }
@@ -302,6 +305,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
       </div>
       <div id="newHighScore" class="hidden text-center text-yellow-300 font-bold text-lg mb-4 animate-bounce">🎉 新ハイスコア達成！</div>
+      <!-- グラフセクション -->
+      <div class="grid grid-cols-2 gap-4 mb-4">
+        <div class="bg-white/10 rounded-xl p-4">
+          <canvas id="accuracyChart" style="max-width:100%;"></canvas>
+        </div>
+        <div class="bg-white/10 rounded-xl p-4">
+          <canvas id="typeChart" style="max-width:100%;"></canvas>
+        </div>
+      </div>
       <!-- 間違えた問題の振り返り -->
       <div id="wrongReviewSection" class="hidden mb-4">
         <button onclick="toggleWrongReview()" id="wrongReviewToggle" class="w-full bg-red-500/30 hover:bg-red-500/50 text-white font-bold py-2 rounded-xl transition text-sm flex justify-between items-center px-4" aria-label="間違えた問題を表示・非表示">
@@ -501,6 +513,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function startGame() {
       const pool = getCountries();
       if(pool.length < 4) { alert('国が少なすぎます。地域を広げてください。'); return; }
+      const enabledTypes = document.querySelectorAll('[id^=type-]:checked').length;
+      if(enabledTypes === 0) { alert('最低1つの問題タイプを選択してください'); return; }
       const types = getTypes();
       questions = [];
       wrongList = [];
@@ -639,6 +653,102 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       } else {
         wrongSection.classList.add('hidden');
       }
+      // グラフ描画（遅延実行でDOMレンダリング後に実行）
+      setTimeout(() => {
+        drawAccuracyChart(accuracy, correctCount, totalQ);
+        drawTypeChart();
+      }, 100);
+    }
+
+    function drawAccuracyChart(accuracy, correct, total) {
+      const ctx = document.getElementById('accuracyChart');
+      if(!ctx) return;
+      if(window.accuracyChartInstance) window.accuracyChartInstance.destroy();
+      window.accuracyChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: ['正解', '不正解'],
+          datasets: [{
+            data: [correct, total - correct],
+            backgroundColor: ['#22c55e', '#ef4444'],
+            borderColor: ['#16a34a', '#dc2626'],
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: {
+              labels: { color: '#e2e8f0', font: { size: 11 } }
+            },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => ctx.label + ': ' + ctx.parsed + '問'
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function drawTypeChart() {
+      // 問題タイプ別の集計
+      const typeStats = {};
+      questions.forEach((q, idx) => {
+        if(!typeStats[q.typeLabel]) typeStats[q.typeLabel] = {total: 0, correct: 0};
+        typeStats[q.typeLabel].total++;
+        if(idx < correctCount + wrongList.length) {
+          const isCorrect = !wrongList.some(w => w.question === q.question.replace('\n', ''));
+          if(!isCorrect && wrongList.some(w => w.question === q.question.replace('\n', ''))) {
+            // noop
+          } else if(idx < currentQ) {
+            typeStats[q.typeLabel].correct++;
+          }
+        }
+      });
+      // 正答数を計算
+      const typeLabels = Object.keys(typeStats);
+      const typeCorrect = typeLabels.map(label => {
+        const errors = wrongList.filter(w => w.type === label).length;
+        const questionsOfType = questions.filter(q => q.typeLabel === label).length;
+        return questionsOfType - errors;
+      });
+      const ctx = document.getElementById('typeChart');
+      if(!ctx) return;
+      if(window.typeChartInstance) window.typeChartInstance.destroy();
+      window.typeChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: typeLabels,
+          datasets: [{
+            label: '正解数',
+            data: typeCorrect,
+            backgroundColor: '#3b82f6',
+            borderColor: '#1e40af',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          indexAxis: 'y',
+          plugins: {
+            legend: {
+              labels: { color: '#e2e8f0', font: { size: 11 } }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { color: '#e2e8f0' },
+              grid: { color: 'rgba(255,255,255,0.1)' }
+            },
+            y: {
+              ticks: { color: '#e2e8f0' }
+            }
+          }
+        }
+      });
     }
 
     function restartGame() {

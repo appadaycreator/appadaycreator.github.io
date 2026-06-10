@@ -87,8 +87,26 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .action-item { display:flex; align-items:flex-start; gap:12px; padding:14px 0; border-bottom:1px solid #f1f5f9; font-size:14px; color:#374151; line-height:1.8; }
         .action-num { background:#16A34A; color:white; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0; margin-top:0px; }
         .start-badge { display:inline-flex; align-items:center; background:#dcfce7; color:#15803d; padding:4px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+        /* M6: 目標設定・達成度トラッキング用スタイル */
+        .modal-overlay { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center; }
+        .modal-overlay.show { display:flex; }
+        .modal-content { background:white; border-radius:16px; padding:24px; max-width:500px; width:90%; box-shadow:0 20px 60px rgba(0,0,0,0.15); }
+        .modal-content h3 { font-size:18px; font-weight:700; margin-bottom:16px; color:#1e293b; }
+        .modal-content input, .modal-content select { width:100%; padding:10px 14px; border:1.5px solid #e2e8f0; border-radius:8px; font-size:15px; margin-bottom:12px; font-family:inherit; min-height:44px; }
+        .modal-content input:focus, .modal-content select:focus { outline:none; border-color:#16A34A; box-shadow:0 0 0 3px #16A34A22; }
+        .modal-buttons { display:flex; gap:8px; }
+        .modal-buttons button { flex:1; padding:12px; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; min-height:44px; }
+        .btn-save-goal { background:#16A34A; color:white; }
+        .btn-skip-goal { background:#e2e8f0; color:#64748b; }
+        .goal-display { background:#f0fdf4; border:2px solid #16A34A; border-radius:12px; padding:14px; margin-bottom:16px; }
+        .goal-label { font-size:12px; color:#15803d; font-weight:600; margin-bottom:4px; }
+        .goal-text { font-size:14px; color:#1e293b; font-weight:500; margin-bottom:8px; }
+        .achievement-buttons { display:flex; gap:8px; flex-wrap:wrap; }
+        .achievement-buttons button { flex:1; min-width:100px; padding:8px 12px; border:2px solid #e2e8f0; background:white; border-radius:8px; font-size:12px; cursor:pointer; min-height:40px; transition:all .2s; }
+        .achievement-buttons button.selected { border-color:#16A34A; background:#f0fdf4; color:#16A34A; font-weight:600; }
+        .achievement-stat { background:#f8fafc; border-radius:8px; padding:12px; margin-top:12px; font-size:12px; color:#475569; }
 
-    
+
 @media print{
   header,footer,nav,button,.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
@@ -197,7 +215,47 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <p style="font-size:12px;font-weight:600;color:#888;margin-bottom:8px;">📣 結果をシェアする</p>
               <div id="r-share" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
             </div>
+            <!-- M6: 前回の目標表示・達成度チェック -->
+            <div id="prev-goal-section" style="display:none;margin-bottom:16px;">
+              <p style="font-size:12px;font-weight:600;color:#888;margin-bottom:8px;">🎯 前回の目標達成状況</p>
+              <div class="goal-display">
+                <div class="goal-label">前回の目標</div>
+                <div class="goal-text" id="prev-goal-text"></div>
+                <div style="margin-bottom:8px;">
+                  <p style="font-size:11px;color:#6b7280;margin-bottom:6px;">目標達成度は？</p>
+                  <div class="achievement-buttons">
+                    <button onclick="recordGoalAchievement('achieved')" data-value="achieved" style="border-color:#16A34A;color:#16A34A;">✅ 達成できた</button>
+                    <button onclick="recordGoalAchievement('partial')" data-value="partial" style="border-color:#f59e0b;color:#f59e0b;">⚠️ 部分的に達成</button>
+                    <button onclick="recordGoalAchievement('notachieved')" data-value="notachieved" style="border-color:#ef4444;color:#ef4444;">❌ 達成できなかった</button>
+                  </div>
+                </div>
+                <div class="achievement-stat" id="achievement-history-stat"></div>
+              </div>
+            </div>
+            <button class="btn" onclick="showGoalModal()" aria-label="次回の目標を設定する" style="background:#4f46e5;margin-bottom:8px;">🎯 次回の目標を設定する</button>
             <button class="btn" onclick="location.reload()" aria-label="もう一度診断する">もう一度診断する</button>
+          </div>
+        </div>
+        <!-- M6: 目標設定モーダル -->
+        <div id="goal-modal" class="modal-overlay">
+          <div class="modal-content">
+            <h3>🎯 次回までの目標を設定する</h3>
+            <p style="font-size:13px;color:#666;margin-bottom:12px;">今回の診断結果を踏まえて、改善したい点や次回までの目標を記入してください。</p>
+            <label style="margin-top:0;">目標内容</label>
+            <input type="text" id="goal-input" placeholder="例: 共働きの場合の保活スケジュールを調べる、見学予定を立てる..." maxlength="100" aria-label="目標内容を入力してください">
+            <div style="font-size:12px;color:#999;">
+              <span id="goal-char-count">0</span>/100文字
+            </div>
+            <label>目標の優先度（任意）</label>
+            <select id="goal-priority" aria-label="目標の優先度を選択してください">
+              <option value="high">🔴 高（重要で早く取り組みたい）</option>
+              <option value="medium" selected>🟡 中（次の1〜2週間で取り組む）</option>
+              <option value="low">🟢 低（参考程度に記録）</option>
+            </select>
+            <div class="modal-buttons">
+              <button class="btn-save-goal" onclick="saveGoal()">保存する</button>
+              <button class="btn-skip-goal" onclick="closeGoalModal()">スキップ</button>
+            </div>
           </div>
         </div>
 
@@ -461,6 +519,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('q-total').textContent=QUESTIONS.length;
       const last = getLastResult();
       if(last) document.getElementById('history-summary').style.display='block';
+      // P2: 文字数カウンター初期化
+      const goalInput = document.getElementById('goal-input');
+      if(goalInput) {
+        goalInput.addEventListener('input',()=>{
+          document.getElementById('goal-char-count').textContent = goalInput.value.length;
+        });
+      }
     });
     function startQuiz(){ cur=0;ans.length=0; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); renderQ(); }
     function renderQ(){
@@ -471,6 +536,95 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('q-options').innerHTML=q.opts.map((o,i)=>`<button class="quiz-opt" onclick="answer(${i})">${o}</button>`).join('');
     }
     function answer(idx){ ans.push({idx}); cur++; if(cur>=QUESTIONS.length) showResult(); else renderQ(); }
+    // M10: ユーティリティ関数
+    function copyResultToClipboard(text) {
+      try {
+        navigator.clipboard.writeText(text).then(() => {
+          alert('結果をコピーしました！');
+        }).catch(() => {
+          // フォールバック: 古いブラウザ対応
+          const textarea = document.createElement('textarea');
+          textarea.value = text;
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+          alert('結果をコピーしました！');
+        });
+      } catch (e) {
+        alert('コピーに失敗しました');
+      }
+    }
+    function downloadCSV(csvText) {
+      const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `kindergarten-diagnosis-${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+    // M6: 目標設定・達成度トラッキング関数
+    function showGoalModal(){
+      document.getElementById('goal-modal').classList.add('show');
+      document.getElementById('goal-input').focus();
+    }
+    function closeGoalModal(){
+      document.getElementById('goal-modal').classList.remove('show');
+      document.getElementById('goal-input').value='';
+      document.getElementById('goal-char-count').textContent='0';
+    }
+    function saveGoal(){
+      const goalText = document.getElementById('goal-input').value.trim();
+      if(!goalText) { alert('目標内容を入力してください'); return; }
+      const priority = document.getElementById('goal-priority').value;
+      const goalData = { text: goalText, priority, timestamp: Date.now() };
+      const lastResult = getLastResult();
+      if(lastResult) {
+        lastResult.goal = goalData;
+        const histories = JSON.parse(localStorage.getItem('kindergarten_histories') || '[]');
+        if(histories.length > 0) histories[histories.length - 1].goal = goalData;
+        localStorage.setItem('kindergarten_histories', JSON.stringify(histories));
+      }
+      alert('目標を保存しました！次の診断で達成度を確認しましょう。');
+      closeGoalModal();
+    }
+    function recordGoalAchievement(status){
+      const lastResult = getLastResult();
+      if(!lastResult || !lastResult.goal) return;
+      const histories = JSON.parse(localStorage.getItem('kindergarten_histories') || '[]');
+      if(histories.length > 0) {
+        const goalAchievements = JSON.parse(localStorage.getItem('kindergarten_goal_achievements') || '[]');
+        goalAchievements.push({ goalText: lastResult.goal.text, status, timestamp: Date.now() });
+        localStorage.setItem('kindergarten_goal_achievements', JSON.stringify(goalAchievements));
+        updateGoalAchievementUI();
+        alert(`目標の達成度を記録しました！`);
+      }
+    }
+    function loadPrevGoal(){
+      const lastResult = getLastResult();
+      if(!lastResult || !lastResult.goal) return;
+      document.getElementById('prev-goal-section').style.display='block';
+      document.getElementById('prev-goal-text').textContent = lastResult.goal.text;
+      const priority = {'high':'【高】','medium':'【中】','low':'【低】'}[lastResult.goal.priority] || '';
+      if(priority) document.getElementById('prev-goal-text').textContent = priority + ' ' + lastResult.goal.text;
+      updateGoalAchievementUI();
+    }
+    function updateGoalAchievementUI(){
+      const goalAchievements = JSON.parse(localStorage.getItem('kindergarten_goal_achievements') || '[]');
+      if(goalAchievements.length === 0) return;
+      const achieved = goalAchievements.filter(g => g.status==='achieved').length;
+      const partial = goalAchievements.filter(g => g.status==='partial').length;
+      const notAchieved = goalAchievements.filter(g => g.status==='notachieved').length;
+      const total = achieved + partial + notAchieved;
+      const rate = Math.round((achieved / total) * 100);
+      document.getElementById('achievement-history-stat').innerHTML = `
+        📊 過去の達成状況: 達成${achieved}回 / 部分的${partial}回 / 未達成${notAchieved}回<br>
+        <strong>達成率: ${rate}%</strong>
+      `;
+    }
     function showResult(){
       document.getElementById('quiz-area').style.display='none';
       const { result: r, scores } = getResult(ans);
@@ -526,8 +680,23 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('r-share').innerHTML =
         `<a href="${twitterUrl}" target="_blank" rel="noopener" style="background:#1DA1F2;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">𝕏 シェア</a>
          <a href="${lineUrl}" target="_blank" rel="noopener" style="background:#00B900;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;">LINE</a>`;
+      // M10: 印刷・エクスポート機能ボタン
+      const exportText = `【診断結果】${r.title}\n\n${r.desc}\n\n【スコア】\n${labels.map((lb, i) => `${lb}: ${scores[i]}pt`).join('\n')}\n\n【次にすべきこと】\n${r.actions.map((a, i) => `${i+1}. ${a}`).join('\n')}\n\n診断実施日: ${new Date().toLocaleDateString('ja-JP')}\nURL: ${shareUrl}`;
+      const csvExport = ['診断項目,スコア', ...labels.map((lb, i) => `"${lb}",${scores[i]}`)].join('\n');
+      const exportShareHtml = document.getElementById('r-share');
+      exportShareHtml.innerHTML += `
+        <button id="btn-print" style="background:#6b7280;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;border:none;cursor:pointer;transition:opacity .2s;">🖨️ 印刷</button>
+        <button id="btn-copy" style="background:#8b5cf6;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;border:none;cursor:pointer;transition:opacity .2s;">📋 コピー</button>
+        <button id="btn-csv" style="background:#10b981;color:white;padding:8px 16px;border-radius:8px;font-size:13px;text-decoration:none;font-weight:600;min-height:44px;display:inline-flex;align-items:center;border:none;cursor:pointer;transition:opacity .2s;">📊 CSV</button>
+      `;
+      // イベントリスナー設定
+      document.getElementById('btn-print').addEventListener('click', () => window.print());
+      document.getElementById('btn-copy').addEventListener('click', () => copyResultToClipboard(exportText));
+      document.getElementById('btn-csv').addEventListener('click', () => downloadCSV(csvExport));
       // localStorage に保存
       saveResultToHistory(r, scores);
+      // M6: 前回の目標を表示
+      loadPrevGoal();
       document.getElementById('history-summary').style.display='block';
       document.getElementById('result').classList.add('show');
       window.scrollTo({top: document.getElementById('result').offsetTop - 16, behavior:'smooth'});
