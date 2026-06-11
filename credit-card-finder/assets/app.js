@@ -42,15 +42,13 @@ const Loading = {
 const Resume = {
   banner: null,
   init(){
-    this.banner = document.getElementById('resume-banner');
+    this.banner = document.getElementById('ccf-resume-banner');
     if(!this.banner) return;
-    document.getElementById('rb-go')?.addEventListener('click', ()=>{
+    document.getElementById('ccf-resume-btn')?.addEventListener('click', ()=>{
       this.banner.style.display='none';
-      startApp();
     });
-    document.getElementById('rb-no')?.addEventListener('click', ()=>{
+    document.getElementById('ccf-discard-btn')?.addEventListener('click', ()=>{
       this.banner.style.display='none';
-      clearSaved();
     });
   },
   checkResume(){
@@ -58,6 +56,11 @@ const Resume = {
     if(!this.banner) return;
     if(saved && Object.keys(saved).length > 0){
       this.banner.style.display='flex';
+      const rbMeta = this.banner.querySelector('.rb-meta');
+      if(rbMeta){
+        const savedCount = Object.keys(saved).length;
+        rbMeta.textContent = `${savedCount}/${questions.length} 問回答済み`;
+      }
     } else {
       this.banner.style.display='none';
     }
@@ -206,6 +209,22 @@ function renderQuestion(idx){
 
   const subEl = document.getElementById('q-sub');
   if(subEl) subEl.textContent = q.sub||'';
+
+  // M8: ツールチップ設定
+  const tooltipText = document.getElementById('tooltip-text');
+  const tooltipIcon = document.getElementById('tooltip-icon');
+  if(tooltipText && q.tooltip){
+    tooltipText.textContent = q.tooltip;
+    if(tooltipIcon){
+      tooltipIcon.style.display = 'inline-block';
+      tooltipIcon.onmouseenter = () => tooltipText.style.display = 'block';
+      tooltipIcon.onmouseleave = () => tooltipText.style.display = 'none';
+      tooltipIcon.addEventListener('click', (e) => {
+        e.stopPropagation();
+        tooltipText.style.display = tooltipText.style.display === 'none' ? 'block' : 'none';
+      });
+    }
+  }
 
   const opts = document.getElementById('options');
   if(!opts) return;
@@ -563,6 +582,7 @@ function showHistoryModal(){
           <div class="hi-head"><span class="hi-date">${dateStr}</span><button class="hi-del" onclick="deleteHistoryEntry(${idx}); showHistoryModal()">削除</button></div>
           <div class="hi-card">${card?.name||'不明'}</div>
           <div class="hi-score">マッチ度 ${pct}%</div>
+          <button class="btn btn-secondary" onclick="restoreHistoryEntry(${idx})" style="width:100%;margin-top:0.75rem;font-size:0.9rem">この診断を再実行</button>
         </div>
       `;
     }).join('');
@@ -570,6 +590,16 @@ function showHistoryModal(){
   modal.classList.add('show');
   document.body.style.overflow = 'hidden';
 }
+function restoreHistoryEntry(idx){
+  const history = getHistory();
+  const entry = history[idx];
+  if(!entry || !entry.answers) return;
+  answers = entry.answers;
+  saveAnswers(answers);
+  closeHistoryModal();
+  currentStep = 0;
+  showQuiz();
+};
 function closeHistoryModal(){
   const modal = document.getElementById('history-modal');
   if(modal) modal.classList.remove('show');
@@ -795,6 +825,73 @@ function bindEvents(){
   document.getElementById('btn-copy-share')?.addEventListener('click', copyShareText);
   // others
   document.getElementById('btn-others')?.addEventListener('click', showOtherCards);
+}
+
+/* ===== M16: PWA インストール促進 ===== */
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e)=>{
+  e.preventDefault();
+  deferredPrompt = e;
+  const btn = document.getElementById('install-app-btn');
+  if(btn) btn.style.display = 'flex';
+});
+function promptInstall(){
+  if(!deferredPrompt) return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then((choice)=>{
+    if(choice.outcome === 'accepted'){
+      Toast.show('🎉 ホーム画面に追加されました！', 'ok');
+    }
+    deferredPrompt = null;
+  });
+}
+
+/* ===== M3: クイズ表示・再開・リセット機能 ===== */
+function showQuiz(){
+  document.getElementById('quiz').style.display = 'block';
+  document.getElementById('result').style.display = 'none';
+  renderQuestion(currentStep);
+  window.scrollTo({top: 0});
+}
+
+function restart(){
+  clearSaved();
+  answers = {};
+  currentStep = 0;
+  showQuiz();
+  Toast.show('診断をリセットしました', 'ok');
+}
+
+function startDiagnosis(resume){
+  const banner = document.getElementById('ccf-resume-banner');
+  if(banner) banner.style.display = 'none';
+
+  if(resume){
+    const saved = getSavedAnswers();
+    if(saved && Object.keys(saved).length > 0){
+      answers = saved;
+      currentStep = Math.min(Object.keys(saved).length, questions.length - 1);
+    } else {
+      answers = {};
+      currentStep = 0;
+    }
+  } else {
+    clearSaved();
+    answers = {};
+    currentStep = 0;
+  }
+
+  document.body.classList.add('app-mode');
+  showQuiz();
+}
+
+function resumeDiagnosis(){
+  const saved = getSavedAnswers();
+  if(saved && Object.keys(saved).length > 0){
+    startDiagnosis(true);
+  } else {
+    Toast.show('前回の診断データが見つかりません', 'err');
+  }
 }
 
 /* ===== DOMContentLoaded ===== */

@@ -507,6 +507,29 @@ export class CosmicTypingApp {
       this.elements.totalErrorsDisplay.textContent = results.totalErrors;
     }
 
+    // M4-P1: 自己ベスト記録の確認と前回比較
+    const prevBestWPM = parseFloat(localStorage.getItem('cosmicTyping_bestWPM') || '0');
+    const wpmDiffEl = document.getElementById('wpmDiff');
+    const bestBannerEl = document.getElementById('bestScoreBanner');
+
+    if (wpmDiffEl) {
+      if (prevBestWPM > 0) {
+        const diff = Math.round((results.wpm - prevBestWPM) * 10) / 10;
+        wpmDiffEl.textContent = diff >= 0 ? '▲ +' + diff + ' WPM' : '▼ ' + diff + ' WPM';
+        wpmDiffEl.style.color = diff >= 0 ? '#4ade80' : '#f87171';
+        wpmDiffEl.classList.remove('hidden');
+      } else {
+        wpmDiffEl.classList.add('hidden');
+      }
+    }
+
+    // 自己ベスト更新時にバナーを表示
+    if (results.wpm > prevBestWPM && bestBannerEl) {
+      bestBannerEl.classList.remove('hidden');
+    } else if (bestBannerEl) {
+      bestBannerEl.classList.add('hidden');
+    }
+
     // M4-P1: グラフを初期化・描画
     this._initResultCharts(results);
 
@@ -761,7 +784,7 @@ export class CosmicTypingApp {
       options: {
         indexAxis: 'y',
         responsive: true,
-        animation: { duration: 800 },
+        animation: { duration: 1000, easing: 'easeInOutQuart' },
         plugins: { legend: { display: false } },
         scales: {
           x: { max: 100, ticks: { color: '#9ca3af', font: { size: 10 } }, grid: { color: 'rgba(75,85,99,0.3)' } },
@@ -798,13 +821,28 @@ export class CosmicTypingApp {
       },
       options: {
         responsive: true,
-        animation: { duration: 800 },
+        animation: { duration: 1000, easing: 'easeInOutQuart' },
         plugins: {
           legend: { display: false },
           tooltip: { enabled: false }
-        }
+        },
+        cutout: '70%'
       }
     });
+
+    // 正確率テキストを表示（グラフの中央上部に追加）
+    const canvasParent = canvas.parentElement;
+    if (canvasParent) {
+      const label = canvasParent.querySelector('.accuracy-gauge-label');
+      if (label) {
+        label.textContent = `正確率 ${Math.round(accuracy)}%`;
+      } else {
+        const newLabel = document.createElement('div');
+        newLabel.className = 'accuracy-gauge-label';
+        newLabel.textContent = `正確率 ${Math.round(accuracy)}%`;
+        canvas.parentElement.appendChild(newLabel);
+      }
+    }
   }
 
   // M4-P1: タイムアタック結果用グラフ初期化

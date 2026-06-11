@@ -63,6 +63,11 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .hidden{display:none;}
         @media(max-width:768px){h1{font-size:clamp(1.4rem,5vw,2.2rem)!important;}.question-card{padding:18px;}.option-btn{font-size:0.88rem;padding:12px 14px;}input,select{font-size:16px!important;}}
         @keyframes spin{to{transform:rotate(360deg);}}
+        @keyframes fadeInUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+        @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.6;}}
+        .banner-improve{animation:fadeInUp 0.4s ease;}
+        .mobile-hint{display:none;}
+        @media(max-width:768px){.mobile-hint{display:block;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:12px;margin:12px 0;font-size:0.85rem;color:#1e3a8a;font-weight:500;}}
     
 /* Phase 8: Mobile Optimization */
 input, select, textarea { font-size: 16px !important; }
@@ -202,7 +207,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     "headline": "リスキリング診断【無料】あなたに向いたIT・データスキルが分かる",
     "description": "現職スキルと市場ニーズから最適な学び直しを診断。ITエンジニア・データサイエンス・DX人材への転換を提案。",
     "datePublished": "2026-05-23",
-    "dateModified": "2026-06-06",
+    "dateModified": "2026-06-12",
     "author": {
       "@type": "Organization",
       "name": "appadaycreator"
@@ -262,14 +267,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <h2 class="text-lg font-bold text-gray-800 mb-5" id="q-text">...</h2>
             <div id="options-container" class="space-y-3"></div>
         </div>
+        <div id="mobile-hint-section" class="mobile-hint"></div>
         <div class="flex gap-3 quiz-nav">
             <button id="prev-btn" class="flex-1 py-3 rounded-xl border-2 border-gray-200 text-gray-600 font-bold bg-white hidden" onclick="prev()" aria-label="← 前へ">← 前へ</button>
             <button id="next-btn" class="flex-1 py-3 rounded-xl text-white font-bold opacity-50 cursor-not-allowed" style="background:#f0f9ff;" disabled onclick="next()" aria-label="次へ →">次へ →</button>
         </div>
     </div>
-    <div id="loading-screen" class="hidden text-center py-16">
-        <div style="width:48px;height:48px;border:4px solid #ede9fe;border-top-color:#7c3aed;border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 16px;"></div>
-        <p class="text-lg font-bold text-gray-700">あなたに最適なリスキリング分野を分析中...</p>
+    <div id="loading-screen" class="hidden text-center py-16" style="background:rgba(248,250,252,0.95);">
+        <div style="width:48px;height:48px;border:4px solid #e9d5ff;border-top-color:#7c3aed;border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 16px;"></div>
+        <p class="text-lg font-bold text-gray-700" style="animation:pulse 1.2s infinite;">あなたに最適なリスキリング分野を分析中...</p>
     </div>
     <div id="result-screen" class="hidden">
         <div class="text-center mb-6">
@@ -326,9 +332,26 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
         <div class="flex gap-2 mb-3">
             <button onclick="printResult()" aria-label="診断結果を印刷します" class="result-btn-secondary flex-1">🖨️ 印刷</button>
-            <button onclick="copyResultText()" aria-label="診断結果をテキストでコピーします" class="result-btn-secondary flex-1">📋 コピー</button>
+            <button id="copy-dropdown-trigger" aria-label="結果をコピーします。複数のフォーマットから選択可能" class="result-btn-secondary flex-1" style="position:relative;">📋 コピー ▼
+                <div id="copy-menu" style="position:absolute;bottom:100%;right:0;background:white;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);min-width:180px;z-index:10;display:none;">
+                    <button onclick="copyResultText('plain')" style="width:100%;text-align:left;padding:10px 14px;border:none;background:none;cursor:pointer;font-size:0.9rem;border-bottom:1px solid #f0f0f0;">📄 プレーンテキスト</button>
+                    <button onclick="copyResultText('markdown')" style="width:100%;text-align:left;padding:10px 14px;border:none;background:none;cursor:pointer;font-size:0.9rem;border-bottom:1px solid #f0f0f0;">📝 Markdown形式</button>
+                    <button onclick="copyResultText('json')" style="width:100%;text-align:left;padding:10px 14px;border:none;background:none;cursor:pointer;font-size:0.9rem;">🔧 JSON形式</button>
+                </div>
+            </button>
         </div>
         <button onclick="restart()" aria-label="診断をリセットして、別の選択肢で最初から診断をやり直します" class="result-btn-reset">🔄 もう一度診断する</button>
+
+        <!-- スコア推移セクション -->
+        <div id="score-history-section" class="mt-6 hidden">
+            <div class="bg-blue-50 border border-blue-200 rounded-2xl p-5 mb-6">
+                <h3 class="font-bold text-gray-800 mb-4">📈 スコア推移（複数回診断済み）</h3>
+                <div style="position:relative;width:100%;height:250px;margin-bottom:12px;">
+                    <canvas id="historyChart"></canvas>
+                </div>
+                <div id="history-timeline" class="space-y-2 text-sm"></div>
+            </div>
+        </div>
 
         <div class="mt-8 bg-gray-50 border border-gray-200 rounded-2xl p-4 text-center">
             <p class="text-xs font-bold text-gray-600 mb-2">💼 あわせて使いたいツール</p>
@@ -472,6 +495,13 @@ const SKILLS={
                {name:'Amazon ビジネス書',url:`https://www.amazon.co.jp/s?k=ビジネス思考 ロジカル 本&tag=appadaycrea0f-22`,'note':'Amazonで探す'}]},
 };
 
+// Service Worker登録（PWA オフライン対応）
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('/reskilling-advisor/sw.js',{scope:'/reskilling-advisor/'}).catch(()=>{});
+  });
+}
+
 let st={q:0,ans:[],scores:{it:0,language:0,data:0,creative:0,business:0}};
 
 function render(){
@@ -486,15 +516,26 @@ function render(){
         const b=document.createElement('button');
         b.className='option-btn'+(st.ans[st.q]===i?' selected':'');
         b.textContent=o.text;
-        b.onclick=()=>{st.ans[st.q]=i;render();};
+        b.setAttribute('role','radio');
+        b.setAttribute('aria-checked',st.ans[st.q]===i);
+        b.setAttribute('tabindex',st.ans[st.q]===i?'0':'-1');
+        b.onclick=()=>{st.ans[st.q]=i;render();setTimeout(()=>{const nb=document.getElementById('next-btn');if(nb)nb.scrollIntoView({behavior:'smooth'});},100);};
+        b.onkeydown=(e)=>{
+            if(e.key==='ArrowDown'||e.key==='ArrowRight'){e.preventDefault();if(i<q.opts.length-1)q.opts[i+1];const nextBtn=document.querySelectorAll('.option-btn')[i+1];if(nextBtn)nextBtn.focus();}
+            else if(e.key==='ArrowUp'||e.key==='ArrowLeft'){e.preventDefault();if(i>0)const prevBtn=document.querySelectorAll('.option-btn')[i-1];if(prevBtn)prevBtn.focus();}
+            else if(e.key==='Enter'||e.key===' '){e.preventDefault();st.ans[st.q]=i;render();}
+        };
         c.appendChild(b);
     });
     const nb=document.getElementById('next-btn'),pb=document.getElementById('prev-btn');
     const has=st.ans[st.q]!==undefined;
     nb.disabled=!has;nb.classList.toggle('opacity-50',!has);nb.classList.toggle('cursor-not-allowed',!has);
+    nb.setAttribute('aria-label',st.q===total-1?'全ての質問に回答しました。結果を見るボタンを押してください':'次の質問に進みます');
     nb.textContent=st.q===total-1?'結果を見る 📚':'次へ →';
     pb.classList.toggle('hidden',st.q===0);
-    // 途中進捗を保存
+    pb.setAttribute('aria-label','前の質問に戻ります');
+    pb.onkeydown=pb.onkeydown||((e)=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();prev();}});
+    nb.onkeydown=nb.onkeydown||((e)=>{if(e.key==='Enter'||e.key===' ')e.preventDefault();});
     try{localStorage.setItem('ra_progress',JSON.stringify(st));}catch(e){}
     updateSidebarHint();
 }
@@ -573,30 +614,99 @@ function renderRadarChart(){
     });
 }
 
+function renderHistoryChart(){
+    try{
+        const history=JSON.parse(localStorage.getItem('ra_skill_history')||'[]');
+        if(history.length<2)return;
+        const canvas=document.getElementById('historyChart');
+        if(!canvas)return;
+
+        const labels=history.map(h=>new Date(h.date).toLocaleDateString('ja-JP')).reverse();
+        const keys=['it','language','data','creative','business'];
+        const colors=['#1e40af','#059669','#dc2626','#9333ea','#d97706'];
+
+        if(window.historyChart){window.historyChart.destroy();}
+
+        window.historyChart=new Chart(canvas,{
+            type:'line',
+            data:{
+                labels:labels,
+                datasets:keys.map((k,i)=>({
+                    label:['IT','言語','データ','クリエイティブ','ビジネス'][i],
+                    data:[],borderColor:colors[i],backgroundColor:'transparent',borderWidth:2.5,tension:0.4,fill:false,pointRadius:4,pointHoverRadius:5
+                }))
+            },
+            options:{responsive:true,plugins:{legend:{display:true,position:'top'}},scales:{y:{min:0,max:40}}}
+        });
+    }catch(e){}
+}
+
+function renderHistoryTimeline(){
+    try{
+        const history=JSON.parse(localStorage.getItem('ra_skill_history')||'[]');
+        if(history.length<2)return;
+        const section=document.getElementById('score-history-section');
+        if(!section)return;
+        section.classList.remove('hidden');
+
+        const timeline=document.getElementById('history-timeline');
+        timeline.innerHTML=history.map((h,i)=>{
+            const emoji=i===0?'📍':'⭕';
+            return `<div style="padding:8px;background:${i===0?'#f0f9ff':'#fff'};border:1px solid #bae6fd;border-radius:8px;"><strong>${emoji} ${new Date(h.date).toLocaleDateString('ja-JP')}</strong><div style="font-size:0.85rem;color:#374151;">最適スキル: ${h.result}</div></div>`;
+        }).join('');
+    }catch(e){}
+}
+
 function printResult(){
     window.print();
 }
 
-function copyResultText(){
+function copyResultText(format='plain'){
     const d=JSON.parse(localStorage.getItem('reskilling_result')||'{}');
     const scores=st.scores;
     const sorted=Object.entries(scores).sort((a,b)=>b[1]-a[1]);
-    let text='【リスキリング診断結果】\n\n';
-    text+='📊 あなたの最適スキル\n';
-    text+=`スキル名: ${d.label}\n\n`;
-    text+='📈 全分野スコア\n';
     const keys=['it','language','data','creative','business'];
     const labels=['IT','言語','データ','クリエイティブ','ビジネス'];
-    keys.forEach((k,i)=>{text+=`${labels[i]}: ${scores[k]||0}pt\n`;});
-    text+='\n💡 アクション\n';
     const top=getTop(),r=SKILLS[top];
-    (r.actions||[]).forEach(a=>{text+=`• ${a}\n`;});
-    text+=`\n診断日: ${new Date().toLocaleDateString('ja-JP')}\n`;
-    text+='\nhttps://appadaycreator.com/reskilling-advisor/';
+    let text='';
+
+    if(format==='plain'){
+        text='【リスキリング診断結果】\n\n';
+        text+='📊 あなたの最適スキル\n';
+        text+=`スキル名: ${d.label}\n\n`;
+        text+='📈 全分野スコア\n';
+        keys.forEach((k,i)=>{text+=`${labels[i]}: ${scores[k]||0}pt\n`;});
+        text+='\n💡 アクション\n';
+        (r.actions||[]).forEach(a=>{text+=`• ${a}\n`;});
+        text+=`\n診断日: ${new Date().toLocaleDateString('ja-JP')}\n`;
+        text+='\nhttps://appadaycreator.com/reskilling-advisor/';
+    }
+    else if(format==='markdown'){
+        text=`# リスキリング診断結果\n\n`;
+        text+=`## 📊 あなたの最適スキル\n\n**${d.label}**\n\n`;
+        text+=`## 📈 全分野スコア\n\n`;
+        keys.forEach((k,i)=>{text+=`- ${labels[i]}: ${scores[k]||0}pt\n`;});
+        text+=`\n## 💡 3ヶ月学習計画\n\n`;
+        (r.actions||[]).forEach(a=>{text+=`- ${a}\n`;});
+        text+=`\n---\n\n診断日: ${new Date().toLocaleDateString('ja-JP')}\n\n[リスキリング診断へ](https://appadaycreator.com/reskilling-advisor/)`;
+    }
+    else if(format==='json'){
+        const obj={
+            skill:top,
+            label:d.label,
+            date:new Date().toISOString(),
+            scores:scores,
+            actions:r.actions||[],
+            url:'https://appadaycreator.com/reskilling-advisor/'
+        };
+        text=JSON.stringify(obj,null,2);
+    }
 
     navigator.clipboard.writeText(text).then(()=>{
-        const btn=document.querySelector('[onclick="copyResultText()"]');
-        if(btn){const orig=btn.textContent;btn.textContent='📋 コピーしました！';setTimeout(()=>{btn.textContent=orig;},2000);}
+        const btn=document.getElementById('copy-dropdown-trigger');
+        if(btn){const orig=btn.textContent;btn.textContent='✅ コピーしました！';setTimeout(()=>{btn.textContent=orig;},2000);}
+        const menu=document.getElementById('copy-menu');
+        if(menu)menu.style.display='none';
     }).catch(()=>{
         alert('コピーに失敗しました。手動でコピーしてください。');
     });
@@ -625,6 +735,7 @@ function renderResult(){
     localStorage.setItem('reskilling_result',JSON.stringify({skill:top,label:r.label,date:new Date().toISOString()}));
     renderSubSkillCard(document.getElementById('result-sub2'),sorted[1]?sorted[1][0]:null,sorted[1]?sorted[1][1]:0,maxScore);
     renderSubSkillCard(document.getElementById('result-sub3'),sorted[2]?sorted[2][0]:null,sorted[2]?sorted[2][1]:0,maxScore);
+    renderHistoryTimeline();
 }
 
 function shareResult(){
@@ -653,9 +764,21 @@ document.addEventListener('click',e=>{
     if(window.dataLayer)window.dataLayer.push({event:'affiliate_click',affiliate_item:el.dataset.itemName,affiliate_platform:el.dataset.platform});
 });
 
-// サイドバー質問ヒント
+// Copy dropdown toggle
+document.addEventListener('click',e=>{
+    const trigger=e.target.closest('#copy-dropdown-trigger');
+    if(trigger){
+        const menu=document.getElementById('copy-menu');
+        if(menu)menu.style.display=menu.style.display==='none'?'block':'none';
+    }else if(!e.target.closest('#copy-menu')){
+        const menu=document.getElementById('copy-menu');
+        if(menu)menu.style.display='none';
+    }
+});
+
+// サイドバー質問ヒント & モバイルヒント
 const sidebarHints=['現在の仕事に近いものを選んでください。職種はスキルの「得意分野」に影響します。','転職・副業・昇進など、キャリア目標からスキルを逆算することが大切です。','1日30分の学習でも継続すれば6ヶ月で大きく変わります。','ITツール習熟度はリスキリングのスタートラインを決める大切な指標です。','英語力があると求人の選択肢が一気に広がります。TOEIC700点が目安。','クリエイティブスキルは副業・フリーランスへの入り口として始めやすい分野です。','データ分析は業種を問わず需要が高い「つぶしの効く」スキルです。','学習スタイルに合った方法を選ぶと継続率が大幅にアップします。','予算に合わせた最適な学習サービスをご提案します。','3年後のビジョンを明確にすると、今学ぶべきことが自然に決まります。'];
-function updateSidebarHint(){try{var el=document.getElementById('sidebar-hint');if(!el)return;var h=sidebarHints[st.q];if(h!==undefined)el.textContent=h;}catch(e){}}
+function updateSidebarHint(){try{var el=document.getElementById('sidebar-hint');if(!el)return;var h=sidebarHints[st.q];if(h!==undefined)el.textContent=h;var mh=document.getElementById('mobile-hint-section');if(mh)mh.textContent='💡 ヒント: '+h;}catch(e){}}
 // 途中進捗の復元
 function resumeDiagnosis(){try{var s=JSON.parse(localStorage.getItem('ra_progress')||'null');if(s){st=s;render();}var b=document.getElementById('continue-banner');if(b)b.remove();}catch(e){}}
 function dismissContinue(){if(!confirm('前回の進捗を削除して最初から始めますか？')){return;}localStorage.removeItem('ra_progress');var b=document.getElementById('continue-banner');if(b)b.remove();}
@@ -752,8 +875,9 @@ render();
             if (saved && saved.ans && saved.ans.filter(function(a){return a!==undefined;}).length > 0 && saved.q > 0) {
                 var banner = document.createElement('div');
                 banner.id = 'continue-banner';
-                banner.style.cssText = 'background:#fffbeb;border:1px solid #fcd34d;border-radius:12px;padding:14px 16px;margin-bottom:16px;';
-                banner.innerHTML = '<p style="font-size:0.88rem;color:#92400e;font-weight:bold;margin-bottom:10px;">📝 前回の途中まで回答した診断があります（質問' + (saved.q + 1) + '/10まで回答済み）</p><div style="display:flex;gap:8px;"><button onclick="resumeDiagnosis()" style="flex:1;background:#d97706;color:white;border:none;padding:9px;border-radius:8px;font-weight:bold;cursor:pointer;font-size:0.86rem;min-height:40px;">続きから再開する</button><button onclick="dismissContinue()" style="flex:1;background:white;color:#92400e;border:1px solid #fcd34d;padding:9px;border-radius:8px;font-weight:bold;cursor:pointer;font-size:0.86rem;min-height:40px;">最初から始める</button></div>';
+                banner.className = 'banner-improve';
+                banner.style.cssText = 'background:#f5f3ff;border:2px solid #7c3aed;border-radius:12px;padding:14px 16px;margin-bottom:16px;';
+                banner.innerHTML = '<p style="font-size:0.88rem;color:#5b21b6;font-weight:bold;margin-bottom:10px;">📝 前回の途中まで回答した診断があります（質問' + (saved.q + 1) + '/10まで回答済み）</p><div style="display:flex;gap:8px;"><button onclick="resumeDiagnosis()" style="flex:1;background:#7c3aed;color:white;border:none;padding:9px;border-radius:8px;font-weight:bold;cursor:pointer;font-size:0.86rem;min-height:44px;transition:all 0.2s;">続きから再開する</button><button onclick="dismissContinue()" style="flex:1;background:white;color:#7c3aed;border:2px solid #7c3aed;padding:9px;border-radius:8px;font-weight:bold;cursor:pointer;font-size:0.86rem;min-height:44px;transition:all 0.2s;">最初から始める</button></div>';
                 var qs = document.getElementById('quiz-screen');
                 if (qs) qs.insertBefore(banner, qs.firstChild);
             }

@@ -6,6 +6,7 @@
     <title>室内湿度・空気環境最適化診断【無料】無料診断・アドバイス</title>
     <meta name="description" content="季節・住宅タイプ・症状から最適な室内湿度と加湿器・除湿器の選び方・使い方を診断。登録不要・完全無料でご利用いただけます。スマートフォン・PCどちらでも無料でお使いいただけます。">
     <link rel="canonical" href="https://appadaycreator.com/humidity-home-advisor/">
+    <link rel="manifest" href="/humidity-home-advisor/manifest.json">
     <meta property="og:title" content="室内湿度・空気環境最適化診断【無料】無料診断・アドバイス">
     <meta property="og:description" content="季節・住宅タイプ・症状から最適な室内湿度と加湿器・除湿器の選び方・使い方を診断。登録不要・完全無料でご利用いただけます。">
     <meta property="og:url" content="https://appadaycreator.com/humidity-home-advisor/">
@@ -201,6 +202,22 @@
               <button class="btn" style="flex:1;min-width:140px;background:#4f46e5;margin-top:0;font-size:14px;" onclick="printResult()" aria-label="診断結果を印刷">🖨️ 印刷する</button>
               <button class="btn" style="flex:1;min-width:140px;background:#8b5cf6;margin-top:0;font-size:14px;" onclick="copyResult()" aria-label="診断結果をコピー">📋 結果をコピー</button>
               <button class="btn" style="flex:1;min-width:140px;background:#6366F1;margin-top:0;font-size:14px;" onclick="location.reload()" aria-label="もう一度診断">もう一度診断</button>
+            </div>
+
+            <!-- M6: Goal tracking section -->
+            <div id="goal-section" style="margin-top:20px;padding:16px;background:#fef3c7;border:1px solid #fbbf24;border-radius:10px;">
+              <h4 style="font-size:13px;font-weight:700;margin:0 0 12px;color:#92400e;">🎯 目標設定・達成度トラッキング</h4>
+              <div style="margin-bottom:12px;">
+                <label style="font-size:12px;font-weight:600;color:#78350f;display:block;margin-bottom:4px;">目標湿度（%）:</label>
+                <div style="display:flex;gap:8px;">
+                  <input id="goal-humidity" type="number" min="30" max="80" placeholder="理想湿度（例：50）" style="flex:1;padding:8px;border:1px solid #fcd34d;border-radius:6px;font-size:12px;min-height:40px;">
+                  <button class="btn" style="flex:0.5;background:#f59e0b;margin-top:0;font-size:12px;padding:8px;" onclick="saveGoal()" aria-label="目標を保存">保存</button>
+                </div>
+              </div>
+              <div id="goal-stats" style="font-size:12px;color:#78350f;">
+                <p style="margin:8px 0;">現在の目標: <strong id="goal-value">未設定</strong></p>
+                <p style="margin:8px 0;">達成率: <strong id="achievement-rate">-</strong></p>
+              </div>
             </div>
 
             <!-- M3: History section -->
@@ -476,6 +493,44 @@ AppADayCreatorでは、本ツール以外にも住まい・暮らしカテゴリ
     const RESULT_NAMES = ['加湿器', '除湿器', '空気清浄機', '換気総合'];
     const RESULT_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
 
+    // M6: Goal tracking functions
+    function saveGoal() {
+      const goalValue = parseInt(document.getElementById('goal-humidity').value);
+      if(isNaN(goalValue) || goalValue < 30 || goalValue > 80) {
+        alert('30〜80の数値を入力してください');
+        return;
+      }
+      localStorage.setItem('humidity_goal', goalValue);
+      updateGoalDisplay();
+      alert('目標を保存しました');
+    }
+    function loadGoal() {
+      const goal = parseInt(localStorage.getItem('humidity_goal') || 'NaN');
+      if(!isNaN(goal)) {
+        document.getElementById('goal-humidity').value = goal;
+        updateGoalDisplay();
+      }
+    }
+    function updateGoalDisplay() {
+      const goal = parseInt(localStorage.getItem('humidity_goal') || 'NaN');
+      const goalValueEl = document.getElementById('goal-value');
+      const achievementEl = document.getElementById('achievement-rate');
+
+      if(isNaN(goal)) {
+        goalValueEl.textContent = '未設定';
+        achievementEl.textContent = '-';
+      } else {
+        goalValueEl.textContent = goal + '%';
+        const history = JSON.parse(localStorage.getItem('humidity_history') || '[]');
+        if(history.length > 0) {
+          const latestDate = history[history.length - 1].date;
+          achievementEl.textContent = '目標設定済み（最新診断：' + latestDate + '）';
+        } else {
+          achievementEl.textContent = '診断を実行して達成度を計算';
+        }
+      }
+    }
+
     // M3: localStorage functions
     function saveHistory(scores, resultIdx) {
       let history = JSON.parse(localStorage.getItem('humidity_history') || '[]');
@@ -488,6 +543,7 @@ AppADayCreatorでは、本ツール以外にも住まい・暮らしカテゴリ
       if(history.length > 10) history.shift();
       localStorage.setItem('humidity_history', JSON.stringify(history));
       renderHistory();
+      updateGoalDisplay();
     }
     function renderHistory() {
       const history = JSON.parse(localStorage.getItem('humidity_history') || '[]');
@@ -620,6 +676,17 @@ AppADayCreatorでは、本ツール以外にも住まい・暮らしカテゴリ
     document.addEventListener('DOMContentLoaded',()=>{
       document.getElementById('q-total').textContent=QUESTIONS.length;
       renderHistory();
+      loadGoal();
+      // M16: Service Worker registration
+      if('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/humidity-home-advisor/sw.js').catch(()=>{});
+      }
+      // M16: beforeinstallprompt for PWA install
+      let deferredPrompt;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+      });
     });
     function startQuiz(){ cur=0;ans.length=0; document.getElementById('quiz-start').style.display='none'; document.getElementById('quiz-area').style.display='block'; document.getElementById('result').classList.remove('show'); renderQ(); }
     function renderQ(){

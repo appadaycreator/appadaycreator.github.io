@@ -16,6 +16,7 @@
     <link rel="canonical" href="https://appadaycreator.com/birth-flower-finder/">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌸</text></svg>">
     <meta name="theme-color" content="#6366F1">
+    <link rel="manifest" href="/birth-flower-finder/manifest.json">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
@@ -99,9 +100,13 @@
         <script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
 
         <div class="card" id="quiz-start">
-          <div id="saved-results-hint" style="background:#e0e7ff;border-left:4px solid #6366f1;border-radius:8px;padding:12px;margin-bottom:16px;display:none;">
+          <div id="saved-results-hint" style="background:#e0e7ff;border-left:4px solid #6366f1;border-radius:8px;padding:12px;margin-bottom:12px;display:none;">
             <p style="font-size:13px;font-weight:600;color:#4f46e5;margin:0 0 6px;">💾 前回の診断結果が保存されています</p>
-            <button onclick="showSavedResults()" style="width:100%;padding:10px;background:#6366f1;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;">前回の診断結果を見る</button>
+            <button onclick="showSavedResults()" style="width:100%;padding:10px;background:#6366f1;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;">前回の診断結果を見る</button>
+          </div>
+          <div id="goal-hint" style="background:#f0fdf4;border-left:4px solid #10b981;border-radius:8px;padding:12px;margin-bottom:12px;display:none;">
+            <p style="font-size:13px;font-weight:600;color:#059669;margin:0 0 6px;">🎯 診断目標で継続利用を促進</p>
+            <button onclick="openGoalTracker()" style="width:100%;padding:10px;background:#10b981;color:white;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;">目標を設定・追跡</button>
           </div>
           <div id="tool-desc-box" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:1.5rem 1.75rem;margin:1.5rem 0">
   <p style="color:#374151;margin:0 0 .75rem;line-height:1.75;font-size:.92rem">誕生花・誕生石診断【無料】無料診断・アドバイスは、AppADayCreatorが提供する完全無料の診断・アドバイスツールです。登録・ログイン不要で、すぐにご利用いただけます。</p>
@@ -491,6 +496,8 @@ AppADayCreatorでは、本ツール以外にも育児・子育てカテゴリの
       document.getElementById('q-total').textContent=QUESTIONS.length;
       const saved=loadSavedResults();
       if(saved.length>0) document.getElementById('saved-results-hint').style.display='block';
+      initGoalTracking();
+      registerServiceWorker();
     });
     function showSavedResults(){
       const saved=loadSavedResults();
@@ -614,6 +621,147 @@ AppADayCreatorでは、本ツール以外にも育児・子育てカテゴリの
     function saveResult(title,desc){alert('✅ 結果を保存しました！\n\n'+title+'\n\n次回訪問時に「前回の結果」から確認できます。');saveResultToLocalStorage({title,desc,timestamp:new Date().toLocaleString('ja-JP')});}
     function saveResultToLocalStorage(result){const results=JSON.parse(localStorage.getItem('birthFlowerResults')||'[]');results.unshift(result);localStorage.setItem('birthFlowerResults',JSON.stringify(results.slice(0,5)));}
     function loadSavedResults(){const results=JSON.parse(localStorage.getItem('birthFlowerResults')||'[]');return results;}
+
+    // M6: 目標設定・達成度トラッキング機能
+    function initGoalTracking(){
+      const saved=loadSavedResults();
+      const goals=loadGoals();
+      if(saved.length>0&&goals.length===0){
+        document.getElementById('goal-hint').style.display='block';
+      }
+    }
+    function loadGoals(){return JSON.parse(localStorage.getItem('birthFlowerGoals')||'[]');}
+    function saveGoals(goals){localStorage.setItem('birthFlowerGoals',JSON.stringify(goals));}
+    function openGoalTracker(){
+      const goals=loadGoals();
+      const saved=loadSavedResults();
+      let html=`<div style="background:#f0f9ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px;margin:16px 0;">
+        <h3 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#1e40af;">🎯 目標設定・達成度トラッキング</h3>
+        <div style="background:white;border:1px solid #bfdbfe;border-radius:8px;padding:12px;margin-bottom:12px;">
+          <p style="font-size:13px;color:#475569;margin:0 0 12px;">診断目標を設定して、達成状況を追跡しましょう。</p>
+          <div style="display:grid;gap:8px;">
+            <label style="font-size:12px;color:#374151;">目標タイプ:</label>
+            <select id="goal-type" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;">
+              <option value="count">診断回数</option>
+              <option value="flowers">異なる花を発見</option>
+              <option value="collection">花の種類コレクション</option>
+            </select>
+            <label style="font-size:12px;color:#374151;">目標値:</label>
+            <input type="number" id="goal-value" min="1" max="100" placeholder="例: 10回" style="padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;"/>
+            <button onclick="createGoal()" style="background:#0ea5e9;color:white;padding:10px;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;">🎯 目標を設定</button>
+          </div>
+        </div>`;
+      if(goals.length>0){
+        html+=`<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px;">
+          <h4 style="font-size:13px;font-weight:700;color:#059669;margin:0 0 12px;">進捗状況</h4>`;
+        goals.forEach((g,i)=>{
+          const type_label={'count':'診断回数','flowers':'異なる花','collection':'コレクション'}[g.type]||g.type;
+          const progress=getGoalProgress(g);
+          const percent=Math.round((progress.current/g.target)*100);
+          const isCompleted=progress.current>=g.target;
+          html+=`<div style="background:white;border:1px solid #dcfce7;border-radius:6px;padding:10px;margin-bottom:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+              <div>
+                <p style="font-size:12px;font-weight:600;color:#059669;margin:0;">${type_label} ${isCompleted?'✅ 達成済み':''}</p>
+                <p style="font-size:11px;color:#6b7280;margin:0;">${progress.current} / ${g.target}</p>
+              </div>
+              <button onclick="deleteGoal(${i})" style="background:#fee2e2;color:#dc2626;padding:4px 8px;border:none;border-radius:4px;font-size:11px;cursor:pointer;">削除</button>
+            </div>
+            <div style="height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden;">
+              <div style="height:100%;background:#10b981;width:${Math.min(percent,100)}%;transition:width .3s;"></div>
+            </div>
+            <p style="font-size:10px;color:#6b7280;margin:4px 0 0;">進捗: ${percent}%</p>
+          </div>`;
+        });
+        html+=`</div>`;
+      }else{
+        html+=`<p style="font-size:12px;color:#6b7280;text-align:center;padding:12px;">まだ目標は設定されていません。上記から目標を作成してください。</p>`;
+      }
+      html+=`</div>`;
+      const existing=document.getElementById('goal-tracker-modal');
+      if(existing) existing.remove();
+      const div=document.createElement('div');
+      div.id='goal-tracker-modal';
+      div.innerHTML=html;
+      const quizStart=document.getElementById('quiz-start');
+      quizStart.parentNode.insertBefore(div,quizStart);
+    }
+    function createGoal(){
+      const type=document.getElementById('goal-type')?.value;
+      const value=parseInt(document.getElementById('goal-value')?.value);
+      if(!type||!value||value<1){alert('正しい値を入力してください');return;}
+      const goals=loadGoals();
+      goals.push({type,target:value,created:new Date().toLocaleString('ja-JP')});
+      saveGoals(goals);
+      openGoalTracker();
+    }
+    function deleteGoal(idx){
+      const goals=loadGoals();
+      if(idx>=0&&idx<goals.length){
+        goals.splice(idx,1);
+        saveGoals(goals);
+        openGoalTracker();
+      }
+    }
+    function getGoalProgress(goal){
+      const saved=loadSavedResults();
+      let current=0;
+      if(goal.type==='count'){
+        current=saved.length;
+      }else if(goal.type==='flowers'){
+        const flowers=new Set(saved.map(r=>r.title.split('—')[0].trim()));
+        current=flowers.size;
+      }else if(goal.type==='collection'){
+        current=saved.length;
+      }
+      return {current,total:saved.length};
+    }
+
+    // M16: PWA化（Service Worker + beforeinstallprompt）
+    let deferredPrompt=null;
+    function registerServiceWorker(){
+      if('serviceWorker' in navigator){
+        navigator.serviceWorker.register('/birth-flower-finder/sw.js').catch(()=>{});
+      }
+      window.addEventListener('beforeinstallprompt',(e)=>{
+        e.preventDefault();
+        deferredPrompt=e;
+        showInstallPrompt();
+      });
+    }
+    function showInstallPrompt(){
+      if(!deferredPrompt) return;
+      const prompt=`
+        <div style="background:#f0f9ff;border:2px solid #0ea5e9;border-radius:12px;padding:16px;margin:16px 0;position:relative;">
+          <button onclick="closeInstallPrompt()" style="position:absolute;top:8px;right:8px;background:none;border:none;font-size:20px;cursor:pointer;">×</button>
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <div style="font-size:32px;">📱</div>
+            <div style="flex:1;">
+              <h3 style="font-size:14px;font-weight:700;color:#0c4a6e;margin:0 0 6px;">ホーム画面に追加</h3>
+              <p style="font-size:12px;color:#0c4a6e;margin:0 0 10px;">誕生花診断をホーム画面に追加して、オフラインでも使用できます。</p>
+              <button onclick="installApp()" style="background:#0ea5e9;color:white;padding:8px 16px;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;min-height:40px;">インストール</button>
+            </div>
+          </div>
+        </div>
+      `;
+      const quizStart=document.getElementById('quiz-start');
+      if(quizStart&&!document.getElementById('install-prompt')){
+        const div=document.createElement('div');
+        div.id='install-prompt';
+        div.innerHTML=prompt;
+        quizStart.parentNode.insertBefore(div,quizStart);
+      }
+    }
+    function installApp(){
+      if(deferredPrompt){
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then(()=>{deferredPrompt=null;closeInstallPrompt();});
+      }
+    }
+    function closeInstallPrompt(){
+      const prompt=document.getElementById('install-prompt');
+      if(prompt) prompt.remove();
+    }
     </script>
 <div style="text-align:center;padding:10px 16px 14px;background:#eef2ff;border-top:2px solid #c7d2fe;margin-top:8px">
 <a href="/blog/" style="color:#4f46e5;font-size:.85rem;font-weight:700">📖 マネー・育児・キャリアのコラムを読む →</a>

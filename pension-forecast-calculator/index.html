@@ -183,12 +183,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="pension-row">
             <div>
               <label class="pension-label" for="current-age">現在の年齢</label>
-              <input type="number" id="current-age" placeholder="例: 35" min="20" max="64" value="35">
+              <input type="number" id="current-age" placeholder="例: 35" min="20" max="64" value="35" oninput="validateAndSave()">
               <p class="pension-hint">20〜64歳</p>
+              <p id="error-current-age" style="color:#dc2626;font-size:12px;margin-top:2px;display:none;"></p>
             </div>
             <div>
               <label class="pension-label" for="retire-age">受給開始年齢</label>
-              <select id="retire-age" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+              <select id="retire-age" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;" onchange="validateAndSave()">
                 <option value="60">60歳（繰上げ）</option>
                 <option value="61">61歳</option>
                 <option value="62">62歳</option>
@@ -211,12 +212,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </div>
 
           <label class="pension-label" for="enroll-years">現在までの加入期間（年）</label>
-          <input type="number" id="enroll-years" placeholder="例: 12" min="0" max="45" value="12">
+          <input type="number" id="enroll-years" placeholder="例: 12" min="0" max="45" value="12" oninput="validateAndSave()">
           <p class="pension-hint">厚生年金・国民年金の合計加入年数（0〜45年）</p>
+          <p id="error-enroll-years" style="color:#dc2626;font-size:12px;margin-top:2px;display:none;"></p>
 
           <label class="pension-label" for="avg-salary">平均年収（万円）</label>
-          <input type="number" id="avg-salary" placeholder="例: 500" min="100" max="3000" value="500">
+          <input type="number" id="avg-salary" placeholder="例: 500" min="100" max="3000" value="500" oninput="validateAndSave()">
           <p class="pension-hint">これまでの平均年収の目安（100〜3,000万円）</p>
+          <p id="error-avg-salary" style="color:#dc2626;font-size:12px;margin-top:2px;display:none;"></p>
 
           <label class="pension-label">加入種別</label>
           <div style="display:flex;gap:8px;margin-top:4px;">
@@ -228,7 +231,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             </label>
           </div>
 
-          <button class="btn" style="margin-top:20px;" onclick="calculate()">試算する</button>
+          <button class="btn" id="calc-btn" style="margin-top:20px;" onclick="calculate()">試算する</button>
+          <button class="btn" style="margin-top:8px;background:#cbd5e1;color:#1f2937;" onclick="clearData()">入力をクリア</button>
 
           <div class="result" id="result" style="margin-top:16px;">
             <div class="card" style="background:#FFFBEB;border:1px solid #FDE68A;">
@@ -496,15 +500,92 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('lbl-company').style.borderColor = BTN_COLOR;
     });
 
+    function validateAndSave() {
+      const currentAge  = parseInt(document.getElementById('current-age').value) || 0;
+      const enrollYears = parseInt(document.getElementById('enroll-years').value) || 0;
+      const avgSalary   = parseFloat(document.getElementById('avg-salary').value) || 0;
+      let isValid = true;
+
+      const ageError = document.getElementById('error-current-age');
+      if (currentAge < 20 || currentAge > 64) {
+        ageError.textContent = '⚠️ 20〜64歳の値を入力してください';
+        ageError.style.display = 'block';
+        isValid = false;
+      } else {
+        ageError.style.display = 'none';
+      }
+
+      const enrollError = document.getElementById('error-enroll-years');
+      if (enrollYears < 0 || enrollYears > 45) {
+        enrollError.textContent = '⚠️ 0〜45年の値を入力してください';
+        enrollError.style.display = 'block';
+        isValid = false;
+      } else {
+        enrollError.style.display = 'none';
+      }
+
+      const salaryError = document.getElementById('error-avg-salary');
+      if (avgSalary < 100 || avgSalary > 3000) {
+        salaryError.textContent = '⚠️ 100〜3,000万円の値を入力してください';
+        salaryError.style.display = 'block';
+        isValid = false;
+      } else {
+        salaryError.style.display = 'none';
+      }
+
+      document.getElementById('calc-btn').disabled = !isValid;
+      savePensionData();
+      return isValid;
+    }
+
+    function savePensionData() {
+      const data = {
+        currentAge: document.getElementById('current-age').value,
+        retireAge: document.getElementById('retire-age').value,
+        enrollYears: document.getElementById('enroll-years').value,
+        avgSalary: document.getElementById('avg-salary').value,
+        pensionType: document.querySelector('input[name="pension-type"]:checked').value
+      };
+      localStorage.setItem('pensionForecastData', JSON.stringify(data));
+    }
+
+    function loadPensionData() {
+      const saved = localStorage.getItem('pensionForecastData');
+      if (saved) {
+        try {
+          const data = JSON.parse(saved);
+          document.getElementById('current-age').value = data.currentAge || 35;
+          document.getElementById('retire-age').value = data.retireAge || 65;
+          document.getElementById('enroll-years').value = data.enrollYears || 12;
+          document.getElementById('avg-salary').value = data.avgSalary || 500;
+          if (data.pensionType) {
+            document.getElementById('type-' + data.pensionType).checked = true;
+          }
+        } catch(e) {}
+      }
+      validateAndSave();
+    }
+
+    function clearData() {
+      document.getElementById('current-age').value = 35;
+      document.getElementById('retire-age').value = 65;
+      document.getElementById('enroll-years').value = 12;
+      document.getElementById('avg-salary').value = 500;
+      document.getElementById('type-company').checked = true;
+      document.getElementById('result').classList.remove('show');
+      localStorage.removeItem('pensionForecastData');
+      validateAndSave();
+    }
+
     function calculate() {
+      if (!validateAndSave()) return;
       const currentAge  = parseInt(document.getElementById('current-age').value) || 0;
       const retireAge   = parseInt(document.getElementById('retire-age').value) || 65;
       const enrollYears = parseInt(document.getElementById('enroll-years').value) || 0;
       const avgSalary   = parseFloat(document.getElementById('avg-salary').value) || 0;
       const isCompany   = document.getElementById('type-company').checked;
 
-      if (currentAge < 20 || currentAge > 64) { alert('現在の年齢は20〜64歳で入力してください'); return; }
-      if (avgSalary <= 0) { alert('平均年収を入力してください'); return; }
+      savePensionData();
 
       // 退職までの残り年数 → 65歳基準で加入年数を計算
       const remainYears = Math.max(0, 65 - currentAge);
@@ -554,6 +635,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         retireAge + '歳受給開始・加入見込み' + totalEnrollYears + '年・平均年収' + avgSalary.toLocaleString() + '万円で試算';
       document.getElementById('result').classList.add('show');
     }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      loadPensionData();
+    });
     </script>
 
     <!-- Amazon アフィリエイト -->

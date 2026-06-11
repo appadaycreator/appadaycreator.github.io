@@ -157,7 +157,7 @@ const cardDatabase = {
 /* ===== 5問の質問定義 ===== */
 const questions = [
   {
-    id:'age', title:'あなたの年齢層を教えてください', label:'年齢層を選択',
+    id:'age', title:'あなたの年齢層を教えてください', label:'年齢層を選択', tooltip:'若いほどスペック高いカードを申し込める傾向。年代別限定カードもあります',
     sub:'年齢によって申し込めるカードが変わります', icon:'user', cols:2,
     options:[
       { label:'20代', sub:'18〜29歳', band:'20s', icon:'user' },
@@ -167,7 +167,7 @@ const questions = [
     ]
   },
   {
-    id:'scene', title:'主にどんな場面で利用しますか？', label:'利用する場面',
+    id:'scene', title:'主にどんな場面で利用しますか？', label:'利用する場面', tooltip:'最も利用額が多いシーンを選ぶと、そのシーンで高還元のカードが見つかります',
     sub:'いちばん使うシーンを1つお選びください', icon:'cart', cols:1,
     options:[
       { label:'ネットショッピング中心', sub:'Amazon・楽天市場など', keys:['netShopping'], icon:'cart' },
@@ -178,7 +178,7 @@ const questions = [
     ]
   },
   {
-    id:'amount', title:'月間のカード利用額はどのくらい？', label:'月間の利用額',
+    id:'amount', title:'月間のカード利用額はどのくらい？', label:'月間の利用額', tooltip:'利用額が多いほど、年会費の元を取れるゴールドカードがおすすめになります',
     sub:'おおよその目安で構いません', icon:'yen', cols:2,
     options:[
       { label:'3万円未満', sub:'ライトに利用', amt:'low', icon:'yen' },
@@ -188,7 +188,7 @@ const questions = [
     ]
   },
   {
-    id:'priority', title:'カード選びで最も重視するのは？', label:'重視するポイント',
+    id:'priority', title:'カード選びで最も重視するのは？', label:'重視するポイント', tooltip:'診断結果では、あなたの優先順位に合わせたカードが上位に表示されます',
     sub:'あなたの優先順位を教えてください', icon:'target', cols:1,
     options:[
       { label:'ポイント還元率', sub:'とにかくお得に貯めたい', keys:['pointRate'], icon:'percent' },
@@ -199,7 +199,7 @@ const questions = [
     ]
   },
   {
-    id:'lifestyle', title:'あなたのライフスタイルに近いのは？', label:'ライフスタイル',
+    id:'lifestyle', title:'あなたのライフスタイルに近いのは？', label:'ライフスタイル', tooltip:'自分の生活スタイルを選ぶことで、日常で本当に得をするカードが見つかります',
     sub:'いちばん近いものをお選びください', icon:'heart', cols:1,
     options:[
       { label:'コスパ重視でお得に使いたい', sub:'年会費無料＆高還元が理想', keys:['lowFee','pointRate'], icon:'piggy' },

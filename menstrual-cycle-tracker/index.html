@@ -236,7 +236,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </div>
 
           <label for="last-date">最終生理開始日 <span style="color:#E11D48;font-weight:700;">*</span></label>
-          <input type="date" id="last-date" aria-label="最終生理開始日" title="最終生理開始日を入力してください" onchange="updateStepGuide()" required style="background-color: #fafafa;">
+          <input type="date" id="last-date" aria-label="最終生理開始日" title="最終生理開始日を入力してください" placeholder="2024年6月1日" onchange="updateStepGuide(); validateLastDate();" required style="background-color: #fafafa;">
           <div style="font-size:12px;color:#9CA3AF;margin-top:4px;">📅 最後に生理が始まった日を入力してください（最大180日前まで対応）</div>
           <div id="date-error" style="font-size:12px;color:#DC2626;margin-top:4px;display:none;"></div>
 
@@ -260,11 +260,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div style="margin-top:10px;">
               <p style="font-size:12px;color:#9CA3AF;margin-bottom:12px;">💡 2件以上入力すると平均周期を自動計算してスライダーに反映します</p>
               <label for="past-1" style="font-size:12px;color:#555;display:block;margin-bottom:4px;font-weight:500;">過去の生理開始日1（古い順）</label>
-              <input type="date" id="past-1" aria-label="過去の生理開始日1" title="過去の生理開始日を入力" style="margin-bottom:12px;background-color: #fafafa;" oninput="calcAvgCycle()">
+              <input type="date" id="past-1" aria-label="過去の生理開始日1" title="過去の生理開始日を入力" placeholder="2024年5月1日" style="margin-bottom:12px;background-color: #fafafa;" oninput="calcAvgCycle(); validatePastDates();">
               <label for="past-2" style="font-size:12px;color:#555;display:block;margin-bottom:4px;font-weight:500;">過去の生理開始日2</label>
-              <input type="date" id="past-2" aria-label="過去の生理開始日2" title="過去の生理開始日を入力" style="margin-bottom:12px;background-color: #fafafa;" oninput="calcAvgCycle()">
+              <input type="date" id="past-2" aria-label="過去の生理開始日2" title="過去の生理開始日を入力" placeholder="2024年5月1日" style="margin-bottom:12px;background-color: #fafafa;" oninput="calcAvgCycle(); validatePastDates();">
               <label for="past-3" style="font-size:12px;color:#555;display:block;margin-bottom:4px;font-weight:500;">過去の生理開始日3（新しい順）</label>
-              <input type="date" id="past-3" aria-label="過去の生理開始日3" title="過去の生理開始日を入力" style="margin-bottom:12px;background-color: #fafafa;" oninput="calcAvgCycle()">
+              <input type="date" id="past-3" aria-label="過去の生理開始日3" title="過去の生理開始日を入力" placeholder="2024年5月1日" style="margin-bottom:12px;background-color: #fafafa;" oninput="calcAvgCycle(); validatePastDates();">
               <div id="avg-info" style="margin-top:8px;"></div>
             </div>
           </details>
@@ -1178,6 +1178,83 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         } catch(e) {}
       }
     });
+
+    /* M2: バリデーション関数 - 最終生理開始日 */
+    function validateLastDate() {
+      const inputEl = document.getElementById('last-date');
+      const errorEl = document.getElementById('date-error');
+      const dateStr = inputEl.value;
+
+      if (!dateStr) {
+        errorEl.style.display = 'none';
+        return true;
+      }
+
+      const selectedDate = new Date(dateStr);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      selectedDate.setHours(0, 0, 0, 0);
+
+      // 未来日付チェック
+      if (selectedDate > today) {
+        errorEl.textContent = '❌ 未来の日付は入力できません。最終生理開始日を確認してください。';
+        errorEl.style.display = 'block';
+        return false;
+      }
+
+      // 180日以上前のチェック（警告）
+      const daysAgo = Math.floor((today - selectedDate) / 86400000);
+      if (daysAgo > 180) {
+        errorEl.textContent = '⚠️ 180日以上前のデータです。予測精度が低下する可能性があります。';
+        errorEl.style.color = '#DC2626';
+        errorEl.style.display = 'block';
+        return true;
+      }
+
+      errorEl.style.display = 'none';
+      return true;
+    }
+
+    /* M2: バリデーション関数 - 過去の生理開始日 */
+    function validatePastDates() {
+      const past1 = document.getElementById('past-1').value;
+      const past2 = document.getElementById('past-2').value;
+      const past3 = document.getElementById('past-3').value;
+
+      // すべての入力がない場合はチェック不要
+      if (!past1 && !past2 && !past3) return true;
+
+      const dates = [];
+      const dateInputs = [past1, past2, past3];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      for (const dateStr of dateInputs) {
+        if (!dateStr) continue;
+        const date = new Date(dateStr);
+        date.setHours(0, 0, 0, 0);
+
+        // 未来日付チェック
+        if (date > today) {
+          alert('⚠️ 過去の生理開始日に未来の日付が入力されています。修正してください。');
+          return false;
+        }
+
+        dates.push({ date, str: dateStr });
+      }
+
+      // 入力順序チェック（古い順）
+      if (dates.length > 1) {
+        for (let i = 0; i < dates.length - 1; i++) {
+          if (dates[i].date >= dates[i + 1].date) {
+            alert('⚠️ 過去の生理開始日は古い順に入力してください。');
+            return false;
+          }
+        }
+      }
+
+      return true;
+    }
     </script>
     <!-- r31-use-cases -->
 <div style="margin:1.5rem auto;max-width:760px;padding:0 1rem">

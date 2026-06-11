@@ -70,7 +70,7 @@
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-ZDPNYD2875"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-ZDPNYD2875',{send_page_view:false});</script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script>if('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').catch(e => console.log('SW registration failed:', e)); }</script>
+    <script>if('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js'); }</script>
 </head>
 <body>
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -170,6 +170,7 @@
           </div>
           <p id="q-text" style="font-size:16px;font-weight:600;margin-bottom:16px;"></p>
           <div id="q-options" class="space-y-2"></div>
+          <button id="back-btn" onclick="prevQuestion()" style="display:none;width:100%;margin-top:16px;padding:12px;border:2px solid #e5e7eb;border-radius:10px;font-size:14px;cursor:pointer;background:#f8fafc;color:#6366F1;font-weight:600;">← 前へ</button>
         </div>
         
     <div class="card p-6 mb-4">
@@ -201,6 +202,11 @@
               <div id="history-list" style="display:flex;gap:8px;overflow-x:auto;padding:4px 0;"></div>
               <button id="clear-history" class="btn" style="margin-top:8px;background:#dc2626;font-size:12px;padding:8px;min-height:36px;" onclick="clearHistory()">履歴をクリア</button>
             </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px;">
+              <button class="btn" onclick="printResult()" style="background:#10b981;" aria-label="結果を印刷">🖨️ 印刷</button>
+              <button class="btn" onclick="copyResultToClipboard()" style="background:#f59e0b;" aria-label="結果をコピー">📋 コピー</button>
+            </div>
+            <button class="btn" onclick="downloadResultAsCSV()" style="margin-top:8px;background:#8b5cf6;" aria-label="結果をCSVダウンロード">📥 CSVダウンロード</button>
             <button class="btn" style="margin-top:16px;" onclick="location.reload()" aria-label="もう一度診断">もう一度診断</button>
           </div>
         </div>
@@ -550,6 +556,64 @@ AppADayCreatorでは、本ツール以外にも健康・医療カテゴリの便
       document.getElementById('result').classList.add('show');
       drawCharts(r);
       saveHistory(r);
+    }
+    function printResult(){
+      const title = document.getElementById('r-title').textContent;
+      const desc = document.getElementById('r-desc').textContent;
+      const score = document.getElementById('score-text').textContent;
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+          <meta charset="UTF-8">
+          <title>筋肉痛・部位別ケアアドバイザー 診断結果</title>
+          <style>
+            body { font-family: 'Noto Sans JP', sans-serif; padding: 20px; color: #333; line-height: 1.6; }
+            h1 { color: #6366F1; font-size: 24px; margin-bottom: 10px; }
+            .score { font-size: 32px; font-weight: 700; color: #6366F1; margin: 20px 0; }
+            .result-title { font-size: 20px; font-weight: 700; color: #6366F1; margin: 20px 0 10px; }
+            .result-desc { font-size: 14px; color: #444; line-height: 1.8; margin-bottom: 20px; }
+            .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #999; }
+          </style>
+        </head>
+        <body>
+          <h1>筋肉痛・部位別ケアアドバイザー 診断結果</h1>
+          <div class="score">${score}</div>
+          <div class="result-title">${title}</div>
+          <div class="result-desc">${desc}</div>
+          <div class="footer">
+            <p>診断日時: ${new Date().toLocaleString('ja-JP')}</p>
+            <p>© AppADayCreator - 筋肉痛・部位別ケアアドバイザー</p>
+          </div>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
+    }
+    function copyResultToClipboard(){
+      const title = document.getElementById('r-title').textContent;
+      const desc = document.getElementById('r-desc').textContent;
+      const score = document.getElementById('score-text').textContent;
+      const text = `筋肉痛・部位別ケアアドバイザー 診断結果\n\n診断スコア: ${score}\n\n${title}\n\n${desc}\n\n診断日時: ${new Date().toLocaleString('ja-JP')}`;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('結果をクリップボードにコピーしました');
+      }).catch(() => {
+        alert('コピーに失敗しました');
+      });
+    }
+    function downloadResultAsCSV(){
+      const title = document.getElementById('r-title').textContent;
+      const score = document.getElementById('score-text').textContent;
+      const date = new Date().toLocaleString('ja-JP');
+      const questionAnswers = QUESTIONS.map((q, i) => `${q.text},${q.opts[ans[i].idx]}`).join('\n');
+      const csv = `診断スコア,${score}\n診断結果,${title}\n診断日時,${date}\n\n質問と回答\n${questionAnswers}`;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `muscle-pain-checker_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
     }
     </script>
 <div style="text-align:center;padding:10px 16px 14px;background:#eef2ff;border-top:2px solid #c7d2fe;margin-top:8px">

@@ -25,8 +25,9 @@ const STATIC_RESOURCES = [
   '/data/practice-texts.json',
   '/data/typing-stats.json',
   '/manifest.json',
-  '/images/icons/icon-192x192.png',
-  '/images/icons/icon-512x512.png'
+  '/icon-192.png',
+  '/icon-512.png',
+  '/ogp.png'
 ];
 
 // 動的キャッシュ対象

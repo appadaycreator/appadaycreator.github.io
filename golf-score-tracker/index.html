@@ -151,6 +151,11 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
+
+/* M8: ツールチップ */
+.tooltip-icon{display:inline-block;width:18px;height:18px;background:#7c3aed;color:#fff;border-radius:50%;text-align:center;line-height:18px;font-size:0.75em;font-weight:700;cursor:help;margin-left:4px;position:relative;}
+.tooltip-icon:hover::after{content:attr(data-tooltip);position:absolute;bottom:120%;left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;padding:8px 12px;border-radius:6px;white-space:nowrap;font-size:0.8em;font-weight:400;z-index:1000;border:1px solid #4b5563;box-shadow:0 2px 8px rgba(0,0,0,0.2);}
+.tooltip-icon:hover::before{content:'';position:absolute;bottom:115%;left:50%;transform:translateX(-50%);width:0;height:0;border:5px solid transparent;border-top-color:#1f2937;z-index:1000;}
 </style>
 <script type="application/ld+json">
 {
@@ -240,48 +245,57 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <!-- 入力フォーム -->
     <div class="card">
         <div class="card-title">⛳ ラウンド記録を追加</div>
-        <label>📅 ラウンド日</label>
-        <input type="date" id="inp-date" required>
-        <label>🏌️ コース名</label>
-        <input type="text" id="inp-course" placeholder="例：〇〇カントリークラブ" required maxlength="60" aria-label="例：〇〇カントリークラブ" list="course-list" autocomplete="off"><datalist id="course-list"></datalist>
-        <label>🎯 コースタイプ</label>
-        <select id="inp-type">
+        <label>📅 ラウンド日<span class="tooltip-icon" data-tooltip="本日の日付またはプレー日を選択">?</span></label>
+        <div style="font-size:0.75em;color:#94a3b8;margin-bottom:4px;">ラウンドをプレーした日付を選択してください。カレンダーから選ぶか、YYYY-MM-DD形式で直接入力できます。</div>
+        <input type="date" id="inp-date" required title="ラウンド日（形式：YYYY-MM-DD）">
+        <label>🏌️ コース名<span class="tooltip-icon" data-tooltip="例：△△カントリークラブ">?</span></label>
+        <div style="font-size:0.75em;color:#94a3b8;margin-bottom:4px;">プレーしたゴルフコースの名前（例：〇〇カントリークラブ）</div>
+        <input type="text" id="inp-course" placeholder="例：〇〇カントリークラブ" required maxlength="60" aria-label="コース名" list="course-list" autocomplete="off"><datalist id="course-list"></datalist>
+        <label>🎯 コースタイプ<span class="tooltip-icon" data-tooltip="18H=1ラウンド、9H=ハーフ">?</span></label>
+        <div style="font-size:0.75em;color:#94a3b8;margin-bottom:4px;">18ホール（1ラウンド）か9ホール（ハーフ）かを選択してください。通常は18ホールです。</div>
+        <select id="inp-type" title="コースタイプ：18ホール（通常）か9ホール（ハーフ）か選択">
             <option value="18H">18ホール（通常）</option>
             <option value="9H">9ホール</option>
         </select>
         <!-- ホール別入力 -->
         <div style="margin-top:12px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                <span style="font-size:0.82em;font-weight:600;color:#475569;">🕳️ ホール別スコア（スコアをタップして入力）</span>
-                <label style="display:flex;align-items:center;gap:4px;font-size:0.75em;font-weight:600;margin:0;">
-                    <input type="checkbox" id="simple-mode" onchange="toggleMode()" style="width:auto;"> 合計のみ
+                <span style="font-size:0.82em;font-weight:600;color:#475569;">🕳️ スコア入力</span>
+                <label style="display:flex;align-items:center;gap:4px;font-size:0.75em;font-weight:600;margin:0;" title="ホール別の詳細入力か、合計スコアのみか選択できます">
+                    <input type="checkbox" id="simple-mode" onchange="toggleMode()" style="width:auto;"> 合計のみ入力
                 </label>
             </div>
+            <div style="font-size:0.75em;color:#94a3b8;margin-bottom:8px;"><strong>💡 ヒント</strong>：各ホール（1-18番）のスコアを個別に入力すると、ホール別分析が表示されます。時間がない場合は「合計のみ入力」でもOKです。</div>
             <div id="hole-inputs-wrap">
-                <div style="margin-bottom:4px;font-size:0.75em;font-weight:700;color:#475569;">OUT（1-9ホール） <span style="font-weight:400;color:#94a3b8;">← スワイプで全ホール入力</span></div>
+                <div style="margin-bottom:4px;font-size:0.75em;font-weight:700;color:#475569;">OUT（1-9ホール） <span style="font-weight:400;color:#94a3b8;">← 各ホールの+/-ボタンでスコア入力。スワイプで左右移動</span></div>
                 <div class="holes-grid" id="holes-out"></div>
                 <div style="margin-top:10px;margin-bottom:4px;font-size:0.75em;font-weight:700;color:#475569;">IN（10-18ホール）</div>
                 <div class="holes-grid" id="holes-in"></div>
                 <div id="hole-totals" style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;font-size:0.82em;font-weight:700;color:#166534;"></div>
             </div>
             <div id="simple-input-wrap" style="display:none;">
-                <label>トータルスコア</label>
-                <input type="number" id="inp-simple-score" placeholder="例：95" min="40" max="200" required aria-label="例：95">
+                <label>トータルスコア<span class="tooltip-icon" data-tooltip="例：95打なら「95」と入力">?</span></label>
+                <div style="font-size:0.75em;color:#94a3b8;margin-bottom:4px;">18ホールのラウンド合計スコアを入力してください。<strong>単位は「打」</strong>です（例：95打 → 95 と入力）。</div>
+                <input type="number" id="inp-simple-score" placeholder="例：95" min="40" max="200" required aria-label="トータルスコア" title="18ホール（または9ホール）のラウンド合計スコア">
             </div>
         </div>
-        <label>💨 天気</label>
-        <select id="inp-weather">
+        <label>💨 天気 <span class="tooltip-icon" data-tooltip="風強=スコアに影響">?</span><span style="color:#94a3b8;">（任意）</span></label>
+        <div style="font-size:0.75em;color:#94a3b8;margin-bottom:4px;">プレー当日の天気状況を選択してください。<strong>スコアと天気の関連性を分析</strong>する際に参考になります。記入しない場合は飛ばしても構いません。</div>
+        <select id="inp-weather" title="プレー当日の天気状況（スコア分析の参考）">
             <option value="晴れ">☀️ 晴れ</option>
             <option value="曇り">☁️ 曇り</option>
             <option value="雨">🌧️ 雨</option>
             <option value="風強">💨 風が強い</option>
         </select>
-        <label>📝 メモ（気づき・反省点など）</label>
-        <textarea id="inp-memo" rows="2" placeholder="例：アプローチが安定した。3番ホールのバンカーで崩れた。" maxlength="300"></textarea>
-        <label>⛳ パット数（任意）</label>
-        <input type="number" id="inp-putts" min="18" max="72" placeholder="例：36" aria-label="パット数">
-        <label>🏌️ 同伴者（任意）</label>
-        <input type="text" id="inp-partner" placeholder="例：山田さん、佐藤さん" maxlength="60" aria-label="例：山田さん、佐藤さん">
+        <label>📝 メモ <span class="tooltip-icon" data-tooltip="反省点・工夫を記録">?</span><span style="color:#94a3b8;">（任意）</span></label>
+        <div style="font-size:0.75em;color:#94a3b8;margin-bottom:4px;">プレー中の気づき、反省点、コース攻略のメモなど。<strong>あとで見返すときに役立つ記録</strong>です。最大300字まで入力できます。</div>
+        <textarea id="inp-memo" rows="2" placeholder="例：アプローチが安定した。3番ホールのバンカーで崩れた。" maxlength="300" title="プレー中の気づきや反省点（最大300字）"></textarea>
+        <label>⛳ パット数<span class="tooltip-icon" data-tooltip="総パット数で改善を追跡">?</span><span style="color:#94a3b8;">（任意）</span></label>
+        <div style="font-size:0.75em;color:#94a3b8;margin-bottom:4px;">ラウンド中の総パット数（18〜72打）。<strong>単位は「打」</strong>です。記入するとパット分析が表示され、パッティング改善の指標になります。</div>
+        <input type="number" id="inp-putts" min="18" max="72" placeholder="例：36" aria-label="パット数（例：36）" title="ラウンド中の総パット数（18〜72）">
+        <label>🏌️ 同伴者<span class="tooltip-icon" data-tooltip="複数人は「、」で区切る">?</span><span style="color:#94a3b8;">（任意）</span></label>
+        <div style="font-size:0.75em;color:#94a3b8;margin-bottom:4px;">一緒にプレーした人の名前を記録します。複数人の場合は「、」（カンマ）で区切って入力してください。あとで誰と回ったかを思い出すのに便利です。</div>
+        <input type="text" id="inp-partner" placeholder="例：山田さん、佐藤さん" maxlength="60" aria-label="同伴者の名前" title="一緒にプレーした人の名前">
         <button id="save-btn" class="btn-primary" onclick="saveRound()" aria-label="💾 このラウンドを記録する">💾 このラウンドを記録する</button>
         <div id="save-success-banner" style="display:none;margin-top:10px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:10px 14px;align-items:center;justify-content:space-between;">
             <span style="font-size:0.85em;font-weight:700;color:#166534;">✅ 記録しました！</span>
@@ -1356,24 +1370,8 @@ document.addEventListener('DOMContentLoaded', function() {
      data-full-width-responsive="true"></ins>
 <script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
 </div>
-<div style="text-align:center;margin:16px auto;max-width:728px;">
-<ins class="adsbygoogle"
-     style="display:block"
-     data-ad-client="ca-pub-8427583028015858"
-     data-ad-slot="auto"
-     data-ad-format="auto"
-     data-full-width-responsive="true"></ins>
-<script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
-</div>
-<div style="text-align:center;margin:16px auto;max-width:728px;">
-<ins class="adsbygoogle"
-     style="display:block"
-     data-ad-client="ca-pub-8427583028015858"
-     data-ad-slot="auto"
-     data-ad-format="auto"
-     data-full-width-responsive="true"></ins>
-<script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
-</div>
+
+
 
 <div style="text-align:center;margin:20px auto;max-width:500px;padding:16px;background:#f9fafb;border-radius:10px;">
   <p style="font-size:14px;font-weight:600;margin-bottom:10px;color:#374151;">このページをシェア</p>

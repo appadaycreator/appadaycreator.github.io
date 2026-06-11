@@ -110,8 +110,11 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
             .site-header p { display: none; }
             .card { padding: 16px; }
             .btn { font-size: 15px; padding: 13px 20px; }
-            .result-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+            .result-grid { grid-template-columns: 1fr; gap: 12px; }
             .result-item .ri-value { font-size: 16px; }
+            #goal-achievement .result-grid { grid-template-columns: 1fr; gap: 16px; }
+            #goal-achievement .result-grid > div { width: 100%; }
+            #height-progress-bar, #weight-progress-bar { height: 16px; }
         }
 
 @media print{
@@ -169,9 +172,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
           <label>年齢</label>
           <div class="age-row">
-            <select id="age_year" aria-label="歳"></select>
+            <select id="age_year" aria-label="歳" onchange="updateAgeDisplay()"></select>
             <span class="age-unit">歳</span>
-            <select id="age_month" aria-label="ヶ月"></select>
+            <select id="age_month" aria-label="ヶ月" onchange="updateAgeDisplay()"></select>
             <span class="age-unit">ヶ月</span>
           </div>
           <p id="age_display" style="font-size:12px;color:#888;margin-top:4px;"></p>
@@ -182,12 +185,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <option value="f">女の子</option>
           </select>
 
-          <label style="margin-top:12px;">身長（cm）</label>
-          <input type="number" id="height" placeholder="例: 85.0" min="30" max="200" step="0.1" inputmode="decimal" aria-describedby="height-error">
+          <label style="margin-top:12px;">身長 <span style="color:#7c3aed;font-weight:700;">（cm）</span></label>
+          <p style="font-size:12px;color:#888;margin-top:2px;">最近測定した身長を入力してください（例：85.0）</p>
+          <input type="number" id="height" placeholder="85.0" min="30" max="200" step="0.1" inputmode="decimal" aria-describedby="height-error">
           <div id="height-error" class="error-message">身長を正しく入力してください（30〜200cm）</div>
 
-          <label style="margin-top:12px;">体重（kg）</label>
-          <input type="number" id="weight" placeholder="例: 12.0" min="1" max="150" step="0.1" inputmode="decimal" aria-describedby="weight-error">
+          <label style="margin-top:12px;">体重 <span style="color:#7c3aed;font-weight:700;">（kg）</span></label>
+          <p style="font-size:12px;color:#888;margin-top:2px;">最近測定した体重を入力してください（例：12.0）</p>
+          <input type="number" id="weight" placeholder="12.0" min="1" max="150" step="0.1" inputmode="decimal" aria-describedby="weight-error">
           <div id="weight-error" class="error-message">体重を正しく入力してください（1〜150kg）</div>
 
           <div id="form-error" class="error-message">年齢・性別・身長・体重をすべて入力してください</div>
@@ -197,11 +202,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
 
         <!-- 目標設定セクション -->
-        <div class="card" style="background:#f0f7ff;border:1px solid #bfdbfe;margin-top:8px;">
-          <h3 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#1e40af;cursor:pointer;display:flex;align-items:center;gap:8px;" onclick="toggleGoalSection()">
+        <div class="card" style="background:#fef3c7;border:1px solid #fbbf24;margin-top:8px;">
+          <h3 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#ca8a04;cursor:pointer;display:flex;align-items:center;gap:8px;" onclick="toggleGoalSection()">
             <span id="goal-toggle-icon">▼</span> 🎯 成長目標を設定する（オプション）
           </h3>
-          <div id="goal-section" style="display:none;">
+          <div id="goal-section" style="display:block;">
             <p style="font-size:12px;color:#1e3a8a;margin-bottom:12px;">目標身長・体重を設定すると、達成度を追跡できます。</p>
             <label style="font-size:13px;font-weight:600;color:#1e40af;display:block;margin-bottom:4px;">目標身長（cm）</label>
             <input type="number" id="goal_height" placeholder="例: 100.0" min="30" max="200" step="0.1" inputmode="decimal" style="margin-top:4px;">
@@ -239,16 +244,26 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
             <!-- 身長バー -->
             <div class="pct-bar-wrap">
-              <div class="pct-bar-label"><span>身長パーセンタイル位置</span><span id="h_pct_num">-</span></div>
-              <div class="pct-bar-track"><div class="pct-bar-marker" id="h_bar_marker" style="left:50%"></div></div>
+              <p style="font-size:12px;color:#6b7280;margin-bottom:6px;">📍 身長パーセンタイル位置</p>
+              <div class="pct-bar-label"><span>あなたの位置</span><span id="h_pct_num">-</span></div>
+              <div class="pct-bar-track" style="position:relative;">
+                <div class="pct-bar-marker" id="h_bar_marker" style="left:50%"></div>
+                <span id="h_marker_label" style="position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:700;color:#dc2626;white-space:nowrap;">-</span>
+              </div>
               <div class="pct-bar-zones"><span>3%</span><span>10%</span><span>50%</span><span>90%</span><span>97%</span></div>
+              <p style="font-size:11px;color:#999;margin-top:6px;">🟢 緑=標準（10〜90%） 🟡 黄=注意（3〜10% または 90〜97%） 🔴 赤=要注意（3%未満 または 97%超）</p>
             </div>
 
             <!-- 体重バー -->
-            <div class="pct-bar-wrap" style="margin-top:8px;">
-              <div class="pct-bar-label"><span>体重パーセンタイル位置</span><span id="w_pct_num">-</span></div>
-              <div class="pct-bar-track"><div class="pct-bar-marker" id="w_bar_marker" style="left:50%"></div></div>
+            <div class="pct-bar-wrap" style="margin-top:12px;">
+              <p style="font-size:12px;color:#6b7280;margin-bottom:6px;">📍 体重パーセンタイル位置</p>
+              <div class="pct-bar-label"><span>あなたの位置</span><span id="w_pct_num">-</span></div>
+              <div class="pct-bar-track" style="position:relative;">
+                <div class="pct-bar-marker" id="w_bar_marker" style="left:50%"></div>
+                <span id="w_marker_label" style="position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:700;color:#10b981;white-space:nowrap;">-</span>
+              </div>
               <div class="pct-bar-zones"><span>3%</span><span>10%</span><span>50%</span><span>90%</span><span>97%</span></div>
+              <p style="font-size:11px;color:#999;margin-top:6px;">🟢 緑=標準（10〜90%） 🟡 黄=注意（3〜10% または 90〜97%） 🔴 赤=要注意（3%未満 または 97%超）</p>
             </div>
           </div>
 
@@ -693,11 +708,20 @@ function drawChart(tab) {
 
   // 縦線（月齢マーカー）
   ctx.save();
-  ctx.strokeStyle = '#dc262660';
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = '#dc2626';
+  ctx.lineWidth = 1.5;
   ctx.setLineDash([4,4]);
   ctx.beginPath(); ctx.moveTo(xs, pad.top); ctx.lineTo(xs, H - pad.bottom); ctx.stroke();
   ctx.restore();
+
+  // グラフ上部に月齢テキストラベルを表示
+  const ageYears = Math.floor(months / 12);
+  const ageMonths = months % 12;
+  const monthsLabel = ageYears > 0 ? `${ageYears}歳${ageMonths}ヶ月` : `${months}ヶ月`;
+  ctx.fillStyle = '#dc2626';
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(`月齢: ${months} (${monthsLabel})`, xs, pad.top - 5);
 
   // 値ラベル
   ctx.fillStyle = '#dc2626';
@@ -937,8 +961,16 @@ function calculate() {
 
   // パーセンタイルバーのマーカー位置（3%=7%, 97%=93% の範囲にマッピング）
   const toBarPct = (p) => Math.max(2, Math.min(98, 7 + (p - 3) / 94 * 86));
-  document.getElementById('h_bar_marker').style.left = toBarPct(hPct) + '%';
-  document.getElementById('w_bar_marker').style.left = toBarPct(wPct) + '%';
+  const hBarPct = toBarPct(hPct);
+  const wBarPct = toBarPct(wPct);
+  document.getElementById('h_bar_marker').style.left = hBarPct + '%';
+  document.getElementById('w_bar_marker').style.left = wBarPct + '%';
+
+  // マーカーの上に数値ラベルを表示
+  document.getElementById('h_marker_label').textContent = `${hPct.toFixed(0)}%`;
+  document.getElementById('h_marker_label').style.left = hBarPct + '%';
+  document.getElementById('w_marker_label').textContent = `${wPct.toFixed(0)}%`;
+  document.getElementById('w_marker_label').style.left = wBarPct + '%';
 
   // カウプ
   document.getElementById('kaup_val').textContent = kaup.toFixed(1);
@@ -957,8 +989,10 @@ function calculate() {
   document.getElementById('result').classList.add('show');
   drawChart(currentTab);
 
-  // スクロール
-  document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  // スクロール（結果エリアの見出しがビューポート上部に来るよう調整）
+  setTimeout(() => {
+    document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
 
   // localStorage保存（前回値を別途保持）
   try {
@@ -978,6 +1012,7 @@ function calculate() {
 }
 
 function clearInputs() {
+  if (!confirm('入力内容と目標データをクリアします。よろしいですか？')) return;
   document.getElementById('age_year').value = 2;
   document.getElementById('age_month').value = 0;
   document.getElementById('height').value = '';
@@ -987,14 +1022,14 @@ function clearInputs() {
   document.getElementById('result').classList.remove('show');
   document.getElementById('goal-achievement').style.display = 'none';
   updateAgeDisplay();
-  try { ['cgc_yr','cgc_mo','cgc_gender','cgc_h','cgc_w','cgc_h_prev','cgc_w_prev'].forEach(k => localStorage.removeItem(k)); } catch(e) {}
+  try { ['cgc_yr','cgc_mo','cgc_gender','cgc_h','cgc_w','cgc_h_prev','cgc_w_prev','cgc_goal_h','cgc_goal_w'].forEach(k => localStorage.removeItem(k)); } catch(e) {}
 }
 
 function updateAgeDisplay() {
   const yr = parseInt(document.getElementById('age_year').value) || 0;
   const mo = parseInt(document.getElementById('age_month').value) || 0;
   const total = yr * 12 + mo;
-  document.getElementById('age_display').textContent = `月齢: ${total}ヶ月`;
+  document.getElementById('age_display').textContent = `${yr}歳${mo}ヶ月 = ${total}ヶ月齢`;
 }
 
 // ─── 動的テーマカラー更新 ───
@@ -1057,7 +1092,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const w = localStorage.getItem('cgc_w');
       if (w) document.getElementById('weight').value = w;
     } else {
-      yearSel.value = 2;
+      yearSel.value = 0;
     }
     // 目標値復元
     const goalH = localStorage.getItem('cgc_goal_h');
@@ -1082,6 +1117,13 @@ document.addEventListener('DOMContentLoaded', () => {
   if (heightTab) heightTab.addEventListener('keydown', handleTabKeydown);
   if (weightTab) weightTab.addEventListener('keydown', handleTabKeydown);
 });
+
+// グラフのレスポンシブ性向上（画面リサイズに対応）
+window.addEventListener('resize', () => {
+  if (lastResult) {
+    drawChart(currentTab);
+  }
+}, {passive: true});
 </script>
     <!-- r31-use-cases -->
 <div style="margin:1.5rem auto;max-width:760px;padding:0 1rem">

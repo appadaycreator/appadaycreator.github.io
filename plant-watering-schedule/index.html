@@ -14,7 +14,10 @@
     <meta property="og:image" content="https://appadaycreator.com/assets/ogp-default.png">
     <meta name="twitter:card" content="summary">
     <meta name="theme-color" content="#6366F1">
-    <link rel="canonical" href="https://appadaycreator.com/plant-watering-schedule/">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Plant Watering">
+    <link rel="manifest" href="manifest.json">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌿</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -216,7 +219,10 @@
             <div class="gauge-container">
               <canvas id="gaugeChart"></canvas>
             </div>
-            <button class="btn save-record-btn" onclick="saveRecord()" aria-label="この結果を記録に保存">💾 記録に保存</button>
+            <div style="display:flex;gap:8px;flex-direction:column;">
+              <button class="btn save-record-btn" onclick="saveRecord()" aria-label="この結果を記録に保存">💾 記録に保存</button>
+              <button id="install-btn" class="btn" onclick="showInstallPrompt()" style="background:#4f46e5;display:none;" aria-label="ホーム画面に追加">📱 ホーム画面に追加</button>
+            </div>
           </div>
         </div>
 
@@ -442,6 +448,59 @@ AppADayCreatorでは、本ツール以外にも住まい・暮らしカテゴリ
     </footer>
 
     <script>
+    // Service Worker 登録
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').then(reg => {
+          console.log('Service Worker registered:', reg);
+        }).catch(err => {
+          console.log('Service Worker registration failed:', err);
+        });
+      });
+    }
+
+    // beforeinstallprompt を保存してカスタムUI で制御
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+    });
+
+    // インストール促進UI用の関数
+    function showInstallPrompt() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          if (choiceResult.outcome === 'accepted') {
+            gtag('event', 'app_install_accepted', {
+              event_category: 'engagement',
+              event_label: 'PWA install prompt'
+            });
+          } else {
+            gtag('event', 'app_install_declined', {
+              event_category: 'engagement',
+              event_label: 'PWA install prompt'
+            });
+          }
+          deferredPrompt = null;
+        });
+      }
+    }
+
+    // iOS PWA の場合の通知
+    function checkIOSPWA() {
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const isInStandaloneMode = window.navigator.standalone === true;
+      if (isIOS && !isInStandaloneMode) {
+        const iosPrompt = document.getElementById('ios-install-prompt');
+        if (iosPrompt) {
+          iosPrompt.style.display = 'block';
+        }
+      }
+    }
+
+    window.addEventListener('load', checkIOSPWA);
+
     const PLANT_DATA = {
       succulent: { name:'多肉植物・サボテン', base:14, tips:['土が完全に乾いてから2〜3日後が目安','葉がしわしわになったらサイン','根腐れに最も注意（鉢底穴が必須）','水は鉢底から出るまでたっぷり与える'] },
       tropical:  { name:'観葉植物（モンステラ・ポトス）', base:5, tips:['土の表面が乾いたら水やり','葉がしんなりしてきたら要注意','霧吹きで葉水も週2〜3回与えると良好','鉢底に水が溜まらないよう注意'] },
@@ -603,6 +662,13 @@ AppADayCreatorでは、本ツール以外にも住まい・暮らしカテゴリ
       document.getElementById('output').innerHTML = buildOutput(inputs);
       setTimeout(() => drawGaugeChart(currentDays), 0);
       document.getElementById('result').classList.add('show');
+
+      // Install Button を表示（deferredPrompt があれば）
+      const installBtn = document.getElementById('install-btn');
+      if (deferredPrompt && installBtn) {
+        installBtn.style.display = 'block';
+      }
+
       document.getElementById('result').scrollIntoView({behavior:'smooth',block:'start'});
     }
     </script>
