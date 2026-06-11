@@ -217,7 +217,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   "name": "appadaycreator",
   "url": "https://appadaycreator.com",
   "logo": "https://appadaycreator.com/logo.png",
-  "description": "無料Webサービス・診断ツール 180種類以上を運営"
+  "description": "無料Webサービス・診断ツール 180種類以上を運営",
+  "sameAs": [
+    "https://twitter.com/appadaycreate",
+    "https://appadaycreator.com"
+  ]
 }
 </script>
 <script type="application/ld+json">
@@ -1988,6 +1992,60 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 link: 'https://www.amazon.co.jp/s?k=コンウェイ+ライフゲーム+数学&tag=appadaycrea0f-22'
             }
         };
+
+        function initGameSlots() {
+            const slots = JSON.parse(localStorage.getItem('gameSlots')) || {
+                1: { name: 'スロット1', data: null, timestamp: null },
+                2: { name: 'スロット2', data: null, timestamp: null },
+                3: { name: 'スロット3', data: null, timestamp: null }
+            };
+            localStorage.setItem('gameSlots', JSON.stringify(slots));
+            renderSlotUI();
+        }
+
+        function renderSlotUI() {
+            const container = document.getElementById('slotContainer');
+            const slots = JSON.parse(localStorage.getItem('gameSlots')) || {};
+            const currentSlot = localStorage.getItem('currentSlot') || '1';
+
+            container.innerHTML = '';
+            Object.keys(slots).forEach(slotNum => {
+                const slot = slots[slotNum];
+                const isActive = slotNum === currentSlot;
+                const button = document.createElement('button');
+                button.className = `w-full text-left p-2 rounded mb-1 transition-colors ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'}`;
+                button.innerHTML = `<div style="font-size:0.85rem;margin-bottom:2px;">${slot.name}</div><div style="font-size:0.7rem;opacity:0.8;">${slot.timestamp ? new Date(slot.timestamp).toLocaleDateString() : '空'}</div>`;
+                button.onclick = () => switchSlot(slotNum);
+                container.appendChild(button);
+            });
+        }
+
+        function switchSlot(slotNum) {
+            localStorage.setItem('currentSlot', slotNum);
+            const slots = JSON.parse(localStorage.getItem('gameSlots'));
+            const slot = slots[slotNum];
+            if (slot.data) {
+                gameState = JSON.parse(slot.data);
+                updateDisplay();
+                showToast(`スロット${slotNum}から復元しました`, 'success');
+            } else {
+                showToast(`スロット${slotNum}は空です`, 'info');
+            }
+            renderSlotUI();
+        }
+
+        function saveGameSlot() {
+            const currentSlot = localStorage.getItem('currentSlot') || '1';
+            const slots = JSON.parse(localStorage.getItem('gameSlots'));
+            slots[currentSlot] = {
+                name: `スロット${currentSlot}`,
+                data: JSON.stringify(gameState),
+                timestamp: new Date().toISOString()
+            };
+            localStorage.setItem('gameSlots', JSON.stringify(slots));
+            renderSlotUI();
+            showToast(`スロット${currentSlot}に保存しました`, 'success');
+        }
 
         function showLearnModal(topic) {
             const content = learnContent[topic];
