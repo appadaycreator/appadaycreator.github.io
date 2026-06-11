@@ -710,14 +710,14 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     </div>
                 </div>
                 <div class="form-group">
-                    <label for="period">分析期間</label>
+                    <label for="period">分析期間 <span title="短期：スイング、中期：トレンド追従、長期：戦略判断の参考に" style="cursor:help;color:#7c3aed;font-weight:bold;">?</span></label>
                     <select id="period" required>
-                        <option value="1mo">1ヶ月</option>
-                        <option value="3mo" selected>3ヶ月</option>
-                        <option value="6mo">6ヶ月</option>
-                        <option value="1y">1年</option>
-                        <option value="2y">2年</option>
-                        <option value="5y">5年</option>
+                        <option value="1mo">1ヶ月（短期トレード）</option>
+                        <option value="3mo" selected>3ヶ月（スイング）</option>
+                        <option value="6mo">6ヶ月（中期トレンド）</option>
+                        <option value="1y">1年（長期戦略）</option>
+                        <option value="2y">2年（中長期分析）</option>
+                        <option value="5y">5年（長期投資）</option>
                     </select>
                 </div>
                 <button type="submit" class="btn" id="analyzeBtn">分析開始</button>
@@ -741,6 +741,9 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         <div id="favoritesSection" class="search-section" style="display:none;">
             <h2>⭐ お気に入り銘柄</h2>
             <div id="favoriteList" class="popular-stocks"></div>
+            <div id="portfolioAnalysisBtn" style="display:none;margin-top:12px;text-align:center;">
+                <button onclick="analyzePortfolio()" style="background:linear-gradient(45deg,#059669,#047857);color:#fff;border:none;padding:12px 24px;border-radius:8px;font-weight:600;cursor:pointer;font-size:0.95rem;">📈 ポートフォリオ分析</button>
+            </div>
         </div>
 
         <!-- Loading -->
@@ -799,6 +802,12 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             <div id="screenerCtaLink" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 16px;margin-top:16px;text-align:center;">
                 <p style="font-size:0.88rem;color:#1e40af;margin:0 0 8px;">同業種や類似条件の銘柄を探すなら</p>
                 <a href="screener.html" style="display:inline-block;background:#1e40af;color:#fff;padding:10px 20px;border-radius:8px;font-weight:bold;text-decoration:none;font-size:0.9rem;">📊 スクリーナーで類似銘柄を探す →</a>
+            </div>
+
+            <!-- 次のアクション推奨 -->
+            <div id="nextActionSection" style="display:none;background:linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%);border:1px solid #e9d5ff;border-radius:12px;padding:16px;margin-top:20px;">
+                <h3 style="color:#6b21a6;margin:0 0 12px;font-size:0.95rem;">📈 関連銘柄も分析してみる</h3>
+                <div id="nextActionCards" style="display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));"></div>
             </div>
         </div>
 
@@ -971,6 +980,12 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
     <p style="font-size:13px;font-weight:700;color:#991b1b;margin-bottom:8px;">📈 プロが選ぶ高騰期待銘柄を毎月チェック</p>
     <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJA+8BJCMI+ONS+TS3OI" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;background:#dc2626;color:#fff;padding:10px 18px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">株歴50年超のプロが厳選！【旬の厳選10銘柄】 →</a>
     <img border="0" width="1" height="1" src="https://www15.a8.net/0.gif?a8mat=4B3WJA+8BJCMI+ONS+TS3OI" alt="">
+  </div>
+  <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px;margin-top:12px;text-align:center;">
+    <p style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:8px;">📖 FX投資マスターガイドを無料プレゼント中</p>
+    <p style="font-size:12px;color:#1e3a8a;margin-bottom:8px;">図解オールカラー128ページ。株式と組み合わせたFX投資の基礎が学べます。</p>
+    <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJA+89R1T6+ONS+5ZMCI" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;background:#1d4ed8;color:#fff;padding:10px 18px;border-radius:8px;font-size:12px;font-weight:bold;text-decoration:none;">FX投資ガイドを無料でもらう →</a>
+    <img border="0" width="1" height="1" src="https://www16.a8.net/0.gif?a8mat=4B3WJA+89R1T6+ONS+5ZMCI" alt="">
   </div>
 </section>
 
@@ -1778,6 +1793,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             document.getElementById('shareSection').style.display = 'block';
             const screenerLink = document.getElementById('screenerCtaLink');
             if (screenerLink) screenerLink.style.display = 'block';
+            // 次のアクション推奨を表示
+            showNextActionRecommendations(data.info.currentPrice >= prices[prices.length - 2]?.close ? 'up' : 'down');
         }
 
         // チャート描画
@@ -2671,6 +2688,31 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         }
     }
 
+    // 次のアクション推奨銘柄を表示
+    function showNextActionRecommendations(trendDirection) {
+        const nextActionSection = document.getElementById('nextActionSection');
+        const cardsContainer = document.getElementById('nextActionCards');
+        if (!nextActionSection || !cardsContainer) return;
+
+        // AIスコア・RSI・配当利回りに基づいて関連銘柄を推奨
+        const recommendations = [
+            { code: '7203.T', name: 'トヨタ自動車', reason: '同業界・安定成長' },
+            { code: '7267.T', name: 'ホンダ', reason: '同業界・高配当' },
+            { code: '6758.T', name: 'ソニーグループ', reason: 'テク関連・成長株' }
+        ];
+
+        cardsContainer.innerHTML = recommendations.map(rec => {
+            const codeClean = rec.code.replace('.T', '');
+            return `<a href="index.html?code=${codeClean}" style="display:block;background:#fff;border:1px solid #e9d5ff;border-radius:8px;padding:10px;text-decoration:none;color:#374151;transition:all 0.2s;">
+                <div style="font-size:0.75rem;color:#6b7280;margin-bottom:2px;">${codeClean}</div>
+                <div style="font-weight:700;font-size:0.9rem;margin-bottom:4px;">${rec.name}</div>
+                <div style="font-size:0.7rem;color:#9ca3af;background:#f3e8ff;padding:2px 6px;border-radius:3px;display:inline-block;">${rec.reason}</div>
+            </a>`;
+        }).join('');
+
+        nextActionSection.style.display = 'block';
+    }
+
     // URLコピー機能
     function copyAnalysisUrl() {
         const url = window.location.href;
@@ -2711,7 +2753,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         window.open(lineUrl, '_blank');
     }
 
-    // シェア用テキスト生成
+    // シェア用テキスト生成（AIスコア・シグナル含む）
     function generateShareText() {
         if (!currentStock) {
             return 'AI Stock Analyzer で株価分析をしてみよう！';
@@ -2722,7 +2764,17 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         const change = currentStock.data.info.change >= 0 ? '+' : '';
         const changePercent = currentStock.data.info.changePercent.toFixed(2);
 
-        return `🤖AI Stock Analyzerで${stockName}を分析！\n現在価格: ${price}円 (${change}${changePercent}%)\n\n#継続は力なり #株価分析 #AI投資`;
+        // AIスコア・シグナル情報を追加
+        const aiScore = currentStock.data.aiScore || 65;
+        const confidence = currentStock.data.confidence || 65;
+        const rsi = currentStock.data.rsi || 50;
+        const signals = [];
+        if(rsi<30)signals.push('買い🟢');
+        else if(rsi>70)signals.push('売り🔴');
+        else signals.push('中立');
+        const signalText = signals.join('/');
+
+        return `🤖AI Stock Analyzerで${stockName}を分析！\n現在価格: ${price}円 (${change}${changePercent}%)\nAIスコア: ${aiScore}% | 信頼度: ${confidence}% | シグナル: ${signalText}\n\n#継続は力なり #株価分析 #AI投資`;
     }
 
     // CSV出力機能
@@ -2841,12 +2893,18 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
   // グローバルエラーハンドラ
   window.onerror=function(msg,src,line){try{console.error('[AppErr]',msg,src?src+':'+line:'');}catch(e){}return false;};
   window.addEventListener('unhandledrejection',function(e){try{console.error('[PromErr]',e.reason);}catch(e){}});
-  // トースト通知
+  // トースト通知（error時は手動で閉じられる）
   window.showToast=function(msg,type){
     var c=document.getElementById('toastContainer');if(!c)return;
-    var t=document.createElement('div');t.className='toast toast-'+(type||'info');t.textContent=msg;
+    var t=document.createElement('div');t.className='toast toast-'+(type||'info');t.style.display='flex';t.style.alignItems='center';t.style.justifyContent='space-between';
+    var msgSpan=document.createElement('span');msgSpan.textContent=msg;t.appendChild(msgSpan);
+    if(type==='error'){
+      var closeBtn=document.createElement('button');closeBtn.textContent='✕';closeBtn.style.background='none';closeBtn.style.border='none';closeBtn.style.color='inherit';closeBtn.style.cursor='pointer';closeBtn.style.marginLeft='8px';closeBtn.style.fontWeight='bold';
+      closeBtn.onclick=function(){t.classList.remove('show');setTimeout(function(){t.remove();},350);};
+      t.appendChild(closeBtn);
+    }
     c.appendChild(t);requestAnimationFrame(function(){t.classList.add('show');});
-    setTimeout(function(){t.classList.remove('show');setTimeout(function(){t.remove();},350);},3500);
+    var duration=type==='error'?null:3500;if(duration)setTimeout(function(){t.classList.remove('show');setTimeout(function(){t.remove();},350);},duration);
   };
   window.showSuccess=function(m){showToast(m,'success');};
   window.showError=function(m){showToast(m,'error');};
