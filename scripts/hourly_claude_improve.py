@@ -150,6 +150,10 @@ def safe_int(v) -> int:
 _cooldown_lock = None  # threading.Lock() は main() で初期化
 _in_progress: set = set()  # 実行中リポジトリ（並列重複防止用）
 
+# ⑮ get_top_services TTLキャッシュ（5分・ワーカー間共有でSheets API呼び出しを削減）
+_TOP_SVC_CACHE: dict = {"ts": 0.0, "data": None}
+_TOP_SVC_TTL = 300  # 5分
+
 CD_FMT = "%Y/%m/%d %H:%M"
 
 
@@ -236,6 +240,8 @@ def quick_scan(repo: str) -> list[str]:
         # ===== 静的HTML サービス =====
         html = idx.read_text(errors="ignore")
         import re as _re
+        # ⑫ HTMLコメントを除去（false positive防止: <!--...-->内パターンを「実装済み」と誤認しない）
+        html = _re.sub(r'<!--.*?-->', '', html, flags=_re.DOTALL)
         # M1: 文脈CTAの有無
         has_cta = any(kw in html for kw in [
             "申し込む", "無料登録", "詳しく見る", "今すぐ", "無料で始める",
@@ -373,6 +379,10 @@ def get_top_services(sheets) -> list[dict]:
       J(9)=Clicks7d, K(10)=Impr7d, P(15)=公開/非公開
       Q(16)=SEO完成度(品質スコア), R(17)=CD(Claude Designフラグ), S(18)=改善回数
     """
+    # ⑮ TTLキャッシュ: 5分以内の結果を再利用（並列ワーカーのSheets API重複呼び出しを削減）
+    if _TOP_SVC_CACHE["data"] is not None and time.time() - _TOP_SVC_CACHE["ts"] < _TOP_SVC_TTL:
+        return _TOP_SVC_CACHE["data"]
+
     result = sheets.get(
         spreadsheetId=SPREADSHEET_ID,
         range=f"{SHEET}!A:AL"
@@ -430,7 +440,9 @@ def get_top_services(sheets) -> list[dict]:
             "cd_expiry": cd_expiry,
         })
 
-    return sorted(services, key=lambda x: -x["combined"])
+    _sorted = sorted(services, key=lambda x: -x["combined"])
+    _TOP_SVC_CACHE.update({"ts": time.time(), "data": _sorted})
+    return _sorted
 
 
 def calc_ultra_strict_asset(name: str, clicks: int, affil: str) -> int:
@@ -1157,6 +1169,18 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
         if _m:
             pending_ids.add(_m.group(1))
 
+    # ⑬ 1回の実行で実装する施策を上位3件に制限（多件一括は後半の品質低下と副作用リスクを高める）
+    if len(pending_ids) > 3:
+        _all_sorted = sorted(pending_ids, key=lambda x: int(x[1:]))
+        pending_ids = set(_all_sorted[:3])
+        _new_pre = []
+        for _iss in pre_issues:
+            _mm = _re2.match(r'\[(M\d+)\]', _iss)
+            if not _mm or _mm.group(1) in pending_ids:
+                _new_pre.append(_iss)
+        pre_issues = _new_pre
+        log(f"  施策上限: {len(_all_sorted)}件 → 上位3件に絞る {sorted(pending_ids, key=lambda x:int(x[1:]))}（残{_all_sorted[3:]}は次回）")
+
     # フェーズ1スキップ判定: quick_scanで未実施施策が検出済みならPhase1を省略して直接Phase2へ
     # フォーカスガイド: 未実施施策のセクションのみ抽出（実装済み施策の説明を省いてトークン削減）
     _skip_phase1 = bool(pre_issues)
@@ -1201,7 +1225,7 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
         ]
         cmd += "\n\n【フェーズ2直接実装対象（未実施施策のみ・M番号順）】\n"
         cmd += "\n".join(checklist_lines)
-        cmd += "\n\n↑ ⬜未実施の施策をM番号順（上位優先）に実装してください。"
+        cmd += "\n\n↑ ⬜未実施の施策を上位3件のみ実装してください（残りは次回の自動改善で対応）。"
     else:
         # フェーズ1実施時: 全施策チェックリスト表示
         checklist_lines = []
@@ -1530,9 +1554,40 @@ def _worker(worker_id: int, stop_event, sheets_factory):
             if zero_traffic:
                 log(f"[W{worker_id}]   トラフィックゼロ: クールダウン24h")
 
+            # ⑪ 改善前バックアップ（破損時自動ロールバック用）
+            _bak_idx = WORKSPACE / svc["repo"] / "index.html"
+            _bak_bytes: bytes | None = None
+            _bak_size: int = 0
+            if _bak_idx.exists():
+                _bak_bytes = _bak_idx.read_bytes()
+                _bak_size = len(_bak_bytes)
+
             t_start = time.time()
             ok, stdout = run_improve(svc, pre_issues)
             elapsed = int(time.time() - t_start)
+
+            # ⑪ 破損検知: ファイルサイズが60%未満またはHTMLタグ消失 → 自動ロールバック
+            if ok and _bak_bytes:
+                _cur_idx = WORKSPACE / svc["repo"] / "index.html"
+                _rollback_reason = ""
+                if not _cur_idx.exists():
+                    _rollback_reason = "index.html消失"
+                else:
+                    _new_size = _cur_idx.stat().st_size
+                    _head_check = _cur_idx.read_bytes()[:500].decode("utf-8", errors="ignore").lower()
+                    if _new_size < _bak_size * 0.6:
+                        _rollback_reason = f"サイズ異常({_new_size:,}B < {_bak_size:,}B×60%)"
+                    elif "<html" not in _head_check:
+                        _rollback_reason = "HTMLタグ消失"
+                if _rollback_reason:
+                    _cur_idx.write_bytes(_bak_bytes)
+                    log(f"[W{worker_id}]   ❌ 破損検知({_rollback_reason}) → 自動ロールバック完了")
+                    send_telegram(
+                        f"⚠️ {svc['name']} HTML破損検知 → 自動ロールバック\n"
+                        f"原因: {_rollback_reason}\n"
+                        f"🔗 https://appadaycreator.com/{svc['repo']}/"
+                    )
+                    ok = False
 
             # 改善後確認: ローカルファイル基準でマーカー検査 + HTTP到達確認を分離
             v_detail = ""
