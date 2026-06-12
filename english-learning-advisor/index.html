@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#2486D6">
   <meta name="description" content="英語の学習スタイルを診断。TOEIC・英会話・英検など目的別に最適な学習法を提案。登録不要・無料" />
-<meta name="author" content="AppADayCreator | Tech&Brace">
+<meta name="author" content="AppADayCreator">
   <link rel="canonical" href="https://appadaycreator.com/english-learning-advisor/" />
 
   <!-- OGP Tags -->
@@ -581,6 +581,8 @@ body{font-family:"M PLUS Rounded 1c","Noto Sans JP",-apple-system,BlinkMacSystem
     <div id="question-card" class="bg-white rounded-2xl shadow p-6 fade-in">
       <h2 id="question-text" class="text-base md:text-lg font-bold text-gray-800 mb-3"></h2>
       <div id="question-description"></div>
+      <!-- M2: インラインバリデーションエラー表示エリア -->
+      <div id="question-error" class="hidden mb-3" role="alert" aria-live="polite"></div>
       <div id="options-container" class="space-y-3 mt-4"></div>
       <div class="flex gap-3 mt-6 pt-4 border-t border-gray-200">
         <button id="prev-btn" onclick="previousQuestion()" class="flex-1 py-2 px-4 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-lg text-sm transition-colors hidden">
@@ -681,10 +683,11 @@ body{font-family:"M PLUS Rounded 1c","Noto Sans JP",-apple-system,BlinkMacSystem
           <label for="sim-time" class="block text-sm font-semibold text-gray-700"><span aria-hidden="true">📍</span> 1日の学習時間を変更</label>
           <span id="sim-time-value" class="text-sm font-semibold text-indigo-600">10-15分</span>
         </div>
-        <input type="range" id="sim-time" min="0" max="3" step="1" value="0" aria-label="1日の学習時間をスライダーで変更：10-15分から2時間以上" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" onchange="runSimulation()" oninput="updateTimeDisplay()">
+        <input type="range" id="sim-time" min="0" max="3" step="1" value="0" placeholder="スライダーで学習時間を選択（10-15分〜2時間以上）" title="1日の学習時間を選択：10-15分 / 30分 / 1時間 / 2時間以上" aria-label="1日の学習時間をスライダーで変更：10-15分から2時間以上" aria-describedby="sim-time-hint" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" onchange="runSimulation()" oninput="updateTimeDisplay()">
         <div class="flex justify-between text-xs text-gray-500 mt-1">
           <span>10-15分</span><span>30分</span><span>1時間</span><span>2時間以上</span>
         </div>
+        <p id="sim-time-hint" class="text-xs text-gray-400 mt-1">← 左右にスライドして学習時間を変更</p>
       </div>
 
       <!-- 予算シミュレーター -->
@@ -693,16 +696,17 @@ body{font-family:"M PLUS Rounded 1c","Noto Sans JP",-apple-system,BlinkMacSystem
           <label for="sim-budget" class="block text-sm font-semibold text-gray-700"><span aria-hidden="true">💰</span> 月額予算を変更</label>
           <span id="sim-budget-value" class="text-sm font-semibold text-indigo-600">無料</span>
         </div>
-        <input type="range" id="sim-budget" min="0" max="4" step="1" value="0" aria-label="月額予算をスライダーで変更：無料から無制限" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" onchange="runSimulation()" oninput="updateBudgetDisplay()">
+        <input type="range" id="sim-budget" min="0" max="4" step="1" value="0" placeholder="スライダーで月額予算を選択（無料〜無制限）" title="月額予算を選択：無料 / 〜1,000円 / 1,000〜3,000円 / 3,000〜10,000円 / 無制限" aria-label="月額予算をスライダーで変更：無料から無制限" aria-describedby="sim-budget-hint" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" onchange="runSimulation()" oninput="updateBudgetDisplay()">
         <div class="flex justify-between text-xs text-gray-500 mt-1">
           <span>無料</span><span>1K</span><span>3K</span><span>10K</span><span>無制限</span>
         </div>
+        <p id="sim-budget-hint" class="text-xs text-gray-400 mt-1">← 左右にスライドして月額予算を変更</p>
       </div>
 
       <!-- 学習目的シミュレーター -->
       <div class="mb-5">
         <label for="sim-purpose" class="block text-sm font-semibold text-gray-700 mb-2"><span aria-hidden="true">🎯</span> 学習目的を変更</label>
-        <select id="sim-purpose" aria-label="学習目的を選択：旅行、ビジネス、キャリア、試験、趣味から選べます" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" onchange="runSimulation()">
+        <select id="sim-purpose" aria-label="学習目的を選択：旅行、ビジネス、キャリア、試験、趣味から選べます" aria-describedby="sim-purpose-hint" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent" onchange="runSimulation(); this.classList.remove('border-gray-300'); this.classList.add('border-indigo-400')">
           <option value="" disabled hidden selected>学習目的を選択してください</option>
           <option value="travel">🌏 海外旅行・観光</option>
           <option value="business">💼 仕事・ビジネス全般</option>
@@ -710,6 +714,7 @@ body{font-family:"M PLUS Rounded 1c","Noto Sans JP",-apple-system,BlinkMacSystem
           <option value="exam">📝 TOEIC・英検スコアアップ</option>
           <option value="hobby">🎬 趣味・海外ドラマ・映画</option>
         </select>
+        <p id="sim-purpose-hint" class="text-xs text-gray-400 mt-1">目的を変えると推奨学習タイプが切り替わります</p>
       </div>
 
       <!-- シミュレーション結果 -->
@@ -935,6 +940,10 @@ body{font-family:"M PLUS Rounded 1c","Noto Sans JP",-apple-system,BlinkMacSystem
     </div>
   </section>
 
+  <div style="max-width:760px;margin:1.5rem auto;padding:0.75rem 1rem;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:0.5rem;font-size:0.875rem;color:#92400e;">
+    <p style="margin:0;font-weight:600;">※ 以下に含まれるリンクは広告・アフィリエイトリンクです</p>
+  </div>
+
   <section class="max-w-2xl mx-auto px-4 mb-8">
     <div class="bg-blue-50 border border-blue-200 rounded-2xl p-5 text-center">
       <h3 class="font-bold text-blue-800 mb-2">🎓 小学生のオンライン英語専門校</h3>
@@ -1048,6 +1057,7 @@ const questions = [
   {
     text: "Q1. 現在の英語レベルは？",
     key: "level",
+    required: true,
     description: "学生時代からの英語経験、現在の実践レベルなど、正直に選んでください。",
     options: [
       { label: "ほぼ話せない（中学英語も不安）", value: "beginner", hint: "高校以来英語に触れていない、基礎から学び直したい方向け" },
@@ -1060,6 +1070,7 @@ const questions = [
   {
     text: "Q2. 英語を学ぶ目的は？",
     key: "purpose",
+    required: true,
     description: "複数の目的がある場合は、最も優先度が高いものを選んでください。",
     options: [
       { label: "🌏 海外旅行・観光", value: "travel", hint: "レストランやホテルでの日常会話が主な目的" },
@@ -1084,6 +1095,7 @@ const questions = [
   {
     text: "Q4. 1日の英語学習時間はどのくらい確保できますか？",
     key: "time",
+    required: true,
     description: "通勤時間・昼休み・朝30分など、現実的に続けられる時間を選んでください。",
     options: [
       { label: "⏱ 10〜15分（隙間時間のみ）", value: "short", hint: "アプリでのスキマ学習に最適" },
@@ -1361,7 +1373,21 @@ function renderQuestion() {
   const pct = Math.round((currentQuestion / questions.length) * 100);
   document.getElementById("q-percent").textContent = pct + "%";
   document.getElementById("progress-bar").style.width = pct + "%";
-  document.getElementById("question-text").textContent = q.text;
+
+  // M2: 必須バッジを質問テキストに付与
+  const questionTextEl = document.getElementById("question-text");
+  questionTextEl.textContent = q.text;
+  if (q.required) {
+    const badge = document.createElement("span");
+    badge.textContent = "必須";
+    badge.setAttribute("aria-label", "この質問は必須です");
+    badge.style.cssText = "font-size:0.68rem;background:#ef4444;color:#fff;padding:2px 8px;border-radius:99px;margin-left:8px;vertical-align:middle;font-weight:700;letter-spacing:.3px;";
+    questionTextEl.appendChild(badge);
+  }
+
+  // M2: エラーメッセージをクリア
+  const errEl = document.getElementById("question-error");
+  if (errEl) { errEl.classList.add("hidden"); errEl.innerHTML = ""; }
 
   // 質問の説明文を表示（M8: ガイダンス充実）
   const descEl = document.getElementById("question-description");
@@ -1371,6 +1397,20 @@ function renderQuestion() {
       descEl.style.display = "block";
     } else {
       descEl.style.display = "none";
+    }
+  }
+
+  // M2: 必須質問のスキップボタンをグレーアウト＋ラベル変更
+  const skipBtn = document.getElementById("skip-btn");
+  if (skipBtn) {
+    if (q.required) {
+      skipBtn.textContent = "スキップ不可（必須）";
+      skipBtn.style.opacity = "0.45";
+      skipBtn.setAttribute("aria-label", "この質問は必須のためスキップできません");
+    } else {
+      skipBtn.textContent = "スキップ";
+      skipBtn.style.opacity = "1";
+      skipBtn.setAttribute("aria-label", "この質問をスキップして次へ進む");
     }
   }
 
@@ -1417,6 +1457,9 @@ function selectOption(key, value, btnEl) {
   saveState();
   document.querySelectorAll(".option-btn").forEach(b => b.classList.remove("selected"));
   btnEl.classList.add("selected");
+  // M2: 選択時にエラーをクリア
+  const errEl = document.getElementById("question-error");
+  if (errEl) { errEl.classList.add("hidden"); errEl.innerHTML = ""; }
 
   setTimeout(() => {
     currentQuestion++;
@@ -1438,6 +1481,17 @@ function previousQuestion() {
 }
 
 function skipQuestion() {
+  const q = questions[currentQuestion];
+  // M2: 必須質問はスキップ不可・インラインエラー表示
+  if (q.required && !answers[q.key]) {
+    const errEl = document.getElementById("question-error");
+    if (errEl) {
+      errEl.innerHTML = `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;color:#dc2626;font-size:0.83rem;font-weight:600;">⚠️ この質問は必須です。上の選択肢からいずれか1つを選んでください。</div>`;
+      errEl.classList.remove("hidden");
+      errEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+    return;
+  }
   currentQuestion++;
   if (currentQuestion < questions.length) {
     renderQuestion();
@@ -1447,11 +1501,26 @@ function skipQuestion() {
 }
 
 function showResult() {
-  // 必須質問チェック（level・purpose・time）
+  // M2: 必須質問チェック（level・purpose・time）
   const required = ["level", "purpose", "time"];
   const missing = required.filter(k => !answers[k]);
   if (missing.length > 0) {
-    alert("「現在の英語レベル」「学習目的」「1日の学習時間」はお答えください。");
+    const missingKeyLabels = { level: "Q1. 現在の英語レベル", purpose: "Q2. 学習目的", time: "Q4. 1日の学習時間" };
+    const firstMissingKey = required.find(k => !answers[k]);
+    const qIndex = questions.findIndex(q => q.key === firstMissingKey);
+    currentQuestion = qIndex >= 0 ? qIndex : 0;
+    document.getElementById("quiz-section").classList.remove("hidden");
+    document.getElementById("result-section").classList.add("hidden");
+    renderQuestion();
+    const errEl = document.getElementById("question-error");
+    if (errEl) {
+      const labels = missing.map(k => missingKeyLabels[k]).join("・");
+      errEl.innerHTML = `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;color:#dc2626;font-size:0.83rem;font-weight:600;">⚠️ 未回答の必須質問があります：${labels}<br><span style="font-weight:400;">いずれか1つを選んでから次へ進んでください。</span></div>`;
+      errEl.classList.remove("hidden");
+    }
+    setTimeout(() => {
+      document.getElementById("question-card").scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
     return;
   }
 
@@ -1800,7 +1869,7 @@ document.addEventListener("DOMContentLoaded", () => {
 </script>
 
 <div style="border-top:1px solid #e5e7eb;padding:14px 16px 18px;background:#fff;">
-  <p style="text-align:center;font-size:11px;font-weight:600;color:#94a3b8;margin:0 0 10px;">スポンサーリンク</p>
+  <p style="text-align:center;font-size:11px;font-weight:600;color:#94a3b8;margin:0 0 10px;">スポンサーリンク（※広告を含みます）</p>
   <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:700px;margin:0 auto;">
     <a href="https://px.a8.net/svt/ejp?a8mat=4B3VR6+GFV6NE+3CJQ+64C3M" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">本・雑誌・ビジネス書が聴ける【audiobook.jp】</a><img border="0" width="1" height="1" src="https://www11.a8.net/0.gif?a8mat=4B3VR6+GFV6NE+3CJQ+64C3M" alt="">
     <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FIIWRU+1IRY+1TKOKI" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:5px 12px;background:#fff;border:1px solid #d1d5db;border-radius:20px;font-size:12px;color:#4b5563;text-decoration:none;white-space:nowrap;">ファイナンシャルアカデミー「お金の教養講座」</a><img border="0" width="1" height="1" src="https://www14.a8.net/0.gif?a8mat=4B3WJ6+FIIWRU+1IRY+1TKOKI" alt="">
@@ -1829,7 +1898,7 @@ document.addEventListener("DOMContentLoaded", () => {
   </div>
 </div>
 <div class="adc-footer-bottom">
-  <span>運営：AppADayCreator / Tech&amp;Brace &nbsp;|&nbsp; &copy; 2026 AppADayCreator. All rights reserved.</span>
+  <span>&copy; 2026 AppADayCreator. All rights reserved.</span>
   <span>当サイトのWebサービスはAIを活用しており、すべて無料でご利用いただけます。</span>
 </div>
 </footer>
