@@ -268,7 +268,8 @@ def quick_scan(repo: str) -> list[str]:
         if is_data_service and not has_chart:
             issues.append("[M4] グラフ/ビジュアライゼーションなし（Chart.jsで結果を可視化推奨）")
         # M5: 結果連動アフィリエイト推薦
-        if "px.a8.net" in html or "amazon" in html.lower():
+        # ㊹ "amazon"単体はテキスト中に頻出→"amazon.co.jp"/"amazon.com"に限定して誤検知削減
+        if "px.a8.net" in html or "amazon.co.jp" in html.lower() or "amazon.com" in html.lower():
             has_dynamic_rec = any(kw in html for kw in ["おすすめ", "あなたに", "診断結果", "結果に応じ", "recommend"])
             if not has_dynamic_rec:
                 issues.append("[M5] 結果連動アフィリエイト推薦なし（診断/計算結果に合わせた動的CTA未実装）")
@@ -278,8 +279,11 @@ def quick_scan(repo: str) -> list[str]:
         if is_tracking and not has_goal:
             issues.append("[M6] 目標設定・達成度トラッキング機能なし")
         # M7: 比較・シミュレーション（計算/比較系のみ）
+        # ㊹ "比較"は文中に頻出→UI要素（select/radio/tab）と共存する場合のみ「実装済み」と判定
         is_calc = any(kw in html for kw in ["計算", "比較", "シミュレーション", "プラン", "コース"])
-        has_compare = any(kw in html for kw in ["比較", "compare", "シミュレーション", "simulation", "パターン"])
+        has_compare_kw = any(kw in html for kw in ["compare", "シミュレーション", "simulation", "パターンA", "パターンB", "プランA"])
+        has_compare_ui = bool(_re.search(r'<(?:select|input[^>]*type=["\']radio["\'])[^>]*>', html, _re.IGNORECASE))
+        has_compare = has_compare_kw or has_compare_ui
         if is_calc and not has_compare:
             issues.append("[M7] 比較・シミュレーション機能なし（複数パターン計算推奨）")
         # M8: ツールチップ・入力ガイダンス
@@ -1206,9 +1210,9 @@ def _build_code_snippets(pending_ids: set, service_name: str, repo: str) -> str:
 
 
 def _python_patch(repo: str, pending_ids: set, service_name: str = "") -> set:
-    """㉖㉛ 自明施策（M13/M14/M15/M16/M18/M19/M20）をPythonで直接修正し、実施済みidを返す。
+    """㉖㉛㊳ 自明施策（M9/M13/M14/M15/M16/M18/M19/M20）をPythonで直接修正し、実施済みidを返す。
     Claudeを呼ばずにHTMLを直接編集することでトークンを節約する。"""
-    trivial = pending_ids & {"M13", "M14", "M15", "M16", "M18", "M19", "M20"}
+    trivial = pending_ids & {"M9", "M13", "M14", "M15", "M16", "M18", "M19", "M20"}
     if not trivial:
         return set()
     idx = WORKSPACE / repo / "index.html"
@@ -1267,6 +1271,23 @@ def _python_patch(repo: str, pending_ids: set, service_name: str = "") -> set:
         if "FAQPage" in html:
             patched.add("M14")
 
+    # ㊶ M14: HowToスキーマ追加（FAQPageと独立チェック・未設定の場合のみ）
+    if "M14" in trivial and "HowTo" not in html:
+        _sn = service_name or repo
+        howto_schema = (
+            '<script type="application/ld+json">{"@context":"https://schema.org",'
+            '"@type":"HowTo",'
+            f'"name":"{_sn}の使い方",'
+            '"step":['
+            '{"@type":"HowToStep","name":"入力","text":"画面の入力フォームに情報を入力してください。"},'
+            '{"@type":"HowToStep","name":"実行","text":"ボタンを押して計算・診断を実行してください。"},'
+            '{"@type":"HowToStep","name":"確認","text":"表示された結果を確認してご活用ください。"}]}'
+            '</script>'
+        )
+        html = html.replace("</head>", howto_schema + "\n</head>", 1)
+        if "HowTo" in html:
+            patched.add("M14")  # set()なので重複追加は無害
+
     # ㉛ M13: 内部リンク追加（appadaycreator.comへのリンクがない場合のみ）
     if "M13" in trivial and "appadaycreator.com" not in html:
         internal_link = (
@@ -1310,9 +1331,38 @@ def _python_patch(repo: str, pending_ids: set, service_name: str = "") -> set:
             html = new_html
             patched.add("M20")
 
+    # ㊳ M9: SNSシェアボタン追加（twitter/LINEが両方ない場合のみ）
+    if "M9" in trivial and "twitter.com/intent/tweet" not in html and "line.me/R/share" not in html:
+        import urllib.parse as _up
+        _sn = service_name or repo
+        _enc_url = _up.quote(f"https://appadaycreator.com/{repo}/")
+        _enc_name = _up.quote(_sn)
+        share_block = (
+            f'<div style="text-align:center;padding:12px 16px;font-size:.9em;">'
+            f'<a href="https://twitter.com/intent/tweet?url={_enc_url}&text={_enc_name}" '
+            f'target="_blank" rel="noopener" style="margin:4px 10px;color:#1da1f2;">𝕏でシェア</a>'
+            f'<a href="https://line.me/R/share?text={_enc_name}+{_enc_url}" '
+            f'target="_blank" rel="noopener" style="margin:4px 10px;color:#06c755;">LINEで送る</a>'
+            f'</div>'
+        )
+        # </footer>があればその直前に、なければ</body>直前に挿入
+        if "</footer>" in html:
+            html = html.replace("</footer>", share_block + "\n</footer>", 1)
+        else:
+            html = html.replace("</body>", share_block + "\n</body>", 1)
+        if "twitter.com/intent/tweet" in html:
+            patched.add("M9")
+
     if html != original:
+        # ㊵ パッチ後HTML構造検証: 必須タグが揃っているか確認（破損なら元に戻す）
+        _required_tags = ["<html", "</html>", "<head>", "</head>", "<body"]
+        _broken_tag = next((t for t in _required_tags if t not in html.lower()), None)
+        if _broken_tag:
+            idx.write_text(original, encoding="utf-8")
+            log(f"  ㊵ Pythonパッチ後HTML構造破損({_broken_tag}未検出) → 元に戻しました ({repo})")
+            return set()
         idx.write_text(html, encoding="utf-8")
-        log(f"  ㉖㉛ Python直接パッチ: {sorted(patched)} ({repo})")
+        log(f"  ㉖㉛㊳ Python直接パッチ: {sorted(patched)} ({repo})")
 
     return patched
 
@@ -1492,7 +1542,30 @@ def _git_commit_and_push(repo: str, s_delta: int) -> bool:
                 log(f"  ㉘ {repo}: 変更なし → コミットスキップ")
                 return True
 
-            # ㉜ 安全ゲート②: A8リンク削除・ファイル削除を検出したらpush中止
+            # ㊱ 安全ゲート②: HTMLサイズ回帰ガード（-30%以上縮小 or +300%以上膨張で中止）
+            _idx_staged = service_dir / "index.html"
+            if _idx_staged.exists():
+                _head_r = subprocess.run(
+                    ["git", "show", f"HEAD:{repo}/index.html"],
+                    cwd=str(WORKSPACE), capture_output=True, timeout=15
+                )
+                if _head_r.returncode == 0 and len(_head_r.stdout) > 1000:
+                    _head_size = len(_head_r.stdout)
+                    _cur_size = _idx_staged.stat().st_size
+                    _ratio = _cur_size / _head_size
+                    if _ratio < 0.70 or _ratio > 4.00:
+                        subprocess.run(
+                            ["git", "restore", "--staged"] + [str(_f) for _f in _safe_files if _f.exists()],
+                            cwd=str(WORKSPACE), capture_output=True, timeout=30
+                        )
+                        msg = (f"⚠️ ㊱ HTMLサイズ回帰検出 ({repo}): "
+                               f"HEAD {_head_size:,}B → 現在 {_cur_size:,}B "
+                               f"(比率={_ratio:.0%}) → push中止")
+                        log(f"  {msg}")
+                        send_telegram(msg)
+                        return False
+
+            # ㉜ 安全ゲート③: A8リンク削除・ファイル削除を検出したらpush中止
             diff_content_r = subprocess.run(
                 ["git", "diff", "--cached"],
                 cwd=str(WORKSPACE), capture_output=True, text=True, timeout=30
@@ -1588,7 +1661,9 @@ def _select_model_and_turns(pending_ids: set, skip_phase1: bool) -> tuple[str, i
         return _MODEL_ALIASES["sonnet"], 20
     else:
         # 単純な HTML/メタデータ施策のみ → Haiku で十分
-        return _MODEL_ALIASES["haiku"], 12
+        # ㊴ 1件のみなら6ターンに削減（スニペット同梱で十分・12ターンは過剰）
+        turns = 6 if len(pending_ids) == 1 else 12
+        return _MODEL_ALIASES["haiku"], turns
 
 
 
@@ -1739,10 +1814,12 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
     _simple_pending  = sorted(pending_ids & _SIMPLE_M,  key=lambda x: int(x[1:]))
 
     # タイムアウトをmax-turnsに連動（Haiku/単純施策は短く設定してタイムアウト待ち損失を最小化）
-    # max-turns 12 → 300s / 20 → 600s / 25+ → 900s
-    _timeout_sec = 300 if _max_turns <= 12 else (600 if _max_turns <= 20 else TIMEOUT_SEC)
+    # ㊷ max-turns 6 → 180s / 12 → 300s / 20 → 600s / 25+ → 900s
+    _timeout_sec = (180 if _max_turns <= 6 else
+                    (300 if _max_turns <= 12 else
+                     (600 if _max_turns <= 20 else TIMEOUT_SEC)))
     # リトライ前の待機時間もタイムアウトに比例させる（短いタイムアウトに長い待機は不要）
-    _retry_sleep = 30 if _timeout_sec <= 300 else 60
+    _retry_sleep = 20 if _timeout_sec <= 180 else (30 if _timeout_sec <= 300 else 60)
 
     log(f"  ルーティング: {_model_short} / max-turns={_max_turns} / timeout={_timeout_sec}s"
         f" | 複雑={_complex_pending or []} 単純={_simple_pending or []}")
@@ -1883,6 +1960,14 @@ def _compute_sleep_between() -> int:
 
 # 各M番号の検証ルール: (種別, 正規表現, 表示ラベル)
 # 種別: "pos"=存在確認(あればOK) / "neg"=除去確認(なければOK)
+# ㊲ マーカー中身検証ルール: 存在チェック通過後に実体を確認（空実装排除）
+# (正規表現, 最低ヒット数, 説明ラベル)
+_CONTENT_VERIFY_RULES: dict = {
+    "M14": (r'"@type"\s*:\s*"Question"', 2, "Question≥2件"),
+    "M4":  (r'new\s+Chart\s*\(', 1, "new Chart()呼び出し"),
+    "M1":  (r'href\s*=\s*["\']https?://', 1, "CTAにURLあり"),
+}
+
 _VERIFY_RULES: dict = {
     "M1":  ("pos", r'(?:px\.a8\.net|affiliate-card|data-platform=)', "CTA"),
     "M2":  ("pos", r'placeholder\s*=\s*["\'][^"\']{3,}', "placeholder"),
@@ -1909,14 +1994,15 @@ _VERIFY_RULES: dict = {
 
 def check_improvement_markers(pre_issues: list, html: str) -> tuple:
     """pre_issuesのM番号に対応するマーカーをHTMLで確認する。
-    Returns (summary_str, failed_issues_list)
-      summary_str      : "🔍 ✅A/B ❌C" 形式の1行サマリ
+    ㊸ Returns (summary_str, failed_issues_list, failure_hints_list)
+      summary_str       : "🔍 ✅A/B ❌C" 形式の1行サマリ
       failed_issues_list: 未反映だったpre_issuesのオリジナル文字列リスト
+      failure_hints_list: リトライprompt用の詳細失敗理由リスト
     """
     import re as _re
     # ⑰ HTMLコメントを除去（Claudeがコメント内にコードを書いた場合の false positive を防ぐ）
     html = _re.sub(r'<!--.*?-->', '', html, flags=_re.DOTALL)
-    passed_labels, failed_labels, failed_issues = [], [], []
+    passed_labels, failed_labels, failed_issues, failure_hints = [], [], [], []
     for issue in pre_issues:
         m = _re.match(r'\[M(\d+)\]', issue)
         if not m:
@@ -1928,20 +2014,32 @@ def check_improvement_markers(pre_issues: list, html: str) -> tuple:
         rtype, pattern, label = rule
         found = bool(_re.search(pattern, html, _re.IGNORECASE))
         ok = found if rtype == "pos" else not found
+        # ㊲ 存在チェック通過後に中身の実体を確認（空実装排除）
+        if ok and code in _CONTENT_VERIFY_RULES:
+            c_pat, c_min, c_label = _CONTENT_VERIFY_RULES[code]
+            c_count = len(_re.findall(c_pat, html, _re.IGNORECASE))
+            if c_count < c_min:
+                ok = False
+                label = f"{label}(中身不足:{c_label})"
         if ok:
             passed_labels.append(label)
         else:
             failed_labels.append(label)
             failed_issues.append(issue)
+            # ㊸ リトライprompt用の詳細失敗理由を記録
+            if "(中身不足:" in label:
+                failure_hints.append(f"{code} 失敗理由: {label} → 実体のある実装が必要です")
+            else:
+                failure_hints.append(f"{code} 失敗: HTMLにパターンが見つかりません（{label}）")
 
     if not passed_labels and not failed_labels:
-        return "", []
+        return "", [], []
     parts = []
     if passed_labels:
         parts.append("✅" + "/".join(passed_labels))
     if failed_labels:
         parts.append("❌" + "/".join(failed_labels))
-    return "🔍 " + " ".join(parts), failed_issues
+    return "🔍 " + " ".join(parts), failed_issues, failure_hints
 
 
 def verify_deployed_url(repo: str, timeout: int = 8) -> tuple:  # ⑱ 20s→8s（情報確認のみなので短縮）
@@ -2102,7 +2200,7 @@ def _worker(worker_id: int, stop_event, sheets_factory):
 
                 if ok and idx_path.exists():
                     local_html = idx_path.read_text(encoding="utf-8", errors="ignore")
-                    v_markers, v_failed = check_improvement_markers(pre_issues, local_html)
+                    v_markers, v_failed, v_fail_hints = check_improvement_markers(pre_issues, local_html)
                     _v_final_failed = v_failed  # ㉟ 初回検査結果をdelta算出に使用
                     log(f"[W{worker_id}]   ローカル確認: {v_markers or '(マーカーなし)'}")
                     initial_v_markers = v_markers
@@ -2110,7 +2208,9 @@ def _worker(worker_id: int, stop_event, sheets_factory):
                     # マーカー未反映: 1回だけリトライ（ローカルファイル再検査）
                     if v_failed:
                         log(f"[W{worker_id}]   ❌ 未反映マーカー: {v_failed} → リトライ実行")
-                        retry_hint = "前回改善後チェックで未反映だった施策: " + ", ".join(v_failed)
+                        # ㊸ 失敗理由を含む詳細なリトライhint（Claudeがより正確に修正できるよう誘導）
+                        _hint_detail = ("\n詳細:\n" + "\n".join(f"  • {h}" for h in v_fail_hints)) if v_fail_hints else ""
+                        retry_hint = "前回改善後チェックで未反映だった施策: " + ", ".join(v_failed) + _hint_detail
                         ok_r, stdout_r = run_improve(svc, v_failed, retry_hint=retry_hint)
                         if ok_r:
                             # ⑲ リトライ後の破損検知（⑪の補完: 初回バックアップから復元）
@@ -2128,7 +2228,7 @@ def _worker(worker_id: int, stop_event, sheets_factory):
                         if ok_r and ok:
                             stdout = stdout_r
                             local_html2 = idx_path.read_text(encoding="utf-8", errors="ignore")
-                            v_markers, v_failed2 = check_improvement_markers(v_failed, local_html2)
+                            v_markers, v_failed2, _ = check_improvement_markers(v_failed, local_html2)
                             if v_failed2:
                                 _v_final_failed = v_failed2  # ㉟ 残存失敗をdelta算出に反映
                                 log(f"[W{worker_id}]   ❌ リトライ後も未反映: {v_failed2} → 失敗扱い")
