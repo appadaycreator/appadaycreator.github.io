@@ -164,6 +164,42 @@ label:has(input[type="radio"]:checked) {
   border-color: #059669 !important;
   box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
 }
+
+/* M2: バリデーションエラー・ヒント表示 */
+.question-hint {
+  font-size: 0.78rem;
+  color: #047857;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #f0fdf4;
+  border-radius: 8px;
+  border-left: 3px solid #10b981;
+  line-height: 1.6;
+}
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #dc2626;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-top: 10px;
+  padding: 6px 10px;
+  background: #fef2f2;
+  border-radius: 6px;
+  border-left: 3px solid #dc2626;
+  animation: fadeInError 0.2s ease;
+}
+@keyframes fadeInError {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes shakeQuestion {
+  0%,100%{ transform: translateX(0); }
+  20%,60%{ transform: translateX(-6px); }
+  40%,80%{ transform: translateX(6px); }
+}
+.shake-error { animation: shakeQuestion 0.4s ease; }
 </style>
 </head>
 <body class=" font-sans text-gray-800" style="background:#f8fafc;"><a href="#main" class="sr-only">本文へスキップ</a>
@@ -191,6 +227,25 @@ label:has(input[type="radio"]:checked) {
 <main id="main" role="main" class="max-w-2xl mx-auto px-4 py-8">
   <div class="bg-white rounded-2xl shadow p-6 mb-6">
     <p class="text-gray-600 text-sm leading-relaxed">フリーランス・個人事業主の独立に必要な初期費用は業種によって異なります。個人事業主の開業費は平均約200万円、法人設立では約50万円の登記費用が別途かかります。事前の資金計画が独立成功のカギです。</p>
+  </div>
+
+  <!-- M2: 自己資金入力フィールド（UX改善・バリデーション・クイック選択） -->
+  <div class="bg-white rounded-2xl shadow p-5 mb-4" id="budget-input-section">
+    <label class="block text-sm font-semibold text-gray-700 mb-2" for="budget-input">💰 準備できる自己資金の目安（任意）</label>
+    <div class="flex items-center gap-2">
+      <input type="number" id="budget-input" placeholder="例: 300" min="0" max="99999" step="10" class="border border-gray-300 rounded-xl px-4 py-2 w-36 text-lg font-bold text-right focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-200" aria-label="自己資金の目安（万円）" aria-describedby="budget-error budget-hint" inputmode="numeric" oninput="validateBudgetInput(this)">
+      <span class="text-gray-600 font-semibold text-sm">万円</span>
+    </div>
+    <!-- M2: クイック選択ボタン（よくある金額を1タップで入力） -->
+    <div class="flex flex-wrap gap-2 mt-2" role="group" aria-label="自己資金の目安クイック選択">
+      <button type="button" onclick="setBudget(100)" class="text-xs px-3 py-1 bg-gray-100 hover:bg-emerald-100 text-gray-600 hover:text-emerald-700 rounded-full border border-gray-200 hover:border-emerald-300 transition">100万円</button>
+      <button type="button" onclick="setBudget(300)" class="text-xs px-3 py-1 bg-gray-100 hover:bg-emerald-100 text-gray-600 hover:text-emerald-700 rounded-full border border-gray-200 hover:border-emerald-300 transition">300万円</button>
+      <button type="button" onclick="setBudget(500)" class="text-xs px-3 py-1 bg-gray-100 hover:bg-emerald-100 text-gray-600 hover:text-emerald-700 rounded-full border border-gray-200 hover:border-emerald-300 transition">500万円</button>
+      <button type="button" onclick="setBudget(1000)" class="text-xs px-3 py-1 bg-gray-100 hover:bg-emerald-100 text-gray-600 hover:text-emerald-700 rounded-full border border-gray-200 hover:border-emerald-300 transition">1000万円</button>
+    </div>
+    <!-- M2: バリデーションエラーメッセージ -->
+    <p id="budget-error" class="text-xs text-red-600 mt-1 hidden" role="alert" aria-live="polite"></p>
+    <p class="text-xs text-gray-500 mt-1" id="budget-hint">入力すると診断結果で費用との差額・不足額が表示されます</p>
   </div>
 
   <div id="quiz-section">
@@ -228,6 +283,16 @@ label:has(input[type="radio"]:checked) {
         </div>
       </div>
       <div id="result-content"></div>
+      <!-- M2: メモ入力フィールド（UX改善・placeholder追加） -->
+      <div class="mt-4 pt-4 border-t border-gray-100" id="memo-section" style="display:none;">
+        <label class="block text-xs font-semibold text-gray-500 mb-1" for="result-memo">📝 診断結果のメモ（任意）</label>
+        <input type="text" id="result-memo"
+               placeholder="例: 半年以内に独立予定、IT業で副業から始める"
+               maxlength="100"
+               class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-200"
+               aria-label="診断結果のメモ">
+        <p class="text-xs text-gray-400 mt-1">履歴保存時にメモも一緒に保存されます</p>
+      </div>
     </div>
 
     <!-- Affiliate: 会計ソフト -->
@@ -393,36 +458,43 @@ label:has(input[type="radio"]:checked) {
     {
       id: 'type',
       text: '独立の形態を教えてください',
+      hint: '形態によって設立費用・税務処理が異なります。個人事業主は開業届無料、法人は登記費用が必要です。',
       options: ['👤 個人事業主（フリーランス）', '🏢 株式会社を設立', '🤝 合同会社（LLC）を設立', '❓ まだ決めていない']
     },
     {
       id: 'industry',
       text: '業種・仕事の種類を教えてください',
+      hint: '業種によって必要な設備・在庫・許認可費用が大きく異なります。飲食・実店舗は特に初期費用が高くなる傾向があります。',
       options: ['💻 IT・Web・デザイン', '📊 コンサル・士業・講師', '🍽️ 飲食・小売・実店舗', '⚙️ 製造・建設・技術職', '🛎️ その他サービス業']
     },
     {
       id: 'office',
       text: '事務所・オフィスの予定はありますか？',
+      hint: 'オフィス選択は月間固定費に直結します。自宅作業なら家賃・光熱費の一部を経費計上できます。',
       options: ['🏠 自宅で作業（オフィス不要）', '☕ コワーキングスペースを利用', '🏢 賃貸オフィスを借りる予定', '🏪 テナント・店舗を借りる予定']
     },
     {
       id: 'equipment',
       text: '開業に必要な設備・機材はどのくらいですか？',
+      hint: 'IT・コンサル系はPC・スマホのみで始められます。飲食・製造は厨房機器や工具などの大型設備が必要になります。',
       options: ['📱 PC・スマホのみ（10万円未満）', '🛠️ 機材・備品で50万円未満', '🏗️ 設備投資で50〜200万円', '⚡ 大型設備で200万円以上']
     },
     {
       id: 'savings',
       text: '独立時に用意できる自己資金はどのくらいですか？',
+      hint: '自己資金と融資必要額の目安を算出します。入力した情報は保存されません。目安として、初期費用の3割以上が理想とされています。',
       options: ['💰 50万円未満', '💵 50〜100万円', '💴 100〜300万円', '💸 300万円以上']
     },
     {
       id: 'revenue',
       text: '独立後1年目に期待する月間売上目標はいくらですか？',
+      hint: '売上目標に応じたマーケティング費用の目安を算出します。現実的な目標設定が資金計画の精度を高めます。',
       options: ['📈 30万円未満', '📊 30〜60万円', '💹 60〜100万円', '🚀 100〜200万円', '⭐ 200万円以上']
     },
     {
       id: 'tax_knowledge',
       text: '確定申告・経理の知識はありますか？',
+      hint: '経理知識に応じて、最適な会計ソフト・税理士の必要性をアドバイスします。知識がなくてもクラウド会計ソフトで対応できます。',
       options: ['😟 全くない', '📚 少しある（青色申告は知っている）', '✅ ある程度できる', '👨‍💼 プロに任せる予定']
     }
   ];
@@ -437,21 +509,71 @@ label:has(input[type="radio"]:checked) {
     document.getElementById('prev-btn').classList.toggle('hidden', currentStep === 0);
     document.getElementById('next-btn').textContent = currentStep === questions.length - 1 ? '診断する' : '次へ';
 
-    let html = `<p class="font-semibold text-gray-800 mb-4" id="question-text">${q.text}</p><div class="space-y-2" role="group" aria-labelledby="question-text">`;
+    const hintHtml = q.hint ? `<p class="question-hint" id="hint-${q.id}">💡 ${q.hint}</p>` : '';
+    let html = `<p class="font-semibold text-gray-800 mb-2" id="question-text">${q.text}</p>${hintHtml}<div class="space-y-2" role="group" aria-labelledby="question-text" aria-describedby="hint-${q.id} error-${q.id}" id="options-${q.id}">`;
     q.options.forEach(opt => {
       const checked = answers[q.id] === opt ? 'checked' : '';
       html += `<label class="flex items-center gap-3 p-3 border border-gray-200 rounded-xl cursor-pointer hover:border-emerald-400 transition has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50">
-        <input type="radio" name="${q.id}" value="${opt}" ${checked} class="accent-emerald-600" aria-label="${opt}"> <span class="text-sm">${opt}</span>
+        <input type="radio" name="${q.id}" value="${opt}" ${checked} class="accent-emerald-600" aria-label="${opt}" onchange="clearValidationError('${q.id}')"> <span class="text-sm">${opt}</span>
       </label>`;
     });
-    html += '</div>';
+    html += `</div><div id="error-${q.id}" role="alert" aria-live="polite"></div>`;
     document.getElementById('question-area').innerHTML = html;
   }
 
+  // M2: 自己資金クイック選択
+  function setBudget(val) {
+    const el = document.getElementById('budget-input');
+    el.value = val;
+    validateBudgetInput(el);
+  }
+
+  // M2: 自己資金バリデーション（リアルタイムフィードバック）
+  function validateBudgetInput(el) {
+    const errorEl = document.getElementById('budget-error');
+    if (!errorEl) return;
+    if (el.value === '') { errorEl.classList.add('hidden'); return; }
+    const val = parseInt(el.value, 10);
+    if (isNaN(val) || val < 0) {
+      errorEl.textContent = '⚠️ 0以上の金額（万円）を入力してください';
+      errorEl.classList.remove('hidden');
+    } else if (val > 99999) {
+      errorEl.textContent = '⚠️ 99,999万円以内で入力してください';
+      errorEl.classList.remove('hidden');
+    } else {
+      errorEl.classList.add('hidden');
+    }
+  }
+
+  function clearValidationError(qId) {
+    const el = document.getElementById(`error-${qId}`);
+    if (el) el.innerHTML = '';
+    const opts = document.getElementById(`options-${qId}`);
+    if (opts) opts.classList.remove('shake-error');
+  }
+
+  function showValidationError(qId) {
+    const el = document.getElementById(`error-${qId}`);
+    if (el) {
+      el.innerHTML = '<span class="error-message">⚠️ 選択してから次へ進んでください</span>';
+    }
+    const opts = document.getElementById(`options-${qId}`);
+    if (opts) {
+      opts.classList.remove('shake-error');
+      void opts.offsetWidth; // リフロー強制でアニメーション再生
+      opts.classList.add('shake-error');
+    }
+  }
+
   function saveAnswer() {
-    const el = document.querySelector(`input[name="${questions[currentStep].id}"]:checked`);
-    if (!el) { alert('選択してください'); return false; }
-    answers[questions[currentStep].id] = el.value;
+    const q = questions[currentStep];
+    const el = document.querySelector(`input[name="${q.id}"]:checked`);
+    if (!el) {
+      showValidationError(q.id);
+      return false;
+    }
+    answers[q.id] = el.value;
+    clearValidationError(q.id);
     return true;
   }
 
@@ -565,6 +687,9 @@ label:has(input[type="radio"]:checked) {
   }
 
   function showResult() {
+    // M2: 診断開始後は自己資金入力欄を隠す
+    const budgetSection = document.getElementById('budget-input-section');
+    if (budgetSection) budgetSection.style.display = 'none';
     document.getElementById('quiz-section').classList.add('hidden');
     document.getElementById('result-section').classList.remove('hidden');
 
@@ -615,6 +740,23 @@ ${advice.join('\n')}`;
         </div>
       </div>` : '';
 
+    // M2: 自己資金入力の取得と差額計算
+    const budgetVal = parseInt(document.getElementById('budget-input').value, 10);
+    const totalNeeded = initialCost + monthlyCost * recommendedMonths;
+    const budgetCompareHtml = (!isNaN(budgetVal) && budgetVal > 0) ? (() => {
+      const diff = budgetVal - totalNeeded;
+      const isOk = diff >= 0;
+      return `<div class="border-2 ${isOk ? 'border-emerald-400 bg-emerald-50' : 'border-red-300 bg-red-50'} rounded-xl p-4 mb-5">
+        <p class="text-sm font-bold ${isOk ? 'text-emerald-800' : 'text-red-700'} mb-2">💰 あなたの自己資金との比較</p>
+        <div class="grid grid-cols-3 gap-2 text-center text-xs mb-2">
+          <div><p class="text-gray-500">入力した自己資金</p><p class="font-bold text-lg text-gray-800">${budgetVal}万円</p></div>
+          <div><p class="text-gray-500">必要総資金目安</p><p class="font-bold text-lg text-gray-800">${totalNeeded}万円</p></div>
+          <div><p class="text-gray-500">${isOk ? '余裕額' : '不足額'}</p><p class="font-bold text-lg ${isOk ? 'text-emerald-700' : 'text-red-600'}">${isOk ? '+' : '-'}${Math.abs(diff)}万円</p></div>
+        </div>
+        <p class="text-xs ${isOk ? 'text-emerald-700' : 'text-red-600'}">${isOk ? '✅ 自己資金で必要額をカバーできます。計画的に独立を進めましょう。' : '⚠️ 不足額があります。融資・補助金の活用を検討してください。'}</p>
+      </div>`;
+    })() : '';
+
     const html = `
       <div class="grid grid-cols-2 gap-4 mb-5">
         <div class="bg-emerald-50 border-l-4 border-emerald-500 rounded-xl p-4">
@@ -626,6 +768,7 @@ ${advice.join('\n')}`;
           <p class="text-2xl font-bold text-blue-700">約${monthlyCost}万円/月</p>
         </div>
       </div>
+      ${budgetCompareHtml}
       <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5">
         <p class="text-sm font-semibold text-amber-800 mb-1">推奨準備資金</p>
         <p class="text-xl font-bold text-amber-700">${initialCost + monthlyCost * recommendedMonths}万円〜${initialCost + monthlyCost * 12}万円</p>
@@ -683,6 +826,9 @@ ${advice.join('\n')}`;
 
     document.getElementById('result-content').innerHTML = html;
     window.currentResult = { type: answers.type, industry: answers.industry, office: answers.office, initialCost, monthlyCost, advice };
+    // M2: メモセクションを表示
+    document.getElementById('memo-section').style.display = '';
+    document.getElementById('result-memo').value = '';
     updateHistoryButtonVisibility();
 
     // M4: グラフ描画
@@ -791,6 +937,10 @@ ${advice.join('\n')}`;
     currentStep = 0; answers = {};
     document.getElementById('quiz-section').classList.remove('hidden');
     document.getElementById('result-section').classList.add('hidden');
+    // M2: 自己資金入力欄を再表示
+    const budgetSection = document.getElementById('budget-input-section');
+    if (budgetSection) budgetSection.style.display = '';
+    document.getElementById('memo-section').style.display = 'none';
     renderQuestion();
   }
 
@@ -828,6 +978,8 @@ ${advice.join('\n')}`;
     const timestamp = new Date().toISOString().split('T')[0] + ' ' + new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
     const result = window.currentResult;
     const history = JSON.parse(localStorage.getItem('diagnosis_history') || '[]');
+    const memoEl = document.getElementById('result-memo');
+    const memo = memoEl ? memoEl.value.trim() : '';
     history.unshift({
       id: Date.now(),
       timestamp: timestamp,
@@ -836,6 +988,7 @@ ${advice.join('\n')}`;
       office: result.office,
       initialCost: result.initialCost,
       monthlyCost: result.monthlyCost,
+      memo: memo,
       fullData: { ...result, answers }
     });
     if (history.length > 10) history.pop();
@@ -860,6 +1013,7 @@ ${advice.join('\n')}`;
             <p class="text-sm font-semibold text-gray-700">${item.timestamp}</p>
             <p class="text-xs text-gray-500">${item.type} | ${item.industry}</p>
             <p class="text-xs text-gray-600">初期費用: 約${item.initialCost}万円 / 月間: 約${item.monthlyCost}万円</p>
+            ${item.memo ? `<p class="text-xs text-indigo-600 mt-0.5">📝 ${item.memo}</p>` : ''}
           </div>
           <div class="flex gap-1">
             <button onclick="restoreHistory(${item.id})" class="px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition">復元</button>
