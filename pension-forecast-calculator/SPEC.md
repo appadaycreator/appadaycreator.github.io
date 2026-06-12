@@ -3,14 +3,15 @@
 ## 概要
 
 **サービス名**: Pension Forecast Calculator
-**バージョン**: 1.1.0
-**更新日**: 2026-06-12
+**バージョン**: 1.2.0
+**更新日**: 2026-06-13
 **URL**: https://appadaycreator.com/pension-forecast-calculator/
 
 年齢・加入期間・平均給与から将来の年金受取額を予測。老後計画の参考に。登録不要・完全無料でご利用いただけます。
 
 ## 実装履歴
 
+- v1.2.0 (2026-06-13): M2 入力UX強化（aria-required/aria-invalid/aria-describedby追加・ボタンdisable CSS・FAQ3件追加）
 - v1.1.0 (2026-06-12): M10 印刷・結果エクスポート機能追加（window.print・クリップボードコピー・CSVダウンロード）
 
 ## データ管理
