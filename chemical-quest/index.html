@@ -1379,6 +1379,112 @@ updateLearningProgress();
 updateChallengeProgress();
 initProgressChart();
 initScoreHistoryChart();
+
+/* ===== M5: dynamic affiliate recommendation based on game results ===== */
+function updateAffiliateRecommendation() {
+  const bestEasy = parseInt(localStorage.getItem('cq_best_easy') || '0');
+  const bestMedium = parseInt(localStorage.getItem('cq_best_medium') || '0');
+  const bestHard = parseInt(localStorage.getItem('cq_best_hard') || '0');
+  const playCountEasy = parseInt(localStorage.getItem('cq_play_easy') || '0');
+  const playCountMedium = parseInt(localStorage.getItem('cq_play_medium') || '0');
+  const playCountHard = parseInt(localStorage.getItem('cq_play_hard') || '0');
+  const bestScore = Math.max(bestEasy, bestMedium, bestHard);
+  const totalPlays = playCountEasy + playCountMedium + playCountHard;
+
+  let quizCorrect = 0;
+  const quizBest = localStorage.getItem('cq_quiz_best_score_v2');
+  if (quizBest) {
+    try { quizCorrect = JSON.parse(quizBest).correct || 0; } catch(e) {}
+  }
+
+  const titleEl = document.getElementById('cq-affiliate-title');
+  const subtitleEl = document.getElementById('cq-affiliate-subtitle');
+  const gridEl = document.getElementById('cq-affiliate-grid');
+  if (!gridEl) return;
+
+  let recommendation = null;
+  let titleText = '📚 化学学習をもっと深く学ぶ';
+  let subtitleText = '参考書・予備校・通信講座で苦手を克服';
+
+  if (bestScore === 0 && totalPlays === 0) {
+    // ゲームをまだプレイしていない → 全般的な推薦
+    recommendation = ['amazon', 'studysapuri', 'zkai'];
+  } else if (bestMedium === 0 && bestHard === 0 && bestEasy > 0) {
+    // 初級のみをプレイ → 初心者向けの参考書を優先
+    titleText = '🎯 あなたの成績に合わせたおすすめ';
+    subtitleText = '初級をマスター中！次は中級に備えて';
+    recommendation = ['amazon', 'studysapuri', 'zkai'];
+    const grid = gridEl.querySelectorAll('[data-affiliate]');
+    grid.forEach(card => {
+      if (card.dataset.affiliate === 'amazon') {
+        const titleCard = card.querySelector('.cq-affiliate-title');
+        const descCard = card.querySelector('.cq-affiliate-desc');
+        if (titleCard) titleCard.textContent = '初級対策 参考書';
+        if (descCard) descCard.textContent = '基礎を固める！初級~中級向けの参考書をAmazonで検索';
+        card.style.order = '0';
+      }
+    });
+  } else if (quizCorrect < 5 && totalPlays > 3) {
+    // クイズ成績が低い・ゲームはプレイしている → 動画授業を優先
+    titleText = '🎯 あなたの成績に合わせたおすすめ';
+    subtitleText = 'クイズで知識確認中。プロ講師の動画授業で完全マスター';
+    recommendation = ['studysapuri', 'amazon', 'zkai'];
+    const grid = gridEl.querySelectorAll('[data-affiliate]');
+    grid.forEach(card => {
+      if (card.dataset.affiliate === 'studysapuri') {
+        card.style.order = '-1';
+      }
+    });
+  } else if (bestScore > 50000) {
+    // 高スコア達成 → 難関校対策を優先
+    titleText = '🎯 あなたの成績に合わせたおすすめ';
+    subtitleText = '高得点達成！難関校対策の通信講座で確実な理解へ';
+    recommendation = ['zkai', 'amazon', 'studysapuri'];
+    const grid = gridEl.querySelectorAll('[data-affiliate]');
+    grid.forEach(card => {
+      if (card.dataset.affiliate === 'zkai') {
+        const titleCard = card.querySelector('.cq-affiliate-title');
+        const descCard = card.querySelector('.cq-affiliate-desc');
+        if (titleCard) titleCard.textContent = '受験対策 通信講座';
+        if (descCard) descCard.textContent = '難関校・大学受験対策向け。確実な理解を目指すなら';
+        card.style.order = '-1';
+      }
+    });
+  } else if (bestHard > bestEasy + 5000) {
+    // 全難易度でバランスしていて、上級得点が高い → 総合学習を推薦
+    titleText = '🎯 あなたの成績に合わせたおすすめ';
+    subtitleText = '全難易度で活躍中！さらに深く学ぶには通信講座がおすすめ';
+    recommendation = ['zkai', 'amazon', 'studysapuri'];
+  } else {
+    // 標準的な成績 → バランスの良い構成
+    titleText = '🎯 あなたの成績に合わせたおすすめ';
+    subtitleText = 'ゲームで学んだ知識を、さらに深く理解する教材をご紹介';
+    recommendation = ['amazon', 'studysapuri', 'zkai'];
+  }
+
+  if (titleEl) titleEl.textContent = titleText;
+  if (subtitleEl) subtitleEl.textContent = subtitleText;
+
+  if (recommendation) {
+    const cards = gridEl.querySelectorAll('[data-affiliate]');
+    cards.forEach(card => {
+      const affiliateType = card.dataset.affiliate;
+      const index = recommendation.indexOf(affiliateType);
+      if (index >= 0) {
+        card.style.order = String(index);
+        if (index === 0) {
+          card.style.borderColor = 'rgba(74,222,128,.6)';
+          card.style.background = 'rgba(74,222,128,.12)';
+        } else {
+          card.style.borderColor = null;
+          card.style.background = null;
+        }
+      }
+    });
+  }
+}
+
+updateAffiliateRecommendation();
 </script>
 <div style="text-align:center;padding:10px 16px 14px;background:#eef2ff;border-top:2px solid #c7d2fe;margin-top:8px">
 <a href="/blog/" style="color:#4f46e5;font-size:.85rem;font-weight:700">📖 マネー・育児・キャリアのコラムを読む →</a>

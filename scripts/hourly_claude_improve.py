@@ -818,9 +818,11 @@ def write_update_log(sheets, svc: dict, pre_issues: list, stdout: str, elapsed_s
 
 
 def update_spreadsheet(sheets, row: int, s_val: int, asset_value: int,
-                       cooldown_expiry: datetime, update_progress: bool = True):
+                       cooldown_expiry: datetime, update_progress: bool = True,
+                       s_delta: int = 1):
     """R列(CD期限)・S列(改善回数)・T列(最終更新日時)・AM列(資産価値)をbatchUpdateで更新。
     update_progress=False の場合はR列のみ（失敗時のクールダウン記録）。
+    s_delta: ⑳ S列の増分（デフォルト1・実測値を渡すと正確になる）。
     R列はRAWで書き込み（USER_ENTEREDだとSheetsが日付シリアルに変換して読み返しに失敗する）。"""
     cd_str = cooldown_expiry.strftime(CD_FMT)
     # R列: RAW（テキストとして格納。日付フォーマット列でも文字列のまま保持させる）
@@ -838,7 +840,7 @@ def update_spreadsheet(sheets, row: int, s_val: int, asset_value: int,
             body={
                 "valueInputOption": "USER_ENTERED",
                 "data": [
-                    {"range": f"{SHEET}!S{row}:T{row}", "values": [[s_val + 1, now_str]]},
+                    {"range": f"{SHEET}!S{row}:T{row}", "values": [[s_val + s_delta, now_str]]},
                     {"range": f"{SHEET}!AM{row}", "values": [[asset_value]]},
                 ],
             }
@@ -1443,6 +1445,8 @@ def check_improvement_markers(pre_issues: list, html: str) -> tuple:
       failed_issues_list: 未反映だったpre_issuesのオリジナル文字列リスト
     """
     import re as _re
+    # ⑰ HTMLコメントを除去（Claudeがコメント内にコードを書いた場合の false positive を防ぐ）
+    html = _re.sub(r'<!--.*?-->', '', html, flags=_re.DOTALL)
     passed_labels, failed_labels, failed_issues = [], [], []
     for issue in pre_issues:
         m = _re.match(r'\[M(\d+)\]', issue)
@@ -1471,7 +1475,7 @@ def check_improvement_markers(pre_issues: list, html: str) -> tuple:
     return "🔍 " + " ".join(parts), failed_issues
 
 
-def verify_deployed_url(repo: str, timeout: int = 20) -> tuple:
+def verify_deployed_url(repo: str, timeout: int = 8) -> tuple:  # ⑱ 20s→8s（情報確認のみなので短縮）
     """改善後のデプロイURLに実際にHTTPリクエストして正常表示を確認する。
     Returns (ok: bool, detail: str, html: str)
     """
@@ -1554,40 +1558,46 @@ def _worker(worker_id: int, stop_event, sheets_factory):
             if zero_traffic:
                 log(f"[W{worker_id}]   トラフィックゼロ: クールダウン24h")
 
-            # ⑪ 改善前バックアップ（破損時自動ロールバック用）
-            _bak_idx = WORKSPACE / svc["repo"] / "index.html"
+            # ⑯ 全施策実装済み＆トラフィックあり → Claudeをスキップして即successクールダウン
+            _all_done = not pre_issues and not zero_traffic
             _bak_bytes: bytes | None = None
             _bak_size: int = 0
-            if _bak_idx.exists():
-                _bak_bytes = _bak_idx.read_bytes()
-                _bak_size = len(_bak_bytes)
+            if _all_done:
+                log(f"[W{worker_id}]   ⑯ 全施策実装済み → Claudeスキップ (successクールダウン設定)")
+                ok, stdout, elapsed = True, "[skip: 全施策実装済み]", 0
+            else:
+                # ⑪ 改善前バックアップ（破損時自動ロールバック用）
+                _bak_idx = WORKSPACE / svc["repo"] / "index.html"
+                if _bak_idx.exists():
+                    _bak_bytes = _bak_idx.read_bytes()
+                    _bak_size = len(_bak_bytes)
 
-            t_start = time.time()
-            ok, stdout = run_improve(svc, pre_issues)
-            elapsed = int(time.time() - t_start)
+                t_start = time.time()
+                ok, stdout = run_improve(svc, pre_issues)
+                elapsed = int(time.time() - t_start)
 
-            # ⑪ 破損検知: ファイルサイズが60%未満またはHTMLタグ消失 → 自動ロールバック
-            if ok and _bak_bytes:
-                _cur_idx = WORKSPACE / svc["repo"] / "index.html"
-                _rollback_reason = ""
-                if not _cur_idx.exists():
-                    _rollback_reason = "index.html消失"
-                else:
-                    _new_size = _cur_idx.stat().st_size
-                    _head_check = _cur_idx.read_bytes()[:500].decode("utf-8", errors="ignore").lower()
-                    if _new_size < _bak_size * 0.6:
-                        _rollback_reason = f"サイズ異常({_new_size:,}B < {_bak_size:,}B×60%)"
-                    elif "<html" not in _head_check:
-                        _rollback_reason = "HTMLタグ消失"
-                if _rollback_reason:
-                    _cur_idx.write_bytes(_bak_bytes)
-                    log(f"[W{worker_id}]   ❌ 破損検知({_rollback_reason}) → 自動ロールバック完了")
-                    send_telegram(
-                        f"⚠️ {svc['name']} HTML破損検知 → 自動ロールバック\n"
-                        f"原因: {_rollback_reason}\n"
-                        f"🔗 https://appadaycreator.com/{svc['repo']}/"
-                    )
-                    ok = False
+                # ⑪ 破損検知: ファイルサイズが60%未満またはHTMLタグ消失 → 自動ロールバック
+                if ok and _bak_bytes:
+                    _cur_idx = WORKSPACE / svc["repo"] / "index.html"
+                    _rollback_reason = ""
+                    if not _cur_idx.exists():
+                        _rollback_reason = "index.html消失"
+                    else:
+                        _new_size = _cur_idx.stat().st_size
+                        _head_check = _cur_idx.read_bytes()[:500].decode("utf-8", errors="ignore").lower()
+                        if _new_size < _bak_size * 0.6:
+                            _rollback_reason = f"サイズ異常({_new_size:,}B < {_bak_size:,}B×60%)"
+                        elif "<html" not in _head_check:
+                            _rollback_reason = "HTMLタグ消失"
+                    if _rollback_reason:
+                        _cur_idx.write_bytes(_bak_bytes)
+                        log(f"[W{worker_id}]   ❌ 破損検知({_rollback_reason}) → 自動ロールバック完了")
+                        send_telegram(
+                            f"⚠️ {svc['name']} HTML破損検知 → 自動ロールバック\n"
+                            f"原因: {_rollback_reason}\n"
+                            f"🔗 https://appadaycreator.com/{svc['repo']}/"
+                        )
+                        ok = False
 
             # 改善後確認: ローカルファイル基準でマーカー検査 + HTTP到達確認を分離
             v_detail = ""
@@ -1608,6 +1618,19 @@ def _worker(worker_id: int, stop_event, sheets_factory):
                         retry_hint = "前回改善後チェックで未反映だった施策: " + ", ".join(v_failed)
                         ok_r, stdout_r = run_improve(svc, v_failed, retry_hint=retry_hint)
                         if ok_r:
+                            # ⑲ リトライ後の破損検知（⑪の補完: 初回バックアップから復元）
+                            if _bak_bytes and idx_path.exists():
+                                _r_size = idx_path.stat().st_size
+                                _r_head = idx_path.read_bytes()[:500].decode("utf-8", errors="ignore").lower()
+                                if _r_size < _bak_size * 0.6 or "<html" not in _r_head:
+                                    idx_path.write_bytes(_bak_bytes)
+                                    log(f"[W{worker_id}]   ❌ リトライ後破損検知 → 自動ロールバック完了")
+                                    send_telegram(
+                                        f"⚠️ {svc['name']} リトライ後HTML破損 → 自動ロールバック\n"
+                                        f"🔗 https://appadaycreator.com/{svc['repo']}/"
+                                    )
+                                    ok = False
+                        if ok_r and ok:
                             stdout = stdout_r
                             local_html2 = idx_path.read_text(encoding="utf-8", errors="ignore")
                             v_markers, v_failed2 = check_improvement_markers(v_failed, local_html2)
@@ -1624,33 +1647,50 @@ def _worker(worker_id: int, stop_event, sheets_factory):
                 else:
                     log(f"[W{worker_id}]   ⚠️ index.html未存在: マーカー確認スキップ")
 
-                # ② HTTP到達確認: マーカー確認とは独立（外部アクセス可否のみ・okに影響させない）
-                # GitHub Pages CDNはデプロイに数分かかるため、HTTP確認でローカル改善成果を棄却しない
-                v_ok, v_detail, _ = verify_deployed_url(svc["repo"])
-                if v_ok:
-                    log(f"[W{worker_id}]   ✅ URL到達確認OK: {v_detail}")
-                else:
-                    log(f"[W{worker_id}]   ⚠️ URL到達確認失敗（ローカル改善は完了）: {v_detail}")
-                    send_telegram(
-                        f"⚠️ {svc['name']} URL到達確認失敗（ローカル改善は完了済み）\n"
-                        f"詳細: {v_detail}\n"
-                        f"🔗 https://appadaycreator.com/{svc['repo']}/"
-                    )
+                # ② HTTP到達確認: ファイル変更があった場合のみ実施（⑯スキップ時は確認不要）
+                if not _all_done:
+                    v_ok, v_detail, _ = verify_deployed_url(svc["repo"])
+                    if v_ok:
+                        log(f"[W{worker_id}]   ✅ URL到達確認OK: {v_detail}")
+                    else:
+                        log(f"[W{worker_id}]   ⚠️ URL到達確認失敗（ローカル改善は完了）: {v_detail}")
+                        send_telegram(
+                            f"⚠️ {svc['name']} URL到達確認失敗（ローカル改善は完了済み）\n"
+                            f"詳細: {v_detail}\n"
+                            f"🔗 https://appadaycreator.com/{svc['repo']}/"
+                        )
 
             # クールダウン期限計算（R列に書き込む）
             cd_hours = COOLDOWN_FAIL_HOURS if (not ok or zero_traffic) else COOLDOWN_SUCCESS_HOURS
             cooldown_expiry = datetime.now() + timedelta(hours=cd_hours)
 
             if ok:
+                # ⑳ 改善後quick_scanを再実行してS列増分を実測値で算出（+1固定廃止）
+                _s_delta = 1  # デフォルト
+                if not _all_done and pre_issues:
+                    try:
+                        _post_issues = quick_scan(svc["repo"])
+                        _delta = len(pre_issues) - len(_post_issues)
+                        _s_delta = max(1, _delta)
+                        log(f"[W{worker_id}]   改善delta: {len(pre_issues)}件→{len(_post_issues)}件 (S+{_s_delta})")
+                    except Exception:
+                        pass  # スキャン失敗時はデフォルト+1のまま
+
                 asset_value = calc_ultra_strict_asset(svc["name"], svc["clicks7d"], svc.get("affil", ""))
                 try:
-                    update_spreadsheet(sheets, svc["row"], svc["s_val"], asset_value, cooldown_expiry)
-                    log(f"[W{worker_id}]   シート更新: S={svc['s_val']+1}, T={datetime.now().strftime(CD_FMT)}, AM={asset_value:,}円, CD={cooldown_expiry.strftime(CD_FMT)}")
+                    if _all_done:
+                        # ⑯ skipケース: S列増分なし（改善なし）・cooldownのみ設定
+                        update_spreadsheet(sheets, svc["row"], svc["s_val"], asset_value, cooldown_expiry, update_progress=False)
+                        log(f"[W{worker_id}]   シート更新(skip): CD={cooldown_expiry.strftime(CD_FMT)}")
+                    else:
+                        update_spreadsheet(sheets, svc["row"], svc["s_val"], asset_value, cooldown_expiry, s_delta=_s_delta)
+                        log(f"[W{worker_id}]   シート更新: S={svc['s_val']+_s_delta}, T={datetime.now().strftime(CD_FMT)}, AM={asset_value:,}円, CD={cooldown_expiry.strftime(CD_FMT)}")
                 except Exception as e:
                     log(f"[W{worker_id}]   シート更新失敗: {e}")
-                write_update_log(sheets, svc, pre_issues, stdout, elapsed)
-                notify_indexnow(svc["repo"])
-                _send_improve_notify(svc, stdout, worker_id, verify_detail=v_detail, marker_results=v_markers)
+                if not _all_done:
+                    write_update_log(sheets, svc, pre_issues, stdout, elapsed)
+                    notify_indexnow(svc["repo"])
+                    _send_improve_notify(svc, stdout, worker_id, verify_detail=v_detail, marker_results=v_markers)
             else:
                 try:
                     update_spreadsheet(sheets, svc["row"], svc["s_val"], 0, cooldown_expiry, update_progress=False)
