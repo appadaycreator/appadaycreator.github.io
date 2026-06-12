@@ -786,8 +786,10 @@ def _extract_log_parts(stdout: str) -> tuple[str, str, str, str, int]:
     return proposal, impl, cross_targets, cross_content, asset_value
 
 
-def write_update_log(sheets, svc: dict, pre_issues: list, stdout: str, elapsed_sec: int):
-    """サービス更新ログシートに改善記録を1行追加する。"""
+def write_update_log(sheets, svc: dict, pre_issues: list, stdout: str, elapsed_sec: int,
+                     s_delta: int = 1):
+    """サービス更新ログシートに改善記録を1行追加する。
+    s_delta: ⑳と揃える。実測改善数（+1固定廃止）。"""
     try:
         proposal, impl, cross_targets, cross_content, _ = _extract_log_parts(stdout)
         service_url = f"https://appadaycreator.com/{svc['repo']}/"
@@ -797,7 +799,7 @@ def write_update_log(sheets, svc: dict, pre_issues: list, stdout: str, elapsed_s
             svc["name"],
             svc["repo"],
             service_url,
-            svc["s_val"] + 1,
+            svc["s_val"] + s_delta,  # ㉕ +1固定→実測s_delta（⑳と整合）
             ", ".join(pre_issues) if pre_issues else "なし",
             proposal,
             impl,
@@ -1117,6 +1119,90 @@ def _build_focused_guide(pending_ids: set) -> str:
     return header + "".join(filtered) + footer
 
 
+def _build_code_snippets(pending_ids: set, service_name: str, repo: str) -> str:
+    """㉒ 単純施策（_SIMPLE_M）向けの実装スニペットをプロンプトに直注入する。
+    Haikuが実装方法を考えるトークンを省き、直接Edit呼び出しに集中させる。
+    複雑施策（_COMPLEX_M）は Sonnet に任せるため対象外。"""
+    targets = pending_ids & _SIMPLE_M
+    if not targets:
+        return ""
+
+    snippets = []
+
+    if "M11" in targets:
+        snippets.append(
+            "M11スニペット（<main>末尾または</article>前に挿入）:\n"
+            "<section><h2>よくある質問</h2><details><summary>このツールは無料ですか？</summary>"
+            "<p>はい、完全無料・登録不要でご利用いただけます。</p></details>"
+            "<details><summary>スマートフォンでも使えますか？</summary>"
+            "<p>はい、モバイル対応しています。</p></details>"
+            "<details><summary>計算結果はどこかに保存されますか？</summary>"
+            "<p>ブラウザのlocalStorageに保存されます。サーバーへの送信はありません。</p></details>"
+            "</section>"
+        )
+
+    if "M13" in targets:
+        snippets.append(
+            "M13スニペット（</footer>前または<footer>内に追加）:\n"
+            '<nav aria-label="関連ツール"><p>関連する無料ツール: '
+            '<a href="https://appadaycreator.com/">AppADayCreator トップ</a></p></nav>'
+        )
+
+    if "M14" in targets:
+        snippets.append(
+            "M14スニペット（</head>直前に挿入）:\n"
+            '<script type="application/ld+json">{"@context":"https://schema.org",'
+            '"@type":"FAQPage","mainEntity":[{"@type":"Question",'
+            f'"name":"「{service_name}」は無料で使えますか？",'
+            '"acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要です。"}},'
+            '{"@type":"Question","name":"スマートフォンでも使えますか？",'
+            '"acceptedAnswer":{"@type":"Answer","text":"はい、モバイル対応済みです。"}}]}'
+            "</script>"
+        )
+
+    if "M15" in targets:
+        snippets.append(
+            "M15スニペット（<head>内の既存metaの後に追加・存在しない場合のみ）:\n"
+            f'<meta property="og:title" content="{service_name} | AppADayCreator">\n'
+            f'<meta property="og:description" content="{service_name}の無料ツール。登録不要でスマートフォンからも利用可能。">\n'
+            '<meta property="og:type" content="website">\n'
+            f'<meta property="og:url" content="https://appadaycreator.com/{repo}/">\n'
+            '<meta name="twitter:card" content="summary">'
+        )
+
+    if "M16" in targets:
+        snippets.append(
+            "M16スニペット（<head>内に追加・manifest.jsonが存在する場合のみ）:\n"
+            f'<link rel="manifest" href="/{repo}/manifest.json">'
+        )
+
+    if "M18" in targets:
+        snippets.append(
+            "M18スニペット（<head>内に追加・viewportがない場合のみ）:\n"
+            '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        )
+
+    if "M19" in targets:
+        snippets.append(
+            "M19対応: console.log の削除・FontAwesomeのCDNリンク削除。"
+            "img[loading]がない場合は loading=\"lazy\" を追加。"
+        )
+
+    if "M20" in targets:
+        snippets.append(
+            "M20対応: alt属性のない<img>タグに alt=\"\" （装飾画像）または適切なaltテキストを追加。"
+            "button要素にaria-labelを追加（テキストがない場合）。"
+        )
+
+    if not snippets:
+        return ""
+
+    return (
+        "\n\n【㉒ 実装スニペット（そのままコピー&編集して使用すること・考え直し不要）】\n"
+        + "\n\n".join(snippets)
+    )
+
+
 def _select_model_and_turns(pending_ids: set, skip_phase1: bool) -> tuple[str, int]:
     """施策の複雑度に応じてモデルIDとmax-turnsを返す。
 
@@ -1184,17 +1270,14 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
         log(f"  施策上限: {len(_all_sorted)}件 → 上位3件に絞る {sorted(pending_ids, key=lambda x:int(x[1:]))}（残{_all_sorted[3:]}は次回）")
 
     # フェーズ1スキップ判定: quick_scanで未実施施策が検出済みならPhase1を省略して直接Phase2へ
+    # ㉑ skip時は /improve_phase2_only を使用（Phase1説明文を丸ごと省いて~600トークン節約）
     # フォーカスガイド: 未実施施策のセクションのみ抽出（実装済み施策の説明を省いてトークン削減）
     _skip_phase1 = bool(pre_issues)
-    _skip_flag = " → フェーズ1スキップ" if _skip_phase1 else ""
-    _guide = _build_focused_guide(pending_ids) if _skip_phase1 else _PRIORITY_GUIDE
-    # フェーズ1スキップ時は /compact も不要（フェーズ間が存在しないため）
-    # improve_auto.md の「フェーズ間は必ず /compact」指示が誤作動しないよう冒頭に明示する
-    _compact_note = (
-        "\n\n⚡ /compact は実行不要です（フェーズ1をスキップしているためフェーズ間が存在しません）。"
-        "そのままフェーズ2の実装に直接進んでください。"
-    ) if _skip_phase1 else ""
-    cmd = f"/improve_auto {no} {repo}{_skip_flag}{_compact_note}{_guide}"
+    if _skip_phase1:
+        _guide = _build_focused_guide(pending_ids)
+        cmd = f"/improve_phase2_only {no} {repo}{_guide}"
+    else:
+        cmd = f"/improve_auto {no} {repo}{_PRIORITY_GUIDE}"
 
     # 施策チェックリスト: フェーズ1スキップ時は未実施のみ表示（✅行を省略してトークン削減）
     _ALL_MEASURES = [
@@ -1247,12 +1330,18 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
         cmd += f"\n\n{section_hint}"
 
 
-    if pre_issues:
+    if pre_issues and not _skip_phase1:
+        # ㉓ skip_phase1=True 時はチェックリストに同内容が既掲載のため重複を省く（~100トークン節約）
         sorted_issues = sorted(pre_issues, key=lambda x: int(_re2.search(r'M(\d+)', x).group(1)) if _re2.search(r'M(\d+)', x) else 99)
-        if _skip_phase1:
-            cmd += f"\n\nP1問題リスト（フェーズ2直接実装対象）: {', '.join(sorted_issues)}"
-        else:
-            cmd += f"\n\n事前スキャン済み問題（優先度順）: {', '.join(sorted_issues)}"
+        cmd += f"\n\n事前スキャン済み問題（優先度順）: {', '.join(sorted_issues)}"
+
+    # ㉒ 単純施策のみ（Haiku実行予定）の場合: コードスニペットを直注入してHaikuの考察コストを省く
+    _is_simple_only = _skip_phase1 and bool(pending_ids) and not (pending_ids & _COMPLEX_M)
+    if _is_simple_only:
+        _snippets = _build_code_snippets(pending_ids, service["name"], repo)
+        if _snippets:
+            cmd += _snippets
+
     if retry_hint:
         cmd += f"\n\n【リトライ指示】前回の改善後チェックで以下が未反映でした。これらを最優先で実装してください:\n{retry_hint}"
     if saved_af:
@@ -1261,7 +1350,8 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
             f"設置済みです。HTMLを編集する際は必ずこれらをそのまま保持すること。削除禁止。"
         )
     pending_high = [i for i in pre_issues if _re2.match(r'\[M(1[0-3]|[1-9])\]', i)]
-    log(f"実行: /improve_auto {no} {repo} (未実施高優先: {pending_high or 'なし'}, 全:{len(pre_issues)}件, AF保護:{len(saved_af)}件)")
+    _skill_name = "improve_phase2_only" if _skip_phase1 else "improve_auto"
+    log(f"実行: /{_skill_name} {no} {repo} (未実施高優先: {pending_high or 'なし'}, 全:{len(pre_issues)}件, AF保護:{len(saved_af)}件)")
 
     # モデル・max-turnsをルーティング（施策の複雑度に応じて自動選択）
     _run_model, _max_turns = _select_model_and_turns(pending_ids, _skip_phase1)
@@ -1542,11 +1632,25 @@ def _worker(worker_id: int, stop_event, sheets_factory):
 
             svc = claim_service(candidates)
             if not svc:
-                log(f"[W{worker_id}] 全候補がクールダウン中（{SLEEP_COOLDOWN}秒後に再試行）")
+                # ㉔ スマートスリープ: 最短cd_expiry まで待機（固定300s廃止・無駄待ちを削減）
+                now = datetime.now()
+                min_wait = SLEEP_COOLDOWN
+                for _c in candidates:
+                    if _c["repo"] in _in_progress:
+                        continue
+                    cd = _c.get("cd_expiry")
+                    if cd is None:
+                        min_wait = 0  # cd_expiry未設定 = 即利用可能なはずだが_in_progressで除外
+                        break
+                    wait = max(0, int((cd - now).total_seconds()))
+                    if wait < min_wait:
+                        min_wait = wait
+                _smart_sleep = max(10, min(min_wait, SLEEP_COOLDOWN))
+                log(f"[W{worker_id}] 全候補がクールダウン中（{_smart_sleep}秒後に再試行）")
                 if worker_id == 0 and time.time() - _no_work_notified_at > 21600:
                     send_telegram("⚠️ hourly_improve: 全サービスがクールダウン中のため作業対象がありません。\n全サービスが最近改善済みの可能性があります。")
                     _no_work_notified_at = time.time()
-                time.sleep(SLEEP_COOLDOWN)
+                time.sleep(_smart_sleep)
                 continue
 
             log(f"[W{worker_id}] --- {svc['no']} {svc['name']} ({svc['repo']}) ---")
@@ -1688,7 +1792,7 @@ def _worker(worker_id: int, stop_event, sheets_factory):
                 except Exception as e:
                     log(f"[W{worker_id}]   シート更新失敗: {e}")
                 if not _all_done:
-                    write_update_log(sheets, svc, pre_issues, stdout, elapsed)
+                    write_update_log(sheets, svc, pre_issues, stdout, elapsed, _s_delta)
                     notify_indexnow(svc["repo"])
                     _send_improve_notify(svc, stdout, worker_id, verify_detail=v_detail, marker_results=v_markers)
             else:
