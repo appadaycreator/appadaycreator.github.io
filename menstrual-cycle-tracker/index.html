@@ -243,6 +243,14 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
+
+/* M2: フォーム入力エラー時のシェイクアニメーション */
+@keyframes input-shake {
+  0%,100% { transform: translateX(0); }
+  20%,60% { transform: translateX(-6px); }
+  40%,80% { transform: translateX(6px); }
+}
+.input-shake { animation: input-shake .4s ease; }
 </style>
 </head>
 <body>
@@ -300,13 +308,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </div>
 
           <label for="last-date">最終生理開始日 <span style="color:#E11D48;font-weight:700;">*</span></label>
-          <input type="date" id="last-date" aria-label="最終生理開始日" title="最終生理開始日を入力してください" placeholder="2024年6月1日" onchange="updateStepGuide(); validateLastDate();" required style="background-color: #fafafa;">
-          <div style="font-size:12px;color:#9CA3AF;margin-top:4px;">📅 最後に生理が始まった日を入力してください（最大180日前まで対応）</div>
-          <div id="date-error" style="font-size:12px;color:#DC2626;margin-top:4px;display:none;"></div>
+          <input type="date" id="last-date" aria-label="最終生理開始日" aria-required="true" aria-describedby="date-hint date-error" aria-invalid="false" title="最終生理開始日を入力してください" placeholder="2024年6月1日" onchange="updateStepGuide(); validateLastDate();" onblur="validateLastDate();" required style="background-color: #fafafa;">
+          <div id="date-hint" style="font-size:12px;color:#9CA3AF;margin-top:4px;">📅 最後に生理が始まった日を入力してください（最大180日前まで対応）</div>
+          <div id="date-error" role="alert" aria-live="polite" style="font-size:12px;color:#DC2626;margin-top:4px;display:none;"></div>
 
           <label for="cycle-range">平均生理周期（日数）<span style="font-size:11px;color:#9ca3af;font-weight:400;margin-left:6px;">一般的: 25〜35日 / 標準: 28日</span></label>
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
-            <input type="range" id="cycle-range" min="21" max="40" value="28" aria-label="平均生理周期" oninput="onSliderInput('cycle-range','cycle-val')">
+            <input type="range" id="cycle-range" min="21" max="40" value="28" aria-label="平均生理周期" aria-describedby="cycle-hint" aria-valuetext="28日（正常範囲）" oninput="onSliderInput('cycle-range','cycle-val')">
             <span id="cycle-val" style="font-size:22px;font-weight:800;color:#E11D48;min-width:32px;text-align:right;">28</span>
             <span style="font-size:13px;color:#888;min-width:16px;">日</span>
           </div>
@@ -314,7 +322,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
           <label for="period-range">生理期間（日数）<span style="font-size:11px;color:#9ca3af;font-weight:400;margin-left:6px;">一般的: 3〜7日 / 標準: 5日</span></label>
           <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
-            <input type="range" id="period-range" min="2" max="10" value="5" aria-label="生理期間" oninput="onSliderInput('period-range','period-val')">
+            <input type="range" id="period-range" min="2" max="10" value="5" aria-label="生理期間" aria-describedby="period-hint" aria-valuetext="5日（正常範囲）" oninput="onSliderInput('period-range','period-val')">
             <span id="period-val" style="font-size:22px;font-weight:800;color:#E11D48;min-width:32px;text-align:right;">5</span>
             <span style="font-size:13px;color:#888;min-width:32px;">日間</span>
           </div>
@@ -760,6 +768,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById(valId).textContent = el.value;
       updateSliderBg(el);
       updateSliderHint(rangeId, parseInt(el.value));
+      // スクリーンリーダー向けに現在値と状態を更新
+      const hintId = rangeId === 'cycle-range' ? 'cycle-hint' : 'period-hint';
+      const hintText = document.getElementById(hintId)?.textContent || '';
+      el.setAttribute('aria-valuetext', `${el.value}日 ${hintText}`);
     }
 
     /* M2: スライダー参考値ヒント表示 */
@@ -858,10 +870,17 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if (!lastStr) {
         dateErrorDiv.textContent = '❌ 最終生理開始日を入力してください';
         dateErrorDiv.style.display = 'block';
-        document.getElementById('last-date').style.borderColor = '#DC2626';
-        document.getElementById('last-date').style.boxShadow = '0 0 0 3px rgba(220,38,38,0.15)';
+        const lastDateEl = document.getElementById('last-date');
+        lastDateEl.style.borderColor = '#DC2626';
+        lastDateEl.style.boxShadow = '0 0 0 3px rgba(220,38,38,0.15)';
+        lastDateEl.setAttribute('aria-invalid', 'true');
+        // シェイクアニメーションで入力欄を強調
+        lastDateEl.classList.remove('input-shake');
+        void lastDateEl.offsetWidth;
+        lastDateEl.classList.add('input-shake');
+        setTimeout(() => lastDateEl.classList.remove('input-shake'), 500);
         showToast('⚠️ 最終生理開始日を入力してください');
-        document.getElementById('last-date').focus();
+        lastDateEl.focus();
         return;
       }
 
@@ -1442,6 +1461,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         errorEl.style.display = 'none';
         inputEl.style.borderColor = '';
         inputEl.style.boxShadow = '';
+        inputEl.setAttribute('aria-invalid', 'false');
         return true;
       }
 
@@ -1456,6 +1476,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         errorEl.style.display = 'block';
         inputEl.style.borderColor = '#DC2626';
         inputEl.style.boxShadow = '0 0 0 3px rgba(220,38,38,0.15)';
+        inputEl.setAttribute('aria-invalid', 'true');
         return false;
       }
 
@@ -1467,6 +1488,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         errorEl.style.display = 'block';
         inputEl.style.borderColor = '#F59E0B';
         inputEl.style.boxShadow = '0 0 0 3px rgba(245,158,11,0.15)';
+        inputEl.setAttribute('aria-invalid', 'true');
         return true;
       }
 
@@ -1474,6 +1496,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       errorEl.style.display = 'none';
       inputEl.style.borderColor = '#059669';
       inputEl.style.boxShadow = '0 0 0 3px rgba(5,150,105,0.15)';
+      inputEl.setAttribute('aria-invalid', 'false');
       return true;
     }
 
@@ -1559,7 +1582,22 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <div style="margin:1.5rem auto;max-width:760px;padding:0 1rem">
 <div style="background:white;border-radius:16px;padding:1.5rem;box-shadow:0 4px 20px rgba(0,0,0,.08)">
 <h2 style="font-size:1.05rem;font-weight:700;margin:0 0 1rem;border-left:4px solid #4f46e5;padding-left:10px;color:#1e293b">よくある質問（詳細）</h2>
+<dl style="line-height:1.8;">
+  <dt style="font-weight:600;margin-top:12px;color:#1e293b;">Q: 生理周期28日と言われているが、私は25日です。問題ありますか？</dt>
+  <dd style="margin-left:16px;color:#374151;font-size:.88rem;">28日は平均値であり、正常範囲は25〜38日とされています（日本産科婦人科学会）。25日周期は正常範囲内ですので問題ありません。このツールのスライダーを25日に設定して計算してください。</dd>
 
+  <dt style="font-weight:600;margin-top:12px;color:#1e293b;">Q: 排卵日は周期の何日目ですか？計算方法を教えてください。</dt>
+  <dd style="margin-left:16px;color:#374151;font-size:.88rem;">排卵日は「次の生理開始予定日の14日前」が目安です。例えば28日周期であれば14日目、35日周期なら21日目が排卵日の目安になります。ただし個人差があるため、基礎体温測定や排卵検査薬との併用をおすすめします。</dd>
+
+  <dt style="font-weight:600;margin-top:12px;color:#1e293b;">Q: 生理周期をアプリで管理するメリットは何ですか？</dt>
+  <dd style="margin-left:16px;color:#374151;font-size:.88rem;">①次の生理日を事前に把握でき旅行・イベントの計画が立てやすくなる、②排卵日を予測して妊活に活用できる、③PMS（月経前症候群）の出やすい時期がわかり対策できる、④医師への相談時に周期データを提示できる、といったメリットがあります。</dd>
+
+  <dt style="font-weight:600;margin-top:12px;color:#1e293b;">Q: 生理不順とはどの程度の周期のばらつきを指しますか？</dt>
+  <dd style="margin-left:16px;color:#374151;font-size:.88rem;">同じ人で毎回の周期が7日以上ばらつく場合を「月経不順」と呼ぶことがあります。例えばある月は25日、次の月は38日などの場合です。また周期が24日以下（頻発月経）、または39日以上（稀発月経）が続く場合も婦人科への相談が推奨されます。</dd>
+
+  <dt style="font-weight:600;margin-top:12px;color:#1e293b;">Q: 基礎体温とこのツールを組み合わせるとどうなりますか？</dt>
+  <dd style="margin-left:16px;color:#374151;font-size:.88rem;">基礎体温（BBT）を毎朝測定すると、低温相・高温相の変化から実際の排卵日を特定できます。このツールの予測日と基礎体温グラフを照合することで排卵の確認精度が大幅に向上します。妊活中の方は基礎体温計の導入を強くおすすめします。</dd>
+</dl>
 </div>
 </div>
 <!-- r31-tool-notice -->
@@ -1598,7 +1636,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <div style="margin:1.5rem auto;max-width:760px;padding:0 1rem">
 <div style="background:white;border-radius:16px;padding:1.5rem;box-shadow:0 4px 20px rgba(0,0,0,.06)">
 <h3 style="font-size:.95rem;font-weight:700;margin:1.25rem 0 .6rem;color:#1e293b">関連ツールのご紹介</h3>
-
+<ul style="margin:0;padding-left:1.25rem;line-height:2.2;font-size:.88rem;">
+  <li><a href="/water-intake-calculator/" style="color:#4f46e5;">💧 1日の水分摂取量計算ツール</a> — 体重・活動量から適切な水分補給量を算出</li>
+  <li><a href="/sleep-quality-checker/" style="color:#4f46e5;">😴 睡眠の質チェッカー</a> — 睡眠パターンを分析して改善ポイントを提案</li>
+  <li><a href="/vitamin-deficiency-checker/" style="color:#4f46e5;">🥗 ビタミン不足チェック</a> — 症状から不足しているビタミンを判定</li>
+  <li><a href="/bmi-calculator/" style="color:#4f46e5;">⚖️ BMI計算ツール</a> — 身長・体重から健康的な体重範囲を確認</li>
+</ul>
 </div>
 </div>
 
