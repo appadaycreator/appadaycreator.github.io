@@ -302,6 +302,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <input type="number" id="misc" value="2000" min="0" step="500" placeholder="例: 2,000円（予備費）" oninput="saveToStorage()">
       </div>
     </div>
+    <!-- M6: 旅行予算目標設定 -->
+    <div style="margin-top:1rem;padding:0.8rem 1rem;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);border-radius:10px;">
+      <label style="font-size:0.88rem;color:#a5b4fc;font-weight:700;">🎯 旅行予算目標（旅行合計・全員分）</label>
+      <div style="display:flex;gap:0.5rem;margin-top:0.5rem;align-items:center;">
+        <input type="number" id="goalBudget" min="0" step="1000" placeholder="目標予算を入力（例: 100000）" style="flex:1;background:rgba(255,255,255,0.1);border:2px solid rgba(99,102,241,0.4);border-radius:8px;padding:0.65rem 0.9rem;color:#fff;font-size:1rem;font-family:inherit;transition:border-color 0.2s;" oninput="saveGoal()">
+        <button onclick="clearGoal()" style="padding:0.65rem 1rem;background:rgba(200,200,200,0.2);border:1px solid rgba(200,200,200,0.4);border-radius:8px;color:#ccc;font-size:0.85rem;cursor:pointer;font-family:inherit;min-height:44px;">クリア</button>
+      </div>
+      <p style="font-size:0.78rem;color:#a5b4fc;margin-top:0.4rem;opacity:0.8;">設定すると計算後に達成率・前回比較が表示されます</p>
+    </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;margin-top:1rem;">
       <button class="btn" onclick="calculate()" style="margin-top:0;">旅行費用を計算する</button>
       <button class="btn" onclick="resetForm()" style="margin-top:0;background:rgba(200,200,200,0.3);border:1px solid rgba(200,200,200,0.5);">リセット</button>
@@ -343,6 +352,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       </div>
     </div>
     <div class="savings-alert" id="savingsAlert"></div>
+    <!-- M6: 達成度・前回比較 -->
+    <div id="goalTrackingResult" class="hidden" style="margin-top:1rem;padding:1rem;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);border-radius:12px;">
+      <p style="font-size:0.9rem;color:#a5b4fc;font-weight:700;margin-bottom:0.8rem;">🎯 予算目標 達成度</p>
+      <div id="goalTrackingContent"></div>
+    </div>
     <div style="display:flex;flex-wrap:wrap;gap:0.8rem;margin-top:1.2rem;">
       <button class="btn" onclick="copyShareLink()" style="margin-top:0;flex:1;background:rgba(126,203,255,0.2);border:1px solid #7ecbff;">🔗 このリンクをコピー</button>
       <button class="btn" onclick="exportToPDF()" style="margin-top:0;flex:1;background:rgba(239,68,68,0.3);border:1px solid rgba(239,68,68,0.6);">📥 PDFダウンロード</button>
@@ -579,6 +593,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   const STORAGE_KEY = 'travelPlannerData';
   const HISTORY_KEY = 'travelPlannerHistory';
   const SCENARIOS_KEY = 'travelPlannerScenarios';
+  const GOAL_KEY = 'travelPlannerGoal';
 
   const saveToStorage = () => {
     const data = {
@@ -774,6 +789,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     renderCityCompare();
     addToHistory();
     renderScenarioTable();
+    renderGoalTracking(grandTotal);
     setTimeout(() => document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   }
 
@@ -1045,6 +1061,89 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     renderScenarioTable();
   };
 
+  // M6: 目標設定・達成度トラッキング
+  const saveGoal = () => {
+    localStorage.setItem(GOAL_KEY, document.getElementById('goalBudget').value || '');
+  };
+
+  const loadGoal = () => {
+    const val = localStorage.getItem(GOAL_KEY);
+    if (val) document.getElementById('goalBudget').value = val;
+  };
+
+  const clearGoal = () => {
+    document.getElementById('goalBudget').value = '';
+    localStorage.removeItem(GOAL_KEY);
+    document.getElementById('goalTrackingResult').classList.add('hidden');
+  };
+
+  const renderGoalTracking = (grandTotal) => {
+    const goalVal = parseFloat(document.getElementById('goalBudget').value);
+    const goalContainer = document.getElementById('goalTrackingResult');
+    const goalContent = document.getElementById('goalTrackingContent');
+    if (!goalContainer || !goalContent) return;
+
+    let html = '';
+    let hasContent = false;
+
+    // 目標達成率
+    if (!isNaN(goalVal) && goalVal > 0) {
+      hasContent = true;
+      const rate = (grandTotal / goalVal * 100).toFixed(1);
+      const isOver = grandTotal > goalVal;
+      const barWidth = Math.min(100, (grandTotal / goalVal * 100)).toFixed(1);
+      const barColor = isOver ? '#ef4444' : '#4ade80';
+      const diff = Math.abs(grandTotal - goalVal);
+      const diffText = isOver
+        ? `目標より ¥${formatNum(diff)} 超過`
+        : `目標まで ¥${formatNum(diff)} 余裕あり`;
+      html += `<div style="margin-bottom:0.8rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem;">
+          <span style="font-size:0.84rem;color:#ccc;">目標: ¥${formatNum(goalVal)} → 実際: ¥${formatNum(grandTotal)}</span>
+          <span style="font-size:1rem;font-weight:700;color:${barColor};">${rate}%</span>
+        </div>
+        <div style="width:100%;height:18px;background:rgba(255,255,255,0.1);border-radius:9px;overflow:hidden;">
+          <div style="height:100%;width:${barWidth}%;background:${barColor};transition:width 0.6s ease;border-radius:9px;"></div>
+        </div>
+        <p style="font-size:0.82rem;color:${barColor};margin-top:0.4rem;">${diffText}</p>
+      </div>`;
+    }
+
+    // 前回との比較（計算履歴の2件目が前回）
+    const history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    if (history.length >= 2) {
+      const prev = history[1];
+      const nights = Math.max(0, prev.days - 1);
+      const s = prev.season || 1.0;
+      const prevTotal = prev.transport * prev.people * s +
+        prev.hotel * prev.people * nights * s +
+        prev.food * prev.people * prev.days +
+        prev.sightseeing * prev.people +
+        prev.souvenir * prev.people +
+        prev.misc * prev.people;
+      if (prevTotal > 0) {
+        hasContent = true;
+        const diff = grandTotal - Math.round(prevTotal);
+        const isIncrease = diff > 0;
+        const diffColor = isIncrease ? '#ef4444' : '#4ade80';
+        const diffSign = isIncrease ? '▲' : '▼';
+        const prevDate = new Date(prev.timestamp).toLocaleDateString('ja-JP', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+        html += `<div style="padding-top:0.6rem;border-top:1px solid rgba(255,255,255,0.1);">
+          <p style="font-size:0.85rem;color:#ccc;margin-bottom:0.3rem;">📈 前回比較（${prevDate}）</p>
+          <p style="font-size:0.9rem;font-weight:700;color:${diffColor};">${diffSign} ¥${formatNum(Math.abs(diff))} ${isIncrease ? '増加' : '削減'}</p>
+          <p style="font-size:0.78rem;color:#888;">前回: ¥${formatNum(Math.round(prevTotal))} → 今回: ¥${formatNum(grandTotal)}</p>
+        </div>`;
+      }
+    }
+
+    if (hasContent) {
+      goalContent.innerHTML = html;
+      goalContainer.classList.remove('hidden');
+    } else {
+      goalContainer.classList.add('hidden');
+    }
+  };
+
   // PDF出力
   const exportToPDF = () => {
     const element = document.getElementById('resultSection');
@@ -1098,6 +1197,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   renderCityCompare();
   loadFromURL() || loadFromStorage();
   updateHistoryDropdown();
+  loadGoal();
 </script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"国内旅行費用計算【無料】交通費・宿泊費・予算シミュレーション","description":"目的地・人数・宿泊数を入力して旅行費用を無料シミュレーション。予算配分アドバイス付き。","url":"https://appadaycreator.com/domestic-travel-planner/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"}}</script>
 <div style="margin:16px auto;max-width:800px;padding:14px;background:#fff8f0;border:1px solid #fed7aa;border-radius:12px;"><p style="font-size:0.82rem;font-weight:bold;color:#c2410c;margin-bottom:8px;">📦 関連おすすめ商品</p><div style="display:flex;flex-wrap:wrap;gap:8px;"><a class="js-track-affiliate" href="https://www.amazon.co.jp/s?k=国内旅行+ガイドブック&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="background:#ff9900;color:#fff;padding:7px 12px;border-radius:7px;font-size:0.8em;font-weight:bold;text-decoration:none;" data-platform="Amazon" data-item-name="国内旅行ガイドブック" data-link-type="affiliate_link">🛒 国内旅行ガイドブック →</a><a class="js-track-affiliate" href="https://www.amazon.co.jp/s?k=国内旅行+ガイドブック&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="background:#146eb4;color:#fff;padding:7px 12px;border-radius:7px;font-size:0.8em;font-weight:bold;text-decoration:none;" data-platform="Amazon" data-item-name="国内旅行ガイドブック" data-link-type="affiliate_link">📚 旅行計画・節約術の本 →</a></div></div>
