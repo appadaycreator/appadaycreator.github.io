@@ -148,7 +148,9 @@ def safe_int(v) -> int:
 
 
 _cooldown_lock = None  # threading.Lock() は main() で初期化
+_git_lock     = None  # ㉘ git commit+push の直列化ロック（並列ワーカー競合防止）
 _in_progress: set = set()  # 実行中リポジトリ（並列重複防止用）
+_fail_counts: dict = {}    # ㉚ repo → 連続失敗回数（指数バックオフ用）
 
 # ⑮ get_top_services TTLキャッシュ（5分・ワーカー間共有でSheets API呼び出しを削減）
 _TOP_SVC_CACHE: dict = {"ts": 0.0, "data": None}
@@ -1203,6 +1205,204 @@ def _build_code_snippets(pending_ids: set, service_name: str, repo: str) -> str:
     )
 
 
+def _python_patch(repo: str, pending_ids: set) -> set:
+    """㉖ 自明施策（M16/M18/M19/M20）をPythonで直接修正し、実施済みidを返す。
+    Claudeを呼ばずにHTMLを直接編集することでトークンを節約する。"""
+    trivial = pending_ids & {"M16", "M18", "M19", "M20"}
+    if not trivial:
+        return set()
+    idx = WORKSPACE / repo / "index.html"
+    if not idx.exists():
+        return set()
+
+    html = idx.read_text(encoding="utf-8", errors="ignore")
+    original = html
+    patched = set()
+    import re as _re
+
+    # M18: viewportメタタグ追加（未設定の場合のみ）
+    if "M18" in trivial and 'name="viewport"' not in html and "name='viewport'" not in html:
+        vp = '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        html = html.replace("<head>", "<head>\n" + vp, 1)
+        if 'name="viewport"' in html:
+            patched.add("M18")
+
+    # M16: manifest.jsonが存在する場合のみ<link rel="manifest">追加
+    if "M16" in trivial and 'rel="manifest"' not in html and "manifest.json" not in html:
+        manifest_path = WORKSPACE / repo / "manifest.json"
+        if manifest_path.exists():
+            mf = f'<link rel="manifest" href="/{repo}/manifest.json">'
+            html = html.replace("</head>", mf + "\n</head>", 1)
+            if 'rel="manifest"' in html:
+                patched.add("M16")
+
+    # M19: console.log削除・FontAwesome CDNリンク削除
+    if "M19" in trivial:
+        _h = html
+        _h = _re.sub(r'\bconsole\.log\s*\([^)]{0,200}\)\s*;?', '', _h)
+        _h = _re.sub(
+            r'<link[^>]*href=["\'][^"\']*font.awesome[^"\']*["\'][^>]*/?>[ \t]*\n?',
+            '', _h, flags=_re.IGNORECASE
+        )
+        _h = _re.sub(
+            r'<script[^>]*src=["\'][^"\']*font.awesome[^"\']*["\'][^>]*>\s*</script>[ \t]*\n?',
+            '', _h, flags=_re.IGNORECASE
+        )
+        if _h != html:
+            html = _h
+            patched.add("M19")
+
+    # M20: alt属性のない<img>タグにalt=""を追加（装飾画像）
+    if "M20" in trivial:
+        def _add_alt(m):
+            tag = m.group(0)
+            if "alt=" in tag.lower():
+                return tag
+            if tag.endswith("/>"):
+                return tag[:-2] + ' alt=""/>'
+            return tag[:-1] + ' alt="">'
+        new_html = _re.sub(r'<img\b[^>]*>', _add_alt, html, flags=_re.IGNORECASE)
+        if new_html != html:
+            html = new_html
+            patched.add("M20")
+
+    if html != original:
+        idx.write_text(html, encoding="utf-8")
+        log(f"  ㉖ Python直接パッチ: {sorted(patched)} ({repo})")
+
+    return patched
+
+
+def _inject_html_sections(pre_issues: list, repo: str) -> str:
+    """㉗ 未実施施策に対応するHTMLセクションをプロンプトに直接注入する。
+    ClaudeがRead toolを使わずに対象箇所を編集できるようにしてトークンを節約する（最大1800文字）。"""
+    import re as _re
+    idx = WORKSPACE / repo / "index.html"
+    if not idx.exists():
+        return ""
+
+    html = idx.read_text(encoding="utf-8", errors="ignore")
+    pending_m = {
+        _re.match(r'\[(M\d+)\]', i).group(1)
+        for i in pre_issues if _re.match(r'\[(M\d+)\]', i)
+    }
+    if not pending_m:
+        return ""
+
+    sections = []
+
+    # M14/M15: <head>内容を注入（SEOメタ・スキーマ挿入ポイントの特定に最も有効）
+    if pending_m & {"M14", "M15"}:
+        head_m = _re.search(r'<head>(.*?)</head>', html, _re.IGNORECASE | _re.DOTALL)
+        if head_m:
+            head_content = head_m.group(1).strip()
+            sections.append(f"現在の<head>内容:\n```html\n{head_content[:500]}\n```")
+
+    # M11/M12: </main>前のHTMLを注入（FAQセクション挿入ポイント）
+    if pending_m & {"M11", "M12"}:
+        main_end = html.rfind("</main>")
+        if main_end > 0:
+            snippet = html[max(0, main_end - 300):main_end]
+            sections.append(f"</main>前の現在のHTML:\n```html\n...{snippet}\n</main>\n```")
+
+    # M13: </body>前のHTML（内部リンク/フッター挿入ポイント）
+    if "M13" in pending_m:
+        body_end = html.rfind("</body>")
+        if body_end > 0:
+            snippet = html[max(0, body_end - 200):body_end]
+            sections.append(f"</body>前の現在のHTML:\n```html\n...{snippet}\n</body>\n```")
+
+    if not sections:
+        return ""
+
+    total = "\n\n".join(sections)
+    if len(total) > 1800:
+        total = total[:1800] + "\n...(省略)"
+
+    return (
+        "\n\n【㉗ 対象HTMLセクション（Read tool不要・このHTMLを直接参照して編集すること）】\n"
+        + total
+    )
+
+
+def _get_fail_cooldown(repo: str) -> float:
+    """㉚ 連続失敗回数に応じた指数バックオフクールダウン時間（時間単位）を返す。
+    fail_count: 0→24h / 1→48h / 2→96h / 3+→168h（1週間上限）"""
+    count = _fail_counts.get(repo, 0)
+    if count <= 0:
+        return COOLDOWN_FAIL_HOURS       # 24h（通常）
+    elif count == 1:
+        return COOLDOWN_FAIL_HOURS * 2  # 48h
+    elif count == 2:
+        return COOLDOWN_FAIL_HOURS * 4  # 96h
+    else:
+        return COOLDOWN_FAIL_HOURS * 7  # 168h（1週間上限）
+
+
+def _git_commit_and_push(repo: str, s_delta: int) -> bool:
+    """㉘ 改善後にgit add（-f）・commit・pushを自動実行する。
+    .gitignore対象ディレクトリも強制addする。並列ワーカー競合はロックで直列化。
+    Returns: True=成功, False=失敗。"""
+    if _git_lock is None:
+        return False
+    service_dir = WORKSPACE / repo
+    with _git_lock:
+        try:
+            # git add -f（.gitignore対象ディレクトリも強制追加）
+            add_r = subprocess.run(
+                ["git", "add", "-f", str(service_dir)],
+                cwd=str(WORKSPACE), capture_output=True, text=True, timeout=30
+            )
+            if add_r.returncode != 0:
+                log(f"  ㉘ git add失敗: {add_r.stderr.strip()[:100]}")
+                return False
+
+            # ステージングに変更があるか確認
+            diff_r = subprocess.run(
+                ["git", "diff", "--cached", "--name-only"],
+                cwd=str(WORKSPACE), capture_output=True, text=True, timeout=30
+            )
+            if not diff_r.stdout.strip():
+                log(f"  ㉘ {repo}: 変更なし → コミットスキップ")
+                return True  # 変更なしは正常
+
+            commit_msg = f"improve: {repo} 自動改善 (+{s_delta}施策)"
+            commit_r = subprocess.run(
+                ["git", "commit", "-m", commit_msg],
+                cwd=str(WORKSPACE), capture_output=True, text=True, timeout=30
+            )
+            if commit_r.returncode != 0:
+                log(f"  ㉘ git commit失敗: {commit_r.stderr.strip()[:100]}")
+                return False
+
+            # push（競合時はrebase後1回リトライ）
+            push_r = subprocess.run(
+                ["git", "push", "origin", "main"],
+                cwd=str(WORKSPACE), capture_output=True, text=True, timeout=60
+            )
+            if push_r.returncode != 0:
+                subprocess.run(
+                    ["git", "pull", "--rebase", "origin", "main"],
+                    cwd=str(WORKSPACE), capture_output=True, text=True, timeout=60
+                )
+                push_r2 = subprocess.run(
+                    ["git", "push", "origin", "main"],
+                    cwd=str(WORKSPACE), capture_output=True, text=True, timeout=60
+                )
+                if push_r2.returncode != 0:
+                    log(f"  ㉘ git push失敗: {push_r2.stderr.strip()[:100]}")
+                    return False
+
+            log(f"  ㉘ git commit+push完了: {repo} (+{s_delta}施策改善)")
+            return True
+        except subprocess.TimeoutExpired:
+            log(f"  ㉘ git操作タイムアウト: {repo}")
+            return False
+        except Exception as e:
+            log(f"  ㉘ git操作エラー: {e}")
+            return False
+
+
 def _select_model_and_turns(pending_ids: set, skip_phase1: bool) -> tuple[str, int]:
     """施策の複雑度に応じてモデルIDとmax-turnsを返す。
 
@@ -1269,13 +1469,32 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
         pre_issues = _new_pre
         log(f"  施策上限: {len(_all_sorted)}件 → 上位3件に絞る {sorted(pending_ids, key=lambda x:int(x[1:]))}（残{_all_sorted[3:]}は次回）")
 
+    # ㉖ 自明施策（M16/M18/M19/M20）をPythonで直接パッチ（Claudeを呼ばずに処理）
+    _py_patched = _python_patch(repo, pending_ids)
+    if _py_patched:
+        pending_ids -= _py_patched
+        pre_issues = [i for i in pre_issues if not any(f"[{m}]" in i for m in _py_patched)]
+        log(f"  ㉖ Python直接パッチ済み: {sorted(_py_patched)} → Claude対象除外")
+        # 全施策がPythonパッチで完了した場合はClaudeをスキップ
+        if not pending_ids:
+            if saved_af:
+                _restore_missing_a8_pairs(idx, saved_af, repo)
+            impl_str = "\n".join(f"• {m} Python直接パッチ適用" for m in sorted(_py_patched))
+            return True, f"✅ Python直接パッチ完了\n\n📋 実装内容:\n{impl_str}"
+
     # フェーズ1スキップ判定: quick_scanで未実施施策が検出済みならPhase1を省略して直接Phase2へ
     # ㉑ skip時は /improve_phase2_only を使用（Phase1説明文を丸ごと省いて~600トークン節約）
-    # フォーカスガイド: 未実施施策のセクションのみ抽出（実装済み施策の説明を省いてトークン削減）
     _skip_phase1 = bool(pre_issues)
+    # ㉙ Haiku単純施策ランか判定（guide/sectionHintを省略してさらにトークン節約）
+    _is_simple_only = _skip_phase1 and bool(pending_ids) and not (pending_ids & _COMPLEX_M)
+
     if _skip_phase1:
-        _guide = _build_focused_guide(pending_ids)
-        cmd = f"/improve_phase2_only {no} {repo}{_guide}"
+        if _is_simple_only:
+            # ㉙ 単純施策のみ: guideを完全省略（スニペットで代替するため不要）
+            cmd = f"/improve_phase2_only {no} {repo}"
+        else:
+            _guide = _build_focused_guide(pending_ids)
+            cmd = f"/improve_phase2_only {no} {repo}{_guide}"
     else:
         cmd = f"/improve_auto {no} {repo}{_PRIORITY_GUIDE}"
 
@@ -1321,14 +1540,21 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
         cmd += "\n".join(checklist_lines)
         cmd += "\n\n↑ ⬜未実施の施策をM番号順（上位優先）に実装してください。✅は変更不要。"
 
-    gsc_hint = _build_gsc_hint(service)
-    if gsc_hint:
-        cmd += f"\n\n{gsc_hint}"
+    # ㉙ Haiku単純施策ランではgsc_hint/section_hintを省略（スニペットで代替・トークン節約）
+    if not _is_simple_only:
+        gsc_hint = _build_gsc_hint(service)
+        if gsc_hint:
+            cmd += f"\n\n{gsc_hint}"
 
-    section_hint = _build_section_hint(pre_issues)
-    if section_hint:
-        cmd += f"\n\n{section_hint}"
+        section_hint = _build_section_hint(pre_issues)
+        if section_hint:
+            cmd += f"\n\n{section_hint}"
 
+        # ㉗ Phase2スキップ時に対象HTMLセクションをプロンプト注入（Claude Read tool不要化）
+        if _skip_phase1:
+            _html_sections = _inject_html_sections(pre_issues, repo)
+            if _html_sections:
+                cmd += _html_sections
 
     if pre_issues and not _skip_phase1:
         # ㉓ skip_phase1=True 時はチェックリストに同内容が既掲載のため重複を省く（~100トークン節約）
@@ -1336,7 +1562,6 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
         cmd += f"\n\n事前スキャン済み問題（優先度順）: {', '.join(sorted_issues)}"
 
     # ㉒ 単純施策のみ（Haiku実行予定）の場合: コードスニペットを直注入してHaikuの考察コストを省く
-    _is_simple_only = _skip_phase1 and bool(pending_ids) and not (pending_ids & _COMPLEX_M)
     if _is_simple_only:
         _snippets = _build_code_snippets(pending_ids, service["name"], repo)
         if _snippets:
@@ -1765,7 +1990,14 @@ def _worker(worker_id: int, stop_event, sheets_factory):
                         )
 
             # クールダウン期限計算（R列に書き込む）
-            cd_hours = COOLDOWN_FAIL_HOURS if (not ok or zero_traffic) else COOLDOWN_SUCCESS_HOURS
+            # ㉚ 失敗時は連続失敗回数に応じた指数バックオフ / 成功時はカウントリセット
+            if ok:
+                _fail_counts.pop(svc["repo"], None)  # 成功時は連続失敗カウントリセット
+                cd_hours = COOLDOWN_FAIL_HOURS if zero_traffic else COOLDOWN_SUCCESS_HOURS
+            else:
+                _fail_counts[svc["repo"]] = _fail_counts.get(svc["repo"], 0) + 1
+                cd_hours = _get_fail_cooldown(svc["repo"])  # 指数バックオフ
+                log(f"[W{worker_id}]   ㉚ 連続失敗{_fail_counts[svc['repo']]}回: クールダウン{cd_hours:.0f}h")
             cooldown_expiry = datetime.now() + timedelta(hours=cd_hours)
 
             if ok:
@@ -1794,6 +2026,8 @@ def _worker(worker_id: int, stop_event, sheets_factory):
                 if not _all_done:
                     write_update_log(sheets, svc, pre_issues, stdout, elapsed, _s_delta)
                     notify_indexnow(svc["repo"])
+                    # ㉘ 改善後に自動git commit+push（GitHubPages自動デプロイ）
+                    _git_commit_and_push(svc["repo"], _s_delta)
                     _send_improve_notify(svc, stdout, worker_id, verify_detail=v_detail, marker_results=v_markers)
             else:
                 try:
@@ -1957,8 +2191,9 @@ def _send_hourly_status(stop_event):
 def main():
     import os, signal, threading
 
-    global _cooldown_lock
+    global _cooldown_lock, _git_lock
     _cooldown_lock = threading.Lock()
+    _git_lock      = threading.Lock()  # ㉘ git操作の直列化ロック
 
     # 二重起動防止: PID存在確認付きロックファイルで排他制御
     if LOCK_FILE.exists():
