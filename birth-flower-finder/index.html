@@ -457,9 +457,9 @@
     function showSavedResults(){
       const saved=loadSavedResults();
       if(saved.length===0){alert('保存された診断結果がありません');return;}
-      let html='<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin:16px 0;"><h3 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#374151;">📋 保存済み診断結果（最新5件）</h3>';
-      saved.forEach((r,i)=>{html+=`<div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start;"><input type="checkbox" id="cmp-${i}" style="margin-top:3px;cursor:pointer;min-width:18px;" /><div style="flex:1;"><label for="cmp-${i}" style="margin:0;cursor:pointer;"><p style="font-size:13px;font-weight:600;color:#4f46e5;margin:0 0 4px;">${r.title}</p><p style="font-size:12px;color:#6b7280;margin:0 0 4px;">${r.desc.substring(0,60)}...</p><p style="font-size:11px;color:#9ca3af;margin:0;">${r.timestamp}</p></label></div></div>`;});
-      html+='</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0;"><button onclick="compareResults()" style="background:#4f46e5;color:white;padding:10px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;">📊 比較表示</button><button onclick="closeCompare()" style="background:#e5e7eb;color:#374151;padding:10px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;">閉じる</button></div>';
+      let html='<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin:16px 0;" role="region" aria-label="保存済み診断結果"><h3 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#374151;">📋 保存済み診断結果（最新5件）</h3>';
+      saved.forEach((r,i)=>{html+=`<div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start;"><input type="checkbox" id="cmp-${i}" aria-label="${r.title}を比較対象に選択" style="margin-top:3px;cursor:pointer;min-width:18px;" /><div style="flex:1;"><label for="cmp-${i}" style="margin:0;cursor:pointer;"><p style="font-size:13px;font-weight:600;color:#4f46e5;margin:0 0 4px;">${r.title}</p><p style="font-size:12px;color:#6b7280;margin:0 0 4px;">${r.desc.substring(0,60)}...</p><p style="font-size:11px;color:#9ca3af;margin:0;">${r.timestamp}</p></label></div></div>`;});
+      html+='</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0;"><button onclick="compareResults()" aria-label="選択した診断結果を並べて比較表示" style="background:#4f46e5;color:white;padding:10px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;">📊 比較表示</button><button onclick="closeCompare()" aria-label="保存済み診断結果パネルを閉じる" style="background:#e5e7eb;color:#374151;padding:10px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;">閉じる</button></div>';
       const quizStart=document.getElementById('quiz-start');
       const existing=document.getElementById('saved-results-display');
       if(existing) existing.remove();
@@ -496,7 +496,7 @@
       document.getElementById('q-bar').style.width=((cur+1)/QUESTIONS.length*100)+'%';
       document.getElementById('q-text').textContent=q.text;
       const optionsDiv=document.getElementById('q-options');
-      optionsDiv.innerHTML=q.opts.map((o,i)=>`<button class="quiz-option" data-idx="${i}" style="width:100%;padding:12px;margin-bottom:8px;border:2px solid #e5e7eb;border-radius:10px;font-size:14px;cursor:pointer;background:#fff;text-align:left;">${o}</button>`).join('');
+      optionsDiv.innerHTML=q.opts.map((o,i)=>`<button class="quiz-option" data-idx="${i}" aria-label="${q.text}: ${o}" style="width:100%;padding:12px;margin-bottom:8px;border:2px solid #e5e7eb;border-radius:10px;font-size:14px;cursor:pointer;background:#fff;text-align:left;">${o}</button>`).join('');
       optionsDiv.querySelectorAll('.quiz-option').forEach(btn=>btn.addEventListener('click',(e)=>answer(parseInt(e.target.dataset.idx))));
     }
     function answer(idx){ ans.push({idx}); cur++; if(cur>=QUESTIONS.length) showResult(); else renderQ(); }
@@ -588,7 +588,13 @@
       }
     }
     function loadGoals(){return JSON.parse(localStorage.getItem('birthFlowerGoals')||'[]');}
-    function saveGoals(goals){localStorage.setItem('birthFlowerGoals',JSON.stringify(goals));}
+    function saveGoals(goals){
+      const maxGoals=10;
+      if(goals.length>maxGoals){
+        goals=goals.slice(0,maxGoals);
+      }
+      localStorage.setItem('birthFlowerGoals',JSON.stringify(goals));
+    }
     function openGoalTracker(){
       const goals=loadGoals();
       const saved=loadSavedResults();
@@ -669,13 +675,15 @@
         const flowers=new Set(saved.map(r=>r.title.split('—')[0].trim()));
         current=flowers.size;
       }else if(goal.type==='collection'){
-        current=saved.length;
+        const flowers=new Set(saved.map(r=>r.title.split('—')[0].trim()));
+        current=flowers.size;
       }
       return {current,total:saved.length};
     }
 
     // M16: PWA化（Service Worker + beforeinstallprompt）
     let deferredPrompt=null;
+    let installPromptClosed=false;
     function registerServiceWorker(){
       if('serviceWorker' in navigator){
         navigator.serviceWorker.register('/birth-flower-finder/sw.js').catch(()=>{});
@@ -683,16 +691,16 @@
       window.addEventListener('beforeinstallprompt',(e)=>{
         e.preventDefault();
         deferredPrompt=e;
-        showInstallPrompt();
+        if(!installPromptClosed) showInstallPrompt();
       });
     }
     function showInstallPrompt(){
-      if(!deferredPrompt) return;
+      if(!deferredPrompt||installPromptClosed) return;
       const prompt=`
         <div style="background:#f0f9ff;border:2px solid #0ea5e9;border-radius:12px;padding:16px;margin:16px 0;position:relative;">
-          <button onclick="closeInstallPrompt()" style="position:absolute;top:8px;right:8px;background:none;border:none;font-size:20px;cursor:pointer;">×</button>
+          <button onclick="closeInstallPrompt()" style="position:absolute;top:8px;right:8px;background:none;border:none;font-size:20px;cursor:pointer;min-height:32px;min-width:32px;" aria-label="プロンプトを閉じる">×</button>
           <div style="display:flex;gap:12px;align-items:flex-start;">
-            <div style="font-size:32px;">📱</div>
+            <div style="font-size:32px;flex-shrink:0;">📱</div>
             <div style="flex:1;">
               <h3 style="font-size:14px;font-weight:700;color:#0c4a6e;margin:0 0 6px;">ホーム画面に追加</h3>
               <p style="font-size:12px;color:#0c4a6e;margin:0 0 10px;">誕生花診断をホーム画面に追加して、オフラインでも使用できます。</p>
@@ -718,6 +726,7 @@
     function closeInstallPrompt(){
       const prompt=document.getElementById('install-prompt');
       if(prompt) prompt.remove();
+      installPromptClosed=true;
     }
     </script>
 <div style="text-align:center;padding:10px 16px 14px;background:#eef2ff;border-top:2px solid #c7d2fe;margin-top:8px">
