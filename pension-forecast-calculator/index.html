@@ -37,6 +37,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <!-- Chart.js (M4: グラフ可視化) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -130,15 +132,26 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 @media print{
   header,footer,nav,button,.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
-  [id*="affiliate"],[id*="banner"],
+  [id*="affiliate"],[id*="banner"],#export-area,#goal-section,
   script,noscript{display:none!important}
-  body{background:#fff!important;color:#000!important;font-size:12pt}
+  body{background:#fff!important;color:#000!important;font-size:11pt}
+  .card{box-shadow:none!important;border:1px solid #ccc!important;page-break-inside:avoid}
   [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
+  #result{display:block!important}
   a[href]::after{content:none!important}
+  .result-grid{grid-template-columns:1fr 1fr!important}
+  #chart-area{display:none!important}
+  /* 印刷時にツール名を先頭に表示 */
+  body::before{content:"年金受取額予測計算ツール - 試算結果";display:block;font-size:14pt;font-weight:700;text-align:center;padding:8px 0 16px;border-bottom:2px solid #333;margin-bottom:16px}
 }
 
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
+/* M2: range スライダーリセット */
+input[type="range"]{padding:2px 0;min-height:auto;height:auto;border:none;box-shadow:none;accent-color:#B45309;cursor:pointer}
+/* M6: 目標達成バー */
+.goal-bar-bg{height:12px;background:#dcfce7;border-radius:6px;overflow:hidden;margin:4px 0 6px}
+.goal-bar-fill{height:100%;border-radius:6px;transition:width .6s ease}
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://appadaycreator.com/"},{"@type":"ListItem","position":2,"name":"計算機/お金","item":"https://appadaycreator.com/category/finance/"},{"@type":"ListItem","position":3,"name":"年金受取額予測計算ツール簡単・無料計算","item":"https://appadaycreator.com/pension-forecast-calculator/"}]}</script>
 </head>
@@ -183,7 +196,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <div class="pension-row">
             <div>
               <label class="pension-label" for="current-age">現在の年齢</label>
-              <input type="number" id="current-age" placeholder="例: 35" min="20" max="64" value="35" oninput="validateAndSave()">
+              <input type="number" id="current-age" placeholder="例: 35" min="20" max="64" value="35" oninput="document.getElementById('sl-age').value=this.value;validateAndSave()">
+              <input type="range" id="sl-age" min="20" max="64" value="35" oninput="document.getElementById('current-age').value=this.value;validateAndSave()" aria-label="現在の年齢スライダー">
               <p class="pension-hint">20〜64歳</p>
               <p id="error-current-age" style="color:#dc2626;font-size:12px;margin-top:2px;display:none;"></p>
             </div>
@@ -212,12 +226,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </div>
 
           <label class="pension-label" for="enroll-years">現在までの加入期間（年）</label>
-          <input type="number" id="enroll-years" placeholder="例: 12" min="0" max="45" value="12" oninput="validateAndSave()">
+          <input type="number" id="enroll-years" placeholder="例: 12" min="0" max="45" value="12" oninput="document.getElementById('sl-enroll').value=this.value;validateAndSave()">
+          <input type="range" id="sl-enroll" min="0" max="45" value="12" oninput="document.getElementById('enroll-years').value=this.value;validateAndSave()" aria-label="加入期間スライダー">
           <p class="pension-hint">厚生年金・国民年金の合計加入年数（0〜45年）</p>
           <p id="error-enroll-years" style="color:#dc2626;font-size:12px;margin-top:2px;display:none;"></p>
 
           <label class="pension-label" for="avg-salary">平均年収（万円）</label>
-          <input type="number" id="avg-salary" placeholder="例: 500" min="100" max="3000" value="500" oninput="validateAndSave()">
+          <input type="number" id="avg-salary" placeholder="例: 500" min="100" max="3000" value="500" oninput="document.getElementById('sl-salary').value=this.value;validateAndSave()">
+          <input type="range" id="sl-salary" min="100" max="3000" step="50" value="500" oninput="document.getElementById('avg-salary').value=this.value;validateAndSave()" aria-label="平均年収スライダー">
           <p class="pension-hint">これまでの平均年収の目安（100〜3,000万円）</p>
           <p id="error-avg-salary" style="color:#dc2626;font-size:12px;margin-top:2px;display:none;"></p>
 
@@ -262,6 +278,41 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               </div>
               <p id="detail" style="color:#666;font-size:13px;margin-top:10px;text-align:center;"></p>
               <p class="pension-notice">※この試算は概算です。実際の受給額は日本年金機構の「ねんきんネット」でご確認ください。物価スライドや制度改正により変動します。</p>
+              <!-- M10: 印刷・結果エクスポートボタン -->
+              <div id="export-area" style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;" class="no-print">
+                <button onclick="window.print()" style="background:#374151;color:white;border:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;display:inline-flex;align-items:center;gap:5px;">🖨️ 印刷</button>
+                <button onclick="copyResult()" id="copy-btn" style="background:#4f46e5;color:white;border:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;display:inline-flex;align-items:center;gap:5px;">📋 コピー</button>
+                <button onclick="downloadCSV()" style="background:#059669;color:white;border:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;display:inline-flex;align-items:center;gap:5px;">📥 CSV保存</button>
+              </div>
+              <!-- M4: Chart.js グラフ -->
+              <div id="chart-area" style="margin-top:16px;display:none;">
+                <p style="font-size:12px;font-weight:600;color:#888;text-align:center;margin-bottom:6px;">年金内訳（月額）</p>
+                <canvas id="pension-chart" style="max-height:200px;"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- M6: 目標設定・達成度トラッキング -->
+        <div class="card" id="goal-section" style="display:none;border:1px solid #86efac;background:#f0fdf4;">
+          <h3 style="font-size:15px;font-weight:700;margin-bottom:4px;color:#15803d;">🎯 老後の目標設定と達成度</h3>
+          <p style="font-size:12px;color:#6b7280;margin-bottom:12px;">目標月額を設定して年金の充足率を確認できます</p>
+          <label class="pension-label" for="goal-monthly" style="color:#15803d;">目標月額（円）</label>
+          <input type="number" id="goal-monthly" placeholder="例: 200000" min="50000" max="500000" step="10000" value="200000" oninput="saveGoal();updateGoalDisplay(parseInt(localStorage.getItem('pensionLastMonthly')||'0'),0)">
+          <input type="range" id="sl-goal" min="50000" max="500000" step="10000" value="200000" oninput="document.getElementById('goal-monthly').value=this.value;saveGoal();updateGoalDisplay(parseInt(localStorage.getItem('pensionLastMonthly')||'0'),0)" aria-label="目標月額スライダー">
+          <p class="pension-hint">老後に必要な月の生活費（5〜50万円）</p>
+          <div id="goal-result" style="display:none;margin-top:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">
+              <span style="font-size:13px;color:#374151;">年金達成率</span>
+              <span id="goal-pct" style="font-size:16px;font-weight:700;color:#15803d;"></span>
+            </div>
+            <div class="goal-bar-bg">
+              <div id="goal-bar" class="goal-bar-fill" style="width:0%;background:#22c55e;"></div>
+            </div>
+            <p id="goal-msg" style="font-size:12px;color:#166534;line-height:1.6;"></p>
+            <div id="goal-prev" style="background:#fff;border:1px solid #86efac;border-radius:8px;padding:8px 12px;margin-top:8px;display:none;">
+              <p style="font-size:11px;color:#6b7280;margin-bottom:2px;">前回の試算との比較</p>
+              <p id="goal-prev-val" style="font-size:13px;font-weight:600;color:#374151;margin:0;"></p>
             </div>
           </div>
         </div>
@@ -552,6 +603,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           }
         } catch(e) {}
       }
+      // スライダーを入力値に同期
+      const syncs = [['sl-age','current-age'],['sl-enroll','enroll-years'],['sl-salary','avg-salary']];
+      syncs.forEach(([s,n]) => { const el = document.getElementById(s); if (el) el.value = document.getElementById(n).value; });
+      loadGoal();
       validateAndSave();
     }
 
@@ -622,12 +677,163 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('r-total-years').textContent = totalEnrollYears + '年';
       document.getElementById('detail').textContent =
         retireAge + '歳受給開始・加入見込み' + totalEnrollYears + '年・平均年収' + avgSalary.toLocaleString() + '万円で試算';
+      const _lastMonthly = parseInt(localStorage.getItem('pensionLastMonthly') || '0');
       document.getElementById('result').classList.add('show');
+      drawPensionChart(kisoMonthly, koseiMonthly);
+      localStorage.setItem('pensionLastMonthly', String(totalMonthly));
+      document.getElementById('goal-section').style.display = 'block';
+      updateGoalDisplay(totalMonthly, _lastMonthly);
+    }
+
+    // M4: Chart.js ドーナツグラフで年金内訳を可視化
+    let pensionChart = null;
+    function drawPensionChart(kiso, kosei) {
+      const canvas = document.getElementById('pension-chart');
+      if (!canvas || typeof Chart === 'undefined') return;
+      document.getElementById('chart-area').style.display = 'block';
+      const labels = kosei > 0 ? ['基礎年金', '厚生年金'] : ['基礎年金（国民年金）'];
+      const values = kosei > 0 ? [kiso, kosei] : [kiso];
+      const colors = ['#f59e0b', '#B45309'];
+      const chartData = {
+        labels,
+        datasets: [{ data: values, backgroundColor: colors.slice(0, values.length), borderWidth: 2, borderColor: '#fff' }]
+      };
+      if (pensionChart) {
+        pensionChart.data = chartData;
+        pensionChart.update();
+      } else {
+        pensionChart = new Chart(canvas, {
+          type: 'doughnut',
+          data: chartData,
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 12 } },
+              tooltip: { callbacks: { label: c => c.label + ': ' + c.parsed.toLocaleString() + '円/月' } }
+            }
+          }
+        });
+      }
+    }
+
+    // M6: 目標設定・達成率計算・前回比較
+    function saveGoal() {
+      localStorage.setItem('pensionGoalMonthly', document.getElementById('goal-monthly').value);
+    }
+    function loadGoal() {
+      const v = localStorage.getItem('pensionGoalMonthly');
+      if (v) {
+        document.getElementById('goal-monthly').value = v;
+        document.getElementById('sl-goal').value = v;
+      }
+    }
+    function updateGoalDisplay(current, last) {
+      if (!current) return;
+      const goal = parseInt(document.getElementById('goal-monthly').value) || 200000;
+      const pct = Math.round(current / goal * 100);
+      document.getElementById('goal-pct').textContent = pct + '%';
+      const bar = document.getElementById('goal-bar');
+      bar.style.width = Math.min(pct, 100) + '%';
+      bar.style.background = pct >= 100 ? '#16a34a' : pct >= 70 ? '#22c55e' : '#f59e0b';
+      const shortage = goal - current;
+      document.getElementById('goal-msg').textContent = shortage <= 0
+        ? '🎉 目標達成！月' + Math.abs(shortage).toLocaleString() + '円の余裕があります'
+        : '月' + shortage.toLocaleString() + '円不足。iDeCo・NISAで補填を検討しましょう';
+      if (last && last !== current) {
+        const diff = current - last;
+        document.getElementById('goal-prev-val').textContent =
+          '前回: ' + last.toLocaleString() + '円/月（' + (diff >= 0 ? '+' : '') + diff.toLocaleString() + '円）';
+        document.getElementById('goal-prev').style.display = 'block';
+      } else {
+        document.getElementById('goal-prev').style.display = 'none';
+      }
+      document.getElementById('goal-result').style.display = 'block';
     }
 
     document.addEventListener('DOMContentLoaded', function() {
       loadPensionData();
     });
+
+    // M10: クリップボードコピー
+    function copyResult() {
+      const monthly = document.getElementById('output').textContent;
+      const yearly  = document.getElementById('output-year').textContent;
+      const kiso    = document.getElementById('r-kiso').textContent;
+      const kosei   = document.getElementById('r-kosei').textContent;
+      const adjust  = document.getElementById('r-adjust').textContent;
+      const years   = document.getElementById('r-total-years').textContent;
+      const detail  = document.getElementById('detail').textContent;
+      const text = [
+        '【年金受取額予測計算ツール 試算結果】',
+        '月額受取見込み: ' + monthly,
+        '年間受取見込み: ' + yearly,
+        '基礎年金（月）: ' + kiso,
+        '厚生年金（月）: ' + kosei,
+        '繰上/繰下補正: ' + adjust,
+        '加入見込み年数: ' + years,
+        detail,
+        '※概算値。詳細はねんきんネットでご確認ください。',
+        'https://appadaycreator.com/pension-forecast-calculator/'
+      ].join('\n');
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copy-btn');
+        btn.textContent = '✅ コピー済';
+        setTimeout(() => { btn.innerHTML = '📋 コピー'; }, 2000);
+      }).catch(() => {
+        // フォールバック: textarea経由
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        const btn = document.getElementById('copy-btn');
+        btn.textContent = '✅ コピー済';
+        setTimeout(() => { btn.innerHTML = '📋 コピー'; }, 2000);
+      });
+    }
+
+    // M10: CSV ダウンロード
+    function downloadCSV() {
+      const currentAge  = document.getElementById('current-age').value;
+      const retireAge   = document.getElementById('retire-age').value;
+      const enrollYears = document.getElementById('enroll-years').value;
+      const avgSalary   = document.getElementById('avg-salary').value;
+      const pensionType = document.querySelector('input[name="pension-type"]:checked').value === 'company' ? '会社員・公務員' : '自営業・フリーランス';
+      const monthly     = document.getElementById('output').textContent.replace(/[^\d]/g, '');
+      const yearly      = document.getElementById('output-year').textContent.replace(/[^\d]/g, '');
+      const kiso        = document.getElementById('r-kiso').textContent.replace(/[^\d]/g, '');
+      const kosei       = document.getElementById('r-kosei').textContent;
+      const adjust      = document.getElementById('r-adjust').textContent;
+      const years       = document.getElementById('r-total-years').textContent.replace('年','');
+      const now         = new Date().toISOString().slice(0,10);
+      const rows = [
+        ['項目','値'],
+        ['試算日',now],
+        ['現在の年齢',currentAge],
+        ['受給開始年齢',retireAge],
+        ['現在の加入年数',enrollYears],
+        ['平均年収（万円）',avgSalary],
+        ['加入種別',pensionType],
+        ['加入見込み年数（年）',years],
+        ['繰上/繰下補正',adjust],
+        ['基礎年金（月額円）',kiso],
+        ['厚生年金（月額円）', kosei.replace(/[^\d]/g,'')],
+        ['月額受取見込み（円）',monthly],
+        ['年間受取見込み（円）',yearly],
+        ['備考','概算値。詳細はねんきんネットでご確認ください。']
+      ];
+      const csv = '﻿' + rows.map(r => r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(',')).join('\r\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = '年金試算結果_' + now + '.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
     </script>
 
     <!-- r31-use-cases -->
