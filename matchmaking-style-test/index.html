@@ -842,6 +842,43 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         <canvas id="matchChart" height="80"></canvas>
       </div>
 
+      <!-- M7: 比較・シミュレーション機能 -->
+      <div class="bg-white rounded-2xl shadow-md p-4 mb-4 hidden" id="sim-section">
+        <h3 class="font-bold text-gray-800 mb-1 flex items-center">
+          <span class="mr-2">🔄</span>「もし〜だったら」シミュレーション
+        </h3>
+        <p class="text-xs text-gray-500 mb-3">条件を変えると結果がどう変わるか即時確認できます</p>
+        <div class="grid grid-cols-1 gap-2 mb-3 sm:grid-cols-3">
+          <div>
+            <label class="text-xs font-semibold text-gray-600 block mb-1" for="sim-goal">婚活目標</label>
+            <select id="sim-goal" class="w-full border border-rose-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-rose-400">
+              <option value="marriage">💍 真剣な交際・結婚</option>
+              <option value="casual">❤️ 気軽な出会い・恋愛</option>
+              <option value="friend">🤝 まずは友達から</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-gray-600 block mb-1" for="sim-age">年齢層</label>
+            <select id="sim-age" class="w-full border border-rose-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-rose-400">
+              <option value="early20s">🌱 20代前半</option>
+              <option value="late20s">🌿 20代後半</option>
+              <option value="early30s">🌳 30代前半</option>
+              <option value="late30s">⛰️ 30代後半以上</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs font-semibold text-gray-600 block mb-1" for="sim-budget">月額予算</label>
+            <select id="sim-budget" class="w-full border border-rose-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:border-rose-400">
+              <option value="free">🆓 無料・格安</option>
+              <option value="low">💴 月2,000円程度</option>
+              <option value="mid">💳 月3,500〜4,000円</option>
+              <option value="high">💎 月5,000円以上</option>
+            </select>
+          </div>
+        </div>
+        <div id="sim-comparison" class="overflow-x-auto"></div>
+      </div>
+
       <!-- 結果シェアボタン（ランキング直後→拡散誘発） -->
       <div class="bg-white rounded-2xl shadow-md p-5 mb-4">
         <h3 class="font-bold text-gray-800 mb-1 text-sm flex items-center">
@@ -1684,6 +1721,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
 
         // グラフ描画（マッチ度の比較）
         drawMatchChart(scores);
+        // M7: シミュレーション初期化
+        initSimulation(scores);
       }, 800);
     }
 
@@ -1821,6 +1860,128 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         diagnosis_type: currentDiagnosisType
       });
     }, true);
+
+    // M7: シミュレーション機能 — 任意の回答セットでスコアを計算
+    function calcScoresWithAnswers(ans) {
+      const scores = { pairs: 0, with: 0, tapple: 0, zexy: 0, omiai: 0 };
+      if (ans[1] === 'female') { scores.with += 2; scores.zexy += 2; scores.omiai += 1; }
+      else if (ans[1] === 'male') { scores.pairs += 2; scores.tapple += 1; }
+      else { scores.with += 1; scores.pairs += 1; }
+      if (ans[2] === 'early20s') { scores.tapple += 3; scores.with += 1; }
+      else if (ans[2] === 'late20s') { scores.pairs += 2; scores.tapple += 1; }
+      else if (ans[2] === 'early30s') { scores.pairs += 2; scores.zexy += 2; scores.omiai += 1; }
+      else if (ans[2] === 'late30s') { scores.zexy += 4; scores.pairs += 1; scores.omiai += 2; }
+      if (ans[3] === 'marriage') { scores.pairs += 3; scores.with += 2; scores.zexy += 3; scores.omiai += 3; }
+      else if (ans[3] === 'casual') { scores.tapple += 3; scores.with += 1; }
+      else if (ans[3] === 'friend') { scores.tapple += 2; scores.with += 2; }
+      if (ans[4] === 'hobby') { scores.tapple += 3; scores.with += 1; }
+      else if (ans[4] === 'values') { scores.with += 3; scores.pairs += 1; scores.zexy += 1; scores.omiai += 1; }
+      else if (ans[4] === 'looks') { scores.tapple += 2; scores.pairs += 1; }
+      else if (ans[4] === 'stability') { scores.pairs += 3; scores.with += 1; scores.zexy += 2; scores.omiai += 2; }
+      if (ans[5] === 'free') { scores.tapple += 2; scores.with += 1; }
+      else if (ans[5] === 'low') { scores.with += 2; scores.tapple += 1; }
+      else if (ans[5] === 'mid') { scores.pairs += 2; scores.tapple += 1; scores.omiai += 1; }
+      else if (ans[5] === 'high') { scores.zexy += 3; scores.pairs += 1; scores.omiai += 2; }
+      if (ans[6] === 'irregular') { scores.tapple += 2; scores.with += 1; }
+      else if (ans[6] === 'weekday_night') { scores.with += 2; scores.pairs += 1; }
+      else if (ans[6] === 'weekend') { scores.pairs += 2; scores.zexy += 1; scores.omiai += 1; }
+      if (ans[7] === 'none') { scores.with += 2; scores.pairs += 1; }
+      else if (ans[7] === 'some') { scores.pairs += 2; scores.tapple += 1; }
+      else if (ans[7] === 'many') { scores.tapple += 2; scores.zexy += 1; scores.omiai += 1; }
+      if (ans[8] === 'swipe') { scores.tapple += 3; scores.pairs += 1; }
+      else if (ans[8] === 'search') { scores.pairs += 2; scores.zexy += 2; scores.omiai += 2; }
+      else if (ans[8] === 'hobby') { scores.tapple += 3; scores.pairs += 1; }
+      else if (ans[8] === 'ai') { scores.with += 3; scores.pairs += 1; }
+      if (ans[9] === 'talk') { scores.with += 3; scores.tapple += 1; }
+      else if (ans[9] === 'vibe') { scores.tapple += 2; scores.pairs += 1; }
+      else if (ans[9] === 'values') { scores.with += 3; scores.pairs += 2; scores.zexy += 2; scores.omiai += 1; }
+      else if (ans[9] === 'appearance') { scores.tapple += 3; }
+      if (ans[10] === 'now') { scores.pairs += 2; scores.tapple += 1; scores.with += 1; }
+      else if (ans[10] === 'soon') { scores.pairs += 2; scores.with += 1; scores.zexy += 1; scores.omiai += 1; }
+      else if (ans[10] === 'maybe') { scores.with += 2; scores.zexy += 2; scores.omiai += 1; }
+      return scores;
+    }
+
+    // シミュレーションパネルを初期化し、セレクト変更のたびに再計算
+    function initSimulation(origScores) {
+      const sec = document.getElementById('sim-section');
+      if (!sec) return;
+      sec.classList.remove('hidden');
+      const goalEl = document.getElementById('sim-goal');
+      const ageEl = document.getElementById('sim-age');
+      const budgetEl = document.getElementById('sim-budget');
+      // 現在の回答をセレクトに反映
+      if (answers[3] && goalEl) goalEl.value = answers[3];
+      if (answers[2] && ageEl) ageEl.value = answers[2];
+      if (answers[5] && budgetEl) budgetEl.value = answers[5];
+      const rerun = function() { runSimulation(origScores); };
+      goalEl.addEventListener('change', rerun);
+      ageEl.addEventListener('change', rerun);
+      budgetEl.addEventListener('change', rerun);
+      runSimulation(origScores);
+    }
+
+    function runSimulation(origScores) {
+      const goalEl = document.getElementById('sim-goal');
+      const ageEl = document.getElementById('sim-age');
+      const budgetEl = document.getElementById('sim-budget');
+      if (!goalEl || !ageEl || !budgetEl) return;
+
+      const simAnswers = Object.assign({}, answers, {
+        2: ageEl.value,
+        3: goalEl.value,
+        5: budgetEl.value
+      });
+      const simScores = calcScoresWithAnswers(simAnswers);
+      const hasChange = simAnswers[2] !== answers[2] || simAnswers[3] !== answers[3] || simAnswers[5] !== answers[5];
+
+      const origSorted = Object.entries(origScores).sort((a, b) => b[1] - a[1]);
+      const simSorted = Object.entries(simScores).sort((a, b) => b[1] - a[1]);
+      const origMax = origSorted[0][1] || 1;
+      const simMax = simSorted[0][1] || 1;
+
+      // パーセント計算ヘルパー
+      function toPct(scores, sorted, max, key) {
+        const idx = sorted.findIndex(([k]) => k === key);
+        return idx === 0 ? (90 + Math.round((scores[key] / max) * 8)) : Math.max(10, Math.round((scores[key] / max) * 85));
+      }
+
+      let html = '<table style="width:100%;border-collapse:collapse;font-size:.78rem">';
+      html += '<thead><tr style="background:#fdf2f8">';
+      html += '<th style="padding:.4rem .6rem;text-align:left;border:1px solid #fecdd3;color:#9f1239">アプリ</th>';
+      html += '<th style="padding:.4rem .6rem;text-align:center;border:1px solid #fecdd3;color:#9f1239">現在</th>';
+      if (hasChange) html += '<th style="padding:.4rem .6rem;text-align:center;border:1px solid #fecdd3;color:#9f1239">変更後</th><th style="padding:.4rem .6rem;text-align:center;border:1px solid #fecdd3;color:#9f1239">差分</th>';
+      html += '</tr></thead><tbody>';
+
+      origSorted.forEach(([key], i) => {
+        const app = appInfo[key];
+        const origPct = toPct(origScores, origSorted, origMax, key);
+        const simPct = toPct(simScores, simSorted, simMax, key);
+        const diff = simPct - origPct;
+        const diffStr = diff > 0 ? `<span style="color:#16a34a;font-weight:700">▲${diff}%</span>` : diff < 0 ? `<span style="color:#dc2626;font-weight:700">▼${Math.abs(diff)}%</span>` : '<span style="color:#9ca3af">±0</span>';
+        html += `<tr style="background:${i % 2 === 0 ? 'white' : '#fff7f7'}">`;
+        html += `<td style="padding:.4rem .6rem;border:1px solid #fce7f3;font-weight:600">${app.icon} ${app.name}</td>`;
+        html += `<td style="padding:.4rem .6rem;border:1px solid #fce7f3;text-align:center">${origPct}%</td>`;
+        if (hasChange) html += `<td style="padding:.4rem .6rem;border:1px solid #fce7f3;text-align:center">${simPct}%</td><td style="padding:.4rem .6rem;border:1px solid #fce7f3;text-align:center">${diffStr}</td>`;
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+
+      // 1位が変わった場合にハイライト
+      if (hasChange) {
+        const newTop = simSorted[0][0];
+        const oldTop = origSorted[0][0];
+        if (newTop !== oldTop) {
+          html += `<p style="margin-top:10px;font-size:.82rem;font-weight:700;color:#be123c;text-align:center;padding:8px;background:#fff1f2;border-radius:8px;">🔄 条件変更後のおすすめ1位：${appInfo[newTop].icon} ${appInfo[newTop].name}</p>`;
+        } else {
+          html += `<p style="margin-top:8px;font-size:.78rem;color:#6b7280;text-align:center;">※ 1位のおすすめは変わりません</p>`;
+        }
+      } else {
+        html += `<p style="margin-top:8px;font-size:.78rem;color:#9ca3af;text-align:center;">← 条件を変えると差分が表示されます</p>`;
+      }
+
+      document.getElementById('sim-comparison').innerHTML = html;
+    }
 
     // URLパラメータから直接結果を表示（シェアURLへの対応）
     (function() {
