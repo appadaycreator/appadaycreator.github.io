@@ -564,6 +564,56 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         </button>
         <div id="result-list-extra" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4" style="display:none;"></div>
 
+        <!-- M7: 比較・シミュレーション機能 -->
+        <div id="simulation-section" style="display:none;margin-bottom:24px;">
+            <div style="background:linear-gradient(135deg,#f0f9ff,#ede9fe);border:2px solid #c4b5fd;border-radius:20px;padding:20px;">
+                <h3 style="font-size:1rem;font-weight:700;color:#4c1d95;margin-bottom:4px;">🔄 「もし〜だったら？」シミュレーション</h3>
+                <p style="font-size:0.8rem;color:#6b7280;margin-bottom:16px;">条件を変えると診断結果がどう変わるか比較できます</p>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+                    <div>
+                        <label style="font-size:0.72rem;font-weight:bold;color:#374151;display:block;margin-bottom:4px;">💰 予算/月</label>
+                        <select id="sim-budget" style="width:100%;padding:8px;border-radius:8px;border:1px solid #d1d5db;font-size:0.82rem;min-height:36px;">
+                            <option value="0">〜1,000円</option>
+                            <option value="1">1,000〜5,000円</option>
+                            <option value="2">5,000〜20,000円</option>
+                            <option value="3">20,000円以上</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:0.72rem;font-weight:bold;color:#374151;display:block;margin-bottom:4px;">⏰ 時間/週</label>
+                        <select id="sim-time" style="width:100%;padding:8px;border-radius:8px;border:1px solid #d1d5db;font-size:0.82rem;min-height:36px;">
+                            <option value="0">1時間未満</option>
+                            <option value="1">1〜3時間</option>
+                            <option value="2">3〜8時間</option>
+                            <option value="3">8時間以上</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:0.72rem;font-weight:bold;color:#374151;display:block;margin-bottom:4px;">🤝 スタイル</label>
+                        <select id="sim-social" style="width:100%;padding:8px;border-radius:8px;border:1px solid #d1d5db;font-size:0.82rem;min-height:36px;">
+                            <option value="0">一人でじっくり</option>
+                            <option value="1">基本は一人</option>
+                            <option value="2">仲間と一緒</option>
+                            <option value="3">チームで</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:0.72rem;font-weight:bold;color:#374151;display:block;margin-bottom:4px;">💪 運動強度</label>
+                        <select id="sim-activity" style="width:100%;padding:8px;border-radius:8px;border:1px solid #d1d5db;font-size:0.82rem;min-height:36px;">
+                            <option value="0">激しい運動OK</option>
+                            <option value="1">適度な運動</option>
+                            <option value="2">あまり動かない</option>
+                            <option value="3">室内中心</option>
+                        </select>
+                    </div>
+                </div>
+                <button onclick="runSimulation()" style="width:100%;padding:12px;background:linear-gradient(135deg,#7c3aed,#059669);color:white;border:none;border-radius:12px;font-weight:bold;cursor:pointer;font-size:0.9rem;min-height:48px;transition:opacity .2s;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
+                    🔄 条件を変えて比較する
+                </button>
+                <div id="simulation-result" style="display:none;margin-top:16px;"></div>
+            </div>
+        </div>
+
         <!-- Amazon + 楽天 affiliate -->
         <div id="affiliate-section" class="bg-gradient-to-r from-yellow-50 via-orange-50 to-red-50 border-2 border-yellow-300 rounded-2xl p-5 mb-6" style="box-shadow:0 4px 12px rgba(255,136,0,0.15);">
             <p class="text-sm font-bold text-gray-800 mb-4 text-center">🎁 趣味を始めるための道具・グッズをお手頃価格でゲット</p>
@@ -1429,6 +1479,9 @@ function renderResults() {
         affiliateSection.parentNode.insertBefore(secondEl, affiliateSection.nextSibling);
     }
 
+    // M7: 比較・シミュレーションセクションを初期化
+    initSimulationSection();
+
     localStorage.setItem('hobby_result', JSON.stringify({ type: topType, hobbies: topHobbies.map(h=>h.name), date: new Date().toISOString() }));
     // セッションデータを削除（診断完了）
     try { localStorage.removeItem('hm_session'); } catch(e) {}
@@ -1584,6 +1637,113 @@ function updateMetaDescription(topType) {
     var newDescription = 'あなたの性格タイプは「' + typeLabel + '」。おすすめの趣味は「' + hobbyNames + '」。診断結果に基づいて始め方・費用目安をチェック。Amazon・楽天で初心者セットが揃います。';
     var metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) metaDesc.setAttribute('content', newDescription);
+}
+
+// M7: 比較・シミュレーション機能
+function initSimulationSection() {
+    var sec = document.getElementById('simulation-section');
+    if (!sec) return;
+    // 現在の回答をセレクトボックスの初期値に反映
+    var budgetSel = document.getElementById('sim-budget');
+    var timeSel = document.getElementById('sim-time');
+    var socialSel = document.getElementById('sim-social');
+    var activitySel = document.getElementById('sim-activity');
+    if (budgetSel && state.answers[3] !== undefined) budgetSel.value = state.answers[3];
+    if (timeSel && state.answers[7] !== undefined) timeSel.value = state.answers[7];
+    if (socialSel && state.answers[4] !== undefined) socialSel.value = state.answers[4];
+    if (activitySel && state.answers[1] !== undefined) activitySel.value = state.answers[1];
+    sec.style.display = 'block';
+}
+
+function runSimulation() {
+    var budgetVal = parseInt(document.getElementById('sim-budget').value);
+    var timeVal = parseInt(document.getElementById('sim-time').value);
+    var socialVal = parseInt(document.getElementById('sim-social').value);
+    var activityVal = parseInt(document.getElementById('sim-activity').value);
+
+    // 現在の回答をベースに指定4項目だけ差し替えてスコア再計算
+    var simAnswers = state.answers.slice();
+    simAnswers[1] = activityVal;  // Q2: 運動強度
+    simAnswers[3] = budgetVal;    // Q4: 予算
+    simAnswers[4] = socialVal;    // Q5: 社交性
+    simAnswers[7] = timeVal;      // Q8: 時間
+
+    var simScores = {creative:0, active:0, learner:0, social:0, mindful:0};
+    QUESTIONS.forEach(function(q, qi) {
+        var ai = simAnswers[qi];
+        if (ai === undefined) return;
+        var types = q.options[ai].types;
+        Object.keys(types).forEach(function(t) { simScores[t] = (simScores[t] || 0) + types[t]; });
+    });
+
+    var simSorted = Object.entries(simScores).sort(function(a,b){return b[1]-a[1];});
+    var simTopType = simSorted[0][0];
+    var simTopScore = simSorted[0][1];
+    var simHobbies = HOBBIES[simTopType].slice(0, 3).map(function(h) {
+        return Object.assign({}, h, { match: getDynamicMatch(h.match, simTopScore) });
+    });
+    var simTypeInfo = PERSONALITY_TYPES[simTopType];
+
+    // 現在の結果
+    var curSorted = Object.entries(state.scores).sort(function(a,b){return b[1]-a[1];});
+    var curTopType = curSorted[0][0];
+    var curTopScore = curSorted[0][1];
+    var curHobbies = HOBBIES[curTopType].slice(0, 3).map(function(h) {
+        return Object.assign({}, h, { match: getDynamicMatch(h.match, curTopScore) });
+    });
+    var curTypeInfo = PERSONALITY_TYPES[curTopType];
+
+    var colors = { creative:'#ec4899', active:'#f97316', learner:'#3b82f6', social:'#10b981', mindful:'#8b5cf6' };
+    var curColor = colors[curTopType] || '#7c3aed';
+    var simColor = colors[simTopType] || '#7c3aed';
+
+    var changed = simTopType !== curTopType;
+    var changeMsg = changed
+        ? '<div style="background:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:0.8rem;color:#92400e;font-weight:bold;">📊 タイプが変わります！ ' + curTypeInfo.label + ' → ' + simTypeInfo.label + '</div>'
+        : '<div style="background:#f0fdf4;border:1px solid #4ade80;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:0.8rem;color:#166534;font-weight:bold;">✅ 同じ「' + curTypeInfo.label + '」ですが趣味の順位が変わる場合があります</div>';
+
+    // 現在 vs シミュレーション の比較カード（2カラム）
+    var html = changeMsg;
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">';
+
+    html += '<div style="background:#fff;border-radius:12px;padding:12px;border:2px solid ' + curColor + '40;">';
+    html += '<div style="font-size:0.68rem;font-weight:bold;color:#6b7280;margin-bottom:5px;">📌 現在の結果</div>';
+    html += '<div style="font-size:0.78rem;font-weight:bold;color:' + curColor + ';margin-bottom:8px;">' + curTypeInfo.label + '</div>';
+    curHobbies.forEach(function(h, i) {
+        html += '<div style="font-size:0.72rem;color:#374151;padding:4px 0;border-bottom:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center;">';
+        html += '<span><span style="color:#9ca3af;margin-right:3px;">' + (i+1) + '.</span>' + (h.emoji||'') + ' ' + h.name.split('・')[0] + '</span>';
+        html += '<span style="color:' + curColor + ';font-weight:bold;">' + h.match + '%</span>';
+        html += '</div>';
+    });
+    html += '</div>';
+
+    html += '<div style="background:#fff;border-radius:12px;padding:12px;border:2px solid ' + simColor + '40;">';
+    html += '<div style="font-size:0.68rem;font-weight:bold;color:#6b7280;margin-bottom:5px;">🔄 変更後の予測</div>';
+    html += '<div style="font-size:0.78rem;font-weight:bold;color:' + simColor + ';margin-bottom:8px;">' + simTypeInfo.label + '</div>';
+    simHobbies.forEach(function(h, i) {
+        html += '<div style="font-size:0.72rem;color:#374151;padding:4px 0;border-bottom:1px solid #f3f4f6;display:flex;justify-content:space-between;align-items:center;">';
+        html += '<span><span style="color:#9ca3af;margin-right:3px;">' + (i+1) + '.</span>' + (h.emoji||'') + ' ' + h.name.split('・')[0] + '</span>';
+        html += '<span style="color:' + simColor + ';font-weight:bold;">' + h.match + '%</span>';
+        html += '</div>';
+    });
+    html += '</div>';
+
+    html += '</div>';
+
+    // 変更条件サマリー
+    var budgetLabels = ['〜1,000円', '1,000〜5,000円', '5,000〜20,000円', '20,000円以上'];
+    var timeLabels = ['1時間未満', '1〜3時間', '3〜8時間', '8時間以上'];
+    var socialLabels = ['一人', '基本一人', '仲間と', 'チーム'];
+    var actLabels = ['激しい運動', '適度', 'あまり動かない', '室内'];
+    html += '<div style="margin-top:10px;font-size:0.68rem;color:#9ca3af;line-height:1.6;">';
+    html += '変更条件: 予算 ' + budgetLabels[budgetVal] + ' / 時間 ' + timeLabels[timeVal] + ' / スタイル ' + socialLabels[socialVal] + ' / 運動 ' + actLabels[activityVal];
+    html += '</div>';
+
+    var resultDiv = document.getElementById('simulation-result');
+    resultDiv.innerHTML = html;
+    resultDiv.style.display = 'block';
+
+    if (window.dataLayer) window.dataLayer.push({ event: 'simulation_run', sim_type: simTopType, changed: changed });
 }
 
 init();
