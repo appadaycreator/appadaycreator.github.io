@@ -458,6 +458,10 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
 
 <div class="max-w-xl mx-auto px-4 py-8" id="app" role="main">
 
+    <!-- P2.3: 過去の診断結果セクション -->
+    <div id="history-section" class="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-2xl p-5 mb-6" style="display:none;">
+    </div>
+
     <!-- 前回セッション再開バナー -->
     <div id="resume-banner" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4" style="display:none!important;">
         <div class="flex items-center justify-between gap-3 flex-wrap">
@@ -992,6 +996,8 @@ function showResults() {
         calculateScores();
         document.getElementById('loading-screen').classList.add('hidden');
         renderResults();
+        // P2.3: 診断履歴を自動保存
+        saveToHistory();
         document.getElementById('result-screen').classList.remove('hidden');
         launchConfetti();
         window.scrollTo({top: 0, behavior: 'smooth'});
@@ -1169,6 +1175,12 @@ function renderResults() {
     const typeInfo = PERSONALITY_TYPES[topType];
     // matchスコアをユーザーの回答スコアに応じて動的計算
     const topHobbies = HOBBIES[topType].slice(0, 3).map(h => ({...h, match: getDynamicMatch(h.match, topScore)}));
+
+    // P1.2: meta description を診断結果に基づいて動的に書き換え
+    const top3Names = topHobbies.map(h => h.name).join('・');
+    const newDesc = `あなたの性格タイプは『${typeInfo.label}』。おすすめ趣味TOP3は${top3Names}など。始め方・費用目安・必要道具をチェック。Amazon・楽天で初心者向けセットが揃う。`;
+    document.querySelector('meta[name="description"]').setAttribute('content', newDesc);
+    document.querySelector('meta[property="og:description"]').setAttribute('content', newDesc);
 
     document.getElementById('result-type-label').textContent = `あなたは「${typeInfo.label}」です — ${typeInfo.desc}`;
     // 診断日を表示
@@ -1587,6 +1599,56 @@ function toggleFaq(btn) {
         if (body) body.classList.add('open');
     }
 }
+
+// P2.3: 診断履歴保存機能
+function saveToHistory() {
+    try {
+        const sorted = Object.entries(state.scores).sort((a,b) => b[1]-a[1]);
+        const topType = sorted[0][0];
+        const typeInfo = PERSONALITY_TYPES[topType];
+        const hobbies = HOBBIES[topType].slice(0, 3).map(h => h.name);
+        const record = {
+            timestamp: Date.now(),
+            date: new Date().toLocaleDateString('ja-JP'),
+            type: topType,
+            typeLabel: typeInfo.label,
+            hobbies: hobbies
+        };
+        let history = JSON.parse(localStorage.getItem('hobby_diagnosis_history') || '[]');
+        history.unshift(record);
+        history = history.slice(0, 12);
+        localStorage.setItem('hobby_diagnosis_history', JSON.stringify(history));
+    } catch(e) { console.error('履歴保存失敗:', e); }
+}
+
+// P2.3: 診断履歴の読み込みと表示
+function loadDiagnosisHistory() {
+    try {
+        const historyEl = document.getElementById('history-section');
+        if (!historyEl) return;
+        const history = JSON.parse(localStorage.getItem('hobby_diagnosis_history') || '[]');
+        if (history.length === 0) {
+            historyEl.style.display = 'none';
+            return;
+        }
+        let html = '<h3 class="font-bold text-lg text-gray-800 mb-3">📜 過去の診断結果</h3><div class="space-y-2">';
+        history.forEach((record, idx) => {
+            const hobbies = record.hobbies.join('・');
+            html += `<div class="bg-white p-3 rounded-lg border border-purple-100 cursor-pointer hover:bg-purple-50 transition" onclick="showHistoryDetail(${idx})">
+                <p class="text-sm font-bold text-purple-700">${record.date}: ${record.typeLabel}</p>
+                <p class="text-xs text-gray-600">${hobbies}</p>
+            </div>`;
+        });
+        html += '</div>';
+        historyEl.innerHTML = html;
+        historyEl.style.display = 'block';
+    } catch(e) { console.error('履歴読み込み失敗:', e); }
+}
+
+// ページロード時に履歴を表示
+document.addEventListener('DOMContentLoaded', () => {
+    if (document.getElementById('history-section')) loadDiagnosisHistory();
+});
 </script>
 
 <div id="page-loader-hm" class="loading" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.95);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;">
@@ -1816,35 +1878,9 @@ function toggleFaq(btn) {
 <!-- r31-extra-guide -->
 <div style="margin:1.5rem auto;max-width:760px;padding:0 1rem">
 <div style="background:white;border-radius:16px;padding:1.5rem;box-shadow:0 4px 20px rgba(0,0,0,.06)">
-<h2 style="font-size:1.05rem;font-weight:700;margin:0 0 1rem;border-left:4px solid #10b981;padding-left:10px;color:#1e293b">ライフスタイルツールの活用ガイド</h2>
-<p style="font-size:.88rem;color:#475569;line-height:1.9;margin:0 0 .75rem">
-本ツール「趣味診断大人の新しい趣味が見つかる適性マッチングテスト」は、ライフスタイルに関連する情報の確認・計算・診断をブラウザ上で手軽に行えるように設計されています。
-初回利用時にはまずフォームや入力欄に必要な情報を入力し、「計算」「診断」「確認」などのボタンを押してください。
-結果はリアルタイムで表示され、条件を変えながら何度でも再計算・再診断をお試しいただけます。
-ご不明な点があった場合は、各入力項目の横にある説明文や「？」アイコンをご確認ください。
-</p>
-<p style="font-size:.88rem;color:#475569;line-height:1.9;margin:0 0 .75rem">
-スマートフォンからのご利用でも、PC同様にすべての機能をお使いいただけます。
-スマートフォンのホーム画面に本ページを追加（ブックマーク）すれば、アプリのように素早くアクセスできます。
-ブラウザの印刷機能（Ctrl+P または右上メニュー）を使えば、結果をPDF形式で保存・印刷することが可能です。
-計算結果のスクリーンショットを家族・友人・専門家と共有するのもお勧めです。
-</p>
-<h3 style="font-size:.95rem;font-weight:700;margin:1rem 0 .6rem;color:#1e293b">AppADayCreator のツールの特徴</h3>
-<ul style="margin:0;padding-left:1.25rem;font-size:.88rem;color:#475569;line-height:2.1">
-<li><strong>完全無料・登録不要</strong> — アカウント作成・メールアドレス登録なしで今すぐご利用いただけます</li>
-<li><strong>プライバシー完全保護</strong> — 入力したデータはすべてブラウザ内で処理され、外部サーバーには一切送信されません</li>
-<li><strong>マルチデバイス完全対応</strong> — スマートフォン・タブレット・PCすべてで最適なレイアウトで表示されます</li>
-<li><strong>定期的なコンテンツ更新</strong> — 法改正・制度変更・最新データに対応した情報を随時更新しています</li>
-<li><strong>広告による持続的な無料運営</strong> — 広告収入によって運営しているため、ユーザーの皆様は永続的に無料でご利用いただけます</li>
-<li><strong>400本以上のツールを無料提供</strong> — お金・健康・育児・キャリア・旅行・住まいなど幅広いジャンルのツールをご活用ください</li>
-</ul>
+
 <h3 style="font-size:.95rem;font-weight:700;margin:1.25rem 0 .6rem;color:#1e293b">関連ツールのご紹介</h3>
-<p style="font-size:.88rem;color:#475569;line-height:1.9;margin:0">
-AppADayCreatorでは、本ツール以外にもライフスタイルカテゴリの便利なツールを多数ご提供しています。
-家計管理・健康記録・育児サポート・キャリア計画・旅行準備・住まいの整理など、日常生活のさまざまなシーンで役立つツールがそろっています。
-ぜひトップページから他のツールもご活用ください。すべて完全無料・登録不要でお使いいただけます。
-本ツールへのご意見・ご感想はお問い合わせページからお送りいただけます。皆様のフィードバックが品質改善につながります。
-</p>
+
 </div>
 </div>
 

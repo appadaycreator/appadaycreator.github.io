@@ -36,6 +36,15 @@ _MODEL_ALIASES = {
 }
 _model_env = os.environ.get("CLAUDE_IMPROVE_MODEL", "haiku")
 CLAUDE_MODEL = _MODEL_ALIASES.get(_model_env, _model_env)  # エイリアスor直接モデルID
+# CLAUDE_IMPROVE_MODEL が明示指定されているか（デフォルト "haiku" との区別）
+_MODEL_EXPLICITLY_SET = os.environ.get("CLAUDE_IMPROVE_MODEL") is not None
+
+# モデルルーティング: 施策の複雑度分類
+# JS/ロジック実装が必要な施策 → Sonnet（品質重視）
+_COMPLEX_M = frozenset({"M1", "M2", "M3", "M4", "M5", "M6", "M7", "M9", "M10", "M17"})
+# HTML属性・メタデータ・コンテンツ追加のみの施策 → Haiku（速度・コスト重視）
+_SIMPLE_M  = frozenset({"M8", "M11", "M12", "M13", "M14", "M15", "M16", "M18", "M19", "M20"})
+
 LOG_FILE = Path("/tmp/hourly_claude_improve.log")
 LOCK_FILE = Path("/tmp/hourly_claude_improve.lock")
 BOT_TOKEN = "8851812089:AAHo7TYkOvmepfgwgN7hmE9t3nqBm3HoHqk"  # @tokunaga_dev_bot（使用量・improve通知専用）
@@ -382,6 +391,7 @@ def get_top_services(sheets) -> list[dict]:
         public_status = row[15].strip() if len(row) > 15 else ""  # P列: 公開/非公開
         clicks7d = safe_int(row[9])  if len(row) > 9  else 0  # J列: Clicks7d
         impr7d   = safe_int(row[10]) if len(row) > 10 else 0  # K列: Impr7d
+        rank7d   = float(str(row[11]).replace(",", ".")) if len(row) > 11 and row[11] else 0.0  # L列: 掲載順位7d
         s_val    = safe_int(row[18]) if len(row) > 18 and row[18] else 0  # S列
         affil    = row[37].strip() if len(row) > 37 else ""  # AL列: アフィリエイト状況
         cd_str   = row[17].strip() if len(row) > 17 else ""  # R列: CD期限
@@ -413,6 +423,7 @@ def get_top_services(sheets) -> list[dict]:
             "repo": repo,
             "impr7d": impr7d,
             "clicks7d": clicks7d,
+            "rank7d": rank7d,
             "combined": combined,
             "s_val": s_val,
             "affil": affil,
@@ -899,10 +910,12 @@ M10【満足】印刷・結果エクスポート機能
   → window.print()ボタン・結果テキストのクリップボードコピー・CSVダウンロード実装
 
 M11【満足×集客】使い方・活用例・FAQ充実（オンボーディング）
-  → 初回ガイド・具体的な活用例3件以上・FAQ5問以上でユーザーが迷わず使いこなせる状態に整備
+  → このサービス固有の活用例3件以上・FAQ5問以上でユーザーが迷わず使いこなせる状態に整備
+  ⚠️ 厳禁: 「ライフスタイルツールの活用ガイド」「お金・家計ツールの活用ガイド」等の汎用h2ブロック、「AppADayCreator のツールの特徴」のulリスト、「初回利用時にはまずフォームや入力欄に...」「スマートフォンからのご利用でも...」等の全サービス共通の定型文は一切使わないこと。AdSense「スケールされたコンテンツ悪用」ポリシー違反の原因になる。
 
 M12【満足×集客】関連コンテンツ・解説記事セクション
-  → サービスに関連する豆知識・アドバイス・解説コンテンツ追加（深掘り情報→SEO＆滞在時間向上）
+  → このサービスのテーマに関する豆知識・アドバイス・解説コンテンツ追加（深掘り情報→SEO＆滞在時間向上）
+  ⚠️ 厳禁: 「ぜひトップページから他のツールもご活用ください。すべて完全無料・登録不要でお使いいただけます」「家計管理・健康記録・育児サポート...」等の汎用CTA文章は一切使わないこと。
 
 M13【集客×満足】内部リンク・他サービス誘導
   → appadaycreator.comの関連サービスへの誘導リンク・フッター送客・「こんなツールも」セクション追加
@@ -991,6 +1004,182 @@ def _restore_missing_a8_pairs(idx: Path, saved: list[dict], repo: str) -> int:
     return len(missing)
 
 
+def _build_gsc_hint(svc: dict) -> str:
+    """GSCメトリクスを元にターゲット改善指示を返す。データがない場合は空文字。"""
+    clicks  = svc.get("clicks7d", 0)
+    impr    = svc.get("impr7d",   0)
+    rank    = svc.get("rank7d",   0.0)
+    ctr     = (clicks / impr * 100) if impr > 0 else 0.0
+
+    hints = []
+
+    if impr == 0:
+        hints.append("・GSC表示回数がゼロです。構造化データ（FAQPage/HowTo/WebApplication schema）の追加・修正と、メタタイトル・descriptionへの主要キーワード追記でインデックス流入を狙ってください。")
+    else:
+        if rank > 15:
+            hints.append(f"・平均掲載順位が{rank:.1f}位と低めです。コンテンツの網羅性と専門性を高め（FAQ追加・手順解説・比較表追加）、内部リンクも強化してください。")
+        elif rank > 8:
+            hints.append(f"・平均掲載順位{rank:.1f}位。タイトル・見出し（h1/h2）へのキーワード再配置と、ユーザー意図に沿ったコンテンツ拡充で上位表示を狙ってください。")
+        if ctr < 1.5 and impr >= 50:
+            hints.append(f"・表示回数{impr}に対しCTR{ctr:.1f}%と低いです。title/descriptionを検索意図に合わせてクリックしたくなる文言に書き換えてください（数字・ベネフィット・緊急性を含める）。")
+        if clicks >= 20:
+            hints.append(f"・週間クリック数{clicks}件と流入があります。CTA配置・アフィリエイトリンクの視認性向上・離脱防止施策（目的到達後のNext Step提示）で収益化を強化してください。")
+
+    if not hints:
+        return ""
+
+    return (
+        "【GSCデータに基づく優先改善指示（最優先で対応すること）】\n"
+        + "\n".join(hints)
+        + f"\n（参考: 直近7日 表示:{impr} / クリック:{clicks} / 平均順位:{rank:.1f} / CTR:{ctr:.1f}%）"
+    )
+
+
+_M_SECTION_MAP: dict[str, str] = {
+    "M1":  "結果表示エリア付近のCTAボタン・アフィリエイトリンク（button/a タグ・結果出力div）",
+    "M2":  "入力フォーム・バリデーション部分（input/select/form タグ周辺）",
+    "M3":  "localStorage 読み書きJS（getItem/setItem・履歴表示ロジック）",
+    "M4":  "Chart.js 初期化・グラフ描画部分（new Chart・canvas要素）",
+    "M5":  "結果セクション後のアフィリエイト推薦エリア（px.a8.net 付近）",
+    "M6":  "目標・進捗管理JS（目標値設定・達成度計算ロジック）",
+    "M7":  "比較テーブル・シミュレーション切り替えUI",
+    "M8":  "各入力欄の title 属性・ツールチップ・説明テキスト",
+    "M9":  "SNSシェアボタン・クリップボードコピーJS",
+    "M10": "印刷用CSS・エクスポート処理JS",
+    "M11": "FAQ・使い方セクション（details/dl タグ・.faq-area）",
+    "M12": "関連コンテンツ・解説記事リンクセクション",
+    "M13": "フッター・サイドバーの内部リンク誘導エリア",
+    "M14": "<head> 内の JSON-LD（application/ld+json）・schema 属性",
+    "M15": "<head> 内の meta[name=description]・og:・twitter: タグ",
+    "M16": "<head> 内の manifest リンク・ServiceWorker 登録JS",
+    "M17": "収益CTAボタン・AdSenseコードブロック",
+    "M18": "@media・モバイル用CSS・viewport 設定",
+    "M19": "未使用変数・重複コード・インライン過多スタイル",
+    "M20": "img[alt]・aria-label・role 属性・tabindex",
+}
+
+
+def _build_section_hint(pre_issues: list[str]) -> str:
+    """未実施M番号に対応するHTMLセクション集中ヒントを返す。
+    Claudeが全ファイルを精査せず対象箇所に直行できるよう誘導してトークンを削減する。"""
+    import re as _re_s
+    lines = []
+    for issue in pre_issues:
+        m = _re_s.match(r'\[(M\d+)\]', issue)
+        if m:
+            mid = m.group(1)
+            if mid in _M_SECTION_MAP:
+                lines.append(f"  {mid}: {_M_SECTION_MAP[mid]}")
+    if not lines:
+        return ""
+    return (
+        "【編集集中箇所（全ファイル精査より優先）】\n"
+        "未実施施策に対応する以下の箇所のみ編集してください。それ以外は読み飛ばしてOK:\n"
+        + "\n".join(lines)
+    )
+
+
+def _build_focused_guide(pending_ids: set) -> str:
+    """_PRIORITY_GUIDEから未実施M番号のセクションのみ抽出して返す。
+    フェーズ1スキップ時に使用することで、実装不要な施策の説明文（全体の大半）を除去する。"""
+    import re as _re_g
+    if not pending_ids:
+        return _PRIORITY_GUIDE
+    # ヘッダー（最初のMセクション前）を取得
+    header_end = _re_g.search(r'\nM1【', _PRIORITY_GUIDE)
+    header = _PRIORITY_GUIDE[:header_end.start()] if header_end else ""
+    # ⚠️フッターを取得（M20セクション後の注意事項）
+    footer_start = _re_g.search(r'\n⚠️ M1〜', _PRIORITY_GUIDE)
+    footer = _PRIORITY_GUIDE[footer_start.start():] if footer_start else ""
+    # ボディ部分（M1〜M20のセクション群）からpending_idsに一致するものだけ抽出
+    body_start = header_end.start() if header_end else 0
+    body_end = footer_start.start() if footer_start else len(_PRIORITY_GUIDE)
+    body = _PRIORITY_GUIDE[body_start:body_end]
+    sections = _re_g.split(r'(?=\nM\d+【)', body)
+    filtered = [
+        s for s in sections
+        if (m := _re_g.match(r'\nM(\d+)【', s)) and f"M{m.group(1)}" in pending_ids
+    ]
+    return header + "".join(filtered) + footer
+
+
+def _select_model_and_turns(pending_ids: set, skip_phase1: bool) -> tuple[str, int]:
+    """施策の複雑度に応じてモデルIDとmax-turnsを返す。
+
+    ルーティングロジック:
+      - CLAUDE_IMPROVE_MODEL が明示指定されている場合: そのまま使用（ルーティングしない）
+      - フェーズ1を実施する場合（pending_idsが空 = quick_scanで何も検出なし）:
+            Sonnet / 25ターン（全コード分析が必要なため品質重視）
+      - フェーズ1をスキップし複雑施策(M1/M3/M4等)が含まれる場合:
+            Sonnet / 20ターン（JS/ロジック実装が必要）
+      - フェーズ1をスキップし単純施策(M14/M15/M18等)のみの場合:
+            Haiku / 12ターン（HTML属性・メタデータ追加のみ）
+    """
+    if _MODEL_EXPLICITLY_SET:
+        # 明示指定優先: max-turnsは複雑度に応じて調整するが、モデルは固定
+        if not skip_phase1:
+            turns = 25
+        elif pending_ids & _COMPLEX_M:
+            turns = 20
+        else:
+            turns = 12
+        return CLAUDE_MODEL, turns
+
+    if not skip_phase1:
+        # quick_scanで未実施施策なし → フェーズ1から全分析（Sonnet必須）
+        return _MODEL_ALIASES["sonnet"], 25
+
+    # フェーズ1スキップ: 複雑施策の有無で判定
+    if pending_ids & _COMPLEX_M:
+        return _MODEL_ALIASES["sonnet"], 20
+    else:
+        # 単純な HTML/メタデータ施策のみ → Haiku で十分
+        return _MODEL_ALIASES["haiku"], 12
+
+
+def _haiku_preplan(service: dict, pending_m: list[str]) -> str:
+    """Haiku (max-turns=3) でindex.htmlを読み、対象施策の実装箇所を特定して計画テキストを返す。
+    失敗時は空文字を返す（run_improveを中断しない）。"""
+    if not pending_m:
+        return ""
+    repo = service["repo"]
+    idx = WORKSPACE / repo / "index.html"
+    if not idx.exists():
+        return ""
+
+    m_list = ", ".join(pending_m[:5])  # 上位5施策のみ（コスト制限）
+    plan_prompt = (
+        f"index.htmlを読んで、以下の施策の実装に必要な箇所を特定してください。\n"
+        f"実装対象: {m_list}\n\n"
+        f"【出力形式（この形式のみ出力）】\n"
+        f"各M番号を1行で:\n"
+        f"  <M番号>: <対象セクション名> | 行<開始>-<終了> | <実装内容メモ1行>\n\n"
+        f"例:\n"
+        f"  M1: 結果出力div | 行245-260 | .result-areaの直後にCTAボタンを追加\n"
+        f"  M14: headセクション | 行1-25 | FAQPage JSON-LDを</head>前に追加\n\n"
+        f"ファイルの編集は不要です。調査と計画の出力のみ行ってください。"
+    )
+    try:
+        env = os.environ.copy()
+        env["HOURLY_IMPROVE"] = "1"
+        result = subprocess.run(
+            [str(CLAUDE_BIN), "--dangerously-skip-permissions", "-p", plan_prompt,
+             "--model", _MODEL_ALIASES["haiku"],
+             "--output-format", "text",
+             "--max-turns", "3"],
+            cwd=str(WORKSPACE / repo),
+            capture_output=True,
+            text=True,
+            timeout=90,
+            env=env,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return ""
+
+
 def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> tuple[bool, str]:
     """指定サービスに /improve_auto を実行。(成功フラグ, stdout) を返す。"""
     no = service["no"]
@@ -1002,9 +1191,31 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
     if idx.exists():
         saved_af = _extract_a8_pairs(idx.read_text(encoding="utf-8", errors="ignore"))
 
-    cmd = f"/improve_auto {no} {repo}{_PRIORITY_GUIDE}"
+    # Phase ③: Haiku事前調査（実装箇所をmax-turns=3で特定）
+    import re as _re_pre
+    _pending_m_list = sorted(
+        [_re_pre.match(r'\[(M\d+)\]', i).group(1)
+         for i in pre_issues if _re_pre.match(r'\[(M\d+)\]', i)],
+        key=lambda x: int(x[1:]),
+    )
+    preplan = _haiku_preplan(service, _pending_m_list)
 
-    # 20施策チェックリスト: スキャン結果をM1〜M20にマッピングして実装状況を表示
+    # pending_ids を事前計算（コマンド構築・ガイドフィルタリングで共用）
+    import re as _re2
+    pending_ids = set()
+    for _issue in pre_issues:
+        _m = _re2.match(r'\[(M\d+)\]', _issue)
+        if _m:
+            pending_ids.add(_m.group(1))
+
+    # フェーズ1スキップ判定: quick_scanで未実施施策が検出済みならPhase1を省略して直接Phase2へ
+    # フォーカスガイド: 未実施施策のセクションのみ抽出（実装済み施策の説明を省いてトークン削減）
+    _skip_phase1 = bool(pre_issues)
+    _skip_flag = " → フェーズ1スキップ" if _skip_phase1 else ""
+    _guide = _build_focused_guide(pending_ids) if _skip_phase1 else _PRIORITY_GUIDE
+    cmd = f"/improve_auto {no} {repo}{_skip_flag}{_guide}"
+
+    # 施策チェックリスト: フェーズ1スキップ時は未実施のみ表示（✅行を省略してトークン削減）
     _ALL_MEASURES = [
         ("M1",  "診断/計算後の文脈CTAボタン設置"),
         ("M2",  "コア機能のUX改善（入力UI・バリデーション）"),
@@ -1027,23 +1238,46 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
         ("M19", "パフォーマンス・不要コード除去"),
         ("M20", "アクセシビリティ（alt属性・aria属性）"),
     ]
-    import re as _re2
-    pending_ids = set()
-    for issue in pre_issues:
-        m = _re2.match(r'\[(M\d+)\]', issue)
-        if m:
-            pending_ids.add(m.group(1))
-    checklist_lines = []
-    for mid, desc in _ALL_MEASURES:
-        status = "⬜ 未実施（実装してください）" if mid in pending_ids else "✅ 実装済み/該当なし"
-        checklist_lines.append(f"  {mid}: {desc} … {status}")
-    cmd += "\n\n【20施策 実装状況チェックリスト（M番号順=ユーザー価値×収益の優先度順）】\n"
-    cmd += "\n".join(checklist_lines)
-    cmd += "\n\n↑ ⬜未実施の施策をM番号順（上位優先）に実装してください。✅は変更不要。"
+    if _skip_phase1:
+        # フェーズ1スキップ時: 未実施施策のみ表示（✅行を省いてプロンプト削減）
+        checklist_lines = [
+            f"  {mid}: {desc} … ⬜ 未実施（実装してください）"
+            for mid, desc in _ALL_MEASURES if mid in pending_ids
+        ]
+        cmd += "\n\n【フェーズ2直接実装対象（未実施施策のみ・M番号順）】\n"
+        cmd += "\n".join(checklist_lines)
+        cmd += "\n\n↑ ⬜未実施の施策をM番号順（上位優先）に実装してください。"
+    else:
+        # フェーズ1実施時: 全施策チェックリスト表示
+        checklist_lines = []
+        for mid, desc in _ALL_MEASURES:
+            status = "⬜ 未実施（実装してください）" if mid in pending_ids else "✅ 実装済み/該当なし"
+            checklist_lines.append(f"  {mid}: {desc} … {status}")
+        cmd += "\n\n【20施策 実装状況チェックリスト（M番号順=ユーザー価値×収益の優先度順）】\n"
+        cmd += "\n".join(checklist_lines)
+        cmd += "\n\n↑ ⬜未実施の施策をM番号順（上位優先）に実装してください。✅は変更不要。"
+
+    gsc_hint = _build_gsc_hint(service)
+    if gsc_hint:
+        cmd += f"\n\n{gsc_hint}"
+
+    section_hint = _build_section_hint(pre_issues)
+    if section_hint:
+        cmd += f"\n\n{section_hint}"
+
+    if preplan:
+        cmd += (
+            f"\n\n【Haiku事前調査結果（実装箇所の特定済み）】\n"
+            f"{preplan}\n"
+            f"↑ この調査結果を活用し、index.htmlの再読を最小化して直接編集してください。"
+        )
 
     if pre_issues:
         sorted_issues = sorted(pre_issues, key=lambda x: int(_re2.search(r'M(\d+)', x).group(1)) if _re2.search(r'M(\d+)', x) else 99)
-        cmd += f"\n\n事前スキャン済み問題（優先度順）: {', '.join(sorted_issues)}"
+        if _skip_phase1:
+            cmd += f"\n\nP1問題リスト（フェーズ2直接実装対象）: {', '.join(sorted_issues)}"
+        else:
+            cmd += f"\n\n事前スキャン済み問題（優先度順）: {', '.join(sorted_issues)}"
     if retry_hint:
         cmd += f"\n\n【リトライ指示】前回の改善後チェックで以下が未反映でした。これらを最優先で実装してください:\n{retry_hint}"
     if saved_af:
@@ -1054,10 +1288,18 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
     pending_high = [i for i in pre_issues if _re2.match(r'\[M(1[0-3]|[1-9])\]', i)]
     log(f"実行: /improve_auto {no} {repo} (未実施高優先: {pending_high or 'なし'}, 全:{len(pre_issues)}件, AF保護:{len(saved_af)}件)")
 
+    # モデル・max-turnsをルーティング（施策の複雑度に応じて自動選択）
+    _run_model, _max_turns = _select_model_and_turns(pending_ids, _skip_phase1)
+    _model_short = "Sonnet" if "sonnet" in _run_model else ("Haiku" if "haiku" in _run_model else _run_model)
+    _complex_pending = sorted(pending_ids & _COMPLEX_M, key=lambda x: int(x[1:]))
+    _simple_pending  = sorted(pending_ids & _SIMPLE_M,  key=lambda x: int(x[1:]))
+    log(f"  ルーティング: {_model_short} / max-turns={_max_turns}"
+        f" | 複雑={_complex_pending or []} 単純={_simple_pending or []}")
+
     _cmd_args = [str(CLAUDE_BIN), "--dangerously-skip-permissions", "-p", cmd,
-                 "--model", CLAUDE_MODEL,
+                 "--model", _run_model,
                  "--output-format", "text",
-                 "--max-turns", "35"]
+                 "--max-turns", str(_max_turns)]
 
     for attempt in range(1, 3):  # 最大2回試行（初回 + 1リトライ）
         try:
@@ -1336,49 +1578,53 @@ def _worker(worker_id: int, stop_event, sheets_factory):
             ok, stdout = run_improve(svc, pre_issues)
             elapsed = int(time.time() - t_start)
 
-            # デプロイ後URLを実際にフェッチして正常表示 + 改善内容を確認
+            # 改善後確認: ローカルファイル基準でマーカー検査 + HTTP到達確認を分離
             v_detail = ""
             v_markers = ""
             if ok:
-                time.sleep(3)  # ファイル反映の待機
-                v_ok, v_detail, v_html = verify_deployed_url(svc["repo"])
-                if v_ok:
-                    v_markers, v_failed = check_improvement_markers(pre_issues, v_html)
-                    log(f"[W{worker_id}]   ✅ URL確認OK: {v_detail}  {v_markers}")
-                    initial_v_markers = v_markers  # リトライ前の結果を保存
-                    # ❌マーカーがある場合: 原因特定して再改善 → 再確認
+                idx_path = WORKSPACE / svc["repo"] / "index.html"
+
+                # ① ローカルindex.htmlでマーカー確認（CDNキャッシュの影響を受けない即時・正確な検査）
+                if idx_path.exists():
+                    local_html = idx_path.read_text(encoding="utf-8", errors="ignore")
+                    v_markers, v_failed = check_improvement_markers(pre_issues, local_html)
+                    log(f"[W{worker_id}]   ローカル確認: {v_markers or '(マーカーなし)'}")
+                    initial_v_markers = v_markers
+
+                    # マーカー未反映: 1回だけリトライ（ローカルファイル再検査）
                     if v_failed:
                         log(f"[W{worker_id}]   ❌ 未反映マーカー: {v_failed} → リトライ実行")
                         retry_hint = "前回改善後チェックで未反映だった施策: " + ", ".join(v_failed)
                         ok_r, stdout_r = run_improve(svc, v_failed, retry_hint=retry_hint)
                         if ok_r:
                             stdout = stdout_r
-                            time.sleep(3)
-                            v_ok2, v_detail2, v_html2 = verify_deployed_url(svc["repo"])
-                            if v_ok2:
-                                v_markers, v_failed2 = check_improvement_markers(v_failed, v_html2)
-                                v_detail = v_detail2
-                                if v_failed2:
-                                    log(f"[W{worker_id}]   ❌ リトライ後も未反映: {v_failed2} → 失敗扱い")
-                                    v_markers = f"{initial_v_markers} → 🔄リトライ → {v_markers}"
-                                    ok = False
-                                else:
-                                    log(f"[W{worker_id}]   ✅ リトライ後全チェック通過")
-                                    v_markers = f"{initial_v_markers} → 🔄リトライ → ✅全チェック通過"
-                            else:
-                                log(f"[W{worker_id}]   ⚠️ リトライ後URL確認失敗: {v_detail2}")
+                            local_html2 = idx_path.read_text(encoding="utf-8", errors="ignore")
+                            v_markers, v_failed2 = check_improvement_markers(v_failed, local_html2)
+                            if v_failed2:
+                                log(f"[W{worker_id}]   ❌ リトライ後も未反映: {v_failed2} → 失敗扱い")
+                                v_markers = f"{initial_v_markers} → 🔄リトライ → {v_markers}"
                                 ok = False
+                            else:
+                                log(f"[W{worker_id}]   ✅ リトライ後全チェック通過")
+                                v_markers = f"{initial_v_markers} → 🔄リトライ → ✅全チェック通過"
                         else:
                             log(f"[W{worker_id}]   ❌ リトライ実行失敗 → 失敗扱い")
                             ok = False
                 else:
-                    log(f"[W{worker_id}]   ⚠️ URL確認失敗: {v_detail}")
+                    log(f"[W{worker_id}]   ⚠️ index.html未存在: マーカー確認スキップ")
+
+                # ② HTTP到達確認: マーカー確認とは独立（外部アクセス可否のみ・okに影響させない）
+                # GitHub Pages CDNはデプロイに数分かかるため、HTTP確認でローカル改善成果を棄却しない
+                v_ok, v_detail, _ = verify_deployed_url(svc["repo"])
+                if v_ok:
+                    log(f"[W{worker_id}]   ✅ URL到達確認OK: {v_detail}")
+                else:
+                    log(f"[W{worker_id}]   ⚠️ URL到達確認失敗（ローカル改善は完了）: {v_detail}")
                     send_telegram(
-                        f"⚠️ {svc['name']} 改善後URL確認失敗\n"
+                        f"⚠️ {svc['name']} URL到達確認失敗（ローカル改善は完了済み）\n"
                         f"詳細: {v_detail}\n"
                         f"🔗 https://appadaycreator.com/{svc['repo']}/"
                     )
-                    ok = False  # 失敗扱い→クールダウン延長
 
             # クールダウン期限計算（R列に書き込む）
             cd_hours = COOLDOWN_FAIL_HOURS if (not ok or zero_traffic) else COOLDOWN_SUCCESS_HOURS

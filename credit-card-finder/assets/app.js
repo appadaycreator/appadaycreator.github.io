@@ -561,6 +561,28 @@ function copyShareText(){
   copyResult();
 }
 
+/* ===== 相対時間フォーマット ===== */
+function formatRelativeTime(timestamp){
+  const now = new Date();
+  const date = new Date(timestamp);
+  const diffMs = now - date;
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if(diffDays === 0 && diffHours === 0){
+    if(diffMins === 0) return 'たった今';
+    return `${diffMins}分前`;
+  }
+  if(diffDays === 0) return `${diffHours}時間前`;
+  if(diffDays === 1) return '昨日';
+  if(diffDays < 7) return `${diffDays}日前`;
+
+  const dateStr = date.toLocaleDateString('ja-JP', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+  return dateStr;
+}
+
 /* ===== M3: 履歴モーダル機能 ===== */
 function showHistoryModal(){
   const modal = document.getElementById('history-modal');
@@ -572,8 +594,7 @@ function showHistoryModal(){
     historyList.innerHTML = '<p style="text-align:center;color:var(--muted);padding:2rem">まだ診断履歴がありません</p>';
   } else {
     historyList.innerHTML = history.map((entry, idx)=>{
-      const date = new Date(entry.timestamp);
-      const dateStr = date.toLocaleDateString('ja-JP', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+      const dateStr = formatRelativeTime(entry.timestamp);
       const card = cardDatabase[entry.topCard];
       const maxScore = entry.topScore || 1;
       const pct = Math.round((entry.topScore / maxScore) * 100);

@@ -26,8 +26,6 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
-  <!-- Font Awesome -->
-
   <!-- Schema.org JSON-LD -->
   <script type="application/ld+json">
   [
@@ -195,8 +193,9 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 }
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;}
 /* モバイルでクイズナビゲーションを画面下部に固定 */
-#quiz-nav{position:sticky;bottom:0;background:white;padding:12px 0;box-shadow:0 -4px 12px rgba(0,0,0,.08);z-index:10;}
-@media(min-width:641px){#quiz-nav{position:static;box-shadow:none;padding:0;}}
+#quiz-nav{position:sticky;bottom:0;background:white;padding:12px 16px;box-shadow:0 -4px 12px rgba(0,0,0,.08);z-index:10;}
+@media(max-width:640px){body{padding-bottom:0;}#quiz-screen{margin-bottom:60px;}}
+@media(min-width:641px){#quiz-nav{position:static;box-shadow:none;padding:0;margin-bottom:0;}}
 /* キーボードフォーカス視認性 */
 .option-btn:focus-visible,button:focus-visible{outline:3px solid #f43f5e;outline-offset:2px;}
 /* 選択確定アニメーション */
@@ -1186,7 +1185,15 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
       bar.setAttribute('aria-valuenow', pct);
       const remaining = totalQ - q;
       const remEl = document.getElementById('remaining-q');
-      if (remEl) remEl.textContent = remaining > 0 ? 'あと' + remaining + '問' : '最後の質問！';
+      if (remEl) {
+        remEl.textContent = remaining > 0 ? 'あと' + remaining + '問' : '最後の質問！';
+        remEl.setAttribute('aria-label', 'あと' + remaining + '問');
+      }
+      // 進捗バーが常に見える位置へスクロール
+      const progressCard = bar.closest('.bg-white');
+      if (progressCard && window.innerWidth < 768) {
+        progressCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }
 
     // 回答に基づいたパーソナライズ理由を生成
@@ -1490,9 +1497,9 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         const label = map[answers[i]] || answers[i];
         items.push(`<li class="flex items-center gap-2 text-xs text-gray-600"><span class="text-rose-400 flex-shrink-0">✓</span><span class="text-gray-500">${map.q}：</span><strong>${label}</strong></li>`);
       }
-      return `<details class="mt-4 border border-rose-100 rounded-xl overflow-hidden text-left">
+      return `<details class="mt-4 border border-rose-100 rounded-xl overflow-hidden text-left" open>
         <summary class="px-4 py-3 cursor-pointer bg-rose-50 text-sm font-medium text-gray-700 hover:bg-rose-100 transition-colors">
-          あなたの回答まとめを見る ▼
+          ✓ あなたの回答まとめ
         </summary>
         <div class="px-4 py-3">
           <ul class="space-y-2">${items.join('')}</ul>
@@ -1523,6 +1530,9 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
       window.scrollTo({ top: 0, behavior: 'smooth' });
 
       setTimeout(function() {
+        // 今回の回答を保存（次回復元用）
+        localStorage.setItem('matchmaking_last_answers', JSON.stringify(answers));
+
         const scores = calcScores();
         const type = getType(scores);
         currentDiagnosisType = type;
@@ -1630,9 +1640,12 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         });
 
         appsHTML += `</div></div>
-        <div class="mb-4 text-center">
+        <div class="mb-4 space-y-2">
           <button onclick="retryDiagnosis()" data-ux="1" style="background:white;border:2px solid #f43f5e;color:#e11d48;width:100%;padding:12px;border-radius:12px;font-weight:bold;font-size:15px;cursor:pointer;">
             🔄 条件を変えてもう一度診断する
+          </button>
+          <button onclick="retryDiagnosis(true)" data-ux="1" style="background:#f8fafc;border:1px solid #d1d5db;color:#4b5563;width:100%;padding:10px;border-radius:12px;font-weight:bold;font-size:13px;cursor:pointer;">
+            ⚡ 前回の条件でもう一度見る
           </button>
         </div>`;
 
@@ -1668,26 +1681,24 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
           ${genderNote}
         </div>`;
 
-        // モバイル sticky CTA を追加
-        const mobileStickyHTML = `<div style="position:fixed;bottom:0;left:0;right:0;background:white;border-top:2px solid #f43f5e;padding:12px;z-index:100;display:none;" class="mobile-cta-footer" id="mobile-cta-footer">
-          <a href="${topApp.link}&utm_content=mobile_sticky" rel="nofollow sponsored noopener noreferrer" target="_blank" class="js-track-affiliate" data-platform="${topApp.name}" data-link-type="mobile_sticky" style="display:block;text-align:center;background:linear-gradient(135deg, #f43f5e 0%, #ec4899 100%);color:white;padding:14px;border-radius:8px;font-weight:bold;font-size:14px;text-decoration:none;cursor:pointer;">
-            ${topApp.icon} ${topApp.name} に無料登録する →
-          </a>
-        </div>`;
-
-        // CTA結果画面が表示されたらモバイルCTAを表示
-        setTimeout(() => {
-          const footer = document.getElementById('mobile-cta-footer') || (() => {
-            const div = document.createElement('div');
-            div.innerHTML = mobileStickyHTML;
-            document.body.appendChild(div.firstElementChild);
-            return document.getElementById('mobile-cta-footer');
-          })();
-          if (footer && window.innerWidth < 768) {
-            footer.style.display = 'block';
-            document.body.style.paddingBottom = '60px';
-          }
-        }, 1000);
+        // モバイル sticky CTA を即座に追加・表示
+        const isMobileViewport = window.innerWidth < 768;
+        let footer = document.getElementById('mobile-cta-footer');
+        if (!footer && isMobileViewport) {
+          const mobileStickyHTML = `<div style="position:fixed;bottom:0;left:0;right:0;background:white;border-top:2px solid #f43f5e;padding:12px;z-index:100;" class="mobile-cta-footer" id="mobile-cta-footer">
+            <a href="${topApp.link}&utm_content=mobile_sticky" rel="nofollow sponsored noopener noreferrer" target="_blank" class="js-track-affiliate" data-platform="${topApp.name}" data-link-type="mobile_sticky" style="display:block;text-align:center;background:linear-gradient(135deg, #f43f5e 0%, #ec4899 100%);color:white;padding:14px;border-radius:8px;font-weight:bold;font-size:14px;text-decoration:none;cursor:pointer;">
+              ${topApp.icon} ${topApp.name} に無料登録する →
+            </a>
+          </div>`;
+          const div = document.createElement('div');
+          div.innerHTML = mobileStickyHTML;
+          document.body.appendChild(div.firstElementChild);
+          footer = document.getElementById('mobile-cta-footer');
+          document.body.style.paddingBottom = '60px';
+        } else if (footer && isMobileViewport) {
+          footer.style.display = 'block';
+          document.body.style.paddingBottom = '60px';
+        }
 
         document.getElementById('result-apps').innerHTML = appsHTML;
 
@@ -1781,9 +1792,15 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
       link.click();
     }
 
-    function retryDiagnosis() {
-      Object.keys(answers).forEach(k => delete answers[k]);
-      currentQ = 1;
+    function retryDiagnosis(restorePrevious) {
+      if (restorePrevious && localStorage.getItem('matchmaking_last_answers')) {
+        const lastAnswers = JSON.parse(localStorage.getItem('matchmaking_last_answers'));
+        Object.assign(answers, lastAnswers);
+        currentQ = 1;
+      } else {
+        Object.keys(answers).forEach(k => delete answers[k]);
+        currentQ = 1;
+      }
       currentDiagnosisType = '';
       try { history.pushState(null, '', window.location.pathname); } catch(e) {}
       document.getElementById('result-screen').classList.add('hidden');

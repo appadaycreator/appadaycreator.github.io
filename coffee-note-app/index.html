@@ -949,6 +949,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                             aria-required="true"
                                             list="beanNameList"
                                             autocomplete="off"
+                                            oninput="clearBeanNameError()"
                                         />
                                         <datalist id="beanNameList"></datalist>
                                         <div id="beanNameError" class="mt-2 text-red-600 text-sm hidden" aria-live="polite" role="alert"></div>
@@ -980,13 +981,14 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                             id="roastLevel"
                                             class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-brown focus:border-transparent"
                                             aria-label="焙煎度を選択"
+                                            onchange="updateWaterTempHint()"
                                         >
-                                            <option value="">焙煎度を選択（ライト/ミディアム/ダーク/フレンチ/イタリアン）</option>
-                                            <option value="light">ライト</option>
-                                            <option value="medium">ミディアム</option>
-                                            <option value="dark">ダーク</option>
-                                            <option value="french">フレンチ</option>
-                                            <option value="italian">イタリアン</option>
+                                            <option value="" selected disabled hidden>焙煎度を選択（ライト/ミディアム/ダーク/フレンチ/イタリアン）</option>
+                                            <option value="light">ライト（90-95℃推奨）</option>
+                                            <option value="medium">ミディアム（85-90℃推奨）</option>
+                                            <option value="dark">ダーク（80-85℃推奨）</option>
+                                            <option value="french">フレンチ（75-80℃推奨）</option>
+                                            <option value="italian">イタリアン（70-75℃推奨）</option>
                                         </select>
                                     </div>
 
@@ -1000,7 +1002,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                             class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-brown focus:border-transparent"
                                             aria-label="抽出方法を選択"
                                         >
-                                            <option value="">抽出方法を選択（ドリップ・エスプレッソ等）</option>
+                                            <option value="" selected disabled hidden>抽出方法を選択（ドリップ・エスプレッソ等）</option>
                                             <option value="pour-over">ドリップ</option>
                                             <option value="french-press">フレンチプレス</option>
                                             <option value="espresso">エスプレッソ</option>
@@ -1031,10 +1033,11 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                             id="beanAmount"
                                             class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-brown focus:border-transparent"
                                             placeholder="20～30g が標準"
-                                            step="0.1"
-                                            aria-label="豆の量（グラム）"
+                                            step="0.5"
+                                            aria-label="豆の量（グラム、0.5g単位）"
                                             min="0.1"
-                                            max="1000"
+                                            max="200"
+                                            inputmode="decimal"
                                             oninput="updateExtractionRatio(); validateBeanAmount()"
                                         />
                                         <div id="beanAmountError" class="mt-2 text-red-600 text-sm hidden" aria-live="polite" role="alert"></div>
@@ -1053,9 +1056,11 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                             aria-label="水の量（ミリリットル）"
                                             min="1"
                                             max="5000"
+                                            inputmode="numeric"
                                             oninput="updateExtractionRatio(); validateWaterAmount()"
+                                            step="1"
                                         />
-                                        <div id="extractionRatio" class="mt-1 text-xs font-medium"></div>
+                                        <div id="extractionRatio" class="mt-2 p-2 bg-blue-50 text-xs font-medium text-blue-700 rounded hidden" aria-live="polite"></div>
                                         <div id="waterAmountError" class="mt-2 text-red-600 text-sm hidden" aria-live="polite" role="alert"></div>
                                     </div>
 
@@ -1074,9 +1079,10 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                             aria-label="水温（摂氏度）"
                                             min="60"
                                             max="110"
-                                            oninput="validateWaterTemp()"
+                                            inputmode="numeric"
+                                            oninput="validateWaterTemp(); updateWaterTempHint();"
                                         />
-                                        <div id="waterTempHint" style="display:none;margin-top:4px;font-size:0.78rem;color:#059669;font-weight:600;"></div>
+                                        <div id="waterTempHint" style="display:none;margin-top:6px;padding:6px 8px;border-radius:4px;font-size:0.78rem;background:#d1fae5;color:#065f46;font-weight:600;"></div>
                                         <div id="waterTempError" class="mt-2 text-red-600 text-sm hidden" aria-live="polite" role="alert"></div>
                                     </div>
 
@@ -1095,6 +1101,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                             aria-label="抽出時間（秒）"
                                             min="1"
                                             max="3600"
+                                            inputmode="numeric"
                                             oninput="validateExtractionTime()"
                                         />
                                         <div id="extractionTimeError" class="mt-2 text-red-600 text-sm hidden"></div>
@@ -1116,12 +1123,18 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                             class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-brown focus:border-transparent"
                                             aria-label="挽き具合を選択"
                                         >
-                                            <option value="">挽き具合を選択（極細〜粗挽き）</option>
-                                            <option value="extra-fine">極細挽き</option>
-                                            <option value="fine">細挽き</option>
-                                            <option value="medium-fine">中細挽き</option>
-                                            <option value="medium">中挽き</option>
-                                            <option value="coarse">粗挽き</option>
+                                            <option value="" selected disabled hidden>挽き具合を選択（極細〜粗挽き）</option>
+                                            <optgroup label="細い（抽出時間短）">
+                                                <option value="extra-fine">極細挽き - エスプレッソ向け</option>
+                                                <option value="fine">細挽き - フレンチプレス向け</option>
+                                            </optgroup>
+                                            <optgroup label="中程度">
+                                                <option value="medium-fine">中細挽き - ドリップ向け</option>
+                                                <option value="medium">中挽き - 標準的なドリップ</option>
+                                            </optgroup>
+                                            <optgroup label="粗い（抽出時間長）">
+                                                <option value="coarse">粗挽き - コールドブリュー向け</option>
+                                            </optgroup>
                                         </select>
                                     </div>
                                 </div>
@@ -1484,7 +1497,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                             <span class="lang-ja">並び順</span>
                             <span class="lang-en hidden">Sort by</span>
                         </label>
-                        <select id="beanSort" class="p-2 border rounded">
+                        <select id="beanSort" class="p-2 border rounded" aria-label="豆の並び順を選択">
                             <option value="date_desc">日付（新→旧）</option>
                             <option value="date_asc">日付（旧→新）</option>
                             <option value="rating_desc">評価（高→低）</option>

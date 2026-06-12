@@ -489,14 +489,49 @@
             .search-form {
                 flex-direction: column;
             }
-            
+
             .header h1 {
                 font-size: 2rem;
             }
-            
+
             .share-buttons {
                 flex-direction: column;
                 align-items: center;
+            }
+
+            /* モバイル結果表示最適化 */
+            .results-section {
+                padding: 20px;
+            }
+
+            .stock-info {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            #resultsSection > h2 {
+                font-size: 1.3rem;
+                margin-bottom: 12px;
+            }
+        }
+
+        /* 640px以下でさらに最適化 */
+        @media (max-width: 640px) {
+            .stock-info {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            .info-card {
+                padding: 16px;
+            }
+
+            .info-card h3 {
+                font-size: 0.75rem;
+                margin-bottom: 6px;
+            }
+
+            .info-card .value {
+                font-size: 1.5rem;
             }
         }
     
@@ -552,6 +587,8 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 @media (max-width: 640px) {
   body { font-size: 16px; }
   .max-w-lg { padding-left: 1rem; padding-right: 1rem; }
+  #portfolioAnalysisBtn button { width: 100%; }
+  #nextActionCards { grid-template-columns: repeat(2, 1fr); }
 }
 
 /* テクニカルシグナルサマリーバー */
@@ -713,17 +750,19 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         <!-- Search Section -->
         <div class="search-section">
             <h2>📈 銘柄を分析</h2>
-            <form id="searchForm" class="search-form">
+            <form id="searchForm" class="search-form" onsubmit="return validateSearchForm(event)">
                 <div class="form-group">
                     <label for="stockCode">銘柄コード(複数可・カンマ区切り) <span title="4桁のコード（例:9984）または銘柄名（例:トヨタ）で入力できます" style="cursor: help; color: #7c3aed; font-weight: bold;">?</span></label>
                     <div class="input-wrapper">
                         <input type="text" id="stockCode" placeholder="例: 7203, 6758 または「トヨタ」" required
                                list="stockSuggestions"
                                minlength="1" maxlength="100"
-                               title="4桁の銘柄コードか銘柄名を入力" aria-label="例: 7203, 6758 または「トヨタ」">
+                               title="4桁の銘柄コードか銘柄名を入力" aria-label="例: 7203, 6758 または「トヨタ」"
+                               oninput="validateStockCodeInput()">
                         <datalist id="stockSuggestions"></datalist>
                         <button type="button" class="clear-btn" onclick="clearStock()">✕</button>
                     </div>
+                    <div id="validationError" style="display:none;margin-top:8px;background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:8px 12px;font-size:0.85rem;color:#991b1b;"></div>
                 </div>
                 <div class="form-group">
                     <label for="period">分析期間 <span title="短期：スイング、中期：トレンド追従、長期：戦略判断の参考に" style="cursor:help;color:#7c3aed;font-weight:bold;">?</span></label>
@@ -771,7 +810,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         <!-- Results Section -->
         <div id="resultsSection" class="results-section">
             <div id="mockDataBanner" style="display:none;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:0.85em;color:#92400e;">
-                ⚠ リアルタイムデータの取得に失敗しました。デモデータを表示しています。
+                <span id="mockDataMessage">⚠ リアルタイムデータの取得に失敗しました。デモデータを表示しています。</span>
+                <button id="retryDataBtn" onclick="retryAnalysis()" style="margin-left:10px;background:#f59e0b;color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:0.8rem;font-weight:600;">再試行</button>
             </div>
             <h2 id="stockTitle">株価分析結果</h2>
             
@@ -1701,8 +1741,38 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             '6702.T': '富士通'
         };
 
+        // 業界カテゴリマッピング
+        const industryCategory = {
+            '7203.T': 'auto', '7201.T': 'auto', '7267.T': 'auto', '7261.T': 'auto', '7269.T': 'auto', '7270.T': 'auto', '6902.T': 'auto', '7832.T': 'gaming',
+            '6758.T': 'elec', '6752.T': 'elec', '6701.T': 'elec', '6702.T': 'elec', '6723.T': 'elec', '8035.T': 'elec', '6920.T': 'elec',
+            '6861.T': 'mach', '6954.T': 'mach', '6301.T': 'mach', '6645.T': 'elec', '6841.T': 'elec', '7751.T': 'elec',
+            '4502.T': 'pharma', '4519.T': 'pharma', '4568.T': 'pharma', '4506.T': 'pharma',
+            '2502.T': 'food', '2802.T': 'food', '2703.T': 'food', '2914.T': 'food',
+            '8306.T': 'bank', '8316.T': 'bank', '8411.T': 'bank', '8303.T': 'bank', '8331.T': 'bank',
+            '5020.T': 'energy', '5019.T': 'energy', '9501.T': 'energy',
+            '8001.T': 'trade', '8002.T': 'trade', '8031.T': 'trade', '8053.T': 'trade', '8058.T': 'trade',
+            '6098.T': 'recruit', '2432.T': 'dna', '9983.T': 'retail', '3382.T': 'retail', '8267.T': 'retail',
+            '2702.T': 'food', '2603.T': 'food',
+            '9101.T': 'ship', '9104.T': 'ship', '9022.T': 'rail', '9020.T': 'rail', '9021.T': 'rail', '9201.T': 'air', '9202.T': 'air',
+            '6733.T': 'mach', '6367.T': 'mach', '4063.T': 'chem', '4188.T': 'chem', '5401.T': 'steel',
+            '7974.T': 'gaming', '4661.T': 'resort', '8802.T': 'realestate', '8830.T': 'realestate'
+        };
+
         function getStockName(symbol) {
             return stockNames[symbol] || '銘柄情報';
+        }
+
+        // 業界カテゴリから関連銘柄を検索
+        function getRelatedStocks(symbol, limit = 3) {
+            const category = industryCategory[symbol];
+            if (!category) return [];
+            const related = Object.entries(industryCategory)
+                .filter(([code, cat]) => cat === category && code !== symbol)
+                .map(([code]) => code)
+                .slice(0, limit + 1)
+                .filter(c => c !== symbol)
+                .slice(0, limit);
+            return related;
         }
 
         function updateStockCount() {
@@ -2642,9 +2712,11 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
     // お気に入り管理
     function renderFavorites() {
         const list = document.getElementById('favoriteList');
+        const portfolioBtn = document.getElementById('portfolioAnalysisBtn');
         if (!list) return;
         if (favoriteStocks.length === 0) {
             list.innerHTML = '<p style="color:#6b7280;font-size:0.95rem;margin:8px 0;font-style:italic;">♡ 分析完了後、結果ページの「☆ お気に入り登録」ボタンをタップすると、ここに保存されます</p>';
+            if (portfolioBtn) portfolioBtn.style.display = 'none';
         } else {
             list.innerHTML = favoriteStocks.map(code => `
                 <div class="stock-chip" onclick="setStock('${code}')">
@@ -2652,6 +2724,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     <span class="remove-btn" onclick="removeFavorite(event, '${code}')">✕</span>
                 </div>
             `).join('');
+            if (portfolioBtn) portfolioBtn.style.display = favoriteStocks.length >= 2 ? 'block' : 'none';
         }
         document.getElementById('favoritesSection').style.display = 'block';
     }
@@ -2704,22 +2777,51 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         }
     }
 
+    // ポートフォリオ分析 - お気に入り銘柄をまとめて分析
+    function analyzePortfolio() {
+        const favorites = JSON.parse(localStorage.getItem('favoriteStocks')) || [];
+        if (favorites.length < 2) {
+            if (typeof showError === 'function') {
+                showError('ポートフォリオ分析には2件以上のお気に入り銘柄が必要です');
+            } else {
+                alert('ポートフォリオ分析には2件以上のお気に入り銘柄が必要です');
+            }
+            return;
+        }
+
+        const codes = favorites.map(f => f.code);
+        const period = '1y';
+
+        // スクロール位置をリセット
+        window.scrollTo(0, 0);
+
+        // 複数銘柄分析を実行
+        analyzeMultipleStocks(codes, period);
+    }
+
     // 次のアクション推奨銘柄を表示
     function showNextActionRecommendations(trendDirection) {
         const nextActionSection = document.getElementById('nextActionSection');
         const cardsContainer = document.getElementById('nextActionCards');
-        if (!nextActionSection || !cardsContainer) return;
+        if (!nextActionSection || !cardsContainer || !currentStock) return;
 
-        // AIスコア・RSI・配当利回りに基づいて関連銘柄を推奨
-        const recommendations = [
-            { code: '7203.T', name: 'トヨタ自動車', reason: '同業界・安定成長' },
-            { code: '7267.T', name: 'ホンダ', reason: '同業界・高配当' },
-            { code: '6758.T', name: 'ソニーグループ', reason: 'テク関連・成長株' }
-        ];
+        const symbol = currentStock.symbol + '.T';
+        const relatedCodes = getRelatedStocks(symbol, 3);
+
+        if (relatedCodes.length === 0) {
+            nextActionSection.style.display = 'none';
+            return;
+        }
+
+        const recommendations = relatedCodes.map(code => ({
+            code: code,
+            name: getStockName(code),
+            reason: '同業界から'
+        }));
 
         cardsContainer.innerHTML = recommendations.map(rec => {
             const codeClean = rec.code.replace('.T', '');
-            return `<a href="index.html?code=${codeClean}" style="display:block;background:#fff;border:1px solid #e9d5ff;border-radius:8px;padding:10px;text-decoration:none;color:#374151;transition:all 0.2s;">
+            return `<a href="index.html?code=${codeClean}" style="display:block;background:#fff;border:1px solid #e9d5ff;border-radius:8px;padding:10px;text-decoration:none;color:#374151;transition:all 0.2s;cursor:pointer;hover:box-shadow:0 2px 4px rgba(0,0,0,0.1);">
                 <div style="font-size:0.75rem;color:#6b7280;margin-bottom:2px;">${codeClean}</div>
                 <div style="font-weight:700;font-size:0.9rem;margin-bottom:4px;">${rec.name}</div>
                 <div style="font-size:0.7rem;color:#9ca3af;background:#f3e8ff;padding:2px 6px;border-radius:3px;display:inline-block;">${rec.reason}</div>
@@ -2865,6 +2967,83 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         menu.classList.toggle('active');
         overlay.classList.toggle('active');
     }
+
+    // P1実装: バリデーション強化
+    function validateStockCodeInput() {
+        const input = document.getElementById('stockCode').value.trim();
+        const errorEl = document.getElementById('validationError');
+
+        if (!input) {
+            errorEl.style.display = 'none';
+            return;
+        }
+
+        const codes = input.split(',').map(s => s.trim()).filter(Boolean);
+        let error = '';
+
+        for (const code of codes) {
+            // 全角数字を半角に自動変換
+            const converted = code.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+
+            // 4桁数字のみチェック
+            if (/^\d{4}$/.test(converted)) {
+                document.getElementById('stockCode').value = document.getElementById('stockCode').value.replace(code, converted);
+                continue;
+            }
+
+            // 銘柄名で検索
+            const found = Object.entries(stockNames).find(([sym, name]) =>
+                name.includes(converted) || sym.replace('.T', '') === converted
+            );
+
+            if (!found && !/^\d{4}$/.test(converted)) {
+                error = `「${code}」は無効な銘柄コード、または存在しない銘柄です。例: 7203（トヨタ）`;
+                break;
+            }
+        }
+
+        if (error) {
+            errorEl.textContent = error;
+            errorEl.style.display = 'block';
+        } else {
+            errorEl.style.display = 'none';
+        }
+    }
+
+    // P1実装: フォーム送信バリデーション
+    function validateSearchForm(event) {
+        const input = document.getElementById('stockCode').value.trim();
+
+        if (!input) {
+            showError('銘柄コードを入力してください');
+            event.preventDefault();
+            return false;
+        }
+
+        validateStockCodeInput();
+        const errorEl = document.getElementById('validationError');
+
+        if (errorEl.style.display !== 'none') {
+            event.preventDefault();
+            showError('入力に誤りがあります。確認してから再度送信してください。');
+            return false;
+        }
+
+        return true;
+    }
+
+    // P1実装: 再試行機能
+    window.retryAnalysis = function() {
+        const stockCode = document.getElementById('stockCode').value.trim();
+        if (!stockCode) {
+            showError('銘柄コードを入力してください');
+            return;
+        }
+
+        showInfo('分析を再試行します...');
+        // フォーム送信をトリガー
+        document.getElementById('searchForm').dispatchEvent(new Event('submit'));
+    };
 </script>
 <!-- Amazon アフィリエイト: 株式投資・テクニカル分析 -->
 <div style="background:#f0f9ff;border:1px solid #7dd3fc;border-radius:12px;padding:16px;margin:16px;text-align:center;">
