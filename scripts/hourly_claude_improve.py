@@ -52,7 +52,7 @@ CHAT_ID = "8512824182"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 N_WORKERS = 10       # 並列ワーカー数の上限（動的調整の最大値）
 TOP_N = 3
-TIMEOUT_SEC = 900    # 1サービスあたり最大15分（Haiku高速化で短縮）
+TIMEOUT_SEC = 900    # フォールバック上限（Sonnet/フェーズ1実施時）。実際は max-turns に連動して 300/600/900s に動的設定
 COOLDOWN_SUCCESS_HOURS = 3   # 改善成功後のクールダウン
 COOLDOWN_FAIL_HOURS   = 24  # 改善対象なし・エラー後のクールダウン
 INDEXNOW_KEY  = "060b5be77e884ff19fd16c1dcd467960"
@@ -1162,7 +1162,13 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
     _skip_phase1 = bool(pre_issues)
     _skip_flag = " → フェーズ1スキップ" if _skip_phase1 else ""
     _guide = _build_focused_guide(pending_ids) if _skip_phase1 else _PRIORITY_GUIDE
-    cmd = f"/improve_auto {no} {repo}{_skip_flag}{_guide}"
+    # フェーズ1スキップ時は /compact も不要（フェーズ間が存在しないため）
+    # improve_auto.md の「フェーズ間は必ず /compact」指示が誤作動しないよう冒頭に明示する
+    _compact_note = (
+        "\n\n⚡ /compact は実行不要です（フェーズ1をスキップしているためフェーズ間が存在しません）。"
+        "そのままフェーズ2の実装に直接進んでください。"
+    ) if _skip_phase1 else ""
+    cmd = f"/improve_auto {no} {repo}{_skip_flag}{_compact_note}{_guide}"
 
     # 施策チェックリスト: フェーズ1スキップ時は未実施のみ表示（✅行を省略してトークン削減）
     _ALL_MEASURES = [
@@ -1236,7 +1242,14 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
     _model_short = "Sonnet" if "sonnet" in _run_model else ("Haiku" if "haiku" in _run_model else _run_model)
     _complex_pending = sorted(pending_ids & _COMPLEX_M, key=lambda x: int(x[1:]))
     _simple_pending  = sorted(pending_ids & _SIMPLE_M,  key=lambda x: int(x[1:]))
-    log(f"  ルーティング: {_model_short} / max-turns={_max_turns}"
+
+    # タイムアウトをmax-turnsに連動（Haiku/単純施策は短く設定してタイムアウト待ち損失を最小化）
+    # max-turns 12 → 300s / 20 → 600s / 25+ → 900s
+    _timeout_sec = 300 if _max_turns <= 12 else (600 if _max_turns <= 20 else TIMEOUT_SEC)
+    # リトライ前の待機時間もタイムアウトに比例させる（短いタイムアウトに長い待機は不要）
+    _retry_sleep = 30 if _timeout_sec <= 300 else 60
+
+    log(f"  ルーティング: {_model_short} / max-turns={_max_turns} / timeout={_timeout_sec}s"
         f" | 複雑={_complex_pending or []} 単純={_simple_pending or []}")
 
     _cmd_args = [str(CLAUDE_BIN), "--dangerously-skip-permissions", "-p", cmd,
@@ -1253,7 +1266,7 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
                 cwd=str(WORKSPACE / repo),
                 capture_output=True,
                 text=True,
-                timeout=TIMEOUT_SEC,
+                timeout=_timeout_sec,
                 env=env,
             )
             if result.returncode == 0:
@@ -1266,10 +1279,10 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
                 stderr_snippet = result.stderr.strip()[:200]
                 log(f"✗ {repo}: 失敗 (code={result.returncode}, attempt={attempt}){' ' + stderr_snippet if stderr_snippet else ''}")
                 if attempt < 2:
-                    log(f"  → 60秒後にリトライします...")
-                    time.sleep(60)
+                    log(f"  → {_retry_sleep}秒後にリトライします...")
+                    time.sleep(_retry_sleep)
         except subprocess.TimeoutExpired:
-            log(f"✗ {repo}: タイムアウト({TIMEOUT_SEC}s, attempt={attempt})")
+            log(f"✗ {repo}: タイムアウト({_timeout_sec}s, attempt={attempt})")
             if attempt < 2:
                 time.sleep(30)
         except Exception as e:
