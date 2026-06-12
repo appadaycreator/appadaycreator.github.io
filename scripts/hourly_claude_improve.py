@@ -1205,10 +1205,10 @@ def _build_code_snippets(pending_ids: set, service_name: str, repo: str) -> str:
     )
 
 
-def _python_patch(repo: str, pending_ids: set) -> set:
-    """㉖ 自明施策（M16/M18/M19/M20）をPythonで直接修正し、実施済みidを返す。
+def _python_patch(repo: str, pending_ids: set, service_name: str = "") -> set:
+    """㉖㉛ 自明施策（M13/M14/M15/M16/M18/M19/M20）をPythonで直接修正し、実施済みidを返す。
     Claudeを呼ばずにHTMLを直接編集することでトークンを節約する。"""
-    trivial = pending_ids & {"M16", "M18", "M19", "M20"}
+    trivial = pending_ids & {"M13", "M14", "M15", "M16", "M18", "M19", "M20"}
     if not trivial:
         return set()
     idx = WORKSPACE / repo / "index.html"
@@ -1235,6 +1235,50 @@ def _python_patch(repo: str, pending_ids: set) -> set:
             html = html.replace("</head>", mf + "\n</head>", 1)
             if 'rel="manifest"' in html:
                 patched.add("M16")
+
+    # ㉛ M15: OGPメタタグ追加（og:title/og:image が両方ない場合のみ）
+    if "M15" in trivial and "og:title" not in html and "og:image" not in html:
+        _sn = service_name or repo
+        og_tags = (
+            f'<meta property="og:title" content="{_sn} | AppADayCreator">\n'
+            f'<meta property="og:description" content="{_sn}の無料ツール。登録不要でスマートフォンからも利用可能。">\n'
+            '<meta property="og:type" content="website">\n'
+            f'<meta property="og:url" content="https://appadaycreator.com/{repo}/">\n'
+            '<meta name="twitter:card" content="summary">'
+        )
+        html = html.replace("</head>", og_tags + "\n</head>", 1)
+        if "og:title" in html:
+            patched.add("M15")
+
+    # ㉛ M14: FAQPageスキーマ追加（未設定の場合のみ）
+    if "M14" in trivial and "FAQPage" not in html:
+        _sn = service_name or repo
+        faq_schema = (
+            '<script type="application/ld+json">{"@context":"https://schema.org",'
+            '"@type":"FAQPage","mainEntity":['
+            '{"@type":"Question",'
+            f'"name":"「{_sn}」は無料で使えますか？",'
+            '"acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要です。"}},'
+            '{"@type":"Question","name":"スマートフォンでも使えますか？",'
+            '"acceptedAnswer":{"@type":"Answer","text":"はい、モバイル対応済みです。"}}]}'
+            "</script>"
+        )
+        html = html.replace("</head>", faq_schema + "\n</head>", 1)
+        if "FAQPage" in html:
+            patched.add("M14")
+
+    # ㉛ M13: 内部リンク追加（appadaycreator.comへのリンクがない場合のみ）
+    if "M13" in trivial and "appadaycreator.com" not in html:
+        internal_link = (
+            '<nav aria-label="関連ツール" style="text-align:center;padding:8px 16px;font-size:.85em;">'
+            '<a href="https://appadaycreator.com/">関連する無料ツール一覧 | AppADayCreator</a>'
+            '</nav>'
+        )
+        html = html.replace("</footer>", internal_link + "\n</footer>", 1)
+        if "appadaycreator.com" not in html:
+            html = html.replace("</body>", internal_link + "\n</body>", 1)
+        if "appadaycreator.com" in html:
+            patched.add("M13")
 
     # M19: console.log削除・FontAwesome CDNリンク削除
     if "M19" in trivial:
@@ -1268,7 +1312,7 @@ def _python_patch(repo: str, pending_ids: set) -> set:
 
     if html != original:
         idx.write_text(html, encoding="utf-8")
-        log(f"  ㉖ Python直接パッチ: {sorted(patched)} ({repo})")
+        log(f"  ㉖㉛ Python直接パッチ: {sorted(patched)} ({repo})")
 
     return patched
 
@@ -1339,23 +1383,105 @@ def _get_fail_cooldown(repo: str) -> float:
         return COOLDOWN_FAIL_HOURS * 7  # 168h（1週間上限）
 
 
+def _validate_and_fix_jsonld(idx: Path, bak_bytes: bytes | None) -> tuple[bool, str]:
+    """㉝ JSON-LDの構文検証と自動修復を行う。
+    不正なJSON-LDブロックを除去。HTML構造が壊れていればrollback。
+    Returns: (ok: bool, detail_message: str)"""
+    if not idx.exists():
+        return True, ""
+    import re as _re
+    html = idx.read_text(encoding="utf-8", errors="ignore")
+
+    # HTML構造チェック（必須タグの存在確認）
+    for tag in ["<html", "</html>", "<head>", "</head>", "<body"]:
+        if tag not in html.lower():
+            if bak_bytes:
+                idx.write_bytes(bak_bytes)
+                return False, f"HTML構造破損({tag}未検出) → ロールバック済み"
+            return False, f"HTML構造破損({tag}未検出)"
+
+    # JSON-LDブロック検証・修復
+    _ld_pattern = _re.compile(
+        r'<script\s+type=["\']application/ld\+json["\']>(.*?)</script>',
+        _re.DOTALL | _re.IGNORECASE
+    )
+    removed_count = 0
+
+    def _fix_ld_block(m):
+        nonlocal removed_count
+        try:
+            json.loads(m.group(1).strip())
+            return m.group(0)  # 正常: そのまま
+        except (json.JSONDecodeError, ValueError):
+            removed_count += 1
+            return ""  # 不正JSONブロックを除去
+
+    new_html = _ld_pattern.sub(_fix_ld_block, html)
+    if removed_count > 0:
+        idx.write_text(new_html, encoding="utf-8")
+        return True, f"不正JSON-LD {removed_count}ブロック除去"
+
+    return True, ""
+
+
+def _check_adsense_policy(idx: Path, bak_bytes: bytes | None) -> tuple[bool, str]:
+    """㉞ AdSenseポリシー違反テンプレ（スケールコンテンツ）を検出してロールバックする。
+    M11/M12で挿入される可能性のある汎用定型文を禁止フレーズリストで検査。
+    Returns: (ok: bool, detail_message: str)"""
+    _BANNED = [
+        "ライフスタイルツールの活用ガイド",
+        "お金・家計ツールの活用ガイド",
+        "健康・フィットネスツールの活用ガイド",
+        "AppADayCreator のツールの特徴",
+        "AppADayCreatorのツールの特徴",
+        "初回利用時にはまずフォームや入力欄に",
+        "スマートフォンからのご利用でも",
+        "すべて完全無料・登録不要でお使いいただけます",
+        "家計管理・健康記録・育児サポート",
+        "ぜひトップページから他のツールもご活用ください",
+        "このツールの使い方は非常にシンプル",
+        "まずは画面上のフォームや入力欄",
+    ]
+    if not idx.exists():
+        return True, ""
+    html = idx.read_text(encoding="utf-8", errors="ignore")
+    for phrase in _BANNED:
+        if phrase in html:
+            if bak_bytes:
+                idx.write_bytes(bak_bytes)
+                return False, f"AdSense違反フレーズ検出 → ロールバック済み: 「{phrase}」"
+            return False, f"AdSense違反フレーズ検出（rollbackなし）: 「{phrase}」"
+    return True, ""
+
+
 def _git_commit_and_push(repo: str, s_delta: int) -> bool:
-    """㉘ 改善後にgit add（-f）・commit・pushを自動実行する。
-    .gitignore対象ディレクトリも強制addする。並列ワーカー競合はロックで直列化。
-    Returns: True=成功, False=失敗。"""
+    """㉘㉜ 改善後にgit commit+pushを自動実行する。
+    ㉜安全ゲート: index.html/SPEC.md/manifest.jsonのみステージ。
+    A8リンク削除・ファイル削除を検出した場合はpushを中止してTelegram通知する。
+    並列ワーカー競合はロックで直列化。Returns: True=成功, False=失敗。"""
     if _git_lock is None:
         return False
     service_dir = WORKSPACE / repo
     with _git_lock:
         try:
-            # git add -f（.gitignore対象ディレクトリも強制追加）
-            add_r = subprocess.run(
-                ["git", "add", "-f", str(service_dir)],
-                cwd=str(WORKSPACE), capture_output=True, text=True, timeout=30
-            )
-            if add_r.returncode != 0:
-                log(f"  ㉘ git add失敗: {add_r.stderr.strip()[:100]}")
-                return False
+            # ㉜ 安全ゲート①: 許可ファイルのみ個別にadd（ディレクトリ丸ごとadd廃止）
+            _safe_files = [
+                service_dir / "index.html",
+                service_dir / "SPEC.md",
+                service_dir / "manifest.json",
+            ]
+            staged_any = False
+            for _f in _safe_files:
+                if _f.exists():
+                    add_r = subprocess.run(
+                        ["git", "add", "-f", str(_f)],
+                        cwd=str(WORKSPACE), capture_output=True, text=True, timeout=30
+                    )
+                    if add_r.returncode == 0:
+                        staged_any = True
+            if not staged_any:
+                log(f"  ㉘ {repo}: 対象ファイルなし → スキップ")
+                return True
 
             # ステージングに変更があるか確認
             diff_r = subprocess.run(
@@ -1364,7 +1490,35 @@ def _git_commit_and_push(repo: str, s_delta: int) -> bool:
             )
             if not diff_r.stdout.strip():
                 log(f"  ㉘ {repo}: 変更なし → コミットスキップ")
-                return True  # 変更なしは正常
+                return True
+
+            # ㉜ 安全ゲート②: A8リンク削除・ファイル削除を検出したらpush中止
+            diff_content_r = subprocess.run(
+                ["git", "diff", "--cached"],
+                cwd=str(WORKSPACE), capture_output=True, text=True, timeout=30
+            )
+            diff_content = diff_content_r.stdout
+            removed_a8 = [l for l in diff_content.splitlines()
+                          if l.startswith("-") and "px.a8.net" in l and not l.startswith("---")]
+            if removed_a8:
+                subprocess.run(["git", "restore", "--staged"] + [str(_f) for _f in _safe_files if _f.exists()],
+                                cwd=str(WORKSPACE), capture_output=True, timeout=30)
+                msg = f"⚠️ ㉜ git push中止: A8リンク削除検出 ({repo})\n{removed_a8[0][:120]}"
+                log(f"  {msg}")
+                send_telegram(msg)
+                return False
+
+            deleted_r = subprocess.run(
+                ["git", "diff", "--cached", "--diff-filter=D", "--name-only"],
+                cwd=str(WORKSPACE), capture_output=True, text=True, timeout=30
+            )
+            if deleted_r.stdout.strip():
+                subprocess.run(["git", "restore", "--staged"] + [str(_f) for _f in _safe_files if _f.exists()],
+                                cwd=str(WORKSPACE), capture_output=True, timeout=30)
+                msg = f"⚠️ ㉜ git push中止: ファイル削除検出 ({repo})\n{deleted_r.stdout.strip()[:120]}"
+                log(f"  {msg}")
+                send_telegram(msg)
+                return False
 
             commit_msg = f"improve: {repo} 自動改善 (+{s_delta}施策)"
             commit_r = subprocess.run(
@@ -1393,7 +1547,7 @@ def _git_commit_and_push(repo: str, s_delta: int) -> bool:
                     log(f"  ㉘ git push失敗: {push_r2.stderr.strip()[:100]}")
                     return False
 
-            log(f"  ㉘ git commit+push完了: {repo} (+{s_delta}施策改善)")
+            log(f"  ㉘㉜ git commit+push完了: {repo} (+{s_delta}施策改善)")
             return True
         except subprocess.TimeoutExpired:
             log(f"  ㉘ git操作タイムアウト: {repo}")
@@ -1469,8 +1623,8 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
         pre_issues = _new_pre
         log(f"  施策上限: {len(_all_sorted)}件 → 上位3件に絞る {sorted(pending_ids, key=lambda x:int(x[1:]))}（残{_all_sorted[3:]}は次回）")
 
-    # ㉖ 自明施策（M16/M18/M19/M20）をPythonで直接パッチ（Claudeを呼ばずに処理）
-    _py_patched = _python_patch(repo, pending_ids)
+    # ㉖㉛ 自明施策（M13〜M20）をPythonで直接パッチ（Claudeを呼ばずに処理）
+    _py_patched = _python_patch(repo, pending_ids, service_name=service["name"])
     if _py_patched:
         pending_ids -= _py_patched
         pre_issues = [i for i in pre_issues if not any(f"[{m}]" in i for m in _py_patched)]
@@ -1928,16 +2082,28 @@ def _worker(worker_id: int, stop_event, sheets_factory):
                         )
                         ok = False
 
-            # 改善後確認: ローカルファイル基準でマーカー検査 + HTTP到達確認を分離
+            # 改善後確認: ローカルファイル基準でマーカー検査（㉟ HTTP検証廃止・CDN遅延で無意味）
             v_detail = ""
             v_markers = ""
+            _v_final_failed: list = list(pre_issues)  # ㉟ delta算出用（マーカー結果で更新）
             if ok:
                 idx_path = WORKSPACE / svc["repo"] / "index.html"
 
                 # ① ローカルindex.htmlでマーカー確認（CDNキャッシュの影響を受けない即時・正確な検査）
                 if idx_path.exists():
+                    # ㉝ JSON-LD構文検証・修復（不正ブロックを除去してから検査）
+                    _jld_ok, _jld_msg = _validate_and_fix_jsonld(idx_path, _bak_bytes)
+                    if not _jld_ok:
+                        log(f"[W{worker_id}]   ❌ ㉝ {_jld_msg}")
+                        ok = False
+                    else:
+                        if _jld_msg:
+                            log(f"[W{worker_id}]   ㉝ {_jld_msg}")
+
+                if ok and idx_path.exists():
                     local_html = idx_path.read_text(encoding="utf-8", errors="ignore")
                     v_markers, v_failed = check_improvement_markers(pre_issues, local_html)
+                    _v_final_failed = v_failed  # ㉟ 初回検査結果をdelta算出に使用
                     log(f"[W{worker_id}]   ローカル確認: {v_markers or '(マーカーなし)'}")
                     initial_v_markers = v_markers
 
@@ -1964,30 +2130,33 @@ def _worker(worker_id: int, stop_event, sheets_factory):
                             local_html2 = idx_path.read_text(encoding="utf-8", errors="ignore")
                             v_markers, v_failed2 = check_improvement_markers(v_failed, local_html2)
                             if v_failed2:
+                                _v_final_failed = v_failed2  # ㉟ 残存失敗をdelta算出に反映
                                 log(f"[W{worker_id}]   ❌ リトライ後も未反映: {v_failed2} → 失敗扱い")
                                 v_markers = f"{initial_v_markers} → 🔄リトライ → {v_markers}"
                                 ok = False
                             else:
+                                _v_final_failed = []  # ㉟ 全通過
                                 log(f"[W{worker_id}]   ✅ リトライ後全チェック通過")
                                 v_markers = f"{initial_v_markers} → 🔄リトライ → ✅全チェック通過"
                         else:
                             log(f"[W{worker_id}]   ❌ リトライ実行失敗 → 失敗扱い")
                             ok = False
-                else:
+                elif ok:
                     log(f"[W{worker_id}]   ⚠️ index.html未存在: マーカー確認スキップ")
 
-                # ② HTTP到達確認: ファイル変更があった場合のみ実施（⑯スキップ時は確認不要）
-                if not _all_done:
-                    v_ok, v_detail, _ = verify_deployed_url(svc["repo"])
-                    if v_ok:
-                        log(f"[W{worker_id}]   ✅ URL到達確認OK: {v_detail}")
-                    else:
-                        log(f"[W{worker_id}]   ⚠️ URL到達確認失敗（ローカル改善は完了）: {v_detail}")
+                # ㉞ AdSenseポリシー違反テンプレ検出（ok=Trueかつ実改善のみ）
+                if ok and not _all_done and idx_path.exists():
+                    _pol_ok, _pol_msg = _check_adsense_policy(idx_path, _bak_bytes)
+                    if not _pol_ok:
+                        log(f"[W{worker_id}]   ❌ ㉞ {_pol_msg}")
                         send_telegram(
-                            f"⚠️ {svc['name']} URL到達確認失敗（ローカル改善は完了済み）\n"
-                            f"詳細: {v_detail}\n"
+                            f"⚠️ {svc['name']} AdSense違反テンプレ検出 → ロールバック\n"
+                            f"{_pol_msg}\n"
                             f"🔗 https://appadaycreator.com/{svc['repo']}/"
                         )
+                        ok = False
+
+                # ② HTTP到達確認は廃止（㉟: ㉘auto-push済み→CDN遅延で常に旧版を返すため無意味）
 
             # クールダウン期限計算（R列に書き込む）
             # ㉚ 失敗時は連続失敗回数に応じた指数バックオフ / 成功時はカウントリセット
@@ -2001,16 +2170,12 @@ def _worker(worker_id: int, stop_event, sheets_factory):
             cooldown_expiry = datetime.now() + timedelta(hours=cd_hours)
 
             if ok:
-                # ⑳ 改善後quick_scanを再実行してS列増分を実測値で算出（+1固定廃止）
+                # ⑳/㉟ S列delta算出: quick_scan再実行廃止→マーカー検査結果（_v_final_failed）から算出
                 _s_delta = 1  # デフォルト
                 if not _all_done and pre_issues:
-                    try:
-                        _post_issues = quick_scan(svc["repo"])
-                        _delta = len(pre_issues) - len(_post_issues)
-                        _s_delta = max(1, _delta)
-                        log(f"[W{worker_id}]   改善delta: {len(pre_issues)}件→{len(_post_issues)}件 (S+{_s_delta})")
-                    except Exception:
-                        pass  # スキャン失敗時はデフォルト+1のまま
+                    _passed_count = len(pre_issues) - len(_v_final_failed)
+                    _s_delta = max(1, _passed_count)
+                    log(f"[W{worker_id}]   改善delta: {len(pre_issues)}件中{_passed_count}件通過 (S+{_s_delta})")
 
                 asset_value = calc_ultra_strict_asset(svc["name"], svc["clicks7d"], svc.get("affil", ""))
                 try:
