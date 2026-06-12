@@ -194,7 +194,8 @@ input.input-valid{border-color:#16A34A!important}
 
         <div class="card">
           <h2 style="font-size:18px;font-weight:700;margin-bottom:4px;">💰 副業税金計算ツール（2024年版）</h2>
-          <p style="color:#666;font-size:14px;margin-bottom:12px;">社会保険料控除込みの実態に近い税負担をシミュレーション</p>
+          <p style="color:#666;font-size:14px;margin-bottom:4px;">社会保険料控除込みの実態に近い税負担をシミュレーション</p>
+          <p style="font-size:12px;color:#9ca3af;margin-bottom:12px;"><span style="color:#DC2626;">*</span> は必須項目です</p>
 
           <!-- 前回値復元バナー -->
           <div class="restore-banner" id="restore-banner">
@@ -205,10 +206,10 @@ input.input-valid{border-color:#16A34A!important}
           <label for="main-income">本業の年収（給与）<span style="color:#DC2626;">*</span></label>
           <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
             <input type="number" id="main-income" placeholder="5000000（例）" min="0" max="30000000" step="100000"
-              aria-describedby="main-income-hint" style="flex:1;" oninput="syncSlider('main',this.value);validateInput('main');debouncedCalc()" required>
+              aria-describedby="main-income-hint" style="flex:1;" oninput="syncSlider('main',this.value);validateInput('main');debouncedCalc()" onblur="validateInput('main')" required>
             <span style="font-size:14px;color:#666;">円</span>
           </div>
-          <div id="main-income-error" style="display:none;color:#DC2626;font-size:12px;margin-top:2px;"></div>
+          <div id="main-income-error" role="alert" aria-live="polite" style="display:none;color:#DC2626;font-size:12px;margin-top:2px;"></div>
           <div class="slider-wrap">
             <input type="range" id="main-slider" min="0" max="15000000" step="100000" value="5000000"
               oninput="syncInput('main',this.value);debouncedCalc()" aria-label="本業年収スライダー">
@@ -227,10 +228,10 @@ input.input-valid{border-color:#16A34A!important}
           <label for="side-income">副業の年間収入（売上・報酬総額）<span style="color:#DC2626;">*</span></label>
           <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
             <input type="number" id="side-income" placeholder="300000（例）" min="0" max="10000000" step="10000"
-              aria-describedby="side-income-hint" style="flex:1;" oninput="syncSlider('side',this.value);validateInput('side');debouncedCalc()" required>
+              aria-describedby="side-income-hint" style="flex:1;" oninput="syncSlider('side',this.value);validateInput('side');debouncedCalc()" onblur="validateInput('side')" required>
             <span style="font-size:14px;color:#666;">円</span>
           </div>
-          <div id="side-income-error" style="display:none;color:#DC2626;font-size:12px;margin-top:2px;"></div>
+          <div id="side-income-error" role="alert" aria-live="polite" style="display:none;color:#DC2626;font-size:12px;margin-top:2px;"></div>
           <div class="slider-wrap">
             <input type="range" id="side-slider" min="0" max="2000000" step="10000" value="300000"
               oninput="syncInput('side',this.value);debouncedCalc()" aria-label="副業収入スライダー">
@@ -249,10 +250,15 @@ input.input-valid{border-color:#16A34A!important}
           <label for="expenses">副業の年間経費（見込み）</label>
           <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
             <input type="number" id="expenses" placeholder="50000（例・経費がなければ0）" min="0" step="10000"
-              aria-describedby="expenses-hint" style="flex:1;" oninput="validateInput('expenses');debouncedCalc()">
+              aria-describedby="expenses-hint" style="flex:1;" oninput="validateInput('expenses');syncExpensesFromInput(this.value);debouncedCalc()" onblur="validateInput('expenses')">
             <span style="font-size:14px;color:#666;">円</span>
           </div>
-          <div id="expenses-error" style="display:none;color:#DC2626;font-size:12px;margin-top:2px;"></div>
+          <div id="expenses-error" role="alert" aria-live="polite" style="display:none;color:#DC2626;font-size:12px;margin-top:2px;"></div>
+          <div class="slider-wrap">
+            <input type="range" id="expenses-slider" min="0" max="500000" step="5000" value="0"
+              oninput="syncExpensesSlider(this.value);debouncedCalc()" aria-label="経費スライダー">
+            <span class="slider-val" id="expenses-slider-val">0円</span>
+          </div>
           <p id="expenses-hint" style="font-size:11px;color:#9ca3af;margin-top:4px;">💡 副業に直接関係する費用（PC・通信費・書籍・交通費など）</p>
           <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:8px;padding:10px;margin-top:8px;font-size:12px;">
             <div style="color:#374151;font-weight:600;margin-bottom:6px;">💡 よくある経費例</div>
@@ -268,6 +274,7 @@ input.input-valid{border-color:#16A34A!important}
           </select>
 
           <button class="btn" style="margin-top:20px;" type="button" onclick="calc()" aria-label="本業年収と副業収入から税金を計算">計算する →</button>
+          <div id="form-ready-hint" role="status" aria-live="polite" style="display:none;text-align:center;font-size:13px;color:#16A34A;font-weight:600;margin-top:8px;padding:8px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;">✅ 入力完了 — 「計算する」を押してください</div>
         </div>
 
         <!-- M6: 目標設定セクション -->
@@ -608,10 +615,19 @@ input.input-valid{border-color:#16A34A!important}
       document.getElementById('expense-guide').textContent = guides[type] || '選択してください';
     }
 
+    /* M2: 入力完了ヒント更新 */
+    function updateFormReadyHint() {
+      const main = parseInt(document.getElementById('main-income').value) || 0;
+      const side = parseInt(document.getElementById('side-income').value) || 0;
+      const hint = document.getElementById('form-ready-hint');
+      if (hint) hint.style.display = (main > 0 && side > 0) ? 'block' : 'none';
+    }
+
     /* ── デバウンス付きリアルタイム計算 ── */
     let debounceTimer = null;
     function debouncedCalc() {
       clearTimeout(debounceTimer);
+      updateFormReadyHint();
       debounceTimer = setTimeout(() => {
         const main = parseInt(document.getElementById('main-income').value) || 0;
         const side = parseInt(document.getElementById('side-income').value) || 0;
@@ -894,7 +910,10 @@ input.input-valid{border-color:#16A34A!important}
           document.getElementById('side-income').value = data.side;
           syncSlider('side', data.side);
         }
-        if (data.exp) document.getElementById('expenses').value = data.exp;
+        if (data.exp) {
+          document.getElementById('expenses').value = data.exp;
+          syncExpensesFromInput(data.exp);
+        }
         if (data.type) document.getElementById('type').value = data.type;
         document.getElementById('restore-banner').classList.add('show');
         /* M6: 目標値を復元 */
@@ -923,6 +942,24 @@ input.input-valid{border-color:#16A34A!important}
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
+    /* ── 経費スライダー同期（M2追加） ── */
+    function syncExpensesSlider(val) {
+      const v = parseInt(val) || 0;
+      const input = document.getElementById('expenses');
+      const label = document.getElementById('expenses-slider-val');
+      if (input) input.value = v;
+      if (label) label.textContent = v.toLocaleString() + '円';
+      validateInput('expenses');
+    }
+
+    function syncExpensesFromInput(val) {
+      const v = parseInt(val) || 0;
+      const slider = document.getElementById('expenses-slider');
+      const label = document.getElementById('expenses-slider-val');
+      if (slider) slider.value = Math.min(v, 500000);
+      if (label) label.textContent = v.toLocaleString() + '円';
+    }
+
     /* ── 入力バリデーション（リアルタイム・M2強化） ── */
     function validateInput(key) {
       const inputId = key === 'main' ? 'main-income' : key === 'side' ? 'side-income' : 'expenses';
@@ -932,8 +969,14 @@ input.input-valid{border-color:#16A34A!important}
       let error = '';
       const val = parseInt(input.value) || 0;
 
-      if (key === 'main' && val < 0) error = '年収は0以上の値を入力してください';
-      if (key === 'side' && val < 0) error = '副業収入は0以上の値を入力してください';
+      if (key === 'main') {
+        if (val < 0) error = '年収は0以上の値を入力してください';
+        else if (val > 30000000) error = '年収は3,000万円以下で入力してください';
+      }
+      if (key === 'side') {
+        if (val < 0) error = '副業収入は0以上の値を入力してください';
+        else if (val > 10000000) error = '副業収入は1,000万円以下で入力してください';
+      }
       if (key === 'expenses') {
         if (val < 0) {
           error = '経費は0以上の値を入力してください';
@@ -1215,6 +1258,9 @@ input.input-valid{border-color:#16A34A!important}
       /* スライダー初期値表示 */
       syncSlider('main', 5000000);
       syncSlider('side', 300000);
+      /* 経費スライダー初期値 */
+      const expLabel = document.getElementById('expenses-slider-val');
+      if (expLabel) expLabel.textContent = '0円';
       /* 経費ガイド初期表示 */
       updateExpenseGuide();
       /* 前回値を復元 */
@@ -1267,10 +1313,18 @@ input.input-valid{border-color:#16A34A!important}
 <div style="margin:1.5rem auto;max-width:760px;padding:0 1rem">
 <div style="background:white;border-radius:16px;padding:1.5rem;box-shadow:0 4px 20px rgba(0,0,0,.08)">
 <h2 style="font-size:1.05rem;font-weight:700;margin:0 0 1rem;border-left:4px solid #4f46e5;padding-left:10px;color:#1e293b">よくある質問（詳細）</h2>
-
-
-
-
+<dl style="line-height:1.8;">
+  <dt style="font-weight:600;color:#374151;padding:12px 0 6px;border-top:1px solid #f1f5f9;">Q: 会社員が副業で確定申告するとき必要な書類は？</dt>
+  <dd style="margin-left:0;padding:0 0 12px;color:#4b5563;font-size:.88rem;line-height:1.8;">A: ①源泉徴収票（本業）②副業収入の明細（クラウドソーシングの支払明細・振込履歴等）③経費の領収書・レシート④マイナンバーカードまたは番号確認書類と本人確認書類⑤銀行口座情報（還付がある場合）。e-Taxを使えば郵送不要で自宅から申告が可能です。</dd>
+  <dt style="font-weight:600;color:#374151;padding:12px 0 6px;border-top:1px solid #f1f5f9;">Q: 副業の税金はいつ払うの？</dt>
+  <dd style="margin-left:0;padding:0 0 12px;color:#4b5563;font-size:.88rem;line-height:1.8;">A: 所得税は確定申告後（翌年3月15日締め）に納付します。振替納税なら4月下旬まで猶予があります。住民税は6月頃に通知が届き、年4回（6・8・10・1月）に分割納付するか、給与から天引きされます。予定納税対象者（前年の税額が15万円超）は7月・11月に前払いが必要です。</dd>
+  <dt style="font-weight:600;color:#374151;padding:12px 0 6px;border-top:1px solid #f1f5f9;">Q: 副業の税金対策として有効な方法は？</dt>
+  <dd style="margin-left:0;padding:0 0 12px;color:#4b5563;font-size:.88rem;line-height:1.8;">A: ①経費を漏れなく計上（PC・通信費・書籍・交通費・家事按分）②青色申告特別控除の活用（最大65万円）③iDeCo掛金の全額所得控除④ふるさと納税で住民税を実質削減⑤小規模企業共済（個人事業主向け・年最大84万円所得控除）。これらを組み合わせると副業収入から合法的に税負担を大幅に軽減できます。</dd>
+  <dt style="font-weight:600;color:#374151;padding:12px 0 6px;border-top:1px solid #f1f5f9;">Q: 副業収入の住民税をバレずに納付するには？</dt>
+  <dd style="margin-left:0;padding:0 0 12px;color:#4b5563;font-size:.88rem;line-height:1.8;">A: 確定申告書の「住民税の徴収方法」欄で「普通徴収（自分で納付）」を選択すると、副業分の住民税が本業の会社の給与から天引きされなくなります。ただし副業収入は必ず申告が必要です。無申告は脱税に当たり、無申告加算税（15〜20%）や延滞税が課せられるリスクがあります。</dd>
+  <dt style="font-weight:600;color:#374151;padding:12px 0 6px;border-top:1px solid #f1f5f9;">Q: 副業の損失（赤字）は本業の収入と通算できる？</dt>
+  <dd style="margin-left:0;padding:0 0 12px;color:#4b5563;font-size:.88rem;line-height:1.8;">A: 事業所得（青色申告）の赤字は給与所得と損益通算が可能で、所得税を減らせます。ただし雑所得（副業のほとんど）は赤字でも他の所得と通算できません。また2022年の税制改正で「副業収入300万円以下は事業所得として認めない」という方針が示されており、帳簿管理の実態が重要です。</dd>
+</dl>
 
 </div>
 </div>
