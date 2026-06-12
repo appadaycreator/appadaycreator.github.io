@@ -151,6 +151,8 @@ _cooldown_lock = None  # threading.Lock() は main() で初期化
 _git_lock     = None  # ㉘ git commit+push の直列化ロック（並列ワーカー競合防止）
 _in_progress: set = set()  # 実行中リポジトリ（並列重複防止用）
 _fail_counts: dict = {}    # ㉚ repo → 連続失敗回数（指数バックオフ用）
+_m_fail_counts: dict = {}  # ㊺ "{repo}:{M}" → 連続失敗回数（施策単位）
+_m_skip_until: dict = {}   # ㊺ "{repo}:{M}" → スキップ期限 datetime（2回連続失敗→72h除外）
 
 # ⑮ get_top_services TTLキャッシュ（5分・ワーカー間共有でSheets API呼び出しを削減）
 _TOP_SVC_CACHE: dict = {"ts": 0.0, "data": None}
@@ -245,10 +247,13 @@ def quick_scan(repo: str) -> list[str]:
         # ⑫ HTMLコメントを除去（false positive防止: <!--...-->内パターンを「実装済み」と誤認しない）
         html = _re.sub(r'<!--.*?-->', '', html, flags=_re.DOTALL)
         # M1: 文脈CTAの有無
-        has_cta = any(kw in html for kw in [
-            "申し込む", "無料登録", "詳しく見る", "今すぐ", "無料で始める",
-            "資料請求", "お問い合わせ", "会員登録", "申込", "affiliate",
-        ])
+        # ㊽ <a href>または<button>内のCTAキーワード限定（meta/本文テキストでの誤検知防止）
+        _cta_kws = "申し込む|無料登録|詳しく見る|今すぐ|無料で始める|資料請求|会員登録|申込"
+        has_cta = bool(
+            _re.search(r'<a\b[^>]*\bhref\b[^>]*>(?:(?!<).){0,200}(?:' + _cta_kws + r')', html, _re.IGNORECASE | _re.DOTALL) or
+            _re.search(r'<button\b[^>]*>(?:(?!<).){0,200}(?:' + _cta_kws + r')', html, _re.IGNORECASE | _re.DOTALL) or
+            "px.a8.net" in html or "affiliate" in html.lower()
+        )
         if not has_cta:
             issues.append("[M1] 申込/CTA導線なし（アフィリエイト・登録ボタン未設置）")
         # M2: コア機能UX - inputにplaceholderなし
@@ -305,7 +310,11 @@ def quick_scan(repo: str) -> list[str]:
         if not has_howto:
             issues.append("[M11] 使い方/活用例/FAQセクションなし")
         # M12: 関連コンテンツ・解説記事
-        has_related = any(kw in html for kw in ["関連", "コラム", "記事", "豆知識", "ヒント", "アドバイス", "解説"])
+        # ㊹ nav/header/footer内の単語でのfalse positive防止（セクション文脈のみチェック）
+        _html_no_nav = _re.sub(r'<(?:nav|header|footer)[^>]*>.*?</(?:nav|header|footer)>',
+                               '', html, flags=_re.IGNORECASE | _re.DOTALL)
+        has_related = any(kw in _html_no_nav for kw in
+                          ["関連コンテンツ", "関連記事", "コラム", "豆知識", "アドバイス", "解説", "ヒント"])
         if not has_related:
             issues.append("[M12] 関連コンテンツ/解説記事セクションなし")
         # M13: 内部リンク
@@ -1210,9 +1219,9 @@ def _build_code_snippets(pending_ids: set, service_name: str, repo: str) -> str:
 
 
 def _python_patch(repo: str, pending_ids: set, service_name: str = "") -> set:
-    """㉖㉛㊳ 自明施策（M9/M13/M14/M15/M16/M18/M19/M20）をPythonで直接修正し、実施済みidを返す。
+    """㉖㉛㊳㊻ 自明施策（M9/M11/M12/M13/M14/M15/M16/M18/M19/M20）をPythonで直接修正し、実施済みidを返す。
     Claudeを呼ばずにHTMLを直接編集することでトークンを節約する。"""
-    trivial = pending_ids & {"M9", "M13", "M14", "M15", "M16", "M18", "M19", "M20"}
+    trivial = pending_ids & {"M9", "M11", "M12", "M13", "M14", "M15", "M16", "M18", "M19", "M20"}
     if not trivial:
         return set()
     idx = WORKSPACE / repo / "index.html"
@@ -1243,9 +1252,16 @@ def _python_patch(repo: str, pending_ids: set, service_name: str = "") -> set:
     # ㉛ M15: OGPメタタグ追加（og:title/og:image が両方ない場合のみ）
     if "M15" in trivial and "og:title" not in html and "og:image" not in html:
         _sn = service_name or repo
+        # ㊾ 既存meta descriptionがあればog:descriptionに流用（固定テンプレートより高品質）
+        _existing_desc = _re.search(
+            r'<meta\s+name=["\']description["\']\s+content=["\'](.*?)["\']',
+            html, _re.IGNORECASE
+        )
+        _og_desc = (_existing_desc.group(1) if _existing_desc
+                    else f"{_sn}の無料ツール。登録不要でスマートフォンからも利用可能。")
         og_tags = (
             f'<meta property="og:title" content="{_sn} | AppADayCreator">\n'
-            f'<meta property="og:description" content="{_sn}の無料ツール。登録不要でスマートフォンからも利用可能。">\n'
+            f'<meta property="og:description" content="{_og_desc}">\n'
             '<meta property="og:type" content="website">\n'
             f'<meta property="og:url" content="https://appadaycreator.com/{repo}/">\n'
             '<meta name="twitter:card" content="summary">'
@@ -1352,6 +1368,54 @@ def _python_patch(repo: str, pending_ids: set, service_name: str = "") -> set:
             html = html.replace("</body>", share_block + "\n</body>", 1)
         if "twitter.com/intent/tweet" in html:
             patched.add("M9")
+
+    # ㊻ M11: よくある質問セクション追加（AdSense安全テンプレート・Claudeの違反フレーズ生成を回避）
+    if "M11" in trivial and not any(kw in html for kw in ["使い方", "ご利用方法", "よくある", "FAQ", "<details", "HowTo"]):
+        faq_section = (
+            '<section style="padding:16px;background:#f8f9fa;margin:16px 0;border-radius:8px;">'
+            '<h2 style="font-size:1.1em;margin-bottom:8px;">よくある質問</h2>'
+            '<details style="margin:4px 0"><summary style="cursor:pointer">このツールは無料ですか？</summary>'
+            '<p style="padding:8px 0;margin:0">はい、完全無料・登録不要でご利用いただけます。</p></details>'
+            '<details style="margin:4px 0"><summary style="cursor:pointer">スマートフォンでも使えますか？</summary>'
+            '<p style="padding:8px 0;margin:0">はい、モバイル対応しています。</p></details>'
+            '<details style="margin:4px 0"><summary style="cursor:pointer">入力データはどこかに送信されますか？</summary>'
+            '<p style="padding:8px 0;margin:0">いいえ、すべての処理はブラウザ内で完結します。</p></details>'
+            '</section>'
+        )
+        if "</main>" in html:
+            html = html.replace("</main>", faq_section + "\n</main>", 1)
+        elif "</article>" in html:
+            html = html.replace("</article>", faq_section + "\n</article>", 1)
+        elif "</footer>" in html:
+            html = html.replace("</footer>", faq_section + "\n</footer>", 1)
+        else:
+            html = html.replace("</body>", faq_section + "\n</body>", 1)
+        if "よくある質問" in html:
+            patched.add("M11")
+
+    # ㊻ M12: 関連コンテンツセクション追加（nav/footer除外でAdSense安全）
+    if "M12" in trivial:
+        import re as _re_m12
+        _html_no_nav_m12 = _re_m12.sub(
+            r'<(?:nav|header|footer)[^>]*>.*?</(?:nav|header|footer)>',
+            '', html, flags=_re_m12.IGNORECASE | _re_m12.DOTALL
+        )
+        _m12_existing = any(kw in _html_no_nav_m12 for kw in
+                            ["関連コンテンツ", "関連記事", "コラム", "豆知識", "アドバイス", "解説", "ヒント"])
+        if not _m12_existing:
+            related_section = (
+                '<section style="padding:16px;background:#f0f4ff;margin:16px 0;border-radius:8px;">'
+                '<h2 style="font-size:1.1em;margin-bottom:8px;">関連コンテンツ</h2>'
+                '<p style="margin:0">他の無料ツールも合わせてご活用ください。'
+                '<a href="https://appadaycreator.com/" style="color:#4f46e5">ツール一覧を見る →</a></p>'
+                '</section>'
+            )
+            if "</footer>" in html:
+                html = html.replace("</footer>", related_section + "\n</footer>", 1)
+            else:
+                html = html.replace("</body>", related_section + "\n</body>", 1)
+            if "関連コンテンツ" in html:
+                patched.add("M12")
 
     if html != original:
         # ㊵ パッチ後HTML構造検証: 必須タグが揃っているか確認（破損なら元に戻す）
@@ -1589,6 +1653,24 @@ def _git_commit_and_push(repo: str, s_delta: int) -> bool:
                 subprocess.run(["git", "restore", "--staged"] + [str(_f) for _f in _safe_files if _f.exists()],
                                 cwd=str(WORKSPACE), capture_output=True, timeout=30)
                 msg = f"⚠️ ㉜ git push中止: ファイル削除検出 ({repo})\n{deleted_r.stdout.strip()[:120]}"
+                log(f"  {msg}")
+                send_telegram(msg)
+                return False
+
+            # ㊿ 安全ゲート④: JS重要関数・イベントハンドラの正味削除を検知
+            _diff_lines = diff_content.splitlines()
+            _removed_js = [l[1:] for l in _diff_lines if l.startswith("-") and not l.startswith("---")]
+            _added_js   = [l[1:] for l in _diff_lines if l.startswith("+") and not l.startswith("+++")]
+            _func_removed = sum(1 for l in _removed_js if "function " in l)
+            _func_added   = sum(1 for l in _added_js   if "function " in l)
+            _evt_removed  = sum(1 for l in _removed_js if "onclick=" in l or "addEventListener" in l)
+            _evt_added    = sum(1 for l in _added_js   if "onclick=" in l or "addEventListener" in l)
+            if (_func_removed - _func_added >= 3 or _evt_removed - _evt_added >= 5):
+                subprocess.run(["git", "restore", "--staged"] + [str(_f) for _f in _safe_files if _f.exists()],
+                                cwd=str(WORKSPACE), capture_output=True, timeout=30)
+                msg = (f"⚠️ ㊿ JS機能削除検出 ({repo}): "
+                       f"function 削除{_func_removed}→追加{_func_added}件, "
+                       f"event 削除{_evt_removed}→追加{_evt_added}件")
                 log(f"  {msg}")
                 send_telegram(msg)
                 return False
@@ -2132,6 +2214,22 @@ def _worker(worker_id: int, stop_event, sheets_factory):
 
             log(f"[W{worker_id}] --- {svc['no']} {svc['name']} ({svc['repo']}) ---")
             pre_issues = quick_scan(svc["repo"])
+            # ㊺ 連続失敗施策を一時スキップ（スタック防止: 同一M番号で2回連続失敗→72h除外）
+            import re as _re_mk
+            _now_dt = datetime.now()
+            _filtered, _skipped_keys = [], []
+            for _pi in pre_issues:
+                _mm = _re_mk.match(r'\[(M\d+)\]', _pi)
+                if _mm:
+                    _key = f"{svc['repo']}:{_mm.group(1)}"
+                    _until = _m_skip_until.get(_key)
+                    if _until and _now_dt < _until:
+                        _skipped_keys.append(_mm.group(1))
+                        continue
+                _filtered.append(_pi)
+            if _skipped_keys:
+                log(f"[W{worker_id}]   ㊺ スキップ施策除外: {_skipped_keys}（連続失敗72h制限中）")
+            pre_issues = _filtered
             log(f"[W{worker_id}]   事前スキャン: {pre_issues if pre_issues else '検出なし'}")
 
             # A) トラフィックゼロは改善しても効果薄→24hクールダウン
@@ -2262,11 +2360,29 @@ def _worker(worker_id: int, stop_event, sheets_factory):
             # ㉚ 失敗時は連続失敗回数に応じた指数バックオフ / 成功時はカウントリセット
             if ok:
                 _fail_counts.pop(svc["repo"], None)  # 成功時は連続失敗カウントリセット
+                # ㊺ 成功時: 対象施策の連続失敗カウントをリセット
+                for _pi in pre_issues:
+                    _mm2 = _re_mk.match(r'\[(M\d+)\]', _pi)
+                    if _mm2:
+                        _k2 = f"{svc['repo']}:{_mm2.group(1)}"
+                        _m_fail_counts.pop(_k2, None)
+                        _m_skip_until.pop(_k2, None)
                 cd_hours = COOLDOWN_FAIL_HOURS if zero_traffic else COOLDOWN_SUCCESS_HOURS
             else:
                 _fail_counts[svc["repo"]] = _fail_counts.get(svc["repo"], 0) + 1
                 cd_hours = _get_fail_cooldown(svc["repo"])  # 指数バックオフ
                 log(f"[W{worker_id}]   ㉚ 連続失敗{_fail_counts[svc['repo']]}回: クールダウン{cd_hours:.0f}h")
+                # ㊺ 失敗時: リトライ後も未反映だった施策のカウントを加算
+                _final_failed_issues = _v_final_failed if not _all_done else []
+                for _pi in _final_failed_issues:
+                    _mm2 = _re_mk.match(r'\[(M\d+)\]', _pi)
+                    if _mm2:
+                        _k2 = f"{svc['repo']}:{_mm2.group(1)}"
+                        _m_fail_counts[_k2] = _m_fail_counts.get(_k2, 0) + 1
+                        if _m_fail_counts[_k2] >= 2:
+                            _m_skip_until[_k2] = datetime.now() + timedelta(hours=72)
+                            log(f"[W{worker_id}]   ㊺ {_k2} 連続2回失敗 → 72hスキップ設定")
+                            _m_fail_counts[_k2] = 0  # リセットして次回から再カウント
             cooldown_expiry = datetime.now() + timedelta(hours=cd_hours)
 
             if ok:
