@@ -20,7 +20,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#7c3aed">
     <meta name="description" content="ゴルフスコアを記録・分析。ハンデキャップ自動計算・スコア推移グラフ・ホール別統計で上達を支援。無料で登録不要・スマホ対応">
-<meta name="author" content="AppADayCreator | Tech&Brace">
+<meta name="author" content="AppADayCreator">
 <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
     <link rel="dns-prefetch" href="https://www.clarity.ms">
@@ -228,8 +228,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 <div class="header">
-    <h1>⛳ ゴルフスコア管理・分析</h1>
-    <p>ラウンド記録 → 統計分析 → ハンデ計算を無料で一括管理</p>
+    <h1>⛳ ゴルフスコア記録・管理アプリ｜ハンデキャップ計算・分析</h1>
+    <p>ラウンドスコア記録 → ハンデキャップ自動計算 → 統計グラフ分析を無料で一括管理</p>
     <div class="tabs">
         <button class="tab active" onclick="switchTab('record',this)">📝 記録</button>
         <button class="tab" onclick="switchTab('history',this)">📋 履歴</button>
@@ -312,7 +312,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div id="simple-input-wrap" style="display:none;">
                 <label>トータルスコア<span class="tooltip-icon" data-tooltip="例：95打なら「95」と入力">?</span></label>
                 <div style="font-size:0.75em;color:#94a3b8;margin-bottom:4px;">18ホールのラウンド合計スコアを入力してください。<strong>単位は「打」</strong>です（例：95打 → 95 と入力）。</div>
-                <input type="number" id="inp-simple-score" placeholder="例：95" min="40" max="200" required aria-label="トータルスコア" title="18ホール（または9ホール）のラウンド合計スコア">
+                <input type="number" id="inp-simple-score" placeholder="例：95" min="40" max="200" required aria-label="トータルスコア" title="18ホール（または9ホール）のラウンド合計スコア" inputmode="numeric" pattern="[0-9]*" oninput="syncScoreFromInput(this.value)">
+                <input type="range" id="inp-simple-score-slider" min="40" max="200" value="95" step="1" aria-label="スコアをスライダーで選択" style="width:100%;margin-top:8px;accent-color:#166534;cursor:pointer;" oninput="syncScoreFromSlider(this.value)">
+                <div style="display:flex;justify-content:space-between;font-size:0.7em;color:#94a3b8;margin-top:2px;">
+                  <span id="score-slider-min">40打</span>
+                  <span id="score-slider-current" style="color:#166534;font-weight:700;"></span>
+                  <span id="score-slider-max">200打</span>
+                </div>
                 <div id="error-inp-simple-score" style="display:none;color:#dc2626;font-size:0.75em;margin-top:2px;font-weight:600;"></div>
             </div>
         </div>
@@ -332,7 +338,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div style="text-align:right;font-size:0.72em;color:#94a3b8;margin-top:2px;"><span id="memo-counter">0/300</span></div>
         <label>⛳ パット数<span class="tooltip-icon" data-tooltip="総パット数で改善を追跡">?</span><span style="color:#94a3b8;">（任意）</span></label>
         <div style="font-size:0.75em;color:#94a3b8;margin-bottom:4px;">ラウンド中の総パット数（18〜72打）。<strong>単位は「打」</strong>です。記入するとパット分析が表示され、パッティング改善の指標になります。</div>
-        <input type="number" id="inp-putts" min="18" max="72" placeholder="例：36" aria-label="パット数（例：36）" title="ラウンド中の総パット数（18〜72）">
+        <input type="number" id="inp-putts" min="18" max="72" placeholder="例：36" aria-label="パット数（例：36）" title="ラウンド中の総パット数（18〜72）" inputmode="numeric" pattern="[0-9]*">
         <div id="error-inp-putts" style="display:none;color:#dc2626;font-size:0.75em;margin-top:2px;font-weight:600;"></div>
         <label>🏌️ 同伴者<span class="tooltip-icon" data-tooltip="複数人は「、」で区切る">?</span><span style="color:#94a3b8;">（任意）</span></label>
         <div style="font-size:0.75em;color:#94a3b8;margin-bottom:4px;">一緒にプレーした人の名前を記録します。複数人の場合は「、」（カンマ）で区切って入力してください。あとで誰と回ったかを思い出すのに便利です。</div>
@@ -611,17 +617,57 @@ function toggleMode() {
 function updateSimpleScoreRange() {
     const typeEl = document.getElementById('inp-type');
     const scoreEl = document.getElementById('inp-simple-score');
+    const sliderEl = document.getElementById('inp-simple-score-slider');
+    const minLbl = document.getElementById('score-slider-min');
+    const maxLbl = document.getElementById('score-slider-max');
     if (!typeEl || !scoreEl) return;
     const type = typeEl.value;
     if (type === '9H') {
-        scoreEl.min = '27';
-        scoreEl.max = '100';
+        scoreEl.min = '27'; scoreEl.max = '100';
         scoreEl.title = '9ホール（ハーフ）のラウンド合計スコア（27〜100）';
+        if (sliderEl) { sliderEl.min = '27'; sliderEl.max = '100'; if (parseInt(sliderEl.value) > 100) sliderEl.value = 60; }
+        if (minLbl) minLbl.textContent = '27打';
+        if (maxLbl) maxLbl.textContent = '100打';
     } else {
-        scoreEl.min = '40';
-        scoreEl.max = '200';
+        scoreEl.min = '40'; scoreEl.max = '200';
         scoreEl.title = '18ホール（1ラウンド）のラウンド合計スコア（40〜200）';
+        if (sliderEl) { sliderEl.min = '40'; sliderEl.max = '200'; }
+        if (minLbl) minLbl.textContent = '40打';
+        if (maxLbl) maxLbl.textContent = '200打';
     }
+}
+
+function getScoreLevel(val, type) {
+    const v = parseInt(val);
+    if (isNaN(v)) return '';
+    if (type === '9H') {
+        if (v <= 39) return 'エキスパート';
+        if (v <= 44) return '上級者';
+        if (v <= 49) return '中級者';
+        if (v <= 59) return '初中級者';
+        return '初心者向け';
+    }
+    if (v <= 79) return 'エキスパート';
+    if (v <= 89) return '上級者';
+    if (v <= 99) return '中級者';
+    if (v <= 109) return '初中級者';
+    return '初心者向け';
+}
+
+function syncScoreFromSlider(val) {
+    const inp = document.getElementById('inp-simple-score');
+    if (inp) inp.value = val;
+    const lbl = document.getElementById('score-slider-current');
+    const type = document.getElementById('inp-type')?.value || '18H';
+    if (lbl) lbl.textContent = val + '打（' + getScoreLevel(val, type) + '）';
+}
+
+function syncScoreFromInput(val) {
+    const slider = document.getElementById('inp-simple-score-slider');
+    const lbl = document.getElementById('score-slider-current');
+    const type = document.getElementById('inp-type')?.value || '18H';
+    if (slider && val) slider.value = val;
+    if (lbl) lbl.textContent = val ? val + '打（' + getScoreLevel(val, type) + '）' : '';
 }
 
 // ===== ホール別入力が不完全なまま記録する（インライン警告からの確認） =====
@@ -1441,15 +1487,51 @@ document.addEventListener('DOMContentLoaded', function() {
     renderTargetGoal();
     updateSimpleScoreRange();
 
-    // M2: 入力フィールド blur時にエラーメッセージクリア
-    const errorClearFields = ['inp-date', 'inp-course', 'inp-simple-score', 'inp-putts'];
-    errorClearFields.forEach(fieldId => {
-        const field = document.getElementById(fieldId);
-        if (field) {
-            field.addEventListener('blur', function() {
-                const errorEl = document.getElementById('error-' + fieldId);
-                if (errorEl) errorEl.style.display = 'none';
-            });
+    // M2: blur時バリデーション（即時フィードバック）
+    const dateField = document.getElementById('inp-date');
+    if (dateField) dateField.addEventListener('blur', function() {
+        const errorEl = document.getElementById('error-inp-date');
+        if (errorEl) errorEl.style.display = 'none';
+    });
+    const courseField = document.getElementById('inp-course');
+    if (courseField) courseField.addEventListener('blur', function() {
+        if (this.value.trim() === '') {
+            setError('inp-course', '⚠️ コース名を入力してください');
+        } else {
+            const errorEl = document.getElementById('error-inp-course');
+            if (errorEl) errorEl.style.display = 'none';
+        }
+    });
+    const scoreField = document.getElementById('inp-simple-score');
+    if (scoreField) scoreField.addEventListener('blur', function() {
+        const typeEl = document.getElementById('inp-type');
+        const type = typeEl ? typeEl.value : '18H';
+        const minS = type === '9H' ? 27 : 40, maxS = type === '9H' ? 100 : 200;
+        const val = parseInt(this.value);
+        if (this.value && (isNaN(val) || val < minS || val > maxS)) {
+            setError('inp-simple-score', `⚠️ スコアを正しく入力してください（${minS}〜${maxS}）`);
+        } else {
+            const errorEl = document.getElementById('error-inp-simple-score');
+            if (errorEl) errorEl.style.display = 'none';
+        }
+    });
+    const puttsField = document.getElementById('inp-putts');
+    if (puttsField) puttsField.addEventListener('blur', function() {
+        const val = parseInt(this.value);
+        if (this.value && (isNaN(val) || val < 18 || val > 72)) {
+            setError('inp-putts', '⚠️ パット数は18〜72の範囲で入力してください');
+        } else {
+            const errorEl = document.getElementById('error-inp-putts');
+            if (errorEl) errorEl.style.display = 'none';
+        }
+    });
+    const typeField = document.getElementById('inp-type');
+    if (typeField) typeField.addEventListener('blur', function() {
+        if (!this.value) {
+            setError('inp-type', '⚠️ コースタイプを選択してください');
+        } else {
+            const errorEl = document.getElementById('error-inp-type');
+            if (errorEl) errorEl.style.display = 'none';
         }
     });
 
@@ -1512,7 +1594,7 @@ document.addEventListener('DOMContentLoaded', function() {
 <section aria-labelledby="faq-h" class="bg-white rounded-2xl shadow-md p-4 mb-4" style="max-width:740px;margin-left:auto;margin-right:auto">
   
 <div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:12px;padding:1.5rem 1.75rem;margin:2rem 0" id="tool-desc-box">
-  <h2 style="font-size:1.05rem;font-weight:800;color:#1e40af;margin:0 0 1rem">📋 このツールの詳細</h2>
+  <h2 style="font-size:1.05rem;font-weight:800;color:#1e40af;margin:0 0 1rem">📋 ゴルフスコア記録アプリの使い方・機能詳細</h2>
   <p style="color:#374151;margin:0 0 .75rem;line-height:1.8">「⛳ ゴルフスコア管理・分析」は、日々のデータを記録・管理するための無料記録・管理ツールです。</p>
 </div>
 <div style="background:#eaf4fb;border-left:4px solid #1976d2;padding:20px 24px;margin:24px 0;border-radius:0 8px 8px 0">
