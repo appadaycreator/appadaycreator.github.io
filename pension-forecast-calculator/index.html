@@ -152,6 +152,9 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
 /* M2: range スライダーリセット */
 input[type="range"]{padding:2px 0;min-height:auto;height:auto;border:none;box-shadow:none;accent-color:#B45309;cursor:pointer}
+/* M2: スライダー現在値バッジ */
+.slider-val-row{display:flex;align-items:center;gap:8px;margin:3px 0 0}
+.slider-val{display:inline-block;background:#B4530915;color:#B45309;font-size:12px;font-weight:700;padding:2px 10px;border-radius:12px;min-width:52px;text-align:center}
 /* M6: 目標達成バー */
 .goal-bar-bg{height:12px;background:#dcfce7;border-radius:6px;overflow:hidden;margin:4px 0 6px}
 .goal-bar-fill{height:100%;border-radius:6px;transition:width .6s ease}
@@ -202,12 +205,13 @@ input[type="range"]{padding:2px 0;min-height:auto;height:auto;border:none;box-sh
               <label class="pension-label" for="current-age">現在の年齢</label>
               <input type="number" id="current-age" placeholder="例: 35" min="20" max="64" value="35" aria-required="true" aria-describedby="hint-age error-current-age" oninput="document.getElementById('sl-age').value=this.value;validateAndSave()">
               <input type="range" id="sl-age" min="20" max="64" value="35" oninput="document.getElementById('current-age').value=this.value;validateAndSave()" aria-label="現在の年齢スライダー">
+              <div class="slider-val-row"><span class="slider-val" id="sv-age">35歳</span></div>
               <p class="pension-hint" id="hint-age">20〜64歳</p>
               <p id="error-current-age" role="alert" style="color:#dc2626;font-size:12px;margin-top:2px;display:none;"></p>
             </div>
             <div>
               <label class="pension-label" for="retire-age">受給開始年齢</label>
-              <select id="retire-age" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px;" onchange="validateAndSave()">
+              <select id="retire-age" aria-required="true" aria-describedby="hint-retire error-retire-age" onchange="validateAndSave()">
                 <option value="60">60歳（繰上げ）</option>
                 <option value="61">61歳</option>
                 <option value="62">62歳</option>
@@ -225,19 +229,22 @@ input[type="range"]{padding:2px 0;min-height:auto;height:auto;border:none;box-sh
                 <option value="74">74歳</option>
                 <option value="75">75歳（最大繰下げ）</option>
               </select>
-              <p class="pension-hint">60〜75歳</p>
+              <p class="pension-hint" id="hint-retire">60〜75歳（現在の年齢より後）</p>
+              <p id="error-retire-age" role="alert" style="color:#dc2626;font-size:12px;margin-top:2px;display:none;"></p>
             </div>
           </div>
 
           <label class="pension-label" for="enroll-years">現在までの加入期間（年）</label>
           <input type="number" id="enroll-years" placeholder="例: 12" min="0" max="45" value="12" aria-required="true" aria-describedby="hint-enroll error-enroll-years" oninput="document.getElementById('sl-enroll').value=this.value;validateAndSave()">
           <input type="range" id="sl-enroll" min="0" max="45" value="12" oninput="document.getElementById('enroll-years').value=this.value;validateAndSave()" aria-label="加入期間スライダー">
+          <div class="slider-val-row"><span class="slider-val" id="sv-enroll">12年</span></div>
           <p class="pension-hint" id="hint-enroll">厚生年金・国民年金の合計加入年数（0〜45年）</p>
           <p id="error-enroll-years" role="alert" style="color:#dc2626;font-size:12px;margin-top:2px;display:none;"></p>
 
           <label class="pension-label" for="avg-salary">平均年収（万円）</label>
           <input type="number" id="avg-salary" placeholder="例: 500" min="100" max="3000" value="500" aria-required="true" aria-describedby="hint-salary error-avg-salary" oninput="document.getElementById('sl-salary').value=this.value;validateAndSave()">
           <input type="range" id="sl-salary" min="100" max="3000" step="50" value="500" oninput="document.getElementById('avg-salary').value=this.value;validateAndSave()" aria-label="平均年収スライダー">
+          <div class="slider-val-row"><span class="slider-val" id="sv-salary">500万円</span><span id="sv-salary-monthly" style="font-size:11px;color:#888;">（月収目安：約41.7万円）</span></div>
           <p class="pension-hint" id="hint-salary">これまでの平均年収の目安（100〜3,000万円）</p>
           <p id="error-avg-salary" role="alert" style="color:#dc2626;font-size:12px;margin-top:2px;display:none;"></p>
 
@@ -252,6 +259,7 @@ input[type="range"]{padding:2px 0;min-height:auto;height:auto;border:none;box-sh
           </div>
 
           <button class="btn" id="calc-btn" style="margin-top:20px;" onclick="calculate()">試算する</button>
+          <div id="recalc-notice" role="status" style="display:none;background:#fef3c7;border:1px solid #fbbf24;border-radius:6px;padding:6px 12px;font-size:12px;color:#92400e;margin-top:6px;text-align:center;">▲ 入力値が変わりました。「試算する」を押してください</div>
           <button class="btn" style="margin-top:8px;background:#cbd5e1;color:#1f2937;" onclick="clearData()">入力をクリア</button>
 
           <div class="result" id="result" style="margin-top:16px;">
@@ -590,8 +598,38 @@ input[type="range"]{padding:2px 0;min-height:auto;height:auto;border:none;box-sh
         salaryInput.setAttribute('aria-invalid', 'false');
       }
 
+      const retireAge = parseInt(document.getElementById('retire-age').value) || 65;
+      const retireSelect = document.getElementById('retire-age');
+      const retireError = document.getElementById('error-retire-age');
+      if (retireError) {
+        if (currentAge >= 20 && retireAge <= currentAge) {
+          retireError.textContent = '⚠️ 受給開始年齢は現在の年齢（' + currentAge + '歳）より後にしてください';
+          retireError.style.display = 'block';
+          retireSelect.setAttribute('aria-invalid', 'true');
+          isValid = false;
+        } else {
+          retireError.style.display = 'none';
+          retireSelect.setAttribute('aria-invalid', 'false');
+        }
+      }
+      // 加入期間スライダーの最大値を年齢に連動して更新
+      const maxEnroll = Math.min(45, Math.max(0, currentAge - 20));
+      document.getElementById('sl-enroll').max = maxEnroll;
+
       document.getElementById('calc-btn').disabled = !isValid;
       savePensionData();
+      // スライダー現在値バッジ更新
+      const svAge = document.getElementById('sv-age');
+      if (svAge) svAge.textContent = (parseInt(document.getElementById('current-age').value) || 35) + '歳';
+      const svEnroll = document.getElementById('sv-enroll');
+      if (svEnroll) svEnroll.textContent = (parseInt(document.getElementById('enroll-years').value) || 0) + '年';
+      const svSalary = document.getElementById('sv-salary');
+      if (svSalary) svSalary.textContent = parseInt(document.getElementById('avg-salary').value || 500).toLocaleString() + '万円';
+      const svMonthly = document.getElementById('sv-salary-monthly');
+      if (svMonthly) { const m = Math.round(parseFloat(document.getElementById('avg-salary').value || 500) / 12 * 10) / 10; svMonthly.textContent = '（月収目安：約' + m.toFixed(1) + '万円）'; }
+      // 試算結果表示中に入力変更があれば再計算催促を表示
+      const recalcNotice = document.getElementById('recalc-notice');
+      if (recalcNotice) recalcNotice.style.display = document.getElementById('result').classList.contains('show') ? 'block' : 'none';
       return isValid;
     }
 
@@ -696,6 +734,8 @@ input[type="range"]{padding:2px 0;min-height:auto;height:auto;border:none;box-sh
         retireAge + '歳受給開始・加入見込み' + totalEnrollYears + '年・平均年収' + avgSalary.toLocaleString() + '万円で試算';
       const _lastMonthly = parseInt(localStorage.getItem('pensionLastMonthly') || '0');
       document.getElementById('result').classList.add('show');
+      const recalcNotice2 = document.getElementById('recalc-notice');
+      if (recalcNotice2) recalcNotice2.style.display = 'none';
       drawPensionChart(kisoMonthly, koseiMonthly);
       localStorage.setItem('pensionLastMonthly', String(totalMonthly));
       document.getElementById('goal-section').style.display = 'block';

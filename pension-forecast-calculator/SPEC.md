@@ -3,7 +3,7 @@
 ## 概要
 
 **サービス名**: Pension Forecast Calculator
-**バージョン**: 1.2.0
+**バージョン**: 1.3.0
 **更新日**: 2026-06-13
 **URL**: https://appadaycreator.com/pension-forecast-calculator/
 
@@ -11,6 +11,8 @@
 
 ## 実装履歴
 
+- v1.4.0 (2026-06-13): M2 スライダー現在値バッジ追加・再計算催促通知・月収目安動的表示
+- v1.3.0 (2026-06-13): M2 UX強化追加（受給開始年齢バリデーション・aria整合性改善・加入期間スライダー最大値動的更新）
 - v1.2.0 (2026-06-13): M2 入力UX強化（aria-required/aria-invalid/aria-describedby追加・ボタンdisable CSS・FAQ3件追加）
 - v1.1.0 (2026-06-12): M10 印刷・結果エクスポート機能追加（window.print・クリップボードコピー・CSVダウンロード）
 
