@@ -12,7 +12,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#7c3aed" />
     <title>数字記憶ゲーム - 完全無料で使えるWebツール【登録不要】</title>
-    <meta name="description" content="表示された数字列を記憶して入力するブレインゲーム。レベルが上がるほど長くなる">
+    <meta name="description" content="数字記憶ゲームで短期記憶・ワーキングメモリを鍛えよう！無料の脳トレゲーム。表示された数字列を記憶して入力するだけ。登録不要・完全無料">
 <meta name="author" content="AppADayCreator | Tech&Brace">
     <link rel="canonical" href="https://appadaycreator.com/number-memory-game/">
     <meta name="mobile-web-app-capable" content="yes">
@@ -151,7 +151,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     <header class="site-header" role="banner">
         <div class="emoji" aria-hidden="true">🔢</div>
-        <h1>数字記憶ゲーム</h1>
+        <h1>数字記憶ゲーム｜短期記憶・ワーキングメモリ 無料脳トレ</h1>
         <p>表示された数字列を記憶して入力するブレインゲーム。レベルが上がるほど長くなる...</p>
         <span id="nm-streak-badge" style="display:none;background:#fef3c7;color:#92400e;font-size:.75rem;font-weight:700;padding:3px 8px;border-radius:20px;border:1px solid #fcd34d;white-space:nowrap;margin-top:6px;display:inline-block;"></span>
     </header>
@@ -232,7 +232,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <button class="btn" style="margin-top:0;background:#f59e0b;" onclick="printNmResult()">🖨️ 印刷する</button>
               <button class="btn" style="margin-top:0;background:#6366f1;" onclick="exportNmRankingCsv()">📥 ランキングをCSV出力</button>
               <button class="btn" style="margin-top:0;background:#8b5cf6;" onclick="setNmGoal()">🎯 目標を設定</button>
-              <button class="btn" style="margin-top:0;background:#06b6d4;" onclick="showNmPlayHistory()">📊 最近5回の詳細</button>
+              <button class="btn" style="margin-top:0;background:#06b6d4;" onclick="showNmComparisonSimulator()">🔬 比較・シミュレーション</button>
               <button class="btn" style="margin-top:0;" onclick="startGame()">🔄 もう一度プレイ</button>
             </div>
             <!-- P1-3: M17 スコア別推薦ツール -->
@@ -697,29 +697,124 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         + recommendations.map(r => '<a href="' + r.url + '" target="_blank" rel="noopener noreferrer" style="display:inline-block;background:#fff;color:#1976d2;padding:6px 12px;border:1px solid #1976d2;border-radius:6px;font-size:.8rem;text-decoration:none;font-weight:600;text-align:center;min-height:32px;display:flex;align-items:center;justify-content:center;">' + r.text + '</a>').join('')
         + '</div></div>';
     }
-    // P2-2: M7 プレイ履歴比較機能
-    function showNmPlayHistory() {
+    // M7: 比較・シミュレーション機能（タブ付きモーダル）
+    function showNmComparisonSimulator() {
       const history = JSON.parse(localStorage.getItem('nm_history') || '[]');
-      if (history.length === 0) {
-        alert('プレイ履歴がありません');
-        return;
-      }
       const recent = history.slice(-5).reverse();
-      const trend = history.length >= 2 ? (recent[0].score > recent[recent.length - 1].score ? '📈 上昇傾向' : recent[0].score < recent[recent.length - 1].score ? '📉 下降傾向' : '➡️ 安定') : '➡️ 初回';
-      let html = '<div style="background:#fff;border:2px solid #7C3AED;border-radius:12px;padding:16px;max-width:600px;margin:0 auto;max-height:80vh;overflow-y:auto;">'
-        + '<div style="font-size:1.1rem;font-weight:700;margin-bottom:8px;color:#7C3AED;">📊 最近5回のプレイ</div>'
-        + '<div style="font-size:.9rem;color:#666;margin-bottom:12px;">' + trend + '</div>'
-        + '<table style="width:100%;border-collapse:collapse;font-size:.85rem;">'
-        + '<tr style="background:#f3e8ff;border-bottom:1px solid #ddd6fe;"><th style="padding:8px;text-align:left;">順序</th><th style="padding:8px;text-align:center;">スコア</th><th style="padding:8px;text-align:center;">レベル</th></tr>'
-        + recent.map((r, i) => '<tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:8px;">' + (i + 1) + '回目</td><td style="padding:8px;text-align:center;font-weight:700;color:#7C3AED;">' + r.score + '点</td><td style="padding:8px;text-align:center;">Lv' + r.lv + '</td></tr>').join('')
-        + '</table>'
-        + '<button onclick="this.parentElement.parentElement.removeChild(this.parentElement);" style="width:100%;margin-top:12px;padding:8px;background:#f3e8ff;border:1px solid #ddd6fe;border-radius:6px;cursor:pointer;font-weight:600;color:#7C3AED;">閉じる</button>'
-        + '</div>';
+      const currentMaxLv = history.length > 0 ? Math.max(...history.map(r => r.lv)) : 1;
+      const compareRows = recent.length === 0
+        ? '<p style="color:#666;text-align:center;padding:16px;">プレイ履歴がありません</p>'
+        : '<table style="width:100%;border-collapse:collapse;font-size:.85rem;margin-bottom:12px;">'
+          + '<tr style="background:#f3e8ff;"><th style="padding:8px;text-align:left;border:1px solid #e2e8f0;">プレイ</th><th style="padding:8px;text-align:center;border:1px solid #e2e8f0;">スコア</th><th style="padding:8px;text-align:center;border:1px solid #e2e8f0;">到達Lv</th><th style="padding:8px;text-align:center;border:1px solid #e2e8f0;">評価</th></tr>'
+          + recent.map((r, i) => {
+              const maxSc = Math.max(...recent.map(x=>x.score));
+              const isMax = r.score === maxSc;
+              return '<tr style="background:' + (isMax ? '#f0fdf4' : (i%2?'#fafafa':'#fff')) + ';border-bottom:1px solid #e2e8f0;">'
+                + '<td style="padding:8px;border:1px solid #e2e8f0;">' + (i+1) + '回前</td>'
+                + '<td style="padding:8px;text-align:center;border:1px solid #e2e8f0;font-weight:700;color:' + (isMax?'#16a34a':'#7C3AED') + ';">' + r.score + '点' + (isMax?' 🏆':'') + '</td>'
+                + '<td style="padding:8px;text-align:center;border:1px solid #e2e8f0;">Lv' + r.lv + '</td>'
+                + '<td style="padding:8px;text-align:center;border:1px solid #e2e8f0;font-size:.75rem;">' + (r.score>=10?'🌟優秀':r.score>=5?'👍良好':'💪要練習') + '</td>'
+                + '</tr>';
+            }).join('')
+          + '</table>'
+          + '<div style="background:#eef2ff;border-radius:8px;padding:10px;font-size:.82rem;color:#374151;">'
+          + '<strong>トレンド:</strong> ' + (history.length >= 2
+              ? (recent[0].score > (recent[recent.length-1]||{score:0}).score
+                  ? '📈 スコアが上昇中です！'
+                  : recent[0].score < (recent[recent.length-1]||{score:99}).score
+                  ? '📉 スコアが低下気味。集中して練習しましょう'
+                  : '➡️ 安定したスコアを維持しています')
+              : 'もう少し続けるとトレンドが表示されます')
+          + '</div>';
       const modal = document.createElement('div');
-      modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
-      modal.innerHTML = html;
-      modal.onclick = e => e.target === modal && modal.remove();
+      modal.id = 'nm-sim-modal';
+      modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999;';
+      modal.innerHTML = '<div style="background:#fff;border-radius:16px;padding:20px;max-width:600px;width:90%;max-height:85vh;overflow-y:auto;">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">'
+        + '<div style="font-size:1.1rem;font-weight:700;color:#7C3AED;">🔬 比較・シミュレーション</div>'
+        + '<button onclick="document.getElementById(\'nm-sim-modal\').remove();" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#666;min-width:36px;min-height:36px;">✕</button>'
+        + '</div>'
+        + '<div style="display:flex;gap:8px;margin-bottom:16px;">'
+        + '<button id="nm-tab-btn-compare" onclick="nmSwitchTab(\'compare\')" style="flex:1;padding:8px;background:#7C3AED;color:#fff;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-size:.85rem;">📊 履歴比較</button>'
+        + '<button id="nm-tab-btn-sim" onclick="nmSwitchTab(\'sim\')" style="flex:1;padding:8px;background:#f3e8ff;color:#7C3AED;border:1px solid #ddd6fe;border-radius:8px;font-weight:600;cursor:pointer;font-size:.85rem;">🎯 目標シミュレーション</button>'
+        + '</div>'
+        + '<div id="nm-tab-compare">' + compareRows + '</div>'
+        + '<div id="nm-tab-sim" style="display:none;">'
+        + '<div style="background:#f8fafc;border-radius:10px;padding:14px;margin-bottom:12px;">'
+        + '<label style="font-size:.85rem;font-weight:600;color:#374151;display:block;margin-bottom:8px;">🎯 目標レベル: <span id="nm-sim-lv-val">' + Math.min(currentMaxLv + 3, 20) + '</span></label>'
+        + '<input type="range" id="nm-sim-lv" min="3" max="20" value="' + Math.min(currentMaxLv + 3, 20) + '" style="width:100%;cursor:pointer;" oninput="document.getElementById(\'nm-sim-lv-val\').textContent=this.value;nmCalcSimulation();">'
+        + '</div>'
+        + '<div style="background:#f8fafc;border-radius:10px;padding:14px;margin-bottom:12px;">'
+        + '<label style="font-size:.85rem;font-weight:600;color:#374151;display:block;margin-bottom:8px;">📅 練習頻度:</label>'
+        + '<select id="nm-sim-freq" onchange="nmCalcSimulation();" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:.85rem;">'
+        + '<option value="7">毎日（週7回）</option>'
+        + '<option value="5">週5回</option>'
+        + '<option value="3" selected>週3回</option>'
+        + '<option value="1">週1回</option>'
+        + '</select></div>'
+        + '<div id="nm-sim-result" style="background:#eef2ff;border-radius:10px;padding:14px;font-size:.85rem;color:#374151;"></div>'
+        + '</div>'
+        + '<button onclick="document.getElementById(\'nm-sim-modal\').remove();" style="width:100%;margin-top:16px;padding:10px;background:#f3e8ff;border:1px solid #ddd6fe;border-radius:8px;cursor:pointer;font-weight:600;color:#7C3AED;">閉じる</button>'
+        + '</div>';
+      modal.onclick = e => { if (e.target === modal) modal.remove(); };
       document.body.appendChild(modal);
+      nmCalcSimulation();
+    }
+    function nmSwitchTab(tab) {
+      const tabCompare = document.getElementById('nm-tab-compare');
+      const tabSim = document.getElementById('nm-tab-sim');
+      const btnCompare = document.getElementById('nm-tab-btn-compare');
+      const btnSim = document.getElementById('nm-tab-btn-sim');
+      if (!tabCompare || !tabSim) return;
+      tabCompare.style.display = tab === 'compare' ? 'block' : 'none';
+      tabSim.style.display = tab === 'sim' ? 'block' : 'none';
+      if (btnCompare) { btnCompare.style.background = tab === 'compare' ? '#7C3AED' : '#f3e8ff'; btnCompare.style.color = tab === 'compare' ? '#fff' : '#7C3AED'; }
+      if (btnSim) { btnSim.style.background = tab === 'sim' ? '#7C3AED' : '#f3e8ff'; btnSim.style.color = tab === 'sim' ? '#fff' : '#7C3AED'; }
+      if (tab === 'sim') nmCalcSimulation();
+    }
+    function nmCalcSimulation() {
+      const history = JSON.parse(localStorage.getItem('nm_history') || '[]');
+      const lvEl = document.getElementById('nm-sim-lv');
+      const freqEl = document.getElementById('nm-sim-freq');
+      const resultEl = document.getElementById('nm-sim-result');
+      if (!lvEl || !freqEl || !resultEl) return;
+      const targetLv = parseInt(lvEl.value) || 10;
+      const freq = parseInt(freqEl.value) || 3;
+      const currentMaxLv = history.length > 0 ? Math.max(...history.map(r => r.lv)) : 1;
+      // 1レベルアップに必要なセッション数を推定（過去データから算出）
+      let sessionsPerLvUp = 5;
+      if (history.length >= 10) {
+        const first = history.slice(0, 5);
+        const last = history.slice(-5);
+        const firstAvgLv = first.reduce((s,r) => s+r.lv, 0) / first.length;
+        const lastAvgLv = last.reduce((s,r) => s+r.lv, 0) / last.length;
+        const lvGain = lastAvgLv - firstAvgLv;
+        if (lvGain > 0) sessionsPerLvUp = Math.round(5 / lvGain * 10) / 10;
+      }
+      sessionsPerLvUp = Math.max(1, Math.min(20, sessionsPerLvUp));
+      const lvGap = Math.max(0, targetLv - currentMaxLv);
+      const sessionsNeeded = Math.round(lvGap * sessionsPerLvUp);
+      const daysNeeded = Math.ceil(sessionsNeeded / (freq / 7));
+      const sessions7d = freq;
+      const sessions30d = Math.round(freq * 30 / 7);
+      const lvIn7d = Math.round((currentMaxLv + sessions7d / sessionsPerLvUp) * 10) / 10;
+      const lvIn30d = Math.round((currentMaxLv + sessions30d / sessionsPerLvUp) * 10) / 10;
+      const freqTip = freq >= 7 ? '毎日練習で最速上達！継続が最大の武器です'
+        : freq >= 5 ? '高頻度な練習で着実に上達します'
+        : freq >= 3 ? '週3回のコンスタントな練習で安定した成長が期待できます'
+        : '少なくとも週1回の練習で継続しましょう';
+      resultEl.innerHTML = '<div style="font-weight:700;margin-bottom:10px;color:#4f46e5;">📊 シミュレーション結果</div>'
+        + '<table style="width:100%;border-collapse:collapse;font-size:.82rem;">'
+        + '<tr><td style="padding:6px 4px;border-bottom:1px solid #e2e8f0;color:#666;">現在の最高レベル</td><td style="padding:6px 4px;border-bottom:1px solid #e2e8f0;font-weight:700;text-align:right;">Lv' + currentMaxLv + '</td></tr>'
+        + '<tr><td style="padding:6px 4px;border-bottom:1px solid #e2e8f0;color:#666;">目標レベル</td><td style="padding:6px 4px;border-bottom:1px solid #e2e8f0;font-weight:700;text-align:right;color:#7C3AED;">Lv' + targetLv + '</td></tr>'
+        + (lvGap > 0
+            ? '<tr><td style="padding:6px 4px;border-bottom:1px solid #e2e8f0;color:#666;">必要セッション数</td><td style="padding:6px 4px;border-bottom:1px solid #e2e8f0;font-weight:700;text-align:right;">約 ' + sessionsNeeded + ' 回</td></tr>'
+              + '<tr><td style="padding:6px 4px;border-bottom:1px solid #e2e8f0;color:#666;">目標達成の目安</td><td style="padding:6px 4px;border-bottom:1px solid #e2e8f0;font-weight:700;text-align:right;color:#16a34a;">約 ' + daysNeeded + ' 日後</td></tr>'
+            : '<tr><td colspan="2" style="padding:6px 4px;border-bottom:1px solid #e2e8f0;text-align:center;color:#16a34a;font-weight:700;">🎉 すでに目標レベル達成済み！</td></tr>')
+        + '<tr><td style="padding:6px 4px;border-bottom:1px solid #e2e8f0;color:#666;">7日後の予測レベル</td><td style="padding:6px 4px;border-bottom:1px solid #e2e8f0;font-weight:700;text-align:right;">Lv ' + lvIn7d.toFixed(1) + '</td></tr>'
+        + '<tr><td style="padding:6px 4px;color:#666;">30日後の予測レベル</td><td style="padding:6px 4px;font-weight:700;text-align:right;color:#7C3AED;">Lv ' + lvIn30d.toFixed(1) + '</td></tr>'
+        + '</table>'
+        + '<div style="margin-top:10px;background:#dbeafe;border-radius:6px;padding:8px;font-size:.78rem;color:#1e40af;">💡 ' + freqTip + '</div>';
     }
     </script>
 
