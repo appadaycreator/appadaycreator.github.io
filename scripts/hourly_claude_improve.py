@@ -1137,48 +1137,6 @@ def _select_model_and_turns(pending_ids: set, skip_phase1: bool) -> tuple[str, i
         return _MODEL_ALIASES["haiku"], 12
 
 
-def _haiku_preplan(service: dict, pending_m: list[str]) -> str:
-    """Haiku (max-turns=3) でindex.htmlを読み、対象施策の実装箇所を特定して計画テキストを返す。
-    失敗時は空文字を返す（run_improveを中断しない）。"""
-    if not pending_m:
-        return ""
-    repo = service["repo"]
-    idx = WORKSPACE / repo / "index.html"
-    if not idx.exists():
-        return ""
-
-    m_list = ", ".join(pending_m[:5])  # 上位5施策のみ（コスト制限）
-    plan_prompt = (
-        f"index.htmlを読んで、以下の施策の実装に必要な箇所を特定してください。\n"
-        f"実装対象: {m_list}\n\n"
-        f"【出力形式（この形式のみ出力）】\n"
-        f"各M番号を1行で:\n"
-        f"  <M番号>: <対象セクション名> | 行<開始>-<終了> | <実装内容メモ1行>\n\n"
-        f"例:\n"
-        f"  M1: 結果出力div | 行245-260 | .result-areaの直後にCTAボタンを追加\n"
-        f"  M14: headセクション | 行1-25 | FAQPage JSON-LDを</head>前に追加\n\n"
-        f"ファイルの編集は不要です。調査と計画の出力のみ行ってください。"
-    )
-    try:
-        env = os.environ.copy()
-        env["HOURLY_IMPROVE"] = "1"
-        result = subprocess.run(
-            [str(CLAUDE_BIN), "--dangerously-skip-permissions", "-p", plan_prompt,
-             "--model", _MODEL_ALIASES["haiku"],
-             "--output-format", "text",
-             "--max-turns", "3"],
-            cwd=str(WORKSPACE / repo),
-            capture_output=True,
-            text=True,
-            timeout=90,
-            env=env,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            return result.stdout.strip()
-    except Exception:
-        pass
-    return ""
-
 
 def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> tuple[bool, str]:
     """指定サービスに /improve_auto を実行。(成功フラグ, stdout) を返す。"""
@@ -1190,15 +1148,6 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
     saved_af: list[dict] = []
     if idx.exists():
         saved_af = _extract_a8_pairs(idx.read_text(encoding="utf-8", errors="ignore"))
-
-    # Phase ③: Haiku事前調査（実装箇所をmax-turns=3で特定）
-    import re as _re_pre
-    _pending_m_list = sorted(
-        [_re_pre.match(r'\[(M\d+)\]', i).group(1)
-         for i in pre_issues if _re_pre.match(r'\[(M\d+)\]', i)],
-        key=lambda x: int(x[1:]),
-    )
-    preplan = _haiku_preplan(service, _pending_m_list)
 
     # pending_ids を事前計算（コマンド構築・ガイドフィルタリングで共用）
     import re as _re2
@@ -1265,12 +1214,6 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
     if section_hint:
         cmd += f"\n\n{section_hint}"
 
-    if preplan:
-        cmd += (
-            f"\n\n【Haiku事前調査結果（実装箇所の特定済み）】\n"
-            f"{preplan}\n"
-            f"↑ この調査結果を活用し、index.htmlの再読を最小化して直接編集してください。"
-        )
 
     if pre_issues:
         sorted_issues = sorted(pre_issues, key=lambda x: int(_re2.search(r'M(\d+)', x).group(1)) if _re2.search(r'M(\d+)', x) else 99)
