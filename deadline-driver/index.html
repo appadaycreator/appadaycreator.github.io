@@ -355,6 +355,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
 
         <!-- Main Content -->
         <main id="main" role="main" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <h2 class="text-lg font-semibold text-gray-600 dark:text-gray-300 mb-6">締め切り管理・タスク管理ツール — 締切から逆算して1日のノルマを自動計算、複数プロジェクトを一元管理</h2>
             <!-- Stats Overview -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                 <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
@@ -606,8 +607,11 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         <div class="space-y-4">
                             <div>
                                 <label class="block text-sm font-medium mb-2" data-translate="project_name">プロジェクト名</label>
-                                <input type="text" id="project-name" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white" required aria-label="プロジェクト名" placeholder="例：書籍執筆プロジェクト">
-                                <span id="error-project-name" class="text-red-500 text-xs mt-1 hidden"></span>
+                                <input type="text" id="project-name" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white" required aria-label="プロジェクト名" placeholder="例：書籍執筆プロジェクト" maxlength="50">
+                                <div class="flex justify-between items-center mt-1">
+                                    <span id="error-project-name" class="text-red-500 text-xs hidden"></span>
+                                    <span id="project-name-counter" class="text-xs text-gray-400 ml-auto">0/50</span>
+                                </div>
                             </div>
                             
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -632,6 +636,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                 <label class="block text-sm font-medium mb-2" data-translate="total_work">総作業量</label>
                                 <input type="number" id="total-work" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white" min="1" required aria-label="総作業量" placeholder="例：100">
                                 <span id="error-total-work" class="text-red-500 text-xs mt-1 hidden"></span>
+                                <p id="daily-quota-preview" class="text-xs text-blue-600 mt-1 hidden">1日のノルマ目安: <strong id="daily-quota-value">-</strong></p>
                             </div>
                             
                             <div>
@@ -712,6 +717,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                     <span id="progress-input-label">今日完了した作業量</span>
                                     <span id="progress-input-unit" class="text-gray-500 ml-1 text-xs"></span>
                                 </label>
+                                <input type="range" id="completed-work-slider" class="w-full mt-1 accent-red-600" min="0" step="1" value="0" aria-label="作業量スライダー（ドラッグで入力）">
                                 <input type="number" id="completed-work" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white" min="0" step="0.1" placeholder="0">
                                 <p id="progress-input-hint" class="text-xs text-gray-400 mt-1">残り作業量に加算されます</p>
                                 <span id="error-completed-work" class="text-red-500 text-xs mt-1 hidden"></span>
@@ -1068,6 +1074,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     document.getElementById('progress-input-label').textContent = '今日完了した作業量';
                     document.getElementById('progress-input-hint').textContent = '残り作業量に加算されます';
                     document.getElementById('completed-work').value = '';
+                    const sl = document.getElementById('completed-work-slider');
+                    if (sl) sl.value = 0;
                 });
                 document.getElementById('mode-total-btn').addEventListener('click', () => {
                     document.getElementById('progress-input-mode').value = 'total';
@@ -1076,8 +1084,101 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     document.getElementById('progress-input-label').textContent = '合計完了作業量（累計）';
                     document.getElementById('progress-input-hint').textContent = '入力した値が合計値として設定されます';
                     const p = this.projects.find(pr => pr.id === this.currentProjectId);
-                    if (p) document.getElementById('completed-work').value = p.completedWork || 0;
+                    if (p) {
+                        document.getElementById('completed-work').value = p.completedWork || 0;
+                        const sl = document.getElementById('completed-work-slider');
+                        if (sl) sl.value = Math.round(p.completedWork || 0);
+                    }
                 });
+
+                // プロジェクト名の文字カウンター＋ブラーバリデーション
+                const projectNameInput = document.getElementById('project-name');
+                const projectNameCounter = document.getElementById('project-name-counter');
+                if (projectNameInput && projectNameCounter) {
+                    projectNameInput.addEventListener('input', () => {
+                        const len = projectNameInput.value.length;
+                        projectNameCounter.textContent = `${len}/50`;
+                        projectNameCounter.className = len > 45 ? 'text-xs text-red-500 ml-auto' : 'text-xs text-gray-400 ml-auto';
+                    });
+                    projectNameInput.addEventListener('blur', () => {
+                        const val = projectNameInput.value.trim();
+                        const errEl = document.getElementById('error-project-name');
+                        if (!val) {
+                            errEl.textContent = 'プロジェクト名を入力してください';
+                            errEl.classList.remove('hidden');
+                        } else if (val.length > 50) {
+                            errEl.textContent = 'プロジェクト名は50文字以内で入力してください';
+                            errEl.classList.remove('hidden');
+                        } else {
+                            errEl.classList.add('hidden');
+                        }
+                    });
+                }
+
+                // 締切日・総作業量変更時に1日ノルマプレビューを更新
+                const updateDailyPreview = () => {
+                    const deadlineVal = document.getElementById('project-deadline').value;
+                    const totalVal = parseFloat(document.getElementById('total-work').value);
+                    const preview = document.getElementById('daily-quota-preview');
+                    const previewVal = document.getElementById('daily-quota-value');
+                    if (!preview || !previewVal) return;
+                    if (deadlineVal && !isNaN(totalVal) && totalVal > 0) {
+                        const today = new Date(); today.setHours(0, 0, 0, 0);
+                        const deadline = new Date(deadlineVal);
+                        const daysLeft = Math.max(1, Math.ceil((deadline - today) / (1000 * 60 * 60 * 24)));
+                        const daily = (totalVal / daysLeft).toFixed(1);
+                        const unitEl = document.getElementById('work-unit');
+                        const unitLabels = { hours: '時間', pages: 'ページ', items: '個', tasks: 'タスク' };
+                        const unitLabel = unitEl ? (unitLabels[unitEl.value] || unitEl.value) : '';
+                        previewVal.textContent = `${daily}${unitLabel}/日（残${daysLeft}日）`;
+                        preview.classList.remove('hidden');
+                    } else {
+                        preview.classList.add('hidden');
+                    }
+                };
+                ['project-deadline', 'total-work', 'work-unit'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.addEventListener('input', updateDailyPreview);
+                });
+
+                // 締切日のブラーバリデーション
+                document.getElementById('project-deadline').addEventListener('blur', () => {
+                    const val = document.getElementById('project-deadline').value;
+                    const errEl = document.getElementById('error-project-deadline');
+                    if (!val) {
+                        errEl.textContent = '締切日を選択してください';
+                        errEl.classList.remove('hidden');
+                    } else {
+                        const sel = new Date(val); const today = new Date(); today.setHours(0,0,0,0);
+                        if (sel < today) {
+                            errEl.textContent = '締切日は本日以降を選択してください';
+                            errEl.classList.remove('hidden');
+                        } else { errEl.classList.add('hidden'); }
+                    }
+                    updateDailyPreview();
+                });
+
+                // 総作業量のブラーバリデーション
+                document.getElementById('total-work').addEventListener('blur', () => {
+                    const val = document.getElementById('total-work').value;
+                    const errEl = document.getElementById('error-total-work');
+                    if (!val || isNaN(val) || parseInt(val) < 1) {
+                        errEl.textContent = '総作業量は1以上の数値を入力してください';
+                        errEl.classList.remove('hidden');
+                    } else { errEl.classList.add('hidden'); }
+                    updateDailyPreview();
+                });
+
+                // 進捗スライダーと数値入力の双方向同期
+                const slider = document.getElementById('completed-work-slider');
+                const numInput = document.getElementById('completed-work');
+                if (slider && numInput) {
+                    slider.addEventListener('input', () => { numInput.value = slider.value; });
+                    numInput.addEventListener('input', () => {
+                        const v = parseFloat(numInput.value);
+                        if (!isNaN(v) && v >= 0) slider.value = Math.round(v);
+                    });
+                }
 
                 // モバイルタイマー
                 const mobileToggle = document.getElementById('mobile-timer-toggle');
@@ -1176,7 +1277,11 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     }
                 } else {
                     form.reset();
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    document.getElementById('project-deadline').min = todayStr;
                     document.getElementById('project-deadline').value = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                    document.getElementById('project-name-counter').textContent = '0/50';
+                    document.getElementById('daily-quota-preview').classList.add('hidden');
                 }
                 
                 modal.classList.remove('hidden');
@@ -1211,6 +1316,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     document.getElementById('progress-input-hint').textContent = '残り作業量に加算されます';
                     document.getElementById('completed-work').value = '';
                     document.getElementById('progress-notes').value = '';
+                    const sliderEl = document.getElementById('completed-work-slider');
+                    if (sliderEl) { sliderEl.max = total; sliderEl.value = 0; }
 
                     document.getElementById('progress-modal').classList.remove('hidden');
                 }
