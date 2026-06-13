@@ -235,9 +235,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div style="background:rgba(255,255,255,0.15);border-radius:10px;padding:12px 16px;margin:0 16px 16px;max-width:360px;margin-left:auto;margin-right:auto;">
         <label style="display:block;color:#fff;font-size:0.78em;font-weight:600;margin-bottom:6px;">📧 高配当株・リバランス・税対策のコツを週1配信</label>
         <div style="display:flex;gap:4px;margin-bottom:4px;">
-            <input type="email" id="newsletter-email" placeholder="メールアドレスを入力" style="flex:1;padding:8px 12px;border:none;border-radius:6px;font-size:0.85em;" aria-label="メールアドレスを入力">
-            <button onclick="subscribeNewsletter()" style="background:#fff;color:#0369a1;border:none;border-radius:6px;padding:8px 16px;font-size:0.78em;font-weight:700;cursor:pointer;white-space:nowrap;">💌 登録</button>
+            <input type="email" id="newsletter-email" placeholder="例: investor@example.com" style="flex:1;padding:8px 12px;border:none;border-radius:6px;font-size:0.85em;" aria-label="メールアドレスを入力（例: investor@example.com）" oninput="validateNewsletterEmail()">
+            <button onclick="subscribeNewsletter()" style="background:#fff;color:#0369a1;border:none;border-radius:6px;padding:8px 16px;font-size:0.78em;font-weight:700;cursor:pointer;white-space:nowrap;" aria-label="ニュースレターに登録">💌 登録</button>
         </div>
+        <div id="newsletter-status" style="font-size:0.68em;color:rgba(255,255,255,0.85);margin-top:2px;display:none;"></div>
         <div style="font-size:0.68em;color:rgba(255,255,255,0.85);">投資情報・税務知識を毎週お届けします</div>
     </div>
     <div class="tabs">
@@ -314,8 +315,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
         <input type="hidden" id="edit-id">
         <label>🏢 銘柄名<span style="color:#dc2626;">*</span></label>
-        <input type="text" id="f-name" placeholder="例: トヨタ自動車" required maxlength="30" aria-label="銘柄名を入力（例: トヨタ自動車）" oninput="validateName()">
-        <div id="f-name-error" style="color:#dc2626;font-size:0.75em;margin-top:2px;display:none;">銘柄名は1文字以上30文字以内で入力してください</div>
+        <input type="text" id="f-name" placeholder="例: トヨタ自動車（1-30文字）" required maxlength="30" aria-label="銘柄名を入力（例: トヨタ自動車）" oninput="validateName()">
+        <div id="f-name-error" style="color:#dc2626;font-size:0.75em;margin-top:2px;display:none;">✗ 銘柄名は1文字以上30文字以内で入力してください</div>
+        <div id="f-name-valid" style="color:#16a34a;font-size:0.75em;margin-top:2px;display:none;">✓ 有効な銘柄名です</div>
         <div class="form-grid">
             <div>
                 <label>🔢 銘柄コード</label>
@@ -865,17 +867,44 @@ function syncQtySlider(value) {
 }
 
 // ===== フォーム入力バリデーション =====
+function validateNewsletterEmail() {
+    const el = document.getElementById('newsletter-email');
+    const statusEl = document.getElementById('newsletter-status');
+    if (!el || !statusEl) return;
+    const val = el.value.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (val === '') {
+        statusEl.style.display = 'none';
+        el.style.borderColor = '';
+    } else if (emailRegex.test(val)) {
+        statusEl.textContent = '✓ 有効なメールアドレスです';
+        statusEl.style.display = 'block';
+        el.style.borderColor = '#86efac';
+    } else {
+        statusEl.textContent = '✗ 正しいメールアドレスを入力してください';
+        statusEl.style.display = 'block';
+        el.style.borderColor = '#fca5a5';
+    }
+}
+
 function validateName() {
     const el = document.getElementById('f-name');
     const errEl = document.getElementById('f-name-error');
-    if (!el || !errEl) return;
+    const validEl = document.getElementById('f-name-valid');
+    if (!el) return;
     const val = el.value.trim();
     if (val.length > 0 && val.length <= 30) {
-        errEl.style.display = 'none';
+        if (errEl) errEl.style.display = 'none';
+        if (validEl) validEl.style.display = 'block';
         el.classList.remove('field-error');
     } else if (val.length > 30) {
-        errEl.style.display = 'block';
+        if (errEl) errEl.style.display = 'block';
+        if (validEl) validEl.style.display = 'none';
         el.classList.add('field-error');
+    } else {
+        if (errEl) errEl.style.display = 'none';
+        if (validEl) validEl.style.display = 'none';
+        el.classList.remove('field-error');
     }
 }
 
@@ -890,7 +919,13 @@ function validateCode() {
     } else if (/^[A-Za-z0-9]{4,5}$/.test(val)) {
         errEl.style.display = 'none';
         el.classList.remove('field-error');
+        el.style.borderColor = '#0369a1';
+    } else if (val.length < 4 || val.length > 5) {
+        errEl.textContent = '✗ 銘柄コードは4〜5文字で入力してください';
+        errEl.style.display = 'block';
+        el.classList.add('field-error');
     } else {
+        errEl.textContent = '✗ 銘柄コードは4〜5文字の英数字で入力してください';
         errEl.style.display = 'block';
         el.classList.add('field-error');
     }
@@ -901,15 +936,20 @@ function validatePrice(fieldId) {
     const displayEl = document.getElementById(fieldId + '-display');
     if (!el || !displayEl) return;
     const val = parseFloat(el.value);
+    const fieldName = fieldId === 'f-buy-price' ? '取得価格' : fieldId === 'f-current' ? '現在値' : '価格';
     if (val > 0) {
-        displayEl.textContent = '✓ 有効な価格です';
+        displayEl.textContent = '✓ ' + fieldName + ': ' + fmt(val) + '円 で有効です';
+        displayEl.style.color = '#16a34a';
         el.classList.remove('field-error');
+        el.style.borderColor = '';
     } else if (el.value !== '') {
         displayEl.textContent = '✗ 0より大きい数値を入力してください';
+        displayEl.style.color = '#dc2626';
         el.classList.add('field-error');
     } else {
         displayEl.textContent = '';
         el.classList.remove('field-error');
+        el.style.borderColor = '';
     }
 }
 
@@ -918,9 +958,13 @@ function validateQuantity() {
     const displayEl = document.getElementById('f-qty-display');
     if (!el || !displayEl) return;
     const val = parseInt(el.value);
+    const buyPrice = parseFloat(document.getElementById('f-buy-price').value) || 0;
+    const investAmount = val * buyPrice;
     if (val > 0 && val <= 9999999) {
-        displayEl.textContent = '✓ 有効な数量です（投資額概算：' + fmt(val * (parseFloat(document.getElementById('f-buy-price').value) || 0)) + '円）';
+        displayEl.textContent = val.toLocaleString() + '股で投資額概算: ' + fmtW(investAmount);
+        displayEl.style.color = '#16a34a';
         el.classList.remove('field-error');
+        el.style.borderColor = '';
         // スライダーも同期
         const slider = document.getElementById('f-qty-slider');
         if (slider) {
@@ -931,10 +975,12 @@ function validateQuantity() {
         }
     } else if (el.value !== '') {
         displayEl.textContent = '✗ 1以上の整数を入力してください';
+        displayEl.style.color = '#dc2626';
         el.classList.add('field-error');
     } else {
         displayEl.textContent = '';
         el.classList.remove('field-error');
+        el.style.borderColor = '';
     }
 }
 
@@ -943,12 +989,22 @@ function validateDividend() {
     const displayEl = document.getElementById('f-dividend-display');
     if (!el || !displayEl) return;
     const val = parseFloat(el.value || '0');
+    const qty = parseInt(document.getElementById('f-qty').value) || 0;
     if (val >= 0) {
-        const annual = val * (parseInt(document.getElementById('f-qty').value) || 0);
-        displayEl.textContent = annual > 0 ? '✓ 年間配当：' + fmtW(annual) + '円' : '';
+        const annual = val * qty;
+        if (annual > 0) {
+            const currentPrice = parseFloat(document.getElementById('f-current').value) || 0;
+            const yieldRate = currentPrice > 0 ? (val / currentPrice * 100).toFixed(2) : 0;
+            displayEl.textContent = '✓ 年間配当：' + fmtW(annual) + '円 / 利回り：' + yieldRate + '%';
+            displayEl.style.color = '#16a34a';
+        } else {
+            displayEl.textContent = '';
+        }
         el.classList.remove('field-error');
+        el.style.borderColor = '';
     } else {
         displayEl.textContent = '✗ 0以上の数値を入力してください';
+        displayEl.style.color = '#dc2626';
         el.classList.add('field-error');
     }
 }
@@ -958,17 +1014,23 @@ function validateRate() {
     const displayEl = document.getElementById('f-exchange-rate-display');
     if (!el || !displayEl) return;
     const val = parseFloat(el.value);
+    const buyPrice = parseFloat(document.getElementById('f-buy-price').value) || 0;
     if (val > 0) {
-        const buyPrice = parseFloat(document.getElementById('f-buy-price').value) || 0;
         const jpy = buyPrice * val;
-        displayEl.textContent = '✓ 1ドル=' + val + '円 → 購入額は' + fmtW(jpy) + '円';
+        const qty = parseInt(document.getElementById('f-qty').value) || 0;
+        const totalJpy = jpy * qty;
+        displayEl.textContent = '✓ 1ドル=' + val + '円 → 購入額：' + fmtW(jpy) + '円 / 投資額：' + fmtW(totalJpy) + '円';
+        displayEl.style.color = '#16a34a';
         el.classList.remove('field-error');
+        el.style.borderColor = '';
     } else if (el.value !== '') {
         displayEl.textContent = '✗ 0より大きい数値を入力してください';
+        displayEl.style.color = '#dc2626';
         el.classList.add('field-error');
     } else {
         displayEl.textContent = '';
         el.classList.remove('field-error');
+        el.style.borderColor = '';
     }
 }
 
