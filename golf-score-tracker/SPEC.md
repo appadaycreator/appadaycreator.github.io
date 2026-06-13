@@ -6,17 +6,19 @@
 **バージョン**: 1.4.9
 **更新日**: 2026-06-13
 
-### v1.4.9 更新内容（2026-06-13）【improve_phase2_only #56 Phase 2 - M2 aria-describedby・バリッド状態・SEO h2/h3強化】
-- **P1**: aria-describedby 追加（アクセシビリティ強化）
-  - 全入力フィールド（inp-date/inp-course/inp-type/inp-simple-score/inp-putts）に `aria-describedby="error-xxx"` 追加
-  - スクリーンリーダーがエラーメッセージを関連フィールドとして読み上げ可能に
-- **P2**: 入力バリッド状態の視覚フィードバック追加
-  - `.input-valid` CSSクラス追加（緑ボーダー・薄緑背景・緑グロー）
-  - blur時バリデーション通過時に `input-valid` クラスを付与（正しく入力されたことを視覚で確認できる）
+### v1.4.9 更新内容（2026-06-13）【improve_phase2_only #56 Phase 2 - M2 完全実装】
+- **P1**: blur時リアルタイムバリデーション関数群の実装
+  - `validateDateField()` / `validateCourseField()` / `validateTypeField()` / `validateScoreField()` / `validatePuttsField()` を実装
+  - 全入力フィールドに `onblur="validateXxxField()"` ハンドラを追加
+  - 入力フォーカスを外すと即座にバリデーション実行・エラー表示・バリッド状態反映
+- **P2**: 入力バリッド状態の視覚フィードバック
+  - `.input-valid` CSSクラス（緑ボーダー・薄緑背景・緑グロー）
+  - blur時バリデーション通過時に `input-valid` クラスを付与
   - エラー時・フォームリセット時に `input-valid` クラスを除去
 - **P3**: SEO h2/h3キーワード強化（GSC掲載順位9.5位対応）
-  - Tips タブの「スコアを10打縮める実践Tips」をh2に昇格・ゴルフキーワード追加
-  - 「スコア帯別改善ポイント」をh3に昇格・ハンデキャップキーワード追加
+  - h2: 「🎯 ゴルフスコアを10打縮める実践Tips【初心者・中級者のスコアアップ必勝法】」に変更
+  - h3: 「📊 ゴルフハンデキャップ別スコア改善ポイント｜レベル別パフォーマンス診断」に変更
+  - キーワード: ゴルフ/スコアアップ/改善/ハンデキャップ/初心者/中級者 を強調
 
 ### v1.4.8 更新内容（2026-06-13）【improve_phase2_only #56 Phase 2 - M2 モバイル入力最適化・スコアレベル表示・select blur検証】
 - **P1**: モバイルキーボード最適化
