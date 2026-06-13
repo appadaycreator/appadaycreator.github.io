@@ -18,7 +18,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1E3012">
   <meta name="description" content="キャンプ装備診断は完全無料。スタイル・人数・予算から必要装備と費用を5分で診断。初心者向けのおすすめギア・シミュレータ。登録不要・スマホ対応">
-<meta name="author" content="AppADayCreator | Tech&Brace">
+<meta name="author" content="AppADayCreator">
 <link rel="canonical" href="https://appadaycreator.com/camping-gear-advisor/">
   <meta property="og:title" content="キャンプ装備診断【無料】スタイル別おすすめギア・費用を提案">
   <meta property="og:description" content="キャンプスタイル・人数・予算から必要装備と費用を診断。初心者から上級者まで対応。">
@@ -407,9 +407,30 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <button class="m7-tab active" data-m7-param="style" onclick="m7SelectParam('style')">⛺ スタイル</button>
             <button class="m7-tab" data-m7-param="members" onclick="m7SelectParam('members')">👥 人数</button>
             <button class="m7-tab" data-m7-param="budget" onclick="m7SelectParam('budget')">💰 予算帯</button>
+            <button class="m7-tab" data-m7-param="custom" onclick="m7SelectParam('custom')">🔧 全条件</button>
           </div>
         </div>
         <div id="m7-table" style="overflow-x:auto;"></div>
+        <!-- M7: 全条件カスタムシミュレーター -->
+        <div id="m7-custom-panel" style="display:none;margin-top:10px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+            <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:10px;">
+              <div style="font-size:0.7rem;font-weight:700;color:#3A5C25;margin-bottom:6px;">📌 現在の条件</div>
+              <div id="m7c-current-display" style="font-size:0.75rem;color:#374151;line-height:1.9;"></div>
+              <div id="m7c-current-cost" style="font-size:1.15rem;font-weight:800;color:#1E3012;margin-top:4px;"></div>
+            </div>
+            <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px;">
+              <div style="font-size:0.7rem;font-weight:700;color:#ea580c;margin-bottom:6px;">🔄 シミュレーション</div>
+              <div id="m7c-sim-selects"></div>
+              <div id="m7c-sim-cost" style="font-size:1.15rem;font-weight:800;color:#ea580c;margin-top:4px;"></div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:8px;background:#f8fafc;border-radius:8px;">
+            <span style="font-size:0.75rem;color:#6b7280;">差額:</span>
+            <div id="m7c-diff-badge" style="padding:3px 10px;border-radius:16px;font-size:0.78rem;font-weight:700;"></div>
+          </div>
+          <p style="font-size:0.68rem;color:#9ca3af;margin-top:6px;">※右側のセレクトを変更すると費用が即時再計算されます</p>
+        </div>
       </div>
 
       <!-- 目標費用設定セクション -->
@@ -1178,6 +1199,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       budgetGoal = null;
       var m7el = document.getElementById('m7-comparison');
       if (m7el) m7el.style.display = 'none';
+      var m7cp = document.getElementById('m7-custom-panel');
+      if (m7cp) m7cp.style.display = 'none';
       m7CurrentParam = 'style';
       document.querySelectorAll('.m7-tab').forEach(function(t){ t.classList.toggle('active', t.dataset.m7Param === 'style'); });
       updateProgress();
@@ -1219,7 +1242,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <h2>おすすめキャンプ場タイプ</h2>
             <p>${campsiteAdvice.substring(0, 300)}</p>
             <p class="note" style="margin-top: 30px;">このレポートは https://appadaycreator.com/camping-gear-advisor/ で生成されました</p>
-          </body>
+          <!-- r31-cookie-banner -->
+<div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
+<div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
+<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+</div>
+<script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
+</body>
         </html>
       `;
 
@@ -1385,7 +1414,16 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.querySelectorAll('.m7-tab').forEach(function(t) {
         t.classList.toggle('active', t.dataset.m7Param === param);
       });
-      m7RenderTable(param);
+      var customPanel = document.getElementById('m7-custom-panel');
+      var tableEl = document.getElementById('m7-table');
+      if (param === 'custom') {
+        if (tableEl) tableEl.innerHTML = '';
+        if (customPanel) customPanel.style.display = 'block';
+        m7InitCustom();
+      } else {
+        if (customPanel) customPanel.style.display = 'none';
+        m7RenderTable(param);
+      }
     }
 
     function m7RenderTable(param) {
@@ -1422,6 +1460,65 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       var el = document.getElementById('m7-comparison');
       if (el) el.style.display = 'block';
       m7RenderTable(m7CurrentParam);
+    }
+
+    // M7拡張: 全条件カスタムシミュレーター
+    var m7StyleMap  = { auto: '🚗 オートキャンプ', tent: '⛺ 本格テント泊', glamping: '✨ グランピング', backpack: '🎒 バックパッキング' };
+    var m7MemberMap = { solo: '🙋 ソロ', couple: '👫 カップル', family: '👨‍👩‍👧 家族', group: '👥 グループ4人+' };
+    var m7BudgetMap = { budget: '💚 3万円以内', mid: '🌿 5〜10万円', premium: '🏔️ 10〜30万円', unlimited: '💎 予算なし' };
+
+    function m7MakeSelect(id, labelMap, currentVal) {
+      return '<select id="' + id + '" onchange="m7UpdateCustomSim()" style="width:100%;padding:4px 6px;border:1px solid #fed7aa;border-radius:6px;font-size:0.72rem;margin-bottom:5px;background:#fff;min-height:auto!important;">' +
+        Object.keys(labelMap).map(function(v) {
+          return '<option value="' + v + '"' + (v === currentVal ? ' selected' : '') + '>' + labelMap[v] + '</option>';
+        }).join('') + '</select>';
+    }
+
+    function m7InitCustom() {
+      var panel = document.getElementById('m7-custom-panel');
+      if (!panel) return;
+      // 現在条件を表示
+      var curEl = document.getElementById('m7c-current-display');
+      if (curEl) curEl.innerHTML =
+        '<div>' + (m7StyleMap[answers.q3] || answers.q3) + '</div>' +
+        '<div>' + (m7MemberMap[answers.q2] || answers.q2) + '</div>' +
+        '<div>' + (m7BudgetMap[answers.q6] || answers.q6) + '</div>';
+      var curCostEl = document.getElementById('m7c-current-cost');
+      if (curCostEl) curCostEl.textContent = m7CalcCost({}) + '万円';
+      // セレクト生成
+      var simsEl = document.getElementById('m7c-sim-selects');
+      if (simsEl) simsEl.innerHTML =
+        m7MakeSelect('m7c-sel-style',   m7StyleMap,  answers.q3) +
+        m7MakeSelect('m7c-sel-members', m7MemberMap, answers.q2) +
+        m7MakeSelect('m7c-sel-budget',  m7BudgetMap, answers.q6);
+      m7UpdateCustomSim();
+    }
+
+    function m7UpdateCustomSim() {
+      var sEl = document.getElementById('m7c-sel-style');
+      var mEl = document.getElementById('m7c-sel-members');
+      var bEl = document.getElementById('m7c-sel-budget');
+      if (!sEl) return;
+      var simCost  = m7CalcCost({ q3: sEl.value, q2: mEl.value, q6: bEl.value });
+      var curCost  = m7CalcCost({});
+      var diff     = simCost - curCost;
+      var simCostEl = document.getElementById('m7c-sim-cost');
+      if (simCostEl) simCostEl.textContent = simCost + '万円';
+      var badge = document.getElementById('m7c-diff-badge');
+      if (!badge) return;
+      if (diff > 0) {
+        badge.textContent = '▲ +' + diff + '万円';
+        badge.style.background = '#fee2e2';
+        badge.style.color = '#dc2626';
+      } else if (diff < 0) {
+        badge.textContent = '▼ ' + diff + '万円';
+        badge.style.background = '#dcfce7';
+        badge.style.color = '#16a34a';
+      } else {
+        badge.textContent = '± 変化なし';
+        badge.style.background = '#f3f4f6';
+        badge.style.color = '#6b7280';
+      }
     }
   </script>
 <!-- Related Services -->

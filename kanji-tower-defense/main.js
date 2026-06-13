@@ -1058,6 +1058,19 @@ function saveGameRecord() {
 
 function updateHistoryDisplay() {
     const records = JSON.parse(localStorage.getItem('kanjiTowerDefenseRecords') || '[]');
+
+    // ベストスコア・最高WAVE・平均正答率を復元表示
+    const bestScoreEl = document.getElementById('bestScoreDisplay');
+    const bestWaveEl = document.getElementById('bestWave');
+    const avgAccuracyEl = document.getElementById('avgAccuracy');
+    if (records.length > 0) {
+        const bestWave = Math.max(...records.map(r => r.wave));
+        const avgAcc = Math.round(records.reduce((s, r) => s + (r.accuracy || 0), 0) / records.length);
+        if (bestScoreEl) bestScoreEl.innerHTML = records[0].score.toLocaleString() + '<span style="font-size:.5em">点</span>';
+        if (bestWaveEl) bestWaveEl.textContent = bestWave;
+        if (avgAccuracyEl) avgAccuracyEl.textContent = avgAcc + '%';
+    }
+
     const container = document.getElementById('playHistoryContainer');
     if (!container) return;
 
@@ -1353,4 +1366,12 @@ window.skipKanji = skipKanji;
 window.toggleMute = toggleMute;
 window.nextOnboardingStep = nextOnboardingStep;
 window.toggleSimulator = toggleSimulator;
+// M3: localStorage ヘルパー（キー衝突を防ぎ try/catch でサイレント失敗）
+window.kjGet = function(key) {
+    try { return JSON.parse(localStorage.getItem(key)); } catch(e) { return null; }
+};
+window.kjSet = function(key, val) {
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) {}
+};
+
 window.addEventListener('load', init);

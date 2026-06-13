@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>プレイ画面｜文字城防衛（漢字タワーディフェンス）</title>
 <meta name="description" content="漢字の読みをひらがなで入力して敵を撃退！タワーを設置して城を守る漢字タワーディフェンス。9段階の難易度で楽しく漢字学習">
-<meta name="author" content="AppADayCreator | Tech&Brace">
+<meta name="author" content="AppADayCreator">
 <link rel="canonical" href="https://appadaycreator.com/kanji-tower-defense/">
 <meta property="og:title" content="漢字タワーディフェンス「文字城防衛」">
 <meta property="og:description" content="漢字の読みをひらがなで入力して敵を撃退！タワーを設置して城を守る漢字タワーディフェンス。9段階の難易度で楽しく漢字学習。">
@@ -474,6 +474,40 @@ body{background:var(--cream-2);}
       <div id="playHistoryContainer" style="max-height:200px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;font-size:.75rem">
         <div style="padding:12px;text-align:center;color:#9ca3af">プレイ履歴がありません</div>
       </div>
+      <!-- M3: localStorage から履歴データをページロード即時反映 -->
+      <script>
+      (function() {
+        try {
+          var levelLabels = {grade1:'小1',grade2:'小2',grade3:'小3',grade4:'小4',grade5:'小5',grade6:'小6',middle:'中学',common:'常用',nando:'難読'};
+          var records = JSON.parse(localStorage.getItem('kanjiTowerDefenseRecords') || '[]');
+          if (records.length === 0) return;
+          // ベストスコア・最高WAVE・平均正答率を即時反映
+          var bestEl = document.getElementById('bestScoreDisplay');
+          var bestWaveEl = document.getElementById('bestWave');
+          var avgEl = document.getElementById('avgAccuracy');
+          if (bestEl) bestEl.innerHTML = records[0].score.toLocaleString() + '<span style="font-size:.5em">点</span>';
+          if (bestWaveEl) bestWaveEl.textContent = Math.max.apply(null, records.map(function(r){return r.wave;}));
+          if (avgEl) avgEl.textContent = Math.round(records.reduce(function(s,r){return s+(r.accuracy||0);},0)/records.length) + '%';
+          // 履歴一覧を即時レンダリング（main.jsロード前でも表示）
+          var container = document.getElementById('playHistoryContainer');
+          if (!container) return;
+          var header = '<div style="display:grid;grid-template-columns:auto 1fr auto auto auto;gap:8px;padding:8px 12px;border-bottom:1px solid #d1d5db;font-weight:700;font-size:.7rem;color:#9ca3af;background:#f9fafb"><span>スコア</span><span>日時</span><span>難易度</span><span>W</span><span>正答率</span></div>';
+          var rows = records.map(function(r) {
+            var d = new Date(r.date);
+            var dateStr = d.toLocaleDateString('ja-JP',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+            var lvl = levelLabels[r.level] || r.level;
+            return '<div style="display:grid;grid-template-columns:auto 1fr auto auto auto;gap:8px;padding:8px 12px;border-bottom:1px solid #f1f5f9;align-items:center;font-size:.75rem">'
+              + '<span style="font-weight:700;color:#667eea">'+r.score.toLocaleString()+'</span>'
+              + '<span style="color:#64748b">'+dateStr+'</span>'
+              + '<span style="background:#f0f4f8;padding:2px 6px;border-radius:4px;color:#4b5563;font-weight:600">'+lvl+'</span>'
+              + '<span style="color:#64748b">W'+r.wave+'</span>'
+              + '<span style="color:#64748b">'+r.accuracy+'%</span>'
+              + '</div>';
+          }).join('');
+          container.innerHTML = header + rows;
+        } catch(e) {}
+      })();
+      </script>
       <button class="outline-btn" onclick="restartGame()" style="margin-top:12px"><img src="assets/sprites/04-08.png" alt="">もう一度プレイ</button>
     </div>
 
@@ -625,6 +659,10 @@ body{background:var(--cream-2);}
 <h3 style="font-size:.95rem;font-weight:700;color:#1f2937;margin:1rem 0 .5rem">ゲームを使った学習のコツ</h3>
 <p style="margin:0;line-height:1.8;color:#374151">毎日決まった時間帯にプレイすることで習慣化が促進されます。就寝前の20分ゲーム学習は、睡眠中の記憶固定と組み合わさり効率的な漢字定着に繋がります。また、週に一度は書き取り練習と組み合わせて、読み・書きの両方を鍛えることをおすすめします。ゲームのスコアを家族や友人と競い合うことでモチベーションの維持にも効果的です。</p>
 </section>
+<div id="game-desc-section" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:14px 16px;margin:12px auto;max-width:680px;">
+  <p style="font-size:13px;font-weight:700;color:#0369a1;margin:0 0 6px;">🏯 漢字タワーディフェンス</p>
+  <p style="font-size:13px;color:#334155;margin:0;line-height:1.75;">漢字の読み・書き・意味をゲームで学べるタワーディフェンスです。正しい漢字を選んで敵の侵攻を防ぐゲーム性により、楽しみながら漢字力が鍛えられます。小学・中学・常用漢字レベルに対応しており、漢字検定対策にも活用できます。繰り返しプレイで自然と漢字が定着します。</p>
+</div>
 </main>
 
 <!-- ============ FOOTER ============ -->
@@ -736,6 +774,7 @@ body{background:var(--cream-2);}
     </div>
     <div class="foot-bar">© 2025 文字城防衛（漢字タワーディフェンス） All Rights Reserved.</div>
   </div>
+<div style="text-align:center;padding:12px 16px;font-size:.9em;"><a href="https://twitter.com/intent/tweet?url=https%3A//appadaycreator.com/kanji-tower-defense/&text=%E6%BC%A2%E5%AD%97%E3%82%BF%E3%83%AF%E3%83%BC%E3%83%87%E3%82%A3%E3%83%95%E3%82%A7%E3%83%B3%E3%82%B9%E3%80%8C%E6%96%87%E5%AD%97%E5%9F%8E%E9%98%B2%E8%A1%9B%E3%80%8D" target="_blank" rel="noopener" style="margin:4px 10px;color:#1da1f2;">𝕏でシェア</a><a href="https://line.me/R/share?text=%E6%BC%A2%E5%AD%97%E3%82%BF%E3%83%AF%E3%83%BC%E3%83%87%E3%82%A3%E3%83%95%E3%82%A7%E3%83%B3%E3%82%B9%E3%80%8C%E6%96%87%E5%AD%97%E5%9F%8E%E9%98%B2%E8%A1%9B%E3%80%8D+https%3A//appadaycreator.com/kanji-tower-defense/" target="_blank" rel="noopener" style="margin:4px 10px;color:#06c755;">LINEで送る</a></div>
 </footer>
 
 <!-- コアゲームロジック（変更禁止） -->
@@ -745,7 +784,7 @@ body{background:var(--cream-2);}
   (adsbygoogle=window.adsbygoogle||[]).push({});
   (adsbygoogle=window.adsbygoogle||[]).push({});
   /* main.js 未読込時のフォールバック */
-  ['startGame','checkAnswer','setLevel','skipKanji','pauseGame','resetGame','restartGame','showHint','shareResult','setGameSpeed','toggleMute'].forEach(function(fn){if(typeof window[fn]!=='function'){window[fn]=function(){console.log('['+fn+'] main.js 未読込');};}});
+  ['startGame','checkAnswer','setLevel','skipKanji','pauseGame','resetGame','restartGame','showHint','shareResult','setGameSpeed','toggleMute'].forEach(function(fn){if(typeof window[fn]!=='function'){window[fn]=function(){};}});
 </script>
 
 <!-- auto_improve 自動注入: ボタンloading状態 + result自動スクロール（変更禁止） -->
@@ -797,5 +836,15 @@ body{background:var(--cream-2);}
   <a href="/privacy-policy.html" style="color:#6b7280;text-decoration:none">プライバシーポリシー</a> |
   <a href="/contact.html" style="color:#6b7280;text-decoration:none">お問い合わせ</a>
 </footer>
+<!-- r31-cookie-banner -->
+<div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
+<div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
+<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+</div>
+<script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
+<!-- r46-org-footer -->
+<div style="text-align:center;font-size:11px;color:#9ca3af;padding:6px 0 4px;background:#f8fafc;border-top:1px solid #e5e7eb;">
+  運営: <a href="https://appadaycreator.com/" style="color:#9ca3af;text-decoration:none;">AppADayCreator</a> | <a href="https://tech-and-brace.co.jp/" rel="noopener" style="color:#9ca3af;text-decoration:none;">株式会社Tech&amp;Brace</a>
+</div>
 </body>
 </html>

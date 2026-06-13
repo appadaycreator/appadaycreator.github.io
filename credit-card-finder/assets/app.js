@@ -366,6 +366,53 @@ function getRanking(){
     .sort((a,b)=>b.score-a.score);
 }
 
+/* M7: 任意の回答セットでスコア計算 */
+function calcScoresForAnswers(ans){
+  const scored = {};
+  cardKeys.forEach(key => { scored[key] = 0; });
+  const ageBand = ['20s','30s','40s','50p'][ans.age ?? 0];
+  cardKeys.forEach(key=>{
+    const c = cardDatabase[key];
+    if(c.ageLimit){
+      const [mn,mx] = c.ageLimit;
+      const ageMin = ageBand==='20s'?18:ageBand==='30s'?30:ageBand==='40s'?40:50;
+      if(ageMin > mx){ scored[key] -= 999; return; }
+    }
+    if(ageBand==='20s' && key==='jcbW') scored[key] += 3;
+  });
+  const sceneOpt = questions[1].options[ans.scene ?? 0];
+  if(sceneOpt?.keys){
+    sceneOpt.keys.forEach(k=>{
+      cardKeys.forEach(key=>{ scored[key] += (cardDatabase[key].scores[k]||0) * 2; });
+    });
+  }
+  const amtBand = ['low','mid','high','vhigh'][ans.amount ?? 0];
+  if(amtBand==='vhigh') scored['smbcGold'] = (scored['smbcGold']||0) + 10;
+  if(amtBand==='low'){
+    cardKeys.forEach(key=>{ if(cardDatabase[key].annualFeeNum===0) scored[key] += 4; });
+  }
+  const prioOpt = questions[3].options[ans.priority ?? 0];
+  if(prioOpt?.keys){
+    prioOpt.keys.forEach(k=>{
+      cardKeys.forEach(key=>{ scored[key] += (cardDatabase[key].scores[k]||0) * 3; });
+    });
+  }
+  const lifeOpt = questions[4].options[ans.lifestyle ?? 0];
+  if(lifeOpt?.keys){
+    lifeOpt.keys.forEach(k=>{
+      cardKeys.forEach(key=>{ scored[key] += (cardDatabase[key].scores[k]||0) * 2; });
+    });
+  }
+  return scored;
+}
+function getRankingForAnswers(ans){
+  const scored = calcScoresForAnswers(ans);
+  return cardKeys
+    .filter(k => scored[k] > -900)
+    .map(k=>({ key:k, score:scored[k] }))
+    .sort((a,b)=>b.score-a.score);
+}
+
 /* ===== 結果表示 ===== */
 function showResult(){
   Loading.show();
@@ -452,6 +499,9 @@ function renderResult(ranking){
     if(monthlyEl) monthlyEl.value = goal.monthlyAmount || '';
     if(annualEl) annualEl.value = goal.annualPoints || '';
   }
+
+  // M7: シミュレーションパネル初期化
+  setTimeout(()=>{ initSimPanel(); }, 100);
 }
 
 function renderSummary(){
@@ -912,6 +962,110 @@ function resumeDiagnosis(){
     startDiagnosis(true);
   } else {
     Toast.show('前回の診断データが見つかりません', 'err');
+  }
+}
+
+/* ===== M7: 比較・シミュレーション機能 ===== */
+function initSimPanel(){
+  const ageEl = document.getElementById('sim-age');
+  if(!ageEl || ageEl.children.length > 0) return;
+  ['20代（18〜29歳）','30代（30〜39歳）','40代（40〜49歳）','50代以上'].forEach((v,i)=>{
+    const o = new Option(v, i);
+    if((answers.age??0) === i) o.selected = true;
+    ageEl.appendChild(o);
+  });
+  const sceneEl = document.getElementById('sim-scene');
+  questions[1].options.forEach((opt,i)=>{
+    const o = new Option(opt.label, i);
+    if((answers.scene??0) === i) o.selected = true;
+    sceneEl.appendChild(o);
+  });
+  const amtEl = document.getElementById('sim-amount');
+  ['3万円未満','3〜5万円','5〜10万円','10万円以上'].forEach((v,i)=>{
+    const o = new Option(v, i);
+    if((answers.amount??0) === i) o.selected = true;
+    amtEl.appendChild(o);
+  });
+  const prioEl = document.getElementById('sim-priority');
+  questions[3].options.forEach((opt,i)=>{
+    const o = new Option(opt.label, i);
+    if((answers.priority??0) === i) o.selected = true;
+    prioEl.appendChild(o);
+  });
+  const lifeEl = document.getElementById('sim-lifestyle');
+  questions[4].options.forEach((opt,i)=>{
+    const o = new Option(opt.label, i);
+    if((answers.lifestyle??0) === i) o.selected = true;
+    lifeEl.appendChild(o);
+  });
+  ['sim-age','sim-scene','sim-amount','sim-priority','sim-lifestyle'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('change', runSimulation);
+  });
+  runSimulation();
+}
+
+function runSimulation(){
+  const get = id => parseInt(document.getElementById(id)?.value ?? 0);
+  const simAns = {
+    age: get('sim-age'),
+    scene: get('sim-scene'),
+    amount: get('sim-amount'),
+    priority: get('sim-priority'),
+    lifestyle: get('sim-lifestyle'),
+  };
+  const curRanking = getRanking();
+  const simRanking = getRankingForAnswers(simAns);
+  const curTop3 = curRanking.slice(0,3).map(r=>r.key);
+  const simTop3 = simRanking.slice(0,3).map(r=>r.key);
+  const maxSimScore = simRanking[0]?.score || 1;
+  const panel = document.getElementById('sim-result');
+  if(!panel) return;
+  const hasChange = simTop3.some((k,i)=>k!==curTop3[i]);
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid #f59e0b">
+      <h4 style="margin:0 0 .75rem;font-size:.92rem;font-weight:700;color:#78350f">📊 シミュレーション結果 vs 現在の診断</h4>
+      <table style="width:100%;border-collapse:collapse;font-size:.83rem">
+        <thead><tr style="background:#fef3c7">
+          <th style="padding:7px 8px;text-align:center;border-bottom:2px solid #f59e0b;width:12%">順位</th>
+          <th style="padding:7px 8px;text-align:left;border-bottom:2px solid #a3a3a3;color:#6b7280">現在の診断</th>
+          <th style="padding:7px 8px;text-align:left;border-bottom:2px solid #10b981;color:#065f46">変更後の結果</th>
+        </tr></thead>
+        <tbody>${[0,1,2].map(i=>{
+          const curKey = curTop3[i]||'';
+          const simKey = simTop3[i]||'';
+          const changed = curKey !== simKey;
+          const pct = Math.round((simRanking[i]?.score||0)/maxSimScore*100);
+          return `<tr style="${changed?'background:#fefce8':''}">
+            <td style="padding:7px 8px;text-align:center;font-weight:700;font-size:1rem">${['🥇','🥈','🥉'][i]}</td>
+            <td style="padding:7px 8px;color:${changed?'#9ca3af':'#374151'};${changed?'text-decoration:line-through':''}">${cardDatabase[curKey]?.name||'−'}</td>
+            <td style="padding:7px 8px;font-weight:${changed?700:400};color:${changed?'#065f46':'#374151'}">${cardDatabase[simKey]?.name||'−'}${changed?' ✨':''} <span style="font-size:.72rem;color:#6b7280">(${pct}%)</span></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+      <p style="margin:.75rem 0 0;font-size:.82rem;${hasChange?'color:#92400e':'color:#065f46'}">
+        ${hasChange?'🔄 条件変更によりおすすめカードが変わりました':'✅ 現在の条件でも同じカードがベストマッチです'}
+      </p>
+      ${simTop3[0]?`<button onclick="applyCard('${simTop3[0]}')" style="margin-top:.75rem;width:100%;padding:.6rem 1rem;background:#d97706;color:#fff;border:none;border-radius:8px;font-size:.9rem;font-weight:700;cursor:pointer">${cardDatabase[simTop3[0]]?.name||''}を申し込む →</button>`:''}
+    </div>
+  `;
+
+  /* M7: 複数パターン比較テーブルを更新 */
+  const comparePanel = document.getElementById('compare-panel');
+  const compareBody = document.getElementById('compare-body');
+  if(comparePanel && compareBody){
+    comparePanel.style.display = 'block';
+    compareBody.innerHTML = [0,1,2].map(i=>{
+      const curKey = curTop3[i]||'';
+      const simKey = simTop3[i]||'';
+      const changed = curKey !== simKey;
+      return `<tr style="${changed?'background:#f0fdf4':''}">
+        <td style="padding:8px;text-align:center;font-weight:700">${['🥇','🥈','🥉'][i]}</td>
+        <td style="padding:8px;color:${changed?'#9ca3af':'#374151'};${changed?'text-decoration:line-through':''}">${cardDatabase[curKey]?.name||'−'}</td>
+        <td style="padding:8px;font-weight:${changed?700:400};color:${changed?'#065f46':'#374151'}">${cardDatabase[simKey]?.name||'−'}</td>
+        <td style="padding:8px;text-align:center">${changed?'🔄 変化':'−'}</td>
+      </tr>`;
+    }).join('');
   }
 }
 

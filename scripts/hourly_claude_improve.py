@@ -1743,7 +1743,6 @@ def _select_model_and_turns(pending_ids: set, skip_phase1: bool) -> tuple[str, i
         return _MODEL_ALIASES["sonnet"], 20
     else:
         # 単純な HTML/メタデータ施策のみ → Haiku で十分
-        # ㊴ 1件のみなら6ターンに削減（スニペット同梱で十分・12ターンは過剰）
         turns = 6 if len(pending_ids) == 1 else 12
         return _MODEL_ALIASES["haiku"], turns
 
@@ -2417,6 +2416,18 @@ def _worker(worker_id: int, stop_event, sheets_factory):
                 except Exception as e:
                     log(f"[W{worker_id}]   クールダウン記録失敗: {e}")
                 log(f"[W{worker_id}]   {svc['name']}: 改善対象なし")
+                # ㊼ Claude失敗でもPythonパッチ変更があれば即コミット（成果損失防止）
+                if _bak_bytes:
+                    _py_check_idx = WORKSPACE / svc["repo"] / "index.html"
+                    if _py_check_idx.exists():
+                        _py_check_bytes = _py_check_idx.read_bytes()
+                        if _py_check_bytes != _bak_bytes:
+                            _py_head_str = _py_check_bytes[:500].decode("utf-8", errors="ignore").lower()
+                            _py_chk_size = len(_py_check_bytes)
+                            if ("<html" in _py_head_str and
+                                    len(_bak_bytes) * 0.7 <= _py_chk_size <= len(_bak_bytes) * 4.0):
+                                log(f"[W{worker_id}]   ㊼ Claudeは失敗だがPythonパッチ変更あり → コミット実行")
+                                _git_commit_and_push(svc["repo"], 1)
 
             _in_progress.discard(svc["repo"])
 
