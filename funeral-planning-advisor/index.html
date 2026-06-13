@@ -44,7 +44,10 @@
   {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "ホーム", "item": "https://appadaycreator.com/"}, {"@type": "ListItem", "position": 2, "name": "葬儀・終活費用シミュレーター", "item": "https://appadaycreator.com/funeral-planning-advisor/"}]}
   </script>
   <!-- Google Tag Manager -->
-  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
+  <!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-ZDPNYD2875"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-ZDPNYD2875',{send_page_view:false});</script>
   <!-- Google AdSense -->
@@ -124,6 +127,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <style>
 @media(max-width:480px){button,[class*=btn]{min-height:48px!important;font-size:15px!important;}input,select,textarea{font-size:16px!important;min-height:44px!important;}[class*=card],[class*=max-w]{padding:16px!important;} .space-y-2 label{word-break: break-word;} .text-sm{font-size:13px!important;}}
 </style>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"「葬儀・終活費用シミュレーター」は無料で使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要です。"}},{"@type":"Question","name":"スマートフォンでも使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、モバイル対応済みです。"}}]}</script>
 </head>
 <body class=" font-sans text-gray-800" style="background:#f8fafc;"><a href="#main" class="sr-only">本文へスキップ</a>
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -161,6 +165,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
       </div>
       <div id="question-area"></div>
+      <div id="error-message" class="hidden mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 font-semibold"></div>
     </div>
     <div class="flex gap-3">
       <button id="prev-btn" onclick="prevStep()" class="hidden flex-1 py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition" aria-label="戻る">戻る</button>
@@ -433,7 +438,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
   function saveAnswer() {
     const el = document.querySelector(`input[name="${questions[currentStep].id}"]:checked`);
-    if (!el) { alert('選択してください'); return false; }
+    const errorMsg = document.getElementById('error-message');
+    if (!el) {
+      errorMsg.textContent = '⚠️ 選択肢を1つお選びください';
+      errorMsg.classList.remove('hidden');
+      return false;
+    }
+    errorMsg.classList.add('hidden');
     answers[questions[currentStep].id] = el.value;
     return true;
   }
@@ -578,6 +589,58 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     });
   }
 
+  function printResult() {
+    window.print();
+  }
+
+  function downloadCSV() {
+    const calc = calcCost();
+    const { funeralCost, cemeteryAdd, totalCost, errorMargin } = calc;
+
+    // CSVヘッダーと行データを作成
+    const rows = [
+      ['葬儀費用シミュレーション結果', ''],
+      [''],
+      ['診断内容', ''],
+      ['葬儀形式', answers.style],
+      ['参列者数', answers.attendance],
+      ['地域', answers.region],
+      ['宗教', answers.religion || '未選択'],
+      ['墓地・納骨', answers.cemetery],
+      ['終活準備状況', answers.preparation],
+      [''],
+      ['費用内訳', ''],
+      ['基本葬儀費用', funeralCost + '万円'],
+      ['参列者加算', calc.attendanceAdd + '万円'],
+      ['地域調整', calc.regionAdjust + '万円'],
+      calc.religionAdd > 0 ? ['お布施（宗教費）', calc.religionAdd + '万円'] : null,
+      cemeteryAdd > 0 ? [calc.cemeteryLabel, cemeteryAdd + '万円'] : null,
+      [''],
+      ['合計費用目安', totalCost + '〜' + (totalCost + errorMargin) + '万円'],
+      ['誤差範囲', '±' + errorMargin + '万円程度']
+    ].filter(Boolean);
+
+    // CSV形式に変換
+    const csv = rows.map(row =>
+      row.map(cell => {
+        if (typeof cell === 'string' && (cell.includes(',') || cell.includes('"') || cell.includes('\n'))) {
+          return '"' + cell.replace(/"/g, '""') + '"';
+        }
+        return cell;
+      }).join(',')
+    ).join('\n');
+
+    // UTF-8 BOM付きで出力（Excelで日本語が正しく表示されるため）
+    const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(new Blob([bom, csv], { type: 'text/csv;charset=utf-8;' }));
+    link.href = url;
+    link.download = '葬儀費用シミュレーション結果_' + new Date().toISOString().split('T')[0] + '.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   function showResult() {
     document.getElementById('quiz-section').classList.add('hidden');
     document.getElementById('result-section').classList.remove('hidden');
@@ -638,6 +701,27 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <p class="text-xs text-gray-500">（地域・葬儀社により ±${Math.round(errorMargin / 2)}万円程度の変動あり）</p>
         ${cemeteryAdd > 0 ? `<p class="text-xs text-gray-600 mt-2">内 墓地・納骨費用（${calc.cemeteryLabel}）：約${cemeteryAdd}万円含む</p>` : ''}
       </div>
+      <div class="bg-amber-50 border-2 border-amber-300 rounded-xl p-5 mb-4">
+        <h3 class="font-bold text-amber-900 mb-3">💰 予算管理・達成度追跡</h3>
+        <div class="mb-3">
+          <label class="block text-sm font-semibold text-amber-800 mb-2">予算上限（万円）</label>
+          <input type="number" id="budget-limit" class="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm" placeholder="例: 150" min="0" max="9999">
+          <p class="text-xs text-amber-700 mt-1">予算を設定すると、達成度を計算します（localStorageに保存）</p>
+        </div>
+        <div id="budget-progress" class="hidden">
+          <div class="mb-2 flex justify-between text-xs font-semibold text-amber-900">
+            <span>達成度</span>
+            <span id="budget-percent">0%</span>
+          </div>
+          <div class="w-full bg-amber-200 rounded-full h-3">
+            <div id="budget-bar" class="bg-amber-600 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+          <p id="budget-status" class="text-xs text-amber-700 mt-2"></p>
+          <div id="prev-comparison" class="hidden mt-3 p-2 bg-amber-100 rounded text-xs text-amber-800">
+            <span id="prev-text"></span>
+          </div>
+        </div>
+      </div>
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         <div class="bg-white border border-gray-200 rounded-xl p-4">
           <h3 class="font-bold text-gray-800 mb-3 text-sm">📊 費用内訳（円グラフ）</h3>
@@ -649,8 +733,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
       </div>
       ${breakdownHtml}
-      <div class="flex gap-2 mb-4">
-        <button onclick="copyResult()" class="flex-1 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-semibold transition">📋 結果をコピー</button>
+      <div class="flex gap-2 mb-4 flex-wrap">
+        <button onclick="copyResult()" class="flex-1 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-semibold transition min-w-fit">📋 結果をコピー</button>
+        <button onclick="printResult()" class="flex-1 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg text-sm font-semibold transition min-w-fit">🖨️ 印刷</button>
+        <button onclick="downloadCSV()" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold transition min-w-fit">📥 CSV</button>
       </div>
       <h3 class="font-bold text-gray-700 mb-3">終活・葬儀準備のアドバイス</h3>
       <div class="space-y-3">
@@ -783,6 +869,71 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }
     });
     updateChecklistCount();
+
+    // 予算管理の初期化
+    const budgetInput = document.getElementById('budget-limit');
+    const prevBudget = localStorage.getItem('funeral_prev_budget');
+    const savedBudget = localStorage.getItem('funeral_budget_limit');
+    if (savedBudget) budgetInput.value = savedBudget;
+
+    function updateBudgetProgress() {
+      const budget = parseFloat(budgetInput.value);
+      const progressDiv = document.getElementById('budget-progress');
+      const prevComparisonDiv = document.getElementById('prev-comparison');
+
+      if (isNaN(budget) || budget <= 0) {
+        progressDiv.classList.add('hidden');
+        prevComparisonDiv.classList.add('hidden');
+        return;
+      }
+
+      progressDiv.classList.remove('hidden');
+      const percent = Math.min(Math.round((totalCost / budget) * 100), 100);
+      const exceeds = totalCost > budget;
+
+      document.getElementById('budget-percent').textContent = percent + '%';
+      document.getElementById('budget-bar').style.width = percent + '%';
+
+      if (exceeds) {
+        document.getElementById('budget-bar').classList.remove('bg-amber-600');
+        document.getElementById('budget-bar').classList.add('bg-red-600');
+        document.getElementById('budget-status').textContent = `⚠️ 予算超過: 約${totalCost}万円（予算: ${budget}万円、超過: ${totalCost - budget}万円）。葬儀社との値下げ交渉やプラン見直しをおすすめします。`;
+      } else {
+        document.getElementById('budget-bar').classList.remove('bg-red-600');
+        document.getElementById('budget-bar').classList.add('bg-amber-600');
+        document.getElementById('budget-status').textContent = `✅ 予算内: 約${totalCost}万円（予算: ${budget}万円、余裕: ${Math.round((budget - totalCost) * 10) / 10}万円）。`;
+      }
+
+      // 前回の予算と比較
+      if (prevBudget) {
+        const prevBudgetNum = parseFloat(prevBudget);
+        const prevCost = localStorage.getItem('funeral_prev_cost');
+        const prevCostNum = parseFloat(prevCost);
+        if (!isNaN(prevBudgetNum) && !isNaN(prevCostNum)) {
+          const budgetChange = budget - prevBudgetNum;
+          const costChange = totalCost - prevCostNum;
+          let comparisonText = '📊 前回との比較: ';
+          if (budgetChange > 0) comparisonText += `予算+${budgetChange}万円、`;
+          else if (budgetChange < 0) comparisonText += `予算${budgetChange}万円、`;
+          else comparisonText += '予算変わらず、';
+
+          if (costChange > 0) comparisonText += `費用+${costChange}万円`;
+          else if (costChange < 0) comparisonText += `費用${costChange}万円`;
+          else comparisonText += '費用変わらず';
+
+          document.getElementById('prev-text').textContent = comparisonText;
+          prevComparisonDiv.classList.remove('hidden');
+        }
+      }
+
+      // localStorage に保存
+      localStorage.setItem('funeral_budget_limit', budget);
+      localStorage.setItem('funeral_prev_budget', budget);
+      localStorage.setItem('funeral_prev_cost', totalCost);
+    }
+
+    budgetInput.addEventListener('input', updateBudgetProgress);
+    budgetInput.addEventListener('change', updateBudgetProgress);
   }
 
   function updateChecklistUI(itemId) {
@@ -940,12 +1091,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 <!-- r46-org-footer -->
 <div style="text-align:center;font-size:11px;color:#9ca3af;padding:6px 0 4px;background:#f8fafc;border-top:1px solid #e5e7eb;">
   運営: <a href="https://appadaycreator.com/" style="color:#9ca3af;text-decoration:none;">AppADayCreator</a> | <a href="https://tech-and-brace.co.jp/" rel="noopener" style="color:#9ca3af;text-decoration:none;">株式会社Tech&amp;Brace</a>
 </div>
+<script src="/assets/consent-mode.js"></script>
 </body>
 </html>
