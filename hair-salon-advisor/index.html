@@ -36,7 +36,10 @@
 }
 </script>
   <!-- Google Tag Manager -->
-  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
+  <!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-ZDPNYD2875"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-ZDPNYD2875',{send_page_view:false});</script>
   <!-- Microsoft Clarity -->
@@ -301,6 +304,29 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </div>
 
           <button onclick="resetGoal()" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold py-1 rounded mt-3 transition">🔄 目標をリセット</button>
+        </div>
+
+        <!-- M7: 比較・シミュレーション機能 -->
+        <div id="comparisonSection" class="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-4">
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="font-bold text-purple-700 text-sm">🔄 比較・シミュレーション</h3>
+            <button onclick="toggleComparisonMode()" class="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded hover:bg-purple-200 transition font-bold">
+              <span id="comparisonToggleLabel">シミュレート</span>
+            </button>
+          </div>
+
+          <div id="comparisonViewMode" style="display:none;">
+            <p class="text-xs text-gray-600 mb-3">複数のシナリオを比較して、最適なサロン選びを検討できます。</p>
+            <div id="scenarioComparison" class="grid gap-2 mb-3"></div>
+            <button onclick="addScenario()" class="w-full text-xs bg-purple-500 hover:bg-purple-400 text-white font-bold py-2 rounded transition">➕ シナリオを追加</button>
+            <button onclick="clearAllScenarios()" class="w-full text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-1 rounded transition mt-2">🗑️ すべてクリア</button>
+          </div>
+
+          <div id="simulationViewMode" class="hidden">
+            <p class="text-xs text-gray-600 mb-2">質問をタップして答えを変更し、即座に結果がどう変わるか確認できます。</p>
+            <div id="simulationQuestionsContainer" class="grid gap-2 mb-3"></div>
+            <button onclick="toggleComparisonMode()" class="w-full text-xs bg-purple-100 text-purple-700 hover:bg-purple-200 font-bold py-1 rounded transition">← 比較に戻る</button>
+          </div>
         </div>
 
         <!-- スコア内訳グラフ -->
@@ -590,6 +616,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
       // M6: 目標達成度を表示
       displayGoalProgress(scores);
+
+      // M7: 比較・シミュレーション機能を初期化
+      initializeComparison();
     }
 
     // M6: 目標設定・達成度トラッキング機能
@@ -873,6 +902,203 @@ https://appadaycreator.com/hair-salon-advisor/`;
         }
       });
     }
+
+    // M7: 比較・シミュレーション機能
+    let scenarioList = [];
+    let currentSimulationAnswers = null;
+    let comparisonMode = 'view'; // 'view' or 'simulate'
+
+    function saveScenarios() {
+      localStorage.setItem('salonScenarios', JSON.stringify(scenarioList));
+    }
+
+    function loadScenarios() {
+      const stored = localStorage.getItem('salonScenarios');
+      return stored ? JSON.parse(stored) : [];
+    }
+
+    function calculateScores(answerSet) {
+      const scores = {damage:0, curly:0, volume:0, gray:0};
+      for(let i=0; i<TOTAL; i++) {
+        const choiceIdx = answerSet[i] !== undefined ? answerSet[i] : 0;
+        const scoreRow = questionScores[i][choiceIdx];
+        scores.damage += scoreRow.damage;
+        scores.curly += scoreRow.curly;
+        scores.volume += scoreRow.volume;
+        scores.gray += scoreRow.gray;
+      }
+      return scores;
+    }
+
+    function getTopSalonType(scores) {
+      const keys = ['damage','curly','volume','gray'];
+      const sorted = keys.slice().sort((a,b) => scores[b] - scores[a]);
+      return sorted[0];
+    }
+
+    function toggleComparisonMode() {
+      if(comparisonMode === 'view') {
+        currentSimulationAnswers = JSON.parse(JSON.stringify(answers));
+        comparisonMode = 'simulate';
+        renderSimulationUI();
+        document.getElementById('simulationViewMode').classList.remove('hidden');
+        document.getElementById('comparisonViewMode').style.display = 'none';
+        document.getElementById('comparisonToggleLabel').textContent = '比較表示';
+      } else {
+        comparisonMode = 'view';
+        document.getElementById('simulationViewMode').classList.add('hidden');
+        document.getElementById('comparisonViewMode').style.display = 'block';
+        document.getElementById('comparisonToggleLabel').textContent = 'シミュレート';
+        renderScenarioComparison();
+      }
+    }
+
+    function renderSimulationUI() {
+      const container = document.getElementById('simulationQuestionsContainer');
+      container.innerHTML = '';
+
+      questions.forEach((q, qIdx) => {
+        const div = document.createElement('div');
+        div.className = 'bg-white border border-purple-100 rounded p-2';
+
+        const title = document.createElement('p');
+        title.className = 'text-xs font-bold text-gray-700 mb-2';
+        title.textContent = `Q${qIdx+1}: ${q.q}`;
+        div.appendChild(title);
+
+        const choicesDiv = document.createElement('div');
+        choicesDiv.className = 'grid gap-1';
+
+        q.choices.forEach((choice, choiceIdx) => {
+          const btn = document.createElement('button');
+          btn.className = `text-xs p-2 rounded border transition ${
+            currentSimulationAnswers[qIdx] === choiceIdx
+              ? 'bg-purple-500 text-white border-purple-600'
+              : 'bg-gray-100 text-gray-700 border-gray-200 hover:bg-gray-200'
+          }`;
+          btn.textContent = choice;
+          btn.onclick = () => {
+            currentSimulationAnswers[qIdx] = choiceIdx;
+            renderSimulationUI();
+            updateSimulationResults();
+          };
+          choicesDiv.appendChild(btn);
+        });
+
+        div.appendChild(choicesDiv);
+        container.appendChild(div);
+      });
+    }
+
+    function updateSimulationResults() {
+      const simScores = calculateScores(currentSimulationAnswers);
+      const originalScores = calculateScores(answers);
+
+      const keys = ['damage','curly','volume','gray'];
+      const labels = {damage:'ダメージケア', curly:'くせ毛・矯正', volume:'ボリュームアップ', gray:'白髪ケア'};
+
+      const scoreBreakdown = document.getElementById('scoreChartContent');
+      scoreBreakdown.innerHTML = keys.map(k => {
+        const originalScore = originalScores[k];
+        const simScore = simScores[k];
+        const maxScore = Math.max(...keys.map(key => Math.max(originalScores[key], simScores[key]))) || 1;
+        const originalPct = Math.round((originalScore / maxScore) * 100);
+        const simPct = Math.round((simScore / maxScore) * 100);
+
+        return `<div>
+          <div class="flex justify-between items-center mb-1">
+            <span class="text-xs font-bold text-gray-600">${results[k].emoji} ${labels[k]}</span>
+            <span class="text-xs text-gray-500">${originalScore}pt → <span class="font-bold text-purple-600">${simScore}pt</span></span>
+          </div>
+          <div class="flex gap-1">
+            <div class="score-bar-bg flex-1">
+              <div class="score-bar-fill secondary" style="width:${originalPct}%"></div>
+            </div>
+            <div class="score-bar-bg flex-1">
+              <div class="score-bar-fill primary" style="width:${simPct}%"></div>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function addScenario() {
+      const scores = calculateScores(answers);
+      const topType = getTopSalonType(scores);
+      const totalScore = scores.damage + scores.curly + scores.volume + scores.gray;
+
+      const scenario = {
+        id: Date.now(),
+        name: `シナリオ ${scenarioList.length + 1}`,
+        answers: JSON.parse(JSON.stringify(answers)),
+        scores: scores,
+        topType: topType,
+        totalScore: totalScore,
+        date: new Date().toLocaleString('ja-JP')
+      };
+
+      scenarioList.push(scenario);
+      saveScenarios();
+      renderScenarioComparison();
+    }
+
+    function deleteScenario(id) {
+      scenarioList = scenarioList.filter(s => s.id !== id);
+      saveScenarios();
+      renderScenarioComparison();
+    }
+
+    function clearAllScenarios() {
+      if(!confirm('すべてのシナリオを削除してもよろしいですか？')) return;
+      scenarioList = [];
+      saveScenarios();
+      renderScenarioComparison();
+    }
+
+    function renderScenarioComparison() {
+      const container = document.getElementById('scenarioComparison');
+
+      if(scenarioList.length === 0) {
+        container.innerHTML = '<p class="text-xs text-gray-500 text-center py-3">シナリオがまだありません</p>';
+        return;
+      }
+
+      const keys = ['damage','curly','volume','gray'];
+      const labels = {damage:'ダメージケア', curly:'くせ毛・矯正', volume:'ボリュームアップ', gray:'白髪ケア'};
+
+      container.innerHTML = scenarioList.map((scenario, idx) => {
+        const maxScore = Math.max(...scenarioList.map(s => s.totalScore)) || 1;
+        return `<div class="bg-white border border-purple-100 rounded-lg p-3">
+          <div class="flex justify-between items-start mb-2">
+            <div class="flex-1">
+              <p class="font-bold text-sm text-gray-800">${scenario.name}</p>
+              <p class="text-xs text-gray-500 mt-1">合計スコア: <span class="font-bold text-purple-700">${scenario.totalScore}点</span></p>
+              <p class="text-xs text-gray-500">${results[scenario.topType].emoji} ${results[scenario.topType].type}</p>
+            </div>
+            <button onclick="deleteScenario(${scenario.id})" class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded hover:bg-red-200 transition">削除</button>
+          </div>
+          <div class="grid grid-cols-4 gap-2 text-center">
+            ${keys.map(k => {
+              const score = scenario.scores[k];
+              const pct = Math.round((score / 24) * 100);
+              return `<div class="text-xs">
+                <div class="font-bold text-gray-700">${results[k].emoji}</div>
+                <div class="font-bold text-sm text-gray-800">${score}</div>
+                <div class="text-xs text-gray-500">${labels[k].substring(0, 4)}</div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    // 初期化時にシナリオを読み込み
+    function initializeComparison() {
+      scenarioList = loadScenarios();
+      if(scenarioList.length > 0) {
+        renderScenarioComparison();
+      }
+    }
   </script>
 <div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin:10px auto;max-width:680px;"><h2 style="font-size:13px;font-weight:700;margin-bottom:6px;color:#374151;">🔍 計算・判定の仕組み</h2></div>
 <section style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 16px;margin-top:16px;max-width:720px;margin-left:auto;margin-right:auto;">
@@ -1120,12 +1346,13 @@ https://appadaycreator.com/hair-salon-advisor/`;
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 <!-- r46-org-footer -->
 <div style="text-align:center;font-size:11px;color:#9ca3af;padding:6px 0 4px;background:#f8fafc;border-top:1px solid #e5e7eb;">
   運営: <a href="https://appadaycreator.com/" style="color:#9ca3af;text-decoration:none;">AppADayCreator</a> | <a href="https://tech-and-brace.co.jp/" rel="noopener" style="color:#9ca3af;text-decoration:none;">株式会社Tech&amp;Brace</a>
 </div>
+<script src="/assets/consent-mode.js"></script>
 </body>
 </html>
