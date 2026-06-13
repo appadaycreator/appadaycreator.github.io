@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":
 new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],
@@ -18,7 +21,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#7c3aed">
-<meta name="description" content="現在の機種・使用年数・不満点から最適な買い替えタイミングを無料診断。損しない買い替え判断">
+<meta name="description" content="現在の機種・使用年数・不満点から最適な買い替えタイミングを無料診断。買い替え判定・複数パターン比較・シミュレーション機能搭載">
+<meta name="keywords" content="スマホ買い替えタイミング,PC買い替え時期,ガジェット診断,買い替え判断,シミュレーション,節約アドバイス">
 <meta name="author" content="AppADayCreator">
 <meta property="og:title" content="スマホ・PC買い替えタイミング診断【無料】今が替え時？">
 <meta property="og:description" content="使用年数・症状・使用目的から買い替えの緊急度を診断。賢い買い替え方法もアドバイス。">
@@ -312,6 +316,54 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="card p-6 mb-4">
       <h3 class="font-bold text-gray-800 mb-3">📈 質問別スコア内訳</h3>
       <canvas id="contributionChart" style="max-height:200px;"></canvas>
+    </div>
+
+    <!-- M7: 比較・シミュレーション機能 -->
+    <div class="card p-6 mb-4">
+      <h3 class="font-bold text-gray-800 mb-3">🔄 条件を変えてシミュレーション</h3>
+      <p class="text-sm text-gray-600 mb-4">下の項目を変更すると、その場で新しいスコアが計算されます</p>
+
+      <div id="sim-controls" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px;">
+        <!-- ここに動的に項目が追加される -->
+      </div>
+
+      <button id="sim-reset-btn" class="btn-secondary" style="font-size:0.9rem;margin-bottom:16px;" onclick="resetSimulation()" aria-label="シミュレーション設定をリセット">
+        ↺ 元の設定に戻す
+      </button>
+
+      <div id="sim-result" style="display: none; padding: 16px; background: #f8fafc; border-radius: 8px; margin-top: 12px;">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+          <div class="score-circle" id="sim-score-circle" style="width: 80px; height: 80px;">
+            <div class="text-2xl font-bold" id="sim-score-num">0</div>
+            <div class="text-xs font-bold mt-1">点</div>
+          </div>
+          <div style="flex: 1;">
+            <div class="font-bold text-lg" id="sim-judgment" style="color: #2563eb;"></div>
+            <div class="text-xs text-gray-500" id="sim-judgment-sub"></div>
+          </div>
+        </div>
+        <p class="text-sm text-gray-700" id="sim-desc"></p>
+      </div>
+    </div>
+
+    <!-- 複数パターン比較テーブル -->
+    <div class="card p-6 mb-4" id="comparison-card" style="display: none;">
+      <h3 class="font-bold text-gray-800 mb-3">📊 複数パターン比較</h3>
+      <div style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+        <table id="comparison-table" style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+          <thead>
+            <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+              <th style="padding: 8px; text-align: left; font-weight: 700; color: #1f2937;">パターン</th>
+              <th style="padding: 8px; text-align: center; font-weight: 700; color: #1f2937;">スコア</th>
+              <th style="padding: 8px; text-align: left; font-weight: 700; color: #1f2937;">判定</th>
+              <th style="padding: 8px; text-align: center; font-weight: 700; color: #1f2937;">アクション</th>
+            </tr>
+          </thead>
+          <tbody id="comparison-table-body">
+            <!-- 動的に追加される -->
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <!-- 過去の診断履歴 -->
@@ -622,11 +674,17 @@ function showResults() {
   totalScore = Math.round((rawScore / 175) * 100);
   totalScore = Math.min(100, Math.max(0, totalScore));
 
+  // M7: 元の診断結果を保存
+  window.originalScore = totalScore;
+
   var level;
   if (totalScore >= 70) level = 'urgent';
   else if (totalScore >= 45) level = 'soon';
   else if (totalScore >= 20) level = 'later';
   else level = 'ok';
+
+  // M7: 元のレベルを保存
+  window.originalLevel = level;
 
   var data = resultData[level];
   var methodIdx = ans.method ? ans.method.i : 4;
@@ -672,6 +730,8 @@ function showResults() {
     renderScoreGauge(totalScore, level);
     renderContributionChart(ans);
     renderHistoryList();
+    // M7: シミュレーション機能を初期化
+    initSimulationControls(ans);
   }, 300);
 }
 
@@ -743,7 +803,7 @@ function restoreFromHistory(index) {
       window.scrollTo(0, 0);
     }
   } catch(e) {
-    console.log('復元エラー:', e);
+    
   }
 }
 
@@ -843,6 +903,239 @@ function renderContributionChart(ans) {
       }
     }
   });
+}
+
+// M7: シミュレーション機能の初期化
+var simAns = {}; // シミュレーション用の回答を保持
+function initSimulationControls(ans) {
+  simAns = JSON.parse(JSON.stringify(ans)); // ディープコピー
+  var controlsEl = document.getElementById('sim-controls');
+  controlsEl.innerHTML = '';
+
+  // 各質問について、シミュレーション用のコントロールを作成
+  Qs.forEach(function(q, i) {
+    if (q.multiSelect) {
+      // 複数選択の場合はチェックボックスグループ
+      var wrapper = document.createElement('div');
+      wrapper.style.gridColumn = 'span 1';
+      wrapper.innerHTML = '<div style="font-weight: 600; color: #374151; margin-bottom: 8px; font-size: 0.85rem;">' + q.text.split(':')[1].trim().substring(0, 20) + '...</div>';
+      var container = document.createElement('div');
+      container.style.display = 'flex';
+      container.style.flexDirection = 'column';
+      container.style.gap = '6px';
+      q.opts.forEach(function(opt, j) {
+        var label = document.createElement('label');
+        label.style.display = 'flex';
+        label.style.alignItems = 'center';
+        label.style.gap = '6px';
+        label.style.cursor = 'pointer';
+        label.style.fontSize = '0.85rem';
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = j;
+        cb.style.cursor = 'pointer';
+        if (simAns[q.key] && simAns[q.key].selected && simAns[q.key].selected.indexOf(j) !== -1) {
+          cb.checked = true;
+        }
+        cb.onchange = function() { updateSimulation(); };
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(opt));
+        container.appendChild(label);
+      });
+      wrapper.appendChild(container);
+      controlsEl.appendChild(wrapper);
+    } else {
+      // 単一選択の場合は select ドロップダウン
+      var wrapper = document.createElement('div');
+      wrapper.style.gridColumn = 'span 1';
+      var label = document.createElement('label');
+      label.style.display = 'block';
+      label.style.fontSize = '0.85rem';
+      label.style.fontWeight = '600';
+      label.style.marginBottom = '6px';
+      label.style.color = '#374151';
+      label.textContent = q.text.split(':')[1].trim().substring(0, 30);
+      var select = document.createElement('select');
+      select.style.width = '100%';
+      select.style.padding = '8px';
+      select.style.borderRadius = '4px';
+      select.style.border = '1px solid #d1d5db';
+      select.style.fontSize = '0.9rem';
+      select.style.cursor = 'pointer';
+      select.onchange = function() { updateSimulation(); };
+      q.opts.forEach(function(opt, j) {
+        var option = document.createElement('option');
+        option.value = j;
+        option.textContent = opt;
+        if (simAns[q.key] && simAns[q.key].i === j) {
+          option.selected = true;
+        }
+        select.appendChild(option);
+      });
+      wrapper.appendChild(label);
+      wrapper.appendChild(select);
+      wrapper.style.display = 'flex';
+      wrapper.style.flexDirection = 'column';
+      controlsEl.appendChild(wrapper);
+    }
+  });
+
+  updateSimulation();
+}
+
+// シミュレーション結果の更新
+function updateSimulation() {
+  var controlsEl = document.getElementById('sim-controls');
+  var selects = controlsEl.querySelectorAll('select');
+  var checkboxGroups = controlsEl.querySelectorAll('input[type="checkbox"]');
+
+  // シミュレーション用の回答を更新（select）
+  var selectIdx = 0;
+  Qs.forEach(function(q, i) {
+    if (!q.multiSelect && selectIdx < selects.length) {
+      var selectedIdx = parseInt(selects[selectIdx].value);
+      simAns[q.key] = { i: selectedIdx, val: q.opts[selectedIdx], score: q.scores[selectedIdx] };
+      selectIdx++;
+    }
+  });
+
+  // 複数選択の更新
+  var checkboxIdx = 0;
+  Qs.forEach(function(q, i) {
+    if (q.multiSelect) {
+      var selected = [];
+      var score = 0;
+      var checkboxes = [];
+      for (var k = 0; k < q.opts.length; k++) {
+        for (var c = 0; c < checkboxGroups.length; c++) {
+          if (checkboxGroups[c].parentElement.parentElement.querySelector('input[type="checkbox"][value="' + k + '"]') === checkboxGroups[c]) {
+            checkboxes.push(checkboxGroups[c]);
+          }
+        }
+      }
+      // より簡潔に: q に対応するチェックボックスをまとめて取得
+      var qCheckboxes = Array.from(checkboxGroups).filter(function(cb) {
+        return cb.value < q.opts.length;
+      });
+      if (qCheckboxes.length > 0 && checkboxIdx < Qs.filter(function(x) { return x.multiSelect; }).length) {
+        var startIdx = checkboxIdx === 0 ? 0 : Qs.slice(0, i).filter(function(x) { return x.multiSelect; }).length * q.opts.length;
+        qCheckboxes = Array.from(checkboxGroups).slice(startIdx, startIdx + q.opts.length);
+        qCheckboxes.forEach(function(cb) {
+          if (cb.checked) {
+            var idx = parseInt(cb.value);
+            selected.push(idx);
+            score += q.scores[idx] || 0;
+          }
+        });
+        if (selected.length === 0) {
+          selected = [q.opts.length - 1];
+          score = 0;
+        }
+        simAns[q.key] = { selected: selected, score: score };
+        checkboxIdx++;
+      }
+    }
+  });
+
+  // スコア計算
+  var rawScore = 0;
+  Object.keys(simAns).forEach(function(k) { rawScore += (simAns[k].score || 0); });
+  var simScore = Math.round((rawScore / 175) * 100);
+  simScore = Math.min(100, Math.max(0, simScore));
+
+  // レベル判定
+  var simLevel;
+  if (simScore >= 70) simLevel = 'urgent';
+  else if (simScore >= 45) simLevel = 'soon';
+  else if (simScore >= 20) simLevel = 'later';
+  else simLevel = 'ok';
+
+  // 結果表示
+  var data = resultData[simLevel];
+  var simResultEl = document.getElementById('sim-result');
+  simResultEl.style.display = 'block';
+  document.getElementById('sim-score-circle').className = 'score-circle ' + data.circleClass;
+  document.getElementById('sim-score-num').textContent = simScore;
+  document.getElementById('sim-judgment').textContent = data.judgment;
+  document.getElementById('sim-judgment').style.color = data.judgmentColor;
+  document.getElementById('sim-judgment-sub').textContent = data.judgmentSub;
+  document.getElementById('sim-desc').textContent = data.desc;
+
+  // 比較テーブルに行を追加
+  var tableBody = document.getElementById('comparison-table-body');
+  var compCard = document.getElementById('comparison-card');
+
+  // 元の結果行が存在しない場合は追加
+  var originalRow = tableBody.querySelector('tr[data-result="original"]');
+  if (!originalRow && window.originalScore !== undefined) {
+    originalRow = document.createElement('tr');
+    originalRow.setAttribute('data-result', 'original');
+    originalRow.style.background = '#f0f9ff';
+    originalRow.style.borderBottom = '1px solid #e2e8f0';
+    var origData = resultData[window.originalLevel] || resultData['ok'];
+    originalRow.innerHTML = '<td style="padding: 8px; font-weight: 600; color: #1f2937;">元の診断</td>' +
+      '<td style="padding: 8px; text-align: center; font-weight: 700; color: ' + origData.judgmentColor + ';">' + window.originalScore + '点</td>' +
+      '<td style="padding: 8px; color: #374151;">' + origData.judgment + '</td>' +
+      '<td style="padding: 8px; text-align: center;">-</td>';
+    tableBody.appendChild(originalRow);
+  }
+
+  // 既存のシミュレーション行を見つけるか新しい行を作成
+  var existingRow = tableBody.querySelector('tr[data-result="current"]');
+  if (!existingRow) {
+    existingRow = document.createElement('tr');
+    existingRow.setAttribute('data-result', 'current');
+    existingRow.style.background = '#f0fdf4';
+    existingRow.style.borderBottom = '1px solid #e2e8f0';
+    tableBody.appendChild(existingRow);
+  }
+
+  existingRow.innerHTML = '<td style="padding: 8px; font-weight: 600; color: #1f2937;">シミュレーション</td>' +
+    '<td style="padding: 8px; text-align: center; font-weight: 700; color: ' + data.judgmentColor + ';">' + simScore + '点</td>' +
+    '<td style="padding: 8px; color: #374151;">' + data.judgment + '</td>' +
+    '<td style="padding: 8px; text-align: center;"><button onclick="saveSimulationPattern()" style="background: #2563eb; color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 0.8rem; cursor: pointer;">保存</button></td>';
+
+  compCard.style.display = 'block';
+}
+
+// シミュレーション設定をリセット
+function resetSimulation() {
+  simAns = JSON.parse(JSON.stringify(ans)); // 元の回答に戻す
+  initSimulationControls(ans);
+}
+
+// シミュレーション結果を保存
+function saveSimulationPattern() {
+  if (confirm('このシミュレーション結果を比較テーブルに追加しますか？')) {
+    var rawScore = 0;
+    Object.keys(simAns).forEach(function(k) { rawScore += (simAns[k].score || 0); });
+    var score = Math.round((rawScore / 175) * 100);
+    score = Math.min(100, Math.max(0, score));
+
+    var level = 'ok';
+    if (score >= 70) level = 'urgent';
+    else if (score >= 45) level = 'soon';
+    else if (score >= 20) level = 'later';
+
+    // 比較テーブルに新しい行を追加
+    var tableBody = document.getElementById('comparison-table-body');
+    var savedRow = document.createElement('tr');
+    savedRow.style.background = '#fef3c7';
+    savedRow.style.borderBottom = '1px solid #e2e8f0';
+    var data = resultData[level] || resultData['ok'];
+    var patternNum = tableBody.querySelectorAll('tr[data-saved-pattern]').length + 1;
+    savedRow.setAttribute('data-saved-pattern', patternNum);
+    savedRow.innerHTML = '<td style="padding: 8px; font-weight: 600; color: #1f2937;">パターン' + patternNum + '</td>' +
+      '<td style="padding: 8px; text-align: center; font-weight: 700; color: ' + data.judgmentColor + ';">' + score + '点</td>' +
+      '<td style="padding: 8px; color: #374151;">' + data.judgment + '</td>' +
+      '<td style="padding: 8px; text-align: center;"><button onclick="this.parentElement.parentElement.remove()" style="background: #ef4444; color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 0.8rem; cursor: pointer;">削除</button></td>';
+    tableBody.appendChild(savedRow);
+
+    // 診断履歴にも保存
+    saveToHistory(simAns, level, score);
+    renderHistoryList();
+    alert('パターン' + patternNum + 'を比較テーブルに追加しました！');
+  }
 }
 
 // ページロード時に初期化
@@ -1094,12 +1387,13 @@ window.addEventListener('DOMContentLoaded', function() {
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 <!-- r46-org-footer -->
 <div style="text-align:center;font-size:11px;color:#9ca3af;padding:6px 0 4px;background:#f8fafc;border-top:1px solid #e5e7eb;">
   運営: <a href="https://appadaycreator.com/" style="color:#9ca3af;text-decoration:none;">AppADayCreator</a> | <a href="https://tech-and-brace.co.jp/" rel="noopener" style="color:#9ca3af;text-decoration:none;">株式会社Tech&amp;Brace</a>
 </div>
+<script src="/assets/consent-mode.js"></script>
 </body>
 </html>
