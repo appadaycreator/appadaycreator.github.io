@@ -3,9 +3,15 @@
 ## 概要
 
 **サービス名**: Fire Calculator
-**バージョン**: 2.4.0
+**バージョン**: 2.5.0
 **更新日**: 2026-06-13
 **URL**: https://appadaycreator.com/fire-calculator/
+
+## 変更履歴（v2.5.0）
+- M2: コア機能のUX改善 - 入力フォーム・バリデーション強化
+  - iDeCo欄の表示/非表示切り替え：idecoEnabledチェックボックス の onchange ハンドラで idecoOptions div を動的表示
+  - エラーメッセージコンテナ追加：idecoTaxRate・nenkinStartAge の select 要素に error-message div を追加
+  - ページ読み込み時の初期化：DOMContentLoaded イベントで toggleIdecoOptions() を呼び出し、iDeCo欄の初期表示状態を設定
 
 ## 変更履歴（v2.4.0）
 - P1: コンテンツ網羅性・専門性向上（GSC掲載順位向上対策）
