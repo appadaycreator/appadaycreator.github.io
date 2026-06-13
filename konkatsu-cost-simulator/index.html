@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":
 new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],
@@ -170,6 +173,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <label>ファッション・外見磨きへの月額投資（万円）</label>
         <input type="number" id="fashion-cost" class="input-field" placeholder="例: 1" min="0" step="0.5" value="1" aria-label="例: 1">
       </div>
+      <div>
+        <label>💡 目標予算（万円）<span style="font-size:0.85rem;color:#9ca3af;margin-left:6px;">※ 達成度を測るためのオプション</span></label>
+        <input type="number" id="goal-budget" class="input-field" placeholder="例: 50" min="0" step="1" value="" aria-label="目標予算（万円）">
+        <div style="display:flex;gap:6px;margin-top:6px;">
+          <button onclick="setGoalPreset(30)" style="flex:1;padding:6px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;font-size:11px;color:#475569;cursor:pointer;">30万円</button>
+          <button onclick="setGoalPreset(50)" style="flex:1;padding:6px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;font-size:11px;color:#475569;cursor:pointer;">50万円</button>
+          <button onclick="setGoalPreset(100)" style="flex:1;padding:6px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;font-size:11px;color:#475569;cursor:pointer;">100万円</button>
+        </div>
+      </div>
     </div>
     <button class="btn-primary mt-5" onclick="calculate()">費用を計算する →</button>
     <div id="input-error" style="display:none;margin-top:8px;padding:10px;background:#fff1f2;border:1px solid #fecaca;border-radius:8px;color:#dc2626;font-size:13px;"></div>
@@ -177,6 +189,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
   <div id="results" class="card p-6 mb-4" style="display:none;">
     <h2 class="font-bold text-gray-800 mb-4">📊 シミュレーション結果</h2>
+    <div id="goal-achievement-info" style="display:none;"></div>
+    <div id="previous-result-comparison" style="display:none;"></div>
     <div class="text-center mb-6">
       <div class="text-gray-500 text-sm mb-1">婚活総費用の目安</div>
       <div class="text-4xl font-bold text-pink-600" id="r-total">0万円</div>
@@ -331,13 +345,46 @@ function restoreInputs() {
     var mo = localStorage.getItem('konkatsu_months');
     var d  = localStorage.getItem('konkatsu_date');
     var f  = localStorage.getItem('konkatsu_fashion');
+    var g  = localStorage.getItem('konkatsu_goal');
     if (m)  document.getElementById('method').value       = m;
     if (mo) document.getElementById('months').value       = mo;
     if (d)  document.getElementById('date-cost').value    = d;
     if (f)  document.getElementById('fashion-cost').value = f;
+    if (g)  document.getElementById('goal-budget').value  = g;
   } catch (e) {}
 }
-window.addEventListener('DOMContentLoaded', restoreInputs);
+
+/* 目標・実績履歴を localStorage に保存 */
+function saveResultHistory(goal, actual, method, months) {
+  try {
+    var history = JSON.parse(localStorage.getItem('konkatsu_history') || '[]');
+    history.push({
+      timestamp: new Date().toISOString(),
+      goal: goal,
+      actual: actual,
+      method: method,
+      months: months,
+      achievementRate: goal > 0 ? Math.min(100, Math.round(goal / actual * 1000) / 10) : 0
+    });
+    if (history.length > 10) history = history.slice(-10);
+    localStorage.setItem('konkatsu_history', JSON.stringify(history));
+  } catch (e) {}
+}
+
+/* 前回の実績を取得（達成度表示用） */
+function getPreviousResult() {
+  try {
+    var history = JSON.parse(localStorage.getItem('konkatsu_history') || '[]');
+    return history.length > 0 ? history[history.length - 1] : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+window.addEventListener('DOMContentLoaded', function() {
+  restoreInputs();
+  document.getElementById('goal-budget').addEventListener('input', updateGoalSimulation);
+});
 
 /* 月数に応じてグラフ用データを集計 */
 function buildChartData(months, mc, dateCostYen, fashionCostYen) {
@@ -367,6 +414,7 @@ function calculate() {
   var months      = parseInt(document.getElementById('months').value);
   var dateCost    = parseFloat(document.getElementById('date-cost').value);
   var fashionCost = parseFloat(document.getElementById('fashion-cost').value);
+  var goalBudget  = parseFloat(document.getElementById('goal-budget').value) || 0;
 
   /* バリデーション */
   var errorEl = document.getElementById('input-error');
@@ -380,6 +428,11 @@ function calculate() {
 
   /* 入力値を localStorage に保存 */
   saveInputs(method, months, dateCost, fashionCost);
+
+  /* 目標予算を保存 */
+  try {
+    if (goalBudget > 0) localStorage.setItem('konkatsu_goal', goalBudget);
+  } catch (e) {}
 
   var dateCostYen    = dateCost    * 10000;
   var fashionCostYen = fashionCost * 10000;
@@ -522,8 +575,75 @@ function calculate() {
     fashion: totalFashion,
     methodName: mc.name,
     monthlyCostRound: monthlyCostRound,
-    advice: adviceEl.textContent
+    advice: adviceEl.textContent,
+    goalBudget: goalBudget
   };
+
+  /* 目標・実績履歴を保存 */
+  if (goalBudget > 0) {
+    var totalManYen = total / 10000;
+    saveResultHistory(goalBudget, totalManYen, method, months);
+  }
+
+  /* 目標達成度情報を表示（強化版） */
+  var goalInfoEl = document.getElementById('goal-achievement-info');
+  if (goalBudget > 0 && goalInfoEl) {
+    var totalManYen = total / 10000;
+    var achievementRate = Math.min(100, Math.round(goalBudget / totalManYen * 1000) / 10);
+    var achieved = totalManYen <= goalBudget;
+    var diff = totalManYen - goalBudget;
+    var reductionPercent = Math.round(Math.abs(diff) / totalManYen * 1000) / 10;
+    var monthsToReduce = Math.ceil(Math.abs(diff) / (total / months / 10000));
+    var dailyCostReduction = Math.round(Math.abs(diff) * 10000 / months);
+
+    goalInfoEl.style.display = 'block';
+    var bgColor = achieved ? '#dcfce7' : '#fef3c7';
+    var borderColor = achieved ? '#86efac' : '#fcd34d';
+    var titleColor = achieved ? '#15803d' : '#92400e';
+    var accentColor = achieved ? '#059669' : '#d97706';
+
+    var actionPlan = '';
+    if (!achieved) {
+      if (diff < totalManYen * 0.2) {
+        actionPlan = '<div style="font-size:12px;color:' + titleColor + ';margin-top:8px;background:rgba(255,255,255,0.5);padding:8px;border-radius:4px;line-height:1.5;">' +
+          '💡 月額デート費を' + Math.round(dailyCostReduction / 10000 * 10) / 10 + '万円削減するか、活動期間を' + monthsToReduce + 'ヶ月短縮すれば達成できます。' +
+        '</div>';
+      } else {
+        actionPlan = '<div style="font-size:12px;color:' + titleColor + ';margin-top:8px;background:rgba(255,255,255,0.5);padding:8px;border-radius:4px;line-height:1.5;">' +
+          '💡 婚活方法の変更（相談所→パーティ等）や、全体費用の' + reductionPercent + '%削減が必要です。' +
+        '</div>';
+      }
+    }
+
+    goalInfoEl.innerHTML = '<div style="background:' + bgColor + ';border:1px solid ' + borderColor + ';border-radius:8px;padding:12px;margin-bottom:12px;">' +
+      '<div style="font-size:13px;color:' + titleColor + ';font-weight:600;margin-bottom:8px;">🎯 目標達成度</div>' +
+      '<div style="font-size:24px;font-weight:bold;color:' + accentColor + ';margin-bottom:8px;">' + achievementRate + '%</div>' +
+      '<div style="background:rgba(255,255,255,0.6);border-radius:4px;height:8px;overflow:hidden;margin-bottom:8px;">' +
+        '<div style="height:100%;background:' + accentColor + ';width:' + Math.min(achievementRate, 100) + '%;transition:width 0.3s;"></div>' +
+      '</div>' +
+      '<div style="font-size:11px;color:' + titleColor + ';margin-bottom:4px;">現在: ' + totalManYen + '万円 / 目標: ' + goalBudget + '万円' + (diff > 0 ? ' (超過: ' + Math.round(diff * 10) / 10 + '万円)' : ' (達成！)') + '</div>' +
+      '<div style="font-size:12px;color:' + titleColor + ';font-weight:600;">' + (achieved ? '✅ 目標以内で抑えられました！' : '⚠️ 目標達成まであと' + Math.round(Math.abs(diff) * 10) / 10 + '万円の削減が必要です') + '</div>' +
+      actionPlan +
+    '</div>';
+  }
+
+  /* 前回との比較表示 */
+  var prevResult = getPreviousResult();
+  var comparisonEl = document.getElementById('previous-result-comparison');
+  if (prevResult && comparisonEl) {
+    var diff = Math.round((window.lastResult.total / 10000 - prevResult.actual) * 10) / 10;
+    var prevPct = Math.round(diff / prevResult.actual * 1000) / 10;
+    var diffStr = diff > 0 ? '+' + diff + '万円' : diff + '万円';
+    var pctStr = prevPct > 0 ? '+' + prevPct + '%' : prevPct + '%';
+    comparisonEl.style.display = 'block';
+    comparisonEl.innerHTML = '<div style="background:#f3f4f6;border:1px solid #d1d5db;border-radius:8px;padding:12px;margin-bottom:12px;font-size:12px;">' +
+      '<div style="color:#4b5563;margin-bottom:8px;font-weight:600;">📊 前回の結果との比較</div>' +
+      '<div style="display:flex;justify-content:space-between;margin-bottom:4px;">' +
+        '<span>前回：' + prevResult.actual + '万円</span>' +
+        '<span style="color:' + (diff <= 0 ? '#059669' : '#dc2626') + ';font-weight:600;">' + diffStr + ' (' + pctStr + ')</span>' +
+      '</div>' +
+    '</div>';
+  }
 
   /* シェアボタンの URL を更新 */
   var shareText = '婚活費用計算で「' + mc.name + '」' + months + 'ヶ月の総費用は' + formatCost(total) + 'と出ました！';
@@ -576,6 +696,36 @@ function downloadAsText() {
   link.download = 'konkatsu_result.txt';
   link.click();
   URL.revokeObjectURL(url);
+}
+
+/* 目標予算プリセットボタン用関数 */
+function setGoalPreset(amount) {
+  document.getElementById('goal-budget').value = amount;
+}
+
+/* 目標達成シミュレーション（リアルタイム更新） */
+function updateGoalSimulation() {
+  var method      = document.getElementById('method').value;
+  var months      = parseInt(document.getElementById('months').value);
+  var dateCost    = parseFloat(document.getElementById('date-cost').value);
+  var fashionCost = parseFloat(document.getElementById('fashion-cost').value);
+  var goalBudget  = parseFloat(document.getElementById('goal-budget').value) || 0;
+
+  if (goalBudget === 0 || isNaN(goalBudget)) return;
+
+  var dateCostYen    = dateCost    * 10000;
+  var fashionCostYen = fashionCost * 10000;
+  var mc             = methodCosts[method];
+  var serviceCost    = mc.init + mc.monthly * months;
+  var totalDate      = dateCostYen    * months;
+  var totalFashion   = fashionCostYen * months;
+  var total          = serviceCost + totalDate + totalFashion;
+  var totalManYen    = total / 10000;
+
+  var achievementRate = Math.round(Math.min(100, goalBudget / totalManYen * 100) * 10) / 10;
+  var achieved = totalManYen <= goalBudget;
+
+  console.log('Goal Simulation:', { goal: goalBudget, total: totalManYen, rate: achievementRate });
 }
 </script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"婚活費用計算【無料】マッチングアプリ・結婚相談所 総額いくら？","description":"婚活方法・期間・交際費用を入力して総費用を無料計算。方法別の費用比較と節約アドバイス付き。","url":"https://appadaycreator.com/konkatsu-cost-simulator/","applicationCategory":"UtilityApplication","operatingSystem":"Any","inLanguage":"ja","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"}}</script>
@@ -834,12 +984,13 @@ function downloadAsText() {
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 <!-- r46-org-footer -->
 <div style="text-align:center;font-size:11px;color:#9ca3af;padding:6px 0 4px;background:#f8fafc;border-top:1px solid #e5e7eb;">
   運営: <a href="https://appadaycreator.com/" style="color:#9ca3af;text-decoration:none;">AppADayCreator</a> | <a href="https://tech-and-brace.co.jp/" rel="noopener" style="color:#9ca3af;text-decoration:none;">株式会社Tech&amp;Brace</a>
 </div>
+<script src="/assets/consent-mode.js"></script>
 </body>
 </html>
