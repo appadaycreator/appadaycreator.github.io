@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":
 new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],
@@ -175,6 +178,21 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
           <label for="bizDesc" style="margin-top:12px;">商品・サービスの説明（任意）</label>
           <textarea id="bizDesc" rows="3" placeholder="例：30代女性向けオーガニックスキンケア。敏感肌特化・天然成分配合...&#10;（入力すると参考情報として活用されます）" style="min-height:80px;resize:vertical;" onchange="saveFormState()"></textarea>
+
+          <div id="validationError" style="display:none;background:#fee2e2;color:#991b1b;border:1.5px solid #fecaca;border-radius:8px;padding:12px;margin-bottom:12px;font-size:14px;">
+            <strong>⚠️ 入力エラー:</strong> <span id="errorMessage"></span>
+          </div>
+
+          <div id="goalSection" style="display:none;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:14px;margin-bottom:12px;">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;font-weight:700;color:#14532d;">
+              <input type="checkbox" id="setGoal" style="width:18px;height:18px;cursor:pointer;" onchange="toggleGoalInput()">
+              <label for="setGoal" style="margin:0;cursor:pointer;">🎯 目標を設定する</label>
+            </div>
+            <div id="goalInput" style="display:none;margin-top:8px;">
+              <input type="text" id="goalText" placeholder="例: SNS投稿・商品企画・採用面接用ペルソナの作成等、このペルソナをどのように活用しますか？" style="margin-bottom:6px;" />
+              <div style="font-size:12px;color:#6b7280;margin-top:4px;">✓ 目標を設定すると、次回訪問時に進捗状況が表示されます</div>
+            </div>
+          </div>
 
           <div style="display:flex;gap:8px;margin-top:20px;flex-wrap:wrap;">
             <button class="btn" style="flex:1;" onclick="generatePersonas()">ペルソナを生成する</button>
@@ -407,6 +425,104 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     let lastPersonas = [];
 
+    // M5: 推薦商品データベース
+    const RECOMMENDED_PRODUCTS_DB = {
+      beauty: [
+        { name: 'シスレー パーフェクティング ファンデーション', desc: '高級美容ブランド・プレミアムスキンケア', link: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642' },
+        { name: 'オルビス スキンケアセット', desc: '敏感肌向けスキンケア・コスパ重視', link: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642' }
+      ],
+      food: [
+        { name: 'じゃらんで旅行予約', desc: '食事付きプラン・グルメ旅行が豊富', link: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ5+C2OQY2+14CS+68EPE' },
+        { name: 'ハピタスでポイント還元', desc: 'グルメサイト利用時にポイント獲得', link: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642' }
+      ],
+      it: [
+        { name: 'クラウドストレージ + セキュリティ', desc: 'リモートワーク向け・効率化ツール', link: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642' },
+        { name: 'プロジェクト管理ツール無料トライアル', desc: 'チーム生産性向上・コラボレーション', link: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642' }
+      ],
+      education: [
+        { name: 'Udemy スキルアップ講座', desc: '格安で専門スキル習得・キャリアアップ', link: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642' },
+        { name: 'アビバで資格取得講座', desc: 'パソコン・MOS・簿記等の就職対策', link: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642' }
+      ],
+      health: [
+        { name: '健康診断サービス + 相談', desc: '早期発見・予防医療・専門家相談', link: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642' },
+        { name: 'サプリメント・ビタミンセット', desc: '健康管理・疲労回復・予防サポート', link: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642' }
+      ],
+      fitness: [
+        { name: 'オンラインフィットネス・レッスン', desc: '自宅で継続・リーズナブル・多様なメニュー', link: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642' },
+        { name: 'トレーニング機器・ヨガマット', desc: 'ジム代替・自宅トレーニング環境構築', link: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642' }
+      ],
+      entertainment: [
+        { name: 'Netflix / Amazon Prime Video', desc: 'コンテンツ豊富・ストレス解消・映え', link: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642' },
+        { name: 'Spotify / Apple Music 音楽配信', desc: '最新曲・プレイリスト・高音質・オフライン再生', link: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642' }
+      ],
+      finance: [
+        { name: '投資信託・株式口座開設', desc: 'つみたてNISA・iDeCo・低手数料', link: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642' },
+        { name: 'FX・仮想通貨取引所', desc: '初心者向け・手数料無料・デモトレード', link: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642' }
+      ],
+      realestate: [
+        { name: 'じゃらんで宿泊予約・家探し', desc: '全国の宿泊施設・リモートワーク可能な物件', link: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ5+C2OQY2+14CS+68EPE' },
+        { name: 'オンライン住宅ローン審査', desc: '金利比較・シミュレーション・簡単申込', link: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642' }
+      ],
+      other: [
+        { name: 'ハピタス でお得にポイント還元', desc: '日々の買い物・旅行でポイント獲得', link: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642' },
+        { name: '総合比較・お得情報サイト', desc: '商品・サービス比較・クーポン・ポイント', link: 'https://px.a8.net/svt/ejp?a8mat=4B3WJ6+FQ9JMY+1LP8+BY642' }
+      ]
+    };
+
+    function getRecommendedProducts(category, personas) {
+      const products = RECOMMENDED_PRODUCTS_DB[category] || RECOMMENDED_PRODUCTS_DB.other;
+      // ペルソナ数に応じて商品をランダムに選択（最大4件）
+      const maxProducts = Math.min(4, products.length * personas.length);
+      const selected = [];
+      for (let i = 0; i < maxProducts && i < 4; i++) {
+        selected.push(products[i % products.length]);
+      }
+      return selected.slice(0, 4);
+    }
+
+    // M5: ペルソナの特性に基づいた動的推薦商品ロジック
+    function getRecommendedProductsByPersona(category, persona) {
+      const products = RECOMMENDED_PRODUCTS_DB[category] || RECOMMENDED_PRODUCTS_DB.other;
+      if (!products || products.length === 0) return [];
+
+      // ペルソナの特性を分析
+      const ageGroup = persona.age < 30 ? 'young' : persona.age < 50 ? 'middle' : 'senior';
+      const incomeLevel = persona.income.includes('〜')
+        ? parseInt(persona.income.match(/(\d+)/g)[1] || '500')
+        : 500;
+      const needsCount = persona.pains.length;
+
+      // ペルソナの属性に基づいて商品の適合度をスコアリング
+      const scoredProducts = products.map((product, idx) => {
+        let score = 0;
+
+        // 年齢層に基づくスコア調整
+        if (ageGroup === 'young' && product.desc.includes('格安')) score += 2;
+        if (ageGroup === 'middle' && product.desc.includes('効率')) score += 2;
+        if (ageGroup === 'senior' && (product.desc.includes('安全') || product.desc.includes('安心'))) score += 2;
+
+        // 年収に基づくスコア調整
+        if (incomeLevel < 300 && !product.desc.includes('低手数料') && !product.desc.includes('コスパ')) score -= 1;
+        if (incomeLevel >= 700 && (product.desc.includes('プレミアム') || product.desc.includes('高級'))) score += 2;
+
+        // ニーズに基づくスコア調整
+        if (needsCount >= 2) {
+          if (product.desc.includes('サポート') || product.desc.includes('相談')) score += 1;
+        }
+
+        // デフォルトスコア（バランス重視）
+        score += 1;
+
+        return { ...product, relevanceScore: score, originalIndex: idx };
+      });
+
+      // スコアでソートして上位を返す
+      return scoredProducts
+        .sort((a, b) => b.relevanceScore - a.relevanceScore)
+        .slice(0, Math.min(2, products.length))
+        .map(({ relevanceScore, originalIndex, ...prod }) => prod);
+    }
+
     function saveFormState() {
       const formState = {
         category: document.getElementById('category').value,
@@ -455,11 +571,31 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       localStorage.setItem('personaHistory', JSON.stringify(history));
     }
 
+    function showValidationError(message) {
+      const errorDiv = document.getElementById('validationError');
+      const errorMsg = document.getElementById('errorMessage');
+      errorMsg.textContent = message;
+      errorDiv.style.display = 'block';
+      errorDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function clearValidationError() {
+      document.getElementById('validationError').style.display = 'none';
+    }
+
     function generatePersonas() {
+      clearValidationError();
       const category = document.getElementById('category').value;
-      if (!category) { alert('業種カテゴリを選択してください'); return; }
+      if (!category) {
+        showValidationError('業種カテゴリを選択してください');
+        return;
+      }
       const target = document.querySelector('input[name="target"]:checked').value;
       const priceRange = document.getElementById('priceRange').value;
+      if (!priceRange) {
+        showValidationError('価格帯を選択してください');
+        return;
+      }
 
       const pool = (PERSONA_DB[target] && PERSONA_DB[target][category])
         ? PERSONA_DB[target][category]
@@ -501,6 +637,23 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         const needScore = Math.min(100, p.pains.length * 30);
         const infoScore = p.info.split('・').length * 25;
         const personaId = `persona-${Date.now()}-${i}`;
+
+        // ペルソナの個別推薦商品を取得
+        const personaProducts = getRecommendedProductsByPersona(category, p);
+        const personaRecommendedHtml = personaProducts.length > 0 ? `
+          <div style="margin-top:12px;background:#fef3c7;border:1px solid #fbbf24;border-radius:10px;padding:12px;margin-bottom:8px;">
+            <h4 style="font-size:12px;font-weight:700;color:#92400e;margin:0 0 8px;">💡 ${p.name}さんにおすすめ</h4>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+              ${personaProducts.map((prod, idx) => `
+                <a href="${prod.link}" target="_blank" rel="nofollow noopener noreferrer" style="display:block;padding:8px;background:white;border-radius:6px;border:1px solid #fbbf24;text-decoration:none;transition:opacity .2s;font-size:11px;">
+                  <div style="font-weight:600;color:#1e293b;margin-bottom:3px;line-height:1.3;">${prod.name}</div>
+                  <div style="color:#64748b;font-size:10px;">${prod.desc}</div>
+                </a>
+              `).join('')}
+            </div>
+          </div>
+        ` : '';
+
         return `
         <div style="border:1.5px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:12px;background:white;">
           <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;">
@@ -569,13 +722,44 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <div style="font-size:12px;color:#475569;">「${p.quote}」</div>
             </div>
           </div>
+          ${personaRecommendedHtml}
         </div>
       `;
       }).join('');
 
-      document.getElementById('personaOutput').innerHTML = html;
+      // 推薦商品セクション生成
+      const recommendedProducts = getRecommendedProducts(category, personas);
+      const recommendedHtml = `
+        <div style="margin-top:16px;background:#fef3c7;border:1px solid #fbbf24;border-radius:12px;padding:16px;">
+          <h3 style="font-size:14px;font-weight:700;color:#92400e;margin-bottom:12px;">💡 生成されたペルソナに関連する商品・サービス</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            ${recommendedProducts.map((prod, idx) => `
+              <a href="${prod.link}" target="_blank" rel="nofollow noopener noreferrer" style="display:block;padding:10px;background:white;border-radius:8px;border:1px solid #fbbf24;text-decoration:none;transition:opacity .2s;">
+                <div style="font-size:12px;font-weight:600;color:#1e293b;margin-bottom:4px;">${prod.name}</div>
+                <div style="font-size:11px;color:#64748b;">${prod.desc}</div>
+              </a>
+            `).join('')}
+          </div>
+          <p style="font-size:11px;color:#92400e;margin-top:8px;margin-bottom:0;">※ 商品情報は参考です。詳細は各サイトをご確認ください</p>
+        </div>
+      `;
+
+      // M6: 目標設定・達成度トラッキングセクション
+      const goalTrackingHtml = `
+        <div style="margin-top:16px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:14px;">
+          <h3 style="font-size:14px;font-weight:700;color:#14532d;margin-bottom:12px;">🎯 このペルソナの活用目標を設定</h3>
+          <div>
+            <input type="text" id="goalInput_${Date.now()}" placeholder="例: SNS投稿・商品企画・採用面接用ペルソナの作成等" style="margin-bottom:8px;" />
+            <button onclick="saveGoal('${category}', this.previousElementSibling.value)" style="background:#16a34a;color:white;border:none;padding:8px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%;min-height:40px;">目標を保存する</button>
+            <p style="font-size:11px;color:#4b5563;margin-top:8px;margin-bottom:0;">✓ 目標を保存すると、次回訪問時に進捗状況が表示されます。このペルソナがどのように活用されたかを記録できます。</p>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('personaOutput').innerHTML = html + recommendedHtml + goalTrackingHtml;
       document.getElementById('result').classList.add('show');
       document.getElementById('historyPanel').style.display = 'none';
+      displayGoalHistory(category);
 
       // チャート初期化
       setTimeout(() => {
@@ -892,6 +1076,68 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }
     }
 
+    // M6: 目標設定・達成度トラッキング
+    function saveGoal(category, goalText) {
+      if (!goalText.trim()) {
+        alert('目標を入力してください');
+        return;
+      }
+      const goals = JSON.parse(localStorage.getItem('personaGoals') || '{}');
+      if (!goals[category]) goals[category] = [];
+      goals[category].unshift({
+        id: Date.now(),
+        text: goalText,
+        date: new Date().toLocaleString('ja-JP'),
+        completed: false
+      });
+      goals[category] = goals[category].slice(0, 10); // 最大10件保存
+      localStorage.setItem('personaGoals', JSON.stringify(goals));
+      alert('✓ 目標が保存されました。次回訪問時に進捗を確認できます。');
+      displayGoalHistory(category);
+    }
+
+    function displayGoalHistory(category) {
+      const goals = JSON.parse(localStorage.getItem('personaGoals') || '{}');
+      const categoryGoals = goals[category] || [];
+      if (categoryGoals.length === 0) return;
+
+      const goalHistoryHtml = `
+        <div style="margin-top:12px;background:#dcfce7;border:1px solid #86efac;border-radius:8px;padding:12px;">
+          <p style="font-size:12px;font-weight:700;color:#166534;margin:0 0 8px;">📊 設定済みの目標（${category}）</p>
+          <div style="max-height:200px;overflow-y:auto;font-size:11px;color:#166534;">
+            ${categoryGoals.map((g, i) => `
+              <div style="background:white;border-radius:4px;padding:6px;margin-bottom:4px;display:flex;align-items:center;gap:6px;">
+                <input type="checkbox" ${g.completed ? 'checked' : ''} onchange="toggleGoalCompletion('${category}', ${g.id}, this.checked)" style="width:14px;height:14px;cursor:pointer;">
+                <div style="flex:1;">
+                  <div style="text-decoration:${g.completed ? 'line-through' : 'none'}">${g.text}</div>
+                  <div style="font-size:10px;color:#84cc16;">${g.date}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+      const existingGoalHistory = document.querySelector('[style*="dcfce7"]');
+      if (existingGoalHistory) existingGoalHistory.remove();
+      const goalSection = document.querySelector('[style*="f0fdf4"][style*="bbf7d0"]');
+      if (goalSection) goalSection.insertAdjacentHTML('beforeend', goalHistoryHtml);
+    }
+
+    function toggleGoalCompletion(category, goalId, completed) {
+      const goals = JSON.parse(localStorage.getItem('personaGoals') || '{}');
+      const goal = goals[category]?.find(g => g.id === goalId);
+      if (goal) {
+        goal.completed = completed;
+        localStorage.setItem('personaGoals', JSON.stringify(goals));
+      }
+    }
+
+    function toggleGoalInput() {
+      const checkbox = document.getElementById('setGoal');
+      const input = document.getElementById('goalInput');
+      if (input) input.style.display = checkbox.checked ? 'block' : 'none';
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
       restoreFormState();
       loadHistory();
@@ -1031,8 +1277,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
+<script src="/assets/consent-mode.js"></script>
 </body>
 </html>
