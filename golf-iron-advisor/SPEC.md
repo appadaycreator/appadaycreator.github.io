@@ -114,9 +114,9 @@ golf-iron-advisor/
 
 ## Recent Updates
 
-- ✅ **2026-06-12**: v4.4 M2施策：コア機能UX改善（/improve_auto）
-  - **P1: 入力フォームのplaceholder・aria-label最適化** — 身長・体重・ハンディキャップ・ヘッドスピードの4つの主要数値入力フィールドに placeholder 属性を簡潔化（「例: 170」→「170」）。aria-label を詳細化（単位や入力範囲を明示）してスクリーンリーダー利用者の入力補助を強化。
-  - **P2: バリデーション・エラーメッセージUI強化** — 既存の validateNumberInput 関数を活用し、無効な値の入力時にエラーメッセージを表示。成功時にはチェックマーク ✓ と背景色フィードバックを表示。入力フィールドのシェイクアニメーション（エラー時）で注意喚起。
+- ✅ **2026-06-13**: v4.4 M2施策：コア機能UX改善（/improve_phase2_only — 完全実装版）
+  - **P1: 入力フォームのplaceholder・aria-label最適化** ✅ — 身長・体重・ハンディキャップ・ヘッドスピードの4つの主要数値入力フィールドに placeholder 属性を簡潔化（「例: 170」→「170」）。aria-label を詳細化（単位や入力範囲を明示）してスクリーンリーダー利用者の入力補助を強化。aria-describedby属性で hint/error メッセージをリンク。
+  - **P2: バリデーション・エラーメッセージUI強化** ✅ — validateNumberInput(inputEl, minVal, maxVal) グローバル関数を実装。無効な値の入力時にエラーメッセージを動的表示。成功時にはチェックマーク ✓（.validation-check）と背景色フィードバック（.border-green-500）を表示。入力フィールドのシェイクアニメーション（animation: shake）でエラー時に注意喚起。min/max属性と組み合わせて堅牢なバリデーション実現。
 
 - ✅ **2026-05-29**: v4.3 UX・SEO・アクセシビリティ改善（P44 /improve_auto）
   - **P1: 結果ページCTAボタン整理** — 6ボタン（シェア/テキストコピー/PDF/保存/再診断/カード）を「もう一度診断」（プライマリ）+「シェア」（セカンダリ）+「その他▼」折りたたみに再構成。モバイルでの視認性向上。
@@ -698,3 +698,15 @@ This specification documents the current state before refactoring begins.
 - **UI/UX**: placeholder(170/70/40/18)・aria-label・range slider・shake/checkmark-pop エラーアニメーション全装備
 - **クイズUI**: Step 2-8 全て「分からない」オプション実装済み（入力バリデーション完全カバー）
 - **結論**: M2施策追加改善不要 - 既存実装で全要件満たす
+
+## v1.x.x - 2026-06-13 (#44 improve_phase2_only 2次実装)
+
+### M2追加改善：select要素のアクセシビリティ強化 ★★★☆☆
+- **実装内容**: 全select要素に詳細なaria-label・aria-describedby属性を追加
+  - `#age` (年齢選択): aria-label 「年齢を選択してください（10代から60代以上）」・required属性
+  - `#playFrequency` (ラウンド頻度): aria-label 「ラウンド頻度を選択してください（任意）」・aria-describedby
+  - `#fontSizeSelector` (文字サイズ): aria-label 「文字サイズを選択してください」
+  - `#languageSelector` (言語選択): aria-label 「言語を選択してください（日本語または英語）」
+  - `#mobileFontSizeSelector` (モバイル文字サイズ): aria-label 「文字サイズを選択してください（極小から特大）」
+- **目的**: スクリーンリーダー利用者にselect要素の役割・選択肢を明確に提示 → WCAG 2.1 AA準拠
+- **修正ファイル**: `index.html`（5箇所）
