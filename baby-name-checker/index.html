@@ -136,6 +136,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://appadaycreator.com/"},{"@type":"ListItem","position":2,"name":"診断/アドバイス","item":"https://appadaycreator.com/category/advisor/"},{"@type":"ListItem","position":3,"name":"赤ちゃん名前チェッカー無料診断・アドバイス","item":"https://appadaycreator.com/baby-name-checker/"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"「赤ちゃん名前チェッカー」は無料で使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要です。"}},{"@type":"Question","name":"スマートフォンでも使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、モバイル対応済みです。"}}]}</script>
 </head>
 <body>
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -174,6 +175,25 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <ins class="adsbygoogle" data-npa="1" style="display:block;min-height:90px;margin:12px 0" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
         <script>try{try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}}catch(e){}</script>
 
+        <!-- 目標設定モーダル（M6実装：目標値のlocalStorage保存・達成度表示） -->
+        <div class="card" id="goal-setting" style="display:none;background:#f0f9ff;border:2px solid #8b5cf6;">
+          <h2 style="font-size:16px;font-weight:700;margin-bottom:12px;color:#6d28d9;">🎯 診断の目標を設定しましょう（オプション）</h2>
+          <p style="color:#666;font-size:13px;margin-bottom:14px;">目標スコアを設定することで、診断結果の達成度を確認できます。</p>
+          <label style="font-weight:600;color:#333;margin-bottom:8px;display:block;">目標スコア</label>
+          <div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;">
+            <input id="goal-score" type="range" min="0" max="100" value="75" style="flex:1;height:8px;padding:0;border:none;" oninput="updateGoalDisplay()">
+            <span id="goal-display" style="font-size:18px;font-weight:700;color:#8b5cf6;min-width:45px;text-align:right;">75 点</span>
+          </div>
+          <p style="font-size:12px;color:#6b7280;margin-bottom:14px;">💡 目標を設定すると、診断後に達成度を確認できます</p>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;gap:8px;">
+              <button class="btn" style="flex:1;background:#8b5cf6;" onclick="proceedWithGoal()">目標を設定して進む →</button>
+              <button class="btn" style="flex:1;background:#d1d5db;color:#333;" onclick="proceedWithoutGoal()">スキップ →</button>
+            </div>
+            <button class="btn" style="background:#ccc;opacity:0.7;" onclick="backToStart()">戻る</button>
+          </div>
+        </div>
+
         <!-- 診断モード選択 -->
         <div class="card" id="mode-select" style="display:none;background:#f0f9ff;border:2px solid #3B82F6;">
           <h2 style="font-size:16px;font-weight:700;margin-bottom:12px;color:#1E40AF;">📝 診断方法を選択してください</h2>
@@ -194,7 +214,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             </label>
           </div>
           <button class="btn" style="margin-top:16px;" onclick="startDiagnosis()" aria-label="選択した診断方法で診断を開始します">診断を始める →</button>
-          <button class="btn" style="margin-top:8px;background:#ccc;opacity:0.7;" onclick="backToStart()" aria-label="診断モード選択画面に戻ります">戻る</button>
+          <button class="btn" style="margin-top:8px;background:#ccc;opacity:0.7;" onclick="document.getElementById('mode-select').style.display='none';document.getElementById('goal-setting').style.display='block';" aria-label="診断モード選択画面に戻ります">戻る</button>
         </div>
 
         <!-- フォーム入力モード -->
@@ -204,6 +224,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <label for="nameKanji" style="font-weight:600;color:#333;margin-bottom:2px;display:flex;align-items:center;gap:4px;cursor:pointer;padding:6px 0;">
             赤ちゃんのお名前（漢字）
             <span title="常用漢字またはひらがなで2〜4文字が目安です" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;background:#e0e7ff;color:#3B82F6;border-radius:50%;font-size:12px;font-weight:700;cursor:help;">?</span>
+            <span id="kanji-count" style="margin-left:auto;font-size:12px;font-weight:400;color:#999;">0 / 10</span>
           </label>
           <input id="nameKanji" type="text" placeholder="例: 太郎、美咲、陽太" maxlength="10" style="margin-bottom:2px;" oninput="validateNameInput()" data-clarity-mask="True">
           <p style="font-size:12px;color:#6b7280;margin-top:4px;margin-bottom:12px;">💡 漢字またはひらがなのみ対応。常用漢字・人名用漢字が目安です。</p>
@@ -211,12 +232,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <label for="nameReading" style="font-weight:600;color:#333;margin-bottom:2px;display:flex;align-items:center;gap:4px;margin-top:12px;cursor:pointer;padding:6px 0;">
             読み方（ひらがな）
             <span title="すべてひらがなで、漢字の読み方を正確に入力してください" style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;background:#e0e7ff;color:#3B82F6;border-radius:50%;font-size:12px;font-weight:700;cursor:help;">?</span>
+            <span id="reading-count" style="margin-left:auto;font-size:12px;font-weight:400;color:#999;">0 / 10</span>
           </label>
           <input id="nameReading" type="text" placeholder="例: たろう、みさき、はると" maxlength="10" style="margin-bottom:2px;" oninput="validateNameInput()" data-clarity-mask="True">
           <p style="font-size:12px;color:#6b7280;margin-top:4px;margin-bottom:12px;">💡 漢字の読み方をひらがなで入力。小書き（ゃ、ゅ、ょ等）もOK。</p>
           <div id="reading-error" style="display:none;color:#dc2626;font-size:12px;margin-bottom:16px;background:#fee2e2;border:1px solid #fca5a5;border-radius:6px;padding:8px 12px;"></div>
-          <button id="diagnose-btn" class="btn" onclick="diagnoseName()">診断する →</button>
-          <button class="btn" style="background:#ccc;opacity:0.7;margin-top:8px;" onclick="backToStart()">戻る</button>
+          <button id="diagnose-btn" class="btn" onclick="diagnoseName()" style="display:none;">診断する →</button>
+          <button id="diagnose-btn-disabled" class="btn" style="background:#ccc;opacity:0.5;cursor:not-allowed;">診断する →</button>
+          <button class="btn" style="background:#ccc;opacity:0.7;margin-top:8px;" onclick="document.getElementById('form-mode').style.display='none';document.getElementById('mode-select').style.display='block';">戻る</button>
         </div>
 
         <!-- 初期画面 -->
@@ -445,17 +468,24 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if (savedData) {
         document.getElementById('resume-btn').style.display = 'block';
       }
+      // M2実装：初期バリデーション
+      validateNameInput();
     });
 
     function validateNameInput() {
-      const kanji = document.getElementById('nameKanji').value.trim();
-      const reading = document.getElementById('nameReading').value.trim();
+      const kanji = document.getElementById('nameKanji').value;
+      const reading = document.getElementById('nameReading').value;
       const kanjiError = document.getElementById('kanji-error');
       const readingError = document.getElementById('reading-error');
       const diagnoseBtn = document.getElementById('diagnose-btn');
+      const diagnoseBtnDisabled = document.getElementById('diagnose-btn-disabled');
       const kanjiInput = document.getElementById('nameKanji');
       const readingInput = document.getElementById('nameReading');
       let isValid = true;
+
+      // 文字数表示を更新
+      document.getElementById('kanji-count').textContent = kanji.length + ' / 10';
+      document.getElementById('reading-count').textContent = reading.length + ' / 10';
 
       kanjiError.style.display = 'none';
       readingError.style.display = 'none';
@@ -463,26 +493,59 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       readingInput.style.borderColor = '#e2e8f0';
 
       if (kanji && !/^[^\x00-\x7F]+$/.test(kanji)) {
-        kanjiError.textContent = '漢字またはひらがなのみ入力可能です';
+        kanjiError.textContent = '❌ 漢字またはひらがなのみ入力可能です（英字や数字は使用できません）';
         kanjiError.style.display = 'block';
         kanjiInput.style.borderColor = '#ef4444';
         isValid = false;
       }
 
       if (reading && !/^[ぁ-ん]*$/.test(reading)) {
-        readingError.textContent = 'ひらがなのみ入力可能です';
+        readingError.textContent = '❌ ひらがなのみ入力可能です（漢字やカタカナは使用できません）';
         readingError.style.display = 'block';
         readingInput.style.borderColor = '#ef4444';
         isValid = false;
       }
 
-      diagnoseBtn.disabled = !kanji || !reading || !isValid;
-      diagnoseBtn.style.opacity = diagnoseBtn.disabled ? '0.5' : '1';
-      diagnoseBtn.style.cursor = diagnoseBtn.disabled ? 'not-allowed' : 'pointer';
+      if (kanji && kanji.length < 1) {
+        isValid = false;
+      }
+      if (reading && reading.length < 1) {
+        isValid = false;
+      }
+
+      const formValid = kanji.trim().length > 0 && reading.trim().length > 0 && isValid;
+      if (formValid) {
+        kanjiInput.style.borderColor = '#22c55e';
+        readingInput.style.borderColor = '#22c55e';
+      }
+
+      diagnoseBtn.style.display = formValid ? 'block' : 'none';
+      diagnoseBtnDisabled.style.display = formValid ? 'none' : 'block';
     }
 
     function showModeSelect() {
       document.getElementById('quiz-start').style.display = 'none';
+      document.getElementById('goal-setting').style.display = 'block';
+    }
+
+    function updateGoalDisplay() {
+      const goal = document.getElementById('goal-score').value;
+      document.getElementById('goal-display').textContent = goal + ' 点';
+    }
+
+    function proceedWithGoal() {
+      const goal = parseInt(document.getElementById('goal-score').value);
+      localStorage.setItem('babyNameCheckerGoal', JSON.stringify({
+        targetScore: goal,
+        setAt: new Date().toISOString()
+      }));
+      document.getElementById('goal-setting').style.display = 'none';
+      document.getElementById('mode-select').style.display = 'block';
+    }
+
+    function proceedWithoutGoal() {
+      localStorage.removeItem('babyNameCheckerGoal');
+      document.getElementById('goal-setting').style.display = 'none';
       document.getElementById('mode-select').style.display = 'block';
     }
 
@@ -498,6 +561,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     function backToStart() {
       document.getElementById('quiz-start').style.display = 'block';
+      document.getElementById('goal-setting').style.display = 'none';
       document.getElementById('mode-select').style.display = 'none';
       document.getElementById('form-mode').style.display = 'none';
       document.getElementById('quiz-area').style.display = 'none';
@@ -638,6 +702,33 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }
 
       const total = Math.round((readabilityScore + strokeScore + harmonyScore) / 3);
+
+      // M6実装：目標達成度の計算と表示
+      const goalData = localStorage.getItem('babyNameCheckerGoal');
+      let goalHTML = '';
+      if (goalData) {
+        const goal = JSON.parse(goalData);
+        const achievementRate = Math.min(100, Math.round((total / goal.targetScore) * 100));
+        const achievementColor = achievementRate >= 100 ? '#22c55e' : achievementRate >= 80 ? '#3B82F6' : '#f59e0b';
+        const achievementEmoji = achievementRate >= 100 ? '🎉' : achievementRate >= 80 ? '👍' : '📈';
+        goalHTML = `
+          <div style="margin-bottom:14px;padding:12px;background:#f3e8ff;border:2px solid #8b5cf6;border-radius:10px;">
+            <div style="font-size:12px;font-weight:700;color:#6d28d9;margin-bottom:8px;">🎯 目標達成度</div>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="flex:1;">
+                <div style="font-size:13px;color:#333;margin-bottom:4px;">目標スコア: ${goal.targetScore}点 / 現在: ${total}点</div>
+                <div style="background:#e9d5ff;border-radius:6px;height:10px;overflow:hidden;">
+                  <div style="height:100%;background:${achievementColor};width:${Math.min(100, achievementRate)}%;border-radius:6px;transition:width .5s;"></div>
+                </div>
+              </div>
+              <div style="text-align:center;min-width:60px;">
+                <div style="font-size:20px;">${achievementEmoji}</div>
+                <div style="font-size:14px;font-weight:700;color:${achievementColor};">${achievementRate}%</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
       let title, advice, summaryText, improvement;
 
       if (reading <= 1 && popularity <= 1) {
@@ -689,6 +780,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       document.getElementById('r-title').textContent = title;
       document.getElementById('r-desc').innerHTML = `
         ${nameDisplay}
+        ${goalHTML}
         <p style="margin-bottom:14px;">${summaryText}</p>
         <div style="background:#EFF6FF;border-radius:10px;padding:14px;margin-bottom:14px;">
           <div style="font-size:12px;font-weight:700;color:#1D4ED8;margin-bottom:10px;">📊 診断スコア</div>
@@ -715,6 +807,23 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <button onclick="shareToTwitter()" aria-label="診断結果をTwitterで共有" style="flex:1;min-width:140px;padding:10px 16px;background:#1da1f2;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;min-height:44px;touch-action:manipulation;">𝕏</button>
         </div>
       `;
+      // 診断履歴を保存（M6実装）
+      const goalData = localStorage.getItem('babyNameCheckerGoal');
+      const historyList = JSON.parse(localStorage.getItem('babyNameCheckerHistory') || '[]');
+      historyList.unshift({
+        inputName,
+        total,
+        readabilityScore,
+        strokeScore,
+        uniquenessScore,
+        harmonyScore,
+        goalScore: goalData ? JSON.parse(goalData).targetScore : null,
+        timestamp: new Date().toISOString()
+      });
+      // 最新10件まで保持
+      if (historyList.length > 10) historyList.pop();
+      localStorage.setItem('babyNameCheckerHistory', JSON.stringify(historyList));
+
       localStorage.setItem('babyNameChecker', JSON.stringify({
         inputName,
         scores,
@@ -722,6 +831,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         strokeScore,
         uniquenessScore,
         harmonyScore,
+        total,
         timestamp: new Date().toISOString()
       }));
       document.getElementById('result').classList.add('show');
