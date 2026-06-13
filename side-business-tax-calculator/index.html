@@ -126,6 +126,10 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .restore-banner { background: #F0FDF4; border: 1.5px solid #86EFAC; border-radius: 10px; padding: 10px 14px; font-size: 13px; color: #166534; display: none; margin-bottom: 12px; }
         .restore-banner.show { display: block; }
 
+        /* M2: 検証情報表示 */
+        .validation-info { display: none; font-size: 12px; margin-top: 4px; padding: 6px 8px; border-radius: 6px; background: #fef3c7; border-left: 3px solid #f59e0b; color: #92400e; }
+        .validation-info.show { display: block; }
+
         @media (max-width: 480px) {
             .site-header { padding: 24px 16px; }
             .site-header h1 { font-size: 20px; }
@@ -226,7 +230,7 @@ input.input-valid{border-color:#16A34A!important}
             <button class="preset-btn" type="button" onclick="setPreset('main',6000000)" aria-label="本業年収を600万に設定">600万</button>
             <button class="preset-btn" type="button" onclick="setPreset('main',8000000)" aria-label="本業年収を800万に設定">800万</button>
           </div>
-          <p id="main-income-hint" style="font-size:11px;color:#9ca3af;margin-top:4px;">💡 源泉徴収票の「支払金額」を入力してください</p>
+          <p id="main-income-hint" style="font-size:11px;color:#9ca3af;margin-top:4px;">💡 源泉徴収票の「支払金額」欄を入力してください（手取りではなく総支給額）</p>
 
           <!-- 副業収入 -->
           <label for="side-income">副業の年間収入（売上・報酬総額）<span style="color:#DC2626;">*</span></label>
@@ -267,12 +271,14 @@ input.input-valid{border-color:#16A34A!important}
           <div id="expenses-error" role="alert" aria-live="polite" style="display:none;color:#DC2626;font-size:12px;margin-top:2px;"></div>
           <!-- M2: 経費率リアルタイム表示 -->
           <div id="expense-ratio-display" aria-live="polite" style="display:none;font-size:12px;margin-top:4px;padding:5px 10px;border-radius:6px;background:#f9fafb;border:1px solid #e5e7eb;"></div>
+          <!-- M2: 経費検証情報 -->
+          <div id="expense-validation-info" class="validation-info" role="status" aria-live="polite"></div>
           <div class="slider-wrap">
             <input type="range" id="expenses-slider" min="0" max="500000" step="5000" value="0"
               oninput="syncExpensesSlider(this.value);debouncedCalc()" aria-label="経費スライダー">
             <span class="slider-val" id="expenses-slider-val">0円</span>
           </div>
-          <p id="expenses-hint" style="font-size:11px;color:#9ca3af;margin-top:4px;">💡 副業に直接関係する費用（PC・通信費・書籍・交通費など）</p>
+          <p id="expenses-hint" style="font-size:11px;color:#9ca3af;margin-top:4px;">💡 副業に直接関係する費用（PC・ソフト・通信費・書籍・セミナー・交通費・家事按分など）。領収書は1年保管してください</p>
           <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:8px;padding:10px;margin-top:8px;font-size:12px;">
             <div style="color:#374151;font-weight:600;margin-bottom:6px;">💡 よくある経費例</div>
             <div id="expense-guide" style="color:#6b7280;line-height:1.6;">選択してください</div>
@@ -280,13 +286,27 @@ input.input-valid{border-color:#16A34A!important}
 
           <!-- 副業の種類 -->
           <label for="type">副業の種類</label>
-          <select id="type" aria-describedby="type-hint" onchange="updateExpenseGuide();debouncedCalc()">
+          <select id="type" aria-describedby="type-hint" onchange="updateExpenseGuide();updateTypeDescription();debouncedCalc()">
             <option value="misc">雑所得（ライティング・YouTube・ハンドメイド等）</option>
             <option value="biz">事業所得（フリーランス・コンサル・個人事業）</option>
             <option value="real">不動産所得（家賃収入）</option>
           </select>
 
           <p id="type-hint" style="font-size:11px;color:#9ca3af;margin-top:4px;">💡 種類により適用される控除や経費の考え方が異なります</p>
+          <!-- M2: 副業種別の説明 -->
+          <div id="type-description" style="background:#f8f6f1;border-left:3px solid #d97706;border-radius:6px;padding:10px;margin-top:8px;font-size:12px;color:#78350f;display:none;"></div>
+
+          <!-- M2: 入力チェックリスト -->
+          <div id="input-checklist" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px;margin-top:14px;display:none;font-size:12px;">
+            <div style="font-weight:600;color:#0369a1;margin-bottom:8px;">📋 入力内容チェック</div>
+            <div style="display:flex;flex-direction:column;gap:4px;color:#0c4a6e;">
+              <div><span id="check-main">⬜</span> 本業年収：<span id="check-main-val">未入力</span></div>
+              <div><span id="check-side">⬜</span> 副業収入：<span id="check-side-val">未入力</span></div>
+              <div><span id="check-exp">⬜</span> 経費：<span id="check-exp-val">0円（オプション）</span></div>
+              <div><span id="check-type">⬜</span> 副業の種類：<span id="check-type-val">選択なし</span></div>
+            </div>
+          </div>
+
           <button class="btn" style="margin-top:20px;" type="button" onclick="calc()" aria-label="本業年収と副業収入から税金を計算">計算する →</button>
           <div id="form-ready-hint" role="status" aria-live="polite" style="display:none;text-align:center;font-size:13px;color:#16A34A;font-weight:600;margin-top:8px;padding:8px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;">✅ 入力完了 — 「計算する」を押してください</div>
         </div>
@@ -629,11 +649,42 @@ input.input-valid{border-color:#16A34A!important}
       document.getElementById('expense-guide').textContent = guides[type] || '選択してください';
     }
 
+    function updateTypeDescription() {
+      const type = document.getElementById('type').value;
+      const descEl = document.getElementById('type-description');
+      if (!descEl) return;
+      const descriptions = {
+        misc: '📋 雑所得：継続性が低い・規模が小さい副業（青色申告の特別控除は使えません）。確定申告は必須（所得20万円超）',
+        biz: '💼 事業所得：継続的・反復的な副業（年300万円超の売上が目安）。青色申告で最大65万円の特別控除が使えます',
+        real: '🏠 不動産所得：家賃収入など。建物の減価償却費が計算上重要。複雑なため税理士相談を推奨',
+      };
+      descEl.textContent = descriptions[type] || '';
+      descEl.style.display = type ? 'block' : 'none';
+    }
+
     /* M2: 入力完了ヒント更新 */
     function updateFormReadyHint() {
       const main = parseInt(document.getElementById('main-income').value) || 0;
       const side = parseInt(document.getElementById('side-income').value) || 0;
       const hint = document.getElementById('form-ready-hint');
+      const checklist = document.getElementById('input-checklist');
+
+      // チェックリスト更新
+      if (checklist) {
+        checklist.style.display = (main > 0 || side > 0) ? 'block' : 'none';
+        document.getElementById('check-main').textContent = main > 0 ? '✅' : '⬜';
+        document.getElementById('check-main-val').textContent = main > 0 ? fmt(main) : '未入力';
+        document.getElementById('check-side').textContent = side > 0 ? '✅' : '⬜';
+        document.getElementById('check-side-val').textContent = side > 0 ? fmt(side) : '未入力';
+        const exp = parseInt(document.getElementById('expenses').value) || 0;
+        document.getElementById('check-exp').textContent = exp >= 0 ? '✅' : '⬜';
+        document.getElementById('check-exp-val').textContent = exp > 0 ? fmt(exp) : '0円（オプション）';
+        const type = document.getElementById('type').value;
+        const typeLabel = type === 'misc' ? '雑所得' : type === 'biz' ? '事業所得' : '不動産所得';
+        document.getElementById('check-type').textContent = '✅';
+        document.getElementById('check-type-val').textContent = typeLabel;
+      }
+
       if (hint) hint.style.display = (main > 0 && side > 0) ? 'block' : 'none';
     }
 
@@ -649,9 +700,33 @@ input.input-valid{border-color:#16A34A!important}
         const msg = ratio >= 80 ? '⚠️ 経費が収入の大部分です' : ratio >= 50 ? '💡 経費は高めです。領収書を保管してください' : '✅ 適切な経費率です';
         el.style.display = 'block';
         el.innerHTML = '<span style="color:' + color + ';font-weight:700;">経費率: ' + ratio + '%</span>　' + msg;
+        updateExpenseValidation(side, exp, ratio);
       } else {
         el.style.display = 'none';
+        const infoEl = document.getElementById('expense-validation-info');
+        if (infoEl) infoEl.classList.remove('show');
       }
+    }
+
+    /* M2: 経費検証情報の詳細表示 */
+    function updateExpenseValidation(sideIncome, expenses, ratio) {
+      const infoEl = document.getElementById('expense-validation-info');
+      if (!infoEl) return;
+      const netIncome = sideIncome - expenses;
+      let info = '';
+      if (ratio >= 100) {
+        info = '⚠️ 経費が副業収入以上です。所得はゼロまたはマイナスになります。';
+      } else if (ratio >= 80) {
+        info = '⚠️ 経費が高い（' + ratio + '%）ため、純利益が少なくなります。経費の妥当性を確認してください。';
+      } else if (ratio >= 50) {
+        info = '💡 経費が高い（' + ratio + '%）です。領収書を整理し、実際の経費を確認してください。';
+      } else if (ratio > 30) {
+        info = '✅ 経費率 ' + ratio + '% は妥当です。純利益：' + netIncome.toLocaleString() + '円';
+      } else {
+        info = '✅ 経費率 ' + ratio + '% です。経費の計上漏れがないか確認してください（PC・通信費・書籍など）。';
+      }
+      infoEl.textContent = info;
+      infoEl.classList.add('show');
     }
 
     /* M2: 副業収入に合わせて経費スライダー上限を動的調整 */
@@ -1019,24 +1094,25 @@ input.input-valid{border-color:#16A34A!important}
       const val = parseInt(input.value) || 0;
 
       if (key === 'main') {
-        if (val < 0) error = '年収は0以上の値を入力してください';
-        else if (val > 30000000) error = '年収は3,000万円以下で入力してください';
+        if (val < 0) error = '❌ 年収は0以上の数字を入力してください';
+        else if (val > 30000000) error = '❌ 3,000万円を超えています。正しい金額を入力してください';
       }
       if (key === 'side') {
-        if (val < 0) error = '副業収入は0以上の値を入力してください';
-        else if (val > 10000000) error = '副業収入は1,000万円以下で入力してください';
+        if (val < 0) error = '❌ 副業収入は0以上の数字を入力してください（売上総額）';
+        else if (val > 10000000) error = '❌ 1,000万円を超えています。正しい金額を入力してください';
       }
       if (key === 'expenses') {
         if (val < 0) {
-          error = '経費は0以上の値を入力してください';
+          error = '❌ 経費は0以上の数字を入力してください';
         } else {
           const side = parseInt(document.getElementById('side-income').value) || 0;
-          if (side > 0 && val >= side) error = '経費が副業収入以上です。入力値をご確認ください';
+          if (side > 0 && val > side) error = '❌ 経費が副業収入を超えています。経費を減らすか、収入の値を確認してください';
+          else if (side > 0 && val === side) error = '⚠️ 経費が副業収入と同額です。純利益がゼロになります';
         }
       }
 
       if (error) {
-        errorEl.textContent = '⚠️ ' + error;
+        errorEl.textContent = error;
         errorEl.style.display = 'block';
         input.classList.add('input-error');
         input.classList.remove('input-valid');
@@ -1056,14 +1132,21 @@ input.input-valid{border-color:#16A34A!important}
       let valid = true;
       const main = parseInt(document.getElementById('main-income').value) || 0;
       const side = parseInt(document.getElementById('side-income').value) || 0;
+      const exp = parseInt(document.getElementById('expenses').value) || 0;
 
       const mainInput = document.getElementById('main-income');
       const mainError = document.getElementById('main-income-error');
       if (!main || main <= 0) {
-        mainError.textContent = '⚠️ 本業の年収を入力してください（必須）';
+        mainError.textContent = '❌ 必須項目：本業の年収（給与）を入力してください';
         mainError.style.display = 'block';
         mainInput.classList.add('input-error');
         mainInput.classList.remove('input-valid');
+        mainInput.setAttribute('aria-invalid', 'true');
+        valid = false;
+      } else if (main > 30000000) {
+        mainError.textContent = '❌ 本業年収が大きすぎます。正しい金額を確認してください';
+        mainError.style.display = 'block';
+        mainInput.classList.add('input-error');
         mainInput.setAttribute('aria-invalid', 'true');
         valid = false;
       } else {
@@ -1076,10 +1159,22 @@ input.input-valid{border-color:#16A34A!important}
       const sideInput = document.getElementById('side-income');
       const sideError = document.getElementById('side-income-error');
       if (!side || side <= 0) {
-        sideError.textContent = '⚠️ 副業の年間収入を入力してください（必須）';
+        sideError.textContent = '❌ 必須項目：副業の年間収入（売上）を入力してください';
         sideError.style.display = 'block';
         sideInput.classList.add('input-error');
         sideInput.classList.remove('input-valid');
+        sideInput.setAttribute('aria-invalid', 'true');
+        valid = false;
+      } else if (side > 10000000) {
+        sideError.textContent = '❌ 副業収入が大きすぎます。正しい金額を確認してください';
+        sideError.style.display = 'block';
+        sideInput.classList.add('input-error');
+        sideInput.setAttribute('aria-invalid', 'true');
+        valid = false;
+      } else if (exp > side) {
+        sideError.textContent = '❌ 経費が副業収入を超えています。経費を確認してください';
+        sideError.style.display = 'block';
+        sideInput.classList.add('input-error');
         sideInput.setAttribute('aria-invalid', 'true');
         valid = false;
       } else {
@@ -1324,8 +1419,12 @@ input.input-valid{border-color:#16A34A!important}
       if (expLabel) expLabel.textContent = '0円';
       /* 経費ガイド初期表示 */
       updateExpenseGuide();
+      /* M2: 副業種別説明の初期表示 */
+      updateTypeDescription();
       /* 前回値を復元 */
       loadFromStorage();
+      /* M2: フォーム入力ヒント初期表示 */
+      updateFormReadyHint();
     });
     </script>
 
