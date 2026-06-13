@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":
 new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],
@@ -218,9 +221,32 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     </details>
     <div class="flex gap-2 mb-4">
       <button onclick="copyResults()" style="flex:1;background:#10b981;color:white;border:none;padding:0.75rem;border-radius:0.5rem;font-weight:600;cursor:pointer;">📋 結果をコピー</button>
-      <button onclick="saveScenario()" style="flex:1;background:#3b82f6;color:white;border:none;padding:0.75rem;border-radius:0.5rem;font-weight:600;cursor:pointer;">💾 このシナリオを保存</button>
+      <button onclick="window.print()" style="flex:1;background:#8b5cf6;color:white;border:none;padding:0.75rem;border-radius:0.5rem;font-weight:600;cursor:pointer;">🖨️ 印刷する</button>
+      <button onclick="downloadCSV()" style="flex:1;background:#f59e0b;color:white;border:none;padding:0.75rem;border-radius:0.5rem;font-weight:600;cursor:pointer;">📊 CSVダウンロード</button>
     </div>
     <div id="toast" style="position:fixed;bottom:20px;right:20px;background:#10b981;color:white;padding:12px 16px;border-radius:0.5rem;display:none;z-index:1000;"></div>
+  </div>
+
+  <div id="goal-section" style="display:none;">
+    <div class="card p-6 mb-4">
+      <h3 class="font-bold text-gray-800 mb-4">🎯 目標設定・進捗管理</h3>
+      <div class="space-y-3 mb-4">
+        <div>
+          <label>目標年間節約額（万円）</label>
+          <input type="number" id="goal-savings" class="input-field" placeholder="例: 15" min="1" max="100" value="">
+        </div>
+        <div>
+          <label>目標投資回収期間（年）</label>
+          <input type="number" id="goal-payback" class="input-field" placeholder="例: 10" min="1" max="30" value="">
+        </div>
+      </div>
+      <button onclick="saveGoal()" style="background:#06b6d4;color:white;border:none;padding:0.75rem;border-radius:0.5rem;font-weight:600;cursor:pointer;width:100%;">🎯 目標を保存</button>
+      <div id="goal-status" style="display:none; margin-top:1rem;">
+        <h4 style="font-weight:600;color:#374151;margin-bottom:0.75rem;">進捗状況</h4>
+        <div id="progress-display"></div>
+        <div id="comparison-display" style="margin-top:1rem;"></div>
+      </div>
+    </div>
   </div>
 
   <div id="scenarios-section" style="display:none;">
@@ -325,9 +351,11 @@ function calculate(){
   displayCalculationDetails();
   drawPaybackChart(totalCost,annualBenefit,Math.ceil(payback));
   loadScenarios();
+  loadGoalDisplay();
 
   document.getElementById('results').style.display='block';
   document.getElementById('affiliate-section').style.display='block';
+  document.getElementById('goal-section').style.display='block';
   document.getElementById('results').scrollIntoView({behavior:'smooth'});
 }
 
@@ -379,6 +407,39 @@ function copyResults(){
   });
 }
 
+function downloadCSV(){
+  var regionLabel={sunny:'日照時間が長い',normal:'平均的',cloudy:'日照が少ない'};
+  var roofLabel={small:'小さい',medium:'普通',large:'大きい'};
+  var batteryLabel={no:'太陽光のみ',5:'5kWh',10:'10kWh',15:'15kWh'};
+  var csv='【太陽光発電診断結果】\n';
+  csv+='日付,'+new Date().toLocaleDateString('ja-JP')+'\n';
+  csv+='地域,'+regionLabel[currentCalc.region]+'\n';
+  csv+='屋根面積,'+roofLabel[currentCalc.roofSize]+'\n';
+  csv+='月間電気代,'+currentCalc.bill+'円\n';
+  csv+='蓄電池,'+batteryLabel[currentCalc.batteryOption]+'\n\n';
+  csv+='【シミュレーション結果】\n';
+  csv+='設置費用,'+Math.round(currentCalc.totalCost/10000)+'万円\n';
+  csv+='年間節約額,'+Math.round(currentCalc.annualBenefit/10000*10)/10+'万円\n';
+  csv+='投資回収期間,'+Math.round(currentCalc.payback*10)/10+'年\n';
+  csv+='CO2削減量/年,'+Math.round(currentCalc.co2*10)/10+'t\n\n';
+  csv+='【詳細情報】\n';
+  csv+='年間発電量,'+Math.round(currentCalc.annualKwh)+' kWh\n';
+  csv+='自家消費率,'+(currentCalc.batteryCapacity===0?'40%':currentCalc.batteryCapacity<10?'55%':currentCalc.batteryCapacity<15?'65%':'72%')+'\n';
+  csv+='自家消費量,'+Math.round(currentCalc.selfConsume)+' kWh\n';
+  csv+='売電量,'+Math.round(currentCalc.sellAmount)+' kWh\n';
+  csv+='URL,https://appadaycreator.com/solar-panel-advisor/\n';
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  var link=document.createElement('a');
+  var url=URL.createObjectURL(blob);
+  link.setAttribute('href',url);
+  link.setAttribute('download','solar-panel-result.csv');
+  link.style.visibility='hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  showToast('📊 結果をCSVでダウンロードしました');
+}
+
 function saveScenario(){
   var scenarios=JSON.parse(localStorage.getItem('solar_scenarios')||'[]');
   if(scenarios.length>=3){alert('最大3シナリオまで保存できます');return;}
@@ -422,6 +483,55 @@ function showToast(msg){
   toast.textContent=msg;
   toast.style.display='block';
   setTimeout(function(){toast.style.display='none';},1500);
+}
+
+function saveGoal(){
+  var goalSavings=parseInt(document.getElementById('goal-savings').value);
+  var goalPayback=parseInt(document.getElementById('goal-payback').value);
+  if(!goalSavings||!goalPayback){alert('目標値を入力してください');return;}
+  var goal={savings:goalSavings,payback:goalPayback,date:new Date().toISOString()};
+  var goals=JSON.parse(localStorage.getItem('solar_goals')||'[]');
+  goals.push(goal);
+  localStorage.setItem('solar_goals',JSON.stringify(goals));
+  showToast('🎯 目標を保存しました');
+  loadGoalDisplay();
+}
+
+function loadGoalDisplay(){
+  var goals=JSON.parse(localStorage.getItem('solar_goals')||'[]');
+  var goalStatus=document.getElementById('goal-status');
+  if(goals.length===0){goalStatus.style.display='none';return;}
+  goalStatus.style.display='block';
+  var latestGoal=goals[goals.length-1];
+  var currentSavings=Math.round(currentCalc.annualBenefit/10000*10)/10;
+  var currentPayback=Math.round(currentCalc.payback*10)/10;
+  var savingsRate=Math.min(100,Math.round(currentSavings/latestGoal.savings*100));
+  var paybackRate=Math.min(100,Math.round((1-currentPayback/latestGoal.payback)*100));
+  paybackRate=Math.max(0,paybackRate);
+  var prevGoal=goals.length>=2?goals[goals.length-2]:null;
+  var html='<div class="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">';
+  html+='<div style="font-size:0.875rem;color:#374151;margin-bottom:0.5rem;">目標年間節約額: '+latestGoal.savings+'万円</div>';
+  html+='<div style="background:#e0f2fe;border-radius:0.5rem;height:24px;overflow:hidden;">';
+  html+='<div style="background:#06b6d4;height:100%;width:'+savingsRate+'%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:600;color:white;">'+savingsRate+'%</div>';
+  html+='</div>';
+  html+='<div style="font-size:0.75rem;color:#64748b;margin-top:0.25rem;">現在: '+currentSavings+'万円</div>';
+  html+='</div>';
+  html+='<div class="bg-amber-50 border border-amber-200 rounded-lg p-3">';
+  html+='<div style="font-size:0.875rem;color:#374151;margin-bottom:0.5rem;">目標投資回収期間: '+latestGoal.payback+'年</div>';
+  html+='<div style="background:#fef3c7;border-radius:0.5rem;height:24px;overflow:hidden;">';
+  html+='<div style="background:#f59e0b;height:100%;width:'+Math.max(0,100-paybackRate)+'%;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:600;color:white;">'+Math.round(paybackRate)+'%</div>';
+  html+='</div>';
+  html+='<div style="font-size:0.75rem;color:#64748b;margin-top:0.25rem;">現在: '+currentPayback+'年（短いほど良い）</div>';
+  html+='</div>';
+  if(prevGoal){
+    var prevDate=new Date(prevGoal.date).toLocaleDateString('ja-JP');
+    var improveSavings=currentSavings-prevGoal.savings;
+    var improvePayback=prevGoal.payback-currentPayback;
+    var improveSavingsText=improveSavings>0?'📈 +'+improveSavings.toFixed(1)+'万円':'📉 '+improveSavings.toFixed(1)+'万円';
+    var improvePaybackText=improvePayback>0?'📈 -'+improvePayback.toFixed(1)+'年':'📉 +'+improvePayback.toFixed(1)+'年';
+    document.getElementById('comparison-display').innerHTML='<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:0.5rem;padding:0.75rem;font-size:0.875rem;color:#374151;"><div style="font-weight:600;margin-bottom:0.5rem;">前回との比較（'+prevDate+'）</div><div>年間節約額: '+improveSavingsText+'</div><div>回収期間: '+improvePaybackText+'</div></div>';
+  }
+  document.getElementById('progress-display').innerHTML=html;
 }
 
 function drawScenarioChart(scenarios){
@@ -576,12 +686,13 @@ window.addEventListener('load',function(){
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 <!-- r46-org-footer -->
 <div style="text-align:center;font-size:11px;color:#9ca3af;padding:6px 0 4px;background:#f8fafc;border-top:1px solid #e5e7eb;">
   運営: <a href="https://appadaycreator.com/" style="color:#9ca3af;text-decoration:none;">AppADayCreator</a> | <a href="https://tech-and-brace.co.jp/" rel="noopener" style="color:#9ca3af;text-decoration:none;">株式会社Tech&amp;Brace</a>
 </div>
+<script src="/assets/consent-mode.js"></script>
 </body>
 </html>
