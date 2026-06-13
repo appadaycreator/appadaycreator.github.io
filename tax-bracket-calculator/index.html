@@ -23,8 +23,10 @@
 <meta name="twitter:title" content="所得税率・税額計算ツール【無料】年収から手取りを試算">
 <meta name="twitter:description" content="年収・控除額から所得税・住民税の実効税率と手取りを計算。登録不要・完全無料。">
 <meta name="twitter:image" content="https://appadaycreator.com/assets/ogp-default.png">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"所得税額を計算する","description":"年収と控除額を入力して、所得税・住民税・手取り額をシミュレーション","step":[{"@type":"HowToStep","name":"年収を入力","text":"スライダーまたは入力欄に年間収入（万円）を入力します"},{"@type":"HowToStep","name":"雇用形態を選択","text":"会社員・公務員またはフリーランス・個人事業主を選びます"},{"@type":"HowToStep","name":"年齢・控除を設定","text":"年齢（介護保険該当）と追加控除額（iDeCo等）を入力します"},{"@type":"HowToStep","name":"計算ボタンをクリック","text":"「税額を計算する」ボタンを押して結果を表示します"},{"@type":"HowToStep","name":"結果を確認","text":"所得税・住民税・社会保険料・手取り額・実効税率が表示されます"}]}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"所得税率・税額計算ツール","url":"https://appadaycreator.com/tax-bracket-calculator/","description":"年収・控除額から所得税・住民税の実効税率と年税額を計算","applicationCategory":"FinanceApplication","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"}}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"所得税の計算方法を教えてください","acceptedAnswer":{"@type":"Answer","text":"所得税は超過累進課税方式で計算します。課税所得（年収から各種控除を引いた金額）に対して5%〜45%の税率を段階的に適用します。"}},{"@type":"Question","name":"住民税の税率はいくらですか","acceptedAnswer":{"@type":"Answer","text":"住民税は原則として課税所得の10%（市区町村民税6%+道府県民税4%）に均等割約5,000円が加算されます。"}},{"@type":"Question","name":"手取り額の計算方法は","acceptedAnswer":{"@type":"Answer","text":"手取り額は年収から所得税・住民税・社会保険料を引いた金額です。会社員の場合は健保・厚生年金・雇用保険の合計が年収の約20〜25%程度になります。"}}]}</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Noto Sans JP',sans-serif;background:#f0f4ff;color:#1e1b4b;line-height:1.7}
@@ -100,31 +102,46 @@ footer a{color:#a5b4fc}
   <span class="tag">所得税</span><span class="tag">住民税</span><span class="tag">手取り</span><span class="tag">実効税率</span>
 </div>
 
-<label for="income">年収（万円）</label>
+<div style="display:flex;align-items:center;gap:.35rem;margin-bottom:.35rem">
+  <label for="income" style="margin:0">年収（万円）</label>
+  <span title="1年間の総収入。給与・事業所得等" style="background:#e0e7ff;color:#4338ca;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;cursor:help">?</span>
+</div>
 <div class="range-wrap">
   <input type="range" id="income-range" min="0" max="3000" step="10" value="500" oninput="document.getElementById('income').value=this.value;autoCalc()">
-  <input type="number" id="income" value="500" min="0" max="99999" placeholder="500" oninput="document.getElementById('income-range').value=Math.min(3000,this.value||0);autoCalc()" style="width:120px;flex:none">
+  <input type="number" id="income" value="500" min="0" max="99999" placeholder="500" oninput="document.getElementById('income-range').value=Math.min(3000,this.value||0);autoCalc()" style="width:120px;flex:none" title="1年間の総収入（万円）">
 </div>
 
-<label for="employ">雇用形態</label>
-<select id="employ" onchange="toggleFreelance();autoCalc()">
+<div style="display:flex;align-items:center;gap:.35rem;margin-top:.9rem;margin-bottom:.35rem">
+  <label for="employ" style="margin:0">雇用形態</label>
+  <span title="会社員：給与所得 / フリーランス：事業所得" style="background:#e0e7ff;color:#4338ca;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;cursor:help">?</span>
+</div>
+<select id="employ" onchange="toggleFreelance();autoCalc()" title="雇用形態を選択（控除や保険料が変わります）">
   <option value="employee">会社員・公務員</option>
   <option value="freelance">フリーランス・個人事業主</option>
 </select>
 
 <div id="expense-wrap" style="display:none">
-  <label for="expense">経費（万円） ※フリーランスの方</label>
-  <input type="number" id="expense" value="0" min="0" placeholder="0" oninput="autoCalc()">
+  <div style="display:flex;align-items:center;gap:.35rem;margin-top:.9rem;margin-bottom:.35rem">
+    <label for="expense" style="margin:0">経費（万円）</label>
+    <span title="事業に必要な費用。売上から差し引きます" style="background:#e0e7ff;color:#4338ca;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;cursor:help">?</span>
+  </div>
+  <input type="number" id="expense" value="0" min="0" placeholder="0" oninput="autoCalc()" title="事業に必要な経費（万円）">
 </div>
 
-<label for="age">年齢</label>
-<select id="age" onchange="autoCalc()">
+<div style="display:flex;align-items:center;gap:.35rem;margin-top:.9rem;margin-bottom:.35rem">
+  <label for="age" style="margin:0">年齢</label>
+  <span title="40歳以上は介護保険料が加算されます" style="background:#e0e7ff;color:#4338ca;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;cursor:help">?</span>
+</div>
+<select id="age" onchange="autoCalc()" title="年齢区分（介護保険の有無）">
   <option value="u40">40歳未満</option>
   <option value="o40">40歳以上（介護保険加入）</option>
 </select>
 
-<label for="deduction">追加控除（万円） ※iDeCo・生命保険・配偶者控除など合計</label>
-<input type="number" id="deduction" value="0" min="0" placeholder="0" oninput="autoCalc()">
+<div style="display:flex;align-items:center;gap:.35rem;margin-top:.9rem;margin-bottom:.35rem">
+  <label for="deduction" style="margin:0">追加控除（万円）</label>
+  <span title="iDeCo・生命保険・配偶者控除など" style="background:#e0e7ff;color:#4338ca;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;cursor:help">?</span>
+</div>
+<input type="number" id="deduction" value="0" min="0" placeholder="0" oninput="autoCalc()" title="iDeCo・生命保険料控除・配偶者控除など合計（万円）">
 
 <button class="btn" onclick="calculate()">💡 税額を計算する</button>
 
@@ -132,7 +149,22 @@ footer a{color:#a5b4fc}
   <div class="result-box">
     <div class="result-main" id="result-main"></div>
     <div class="result-sub" id="result-sub"></div>
+    <div style="margin:1.25rem 0;position:relative;height:280px">
+      <canvas id="tax-breakdown-chart" style="max-height:280px"></canvas>
+    </div>
     <div class="detail-grid" id="result-detail"></div>
+  </div>
+  <div style="background:#f5f3ff;border-radius:10px;padding:1rem;margin-top:1.25rem">
+    <p style="font-weight:700;font-size:.9rem;color:#4338ca;margin-bottom:.75rem">📚 この結果をもっと活用する</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1rem">
+      <a href="https://appadaycreator.com/freelance-tax-advisor/" style="background:#6366f1;color:#fff;text-align:center;padding:.6rem .75rem;border-radius:8px;font-size:.875rem;font-weight:600;text-decoration:none">💼 フリーランス税金診断</a>
+      <a href="https://appadaycreator.com/nisa-ideco-simulator/" style="background:#6366f1;color:#fff;text-align:center;padding:.6rem .75rem;border-radius:8px;font-size:.875rem;font-weight:600;text-decoration:none">📈 NISA・iDeCoシミュレーター</a>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;padding-top:1rem;border-top:1px solid #e0e7ff">
+      <button onclick="printResult()" style="background:#8b5cf6;color:#fff;text-align:center;padding:.6rem .75rem;border:none;border-radius:8px;font-size:.875rem;font-weight:600;cursor:pointer;text-decoration:none">🖨️ 結果を印刷</button>
+      <button onclick="copyResultToClipboard()" style="background:#ec4899;color:#fff;text-align:center;padding:.6rem .75rem;border:none;border-radius:8px;font-size:.875rem;font-weight:600;cursor:pointer;text-decoration:none">📋 結果をコピー</button>
+    </div>
+    <button onclick="downloadResultAsCSV()" style="width:100%;background:#f59e0b;color:#fff;text-align:center;padding:.6rem .75rem;border:none;border-radius:8px;font-size:.875rem;font-weight:600;cursor:pointer;margin-top:.5rem">📊 CSVでダウンロード</button>
   </div>
 </div>
 </div>
@@ -319,6 +351,7 @@ footer a{color:#a5b4fc}
   <p><a href="https://appadaycreator.com/">AppADayCreator</a> | <a href="https://appadaycreator.com/privacy-policy.html">プライバシーポリシー</a> | <a href="https://appadaycreator.com/terms.html">利用規約</a></p>
   <p style="margin-top:.5rem;font-size:.8rem;opacity:.7">※本ツールの計算結果は概算です。正確な納税額は税務署・税理士へのご相談をお勧めします。確定申告が必要な場合は国税庁のe-Taxをご利用ください。</p>
 </div>
+<div style="text-align:center;padding:12px 16px;font-size:.9em;"><a href="https://twitter.com/intent/tweet?url=https%3A//appadaycreator.com/tax-bracket-calculator/&text=%E6%89%80%E5%BE%97%E7%A8%8E%E7%8E%87%E3%83%BB%E7%A8%8E%E9%A1%8D%E8%A8%88%E7%AE%97%E3%83%84%E3%83%BC%E3%83%AB" target="_blank" rel="noopener" style="margin:4px 10px;color:#1da1f2;">𝕏でシェア</a><a href="https://line.me/R/share?text=%E6%89%80%E5%BE%97%E7%A8%8E%E7%8E%87%E3%83%BB%E7%A8%8E%E9%A1%8D%E8%A8%88%E7%AE%97%E3%83%84%E3%83%BC%E3%83%AB+https%3A//appadaycreator.com/tax-bracket-calculator/" target="_blank" rel="noopener" style="margin:4px 10px;color:#06c755;">LINEで送る</a></div>
 </footer>
 
 <script>
@@ -387,10 +420,84 @@ function calculate(){
     '<span class="lbl">給与所得控除/経費</span><span class="val">'+fmt(salaryDeduct)+'円</span>'+
     '<span class="lbl">実効税率</span><span class="val">'+effRate+'%</span>';
   document.getElementById('result').style.display='block';
+  drawTaxChart(totalIncomeTax,resTax,socialIns,totalTax);
 }
 function togFaq(el){
   var a=el.nextElementSibling;
   a.style.display=(a.style.display==='block'?'none':'block');
+}
+var taxChart=null;
+function drawTaxChart(incomeTax,resTax,socialIns,totalTax){
+  var ctx=document.getElementById('tax-breakdown-chart').getContext('2d');
+  if(taxChart) taxChart.destroy();
+  taxChart=new Chart(ctx,{
+    type:'doughnut',
+    data:{
+      labels:['所得税','住民税','社会保険料'],
+      datasets:[{
+        data:[incomeTax,resTax,socialIns],
+        backgroundColor:['#6366f1','#a5b4fc','#e0e7ff'],
+        borderColor:'#fff',
+        borderWidth:2
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom',labels:{boxWidth:12,font:{size:12},padding:15}}
+      }
+    }
+  });
+}
+function printResult(){
+  window.print();
+}
+function copyResultToClipboard(){
+  var resultMain=document.getElementById('result-main').textContent;
+  var resultSub=document.getElementById('result-sub').textContent;
+  var resultDetail=document.getElementById('result-detail').textContent;
+  var text=resultMain+'\n'+resultSub+'\n\n詳細:\n'+resultDetail;
+  navigator.clipboard.writeText(text).then(function(){
+    alert('計算結果をコピーしました');
+  }).catch(function(){
+    var textarea=document.createElement('textarea');
+    textarea.value=text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    alert('計算結果をコピーしました');
+  });
+}
+function downloadResultAsCSV(){
+  var income=parseFloat(document.getElementById('income').value)||0;
+  var employ=document.getElementById('employ').value;
+  var age=document.getElementById('age').value;
+  var expense=parseFloat(document.getElementById('expense').value)||0;
+  var deduction=parseFloat(document.getElementById('deduction').value)||0;
+  var detailText=document.getElementById('result-detail').textContent;
+  var lines=['年収計算結果'];
+  lines.push('年収（万円）,'+income);
+  lines.push('雇用形態,'+employ);
+  lines.push('年齢区分,'+age);
+  if(employ==='freelance')lines.push('経費（万円）,'+expense);
+  lines.push('追加控除（万円）,'+deduction);
+  lines.push('');
+  lines.push('計算結果');
+  var detailLines=detailText.split('\n').filter(function(l){return l.trim();});
+  for(var i=0;i<detailLines.length;i++){
+    lines.push(detailLines[i]);
+  }
+  var csv=lines.join('\n');
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  var link=document.createElement('a');
+  link.setAttribute('href',URL.createObjectURL(blob));
+  link.setAttribute('download','tax-calculation-result.csv');
+  link.style.visibility='hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 </script>
 </body>
