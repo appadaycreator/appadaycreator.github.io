@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":
 new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],
@@ -253,6 +256,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   40%,80% { transform: translateX(6px); }
 }
 .input-shake { animation: input-shake .4s ease; }
+/* M2: リアルタイム入力プレビュー */
+.live-preview { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 10px 14px; margin-top: 10px; font-size: 13px; color: #0369a1; display: none; transition: opacity .2s; }
+.live-preview.visible { display: block; }
+.live-preview-date { font-size: 18px; font-weight: 800; color: #E11D48; line-height: 1.2; }
 </style>
 </head>
 <body>
@@ -286,7 +293,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
 
     <main id="main-content" class="container" role="main" aria-label="生理周期トラッカーのメインコンテンツ">
-        <ins class="adsbygoogle" style="display:block;min-height:90px;margin:12px 0" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+        <ins class="adsbygoogle" data-npa="1" style="display:block;min-height:90px;margin:12px 0" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
         <script>try{try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}}catch(e){}</script>
 
         <div class="card">
@@ -355,6 +362,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
           <div id="form-ready-hint" style="font-size:12px;margin-top:12px;padding:8px 12px;border-radius:8px;background:#f0fdf4;border:1px solid #86efac;color:#166534;display:none;">
             ✅ 入力完了 — 「計算する」をタップしてください
+          </div>
+          <!-- M2: リアルタイム予測プレビュー（計算ボタン前の参考表示） -->
+          <div id="live-preview" class="live-preview" role="status" aria-live="polite" aria-label="入力中の参考プレビュー">
+            <div style="font-size:11px;color:#0369a1;font-weight:600;margin-bottom:6px;">📊 入力中プレビュー（参考値）</div>
+            <div id="live-preview-content"></div>
+            <div style="font-size:10px;color:#94a3b8;margin-top:6px;">※「計算する」を押すと詳細な予測・カレンダーが表示されます</div>
           </div>
           <button class="btn" id="calc-btn" style="margin-top:12px;opacity:0.7;transition:opacity 0.2s;" onclick="calc()" title="最終生理開始日を入力してから計算できます">計算する →</button>
         </div>
@@ -492,7 +505,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             </div>
         </div>
 
-        <ins class="adsbygoogle" style="display:block;min-height:90px;margin:12px 0" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
+        <ins class="adsbygoogle" data-npa="1" style="display:block;min-height:90px;margin:12px 0" data-ad-client="ca-pub-8427583028015858" data-ad-slot="auto" data-ad-format="auto" data-full-width-responsive="true"></ins>
         <script>try{try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}}catch(e){}</script>
 
         <!-- 使い方セクション -->
@@ -805,6 +818,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const hintId = rangeId === 'cycle-range' ? 'cycle-hint' : 'period-hint';
       const hintText = document.getElementById(hintId)?.textContent || '';
       el.setAttribute('aria-valuetext', `${el.value}日 ${hintText}`);
+      // M2: 周期スライダー変更時にリアルタイムプレビューを更新
+      if (rangeId === 'cycle-range') updateLivePreview();
     }
 
     /* M2: スライダー参考値ヒント表示 */
@@ -1552,7 +1567,71 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       // ボタンをアクティブ化
       const calcBtn = document.getElementById('calc-btn');
       if (calcBtn) { calcBtn.style.opacity = '1'; calcBtn.title = '計算する'; }
+      // リアルタイムプレビューを更新
+      updateLivePreview();
       return true;
+    }
+
+    /* M2: リアルタイム予測プレビュー更新 */
+    function updateLivePreview() {
+      const dateStr = document.getElementById('last-date').value;
+      const cycle = parseInt(document.getElementById('cycle-range').value);
+      const previewEl = document.getElementById('live-preview');
+      const contentEl = document.getElementById('live-preview-content');
+
+      if (!dateStr || !previewEl || !contentEl) {
+        if (previewEl) previewEl.classList.remove('visible');
+        return;
+      }
+
+      const last = new Date(dateStr + 'T00:00:00');
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (isNaN(last.getTime()) || last > today) {
+        previewEl.classList.remove('visible');
+        return;
+      }
+
+      const daysElapsed = Math.floor((today - last) / 86400000);
+      if (daysElapsed > 180) {
+        previewEl.classList.remove('visible');
+        return;
+      }
+
+      const cyclesCompleted = Math.floor(daysElapsed / cycle);
+      const nextPeriod = new Date(last);
+      nextPeriod.setDate(nextPeriod.getDate() + (cyclesCompleted + 1) * cycle);
+
+      const ovulDayInCycle = cycle - 14;
+      const curOvul = new Date(last);
+      curOvul.setDate(curOvul.getDate() + cyclesCompleted * cycle + ovulDayInCycle);
+      const nxtOvul = new Date(curOvul);
+      nxtOvul.setDate(nxtOvul.getDate() + cycle);
+      const ovulTarget = curOvul >= today ? curOvul : nxtOvul;
+
+      const daysUntilNext = Math.ceil((nextPeriod - today) / 86400000);
+      const daysUntilOvul = Math.ceil((ovulTarget - today) / 86400000);
+
+      function fmtShort(d) {
+        return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate();
+      }
+
+      contentEl.innerHTML = `
+        <div style="display:flex;gap:20px;flex-wrap:wrap;">
+          <div>
+            <div style="font-size:11px;color:#6b7280;margin-bottom:2px;">次の生理予定日</div>
+            <div class="live-preview-date">${fmtShort(nextPeriod)}</div>
+            <div style="font-size:11px;color:#0369a1;">あと${daysUntilNext}日</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:#6b7280;margin-bottom:2px;">排卵予定日（目安）</div>
+            <div class="live-preview-date" style="color:#7C3AED;">${fmtShort(ovulTarget)}</div>
+            <div style="font-size:11px;color:#0369a1;">あと${daysUntilOvul}日</div>
+          </div>
+        </div>`;
+
+      previewEl.classList.add('visible');
     }
 
     /* M2: バリデーション関数 - 過去の生理開始日 */
@@ -1746,8 +1825,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
+<script src="/assets/consent-mode.js"></script>
 </body>
 </html>
