@@ -83,6 +83,14 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 .related-link{padding:10px;text-align:center;border:1px solid #ddd;border-radius:4px;text-decoration:none;color:#333;display:block;transition:background 0.15s;}
 .related-link:hover{background:#f5f5f5;}
 
+/* M8: ツールチップ・入力ガイダンス */
+.tooltip-icon{display:inline-block;width:18px;height:18px;background:#7c3aed;color:white;border-radius:50%;text-align:center;line-height:18px;font-size:12px;font-weight:bold;cursor:help;margin-left:6px;position:relative;vertical-align:middle;}
+.tooltip-icon:hover::after{content:attr(data-tooltip);position:absolute;left:-100px;top:25px;width:200px;background:#1e293b;color:white;padding:8px 10px;border-radius:6px;font-size:12px;font-weight:normal;z-index:1000;white-space:normal;line-height:1.4;border:1px solid #7c3aed;}
+.tooltip-icon:hover::before{content:'';position:absolute;left:-92px;top:20px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:6px solid #1e293b;z-index:1000;}
+.input-helper{font-size:12px;color:#64748b;margin-top:4px;display:block;}
+.hint-text{font-size:13px;color:#7c3aed;background:#f5f3ff;padding:8px;border-left:3px solid #7c3aed;border-radius:4px;margin-top:8px;}
+.question-hint{font-size:12px;color:#64748b;margin-top:8px;padding:8px;background:#f8fafc;border-radius:6px;border-left:3px solid #cbd5e1;}
+
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
 
@@ -255,7 +263,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     </div>
     <div class="card p-6">
       <h2 class="text-lg font-bold text-gray-800 mb-5" id="q-text"></h2>
-      <div id="opts" role="radiogroup" aria-labelledby="q-text"></div>
+      <div id="q-hint" class="question-hint" style="display:none;"></div>
+      <div id="opts" role="radiogroup" aria-labelledby="q-text" aria-describedby="q-hint"></div>
     </div>
     <button id="btn-back" class="w-full mt-3 py-2 text-sm text-gray-500 border border-gray-300 rounded-xl bg-white hover:bg-gray-50 transition" onclick="goBack()" style="display:none;" aria-label="前の質問に戻る">← 前の質問に戻る</button>
   </div>
@@ -381,12 +390,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="card p-6 mb-4">
       <h3 class="font-bold text-gray-800 mb-3">🎯 目標値の設定と進捗追跡</h3>
       <div class="mb-4">
-        <label class="text-sm text-gray-700 block mb-2">月額目標額を設定（予算管理）</label>
-        <input type="number" id="targetBudget" placeholder="例: 150000" min="0" step="10000" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" style="font-size:16px;">
+        <label class="text-sm text-gray-700 block mb-2">月額目標額を設定（予算管理）<span class="tooltip-icon" data-tooltip="毎月予定している介護費用の上限額を入力してください。診断結果と比較して予算を管理できます">？</span></label>
+        <input type="number" id="targetBudget" placeholder="例: 150000" min="0" step="10000" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" style="font-size:16px;" aria-describedby="targetBudgetHelp">
+        <span id="targetBudgetHelp" class="input-helper">💡 施設の利用希望額や家計管理の予算上限を円単位で入力</span>
       </div>
       <div class="mb-4">
-        <label class="text-sm text-gray-700 block mb-2">実際の月額費用</label>
-        <input type="number" id="actualCost" placeholder="例: 120000" min="0" step="10000" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" style="font-size:16px;">
+        <label class="text-sm text-gray-700 block mb-2">実際の月額費用<span class="tooltip-icon" data-tooltip="実際に施設から請求されている、または見積もられている月額費用を入力してください">？</span></label>
+        <input type="number" id="actualCost" placeholder="例: 120000" min="0" step="10000" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" style="font-size:16px;" aria-describedby="actualCostHelp">
+        <span id="actualCostHelp" class="input-helper">💡 契約書や施設からの見積もり書に記載の月額合計金額を入力</span>
       </div>
       <button onclick="saveGoal()" class="w-full bg-purple-600 text-white font-bold py-2 rounded-lg hover:bg-purple-700 transition mb-3" style="min-height:48px;">目標を保存</button>
       <div id="goalProgress" style="display:none;">
@@ -426,11 +437,11 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
 <script>
 var Qs = [
-  { text:"対象者の現在の状況は？", opts:["自立（元気）","少し介助が必要","要支援1〜2","要介護1〜2","要介護3〜5（重度）"], key:"level" },
-  { text:"認知症の状況は？", opts:["なし・軽度の物忘れ","軽度（日常は自立）","中程度（見守り必要）","重度（常時介護必要）"], key:"dementia" },
-  { text:"居住エリアは？", opts:["都市部（東京・大阪・名古屋等）","地方都市","郊外・農村部"], key:"area" },
-  { text:"月に使える介護費用（自己負担）は？", opts:["5万円未満","5〜10万円","10〜20万円","20万円以上"], key:"budget" },
-  { text:"最も重視することは？", opts:["費用を抑えたい","自宅に近い施設","医療ケアの充実","レクリエーション等の充実"], key:"priority" }
+  { text:"対象者の現在の状況は？", hint:"介護保険の要介護認定で判定された度合い、またはそれに相当する日常生活の状況を選択してください", opts:["自立（元気）","少し介助が必要","要支援1〜2","要介護1〜2","要介護3〜5（重度）"], key:"level" },
+  { text:"認知症の状況は？", hint:"認知症の有無や進行度によって、適した施設タイプが異なります。現在の状況に最も近いものを選択してください", opts:["なし・軽度の物忘れ","軽度（日常は自立）","中程度（見守り必要）","重度（常時介護必要）"], key:"dementia" },
+  { text:"居住エリアは？", hint:"地域によって施設の数・待機期間・費用相場が大きく異なります。現在の居住地を選択してください", opts:["都市部（東京・大阪・名古屋等）","地方都市","郊外・農村部"], key:"area" },
+  { text:"月に使える介護費用（自己負担）は？", hint:"介護保険の自己負担分（1～3割）と、食費・居住費などを合わせた月額の目安を選択してください", opts:["5万円未満","5〜10万円","10〜20万円","20万円以上"], key:"budget" },
+  { text:"最も重視することは？", hint:"複数の条件がある場合は、最も優先度の高いものを選択してください。これが推奨施設の判断に影響します", opts:["費用を抑えたい","自宅に近い施設","医療ケアの充実","レクリエーション等の充実"], key:"priority" }
 ];
 var cur=0,ans={};
 
@@ -524,6 +535,14 @@ function renderQ() {
   document.getElementById('q-pct').textContent=pct+'%';
   document.getElementById('prog').style.width=pct+'%';
   document.getElementById('q-text').textContent=q.text;
+  // M8: ヒントテキストを表示
+  var hintEl = document.getElementById('q-hint');
+  if(q.hint) {
+    hintEl.textContent = '💡 ' + q.hint;
+    hintEl.style.display = 'block';
+  } else {
+    hintEl.style.display = 'none';
+  }
   var c=document.getElementById('opts'); c.innerHTML='';
   q.opts.forEach(function(opt,i){
     var b=document.createElement('button');
