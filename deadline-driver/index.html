@@ -213,6 +213,9 @@ button:active,[class*=btn]:active{opacity:.75;transform:scale(.98);}
 select,input[type=text],input[type=number],input[type=email],textarea{min-height:44px;font-size:16px;}
 [id*=result]:not(style):not(script),[id*=output]:not(style):not(script){border-left:4px solid #7c3aed;padding-left:16px;margin-top:16px;}
 @media(max-width:640px){[class*=max-w],[class*=container],[class*=wrapper]{padding:12px 16px!important;}button,[class*=btn]{width:100%;font-size:15px;}}
+/* 入力成功状態（バリデーション通過後のグリーンボーダー） */
+.input-success{border-color:#16a34a!important;box-shadow:0 0 0 1px #16a34a!important;}
+.input-error{border-color:#dc2626!important;box-shadow:0 0 0 1px #dc2626!important;}
 </style>
 <style id="dd-extra">
 /* リストビュー */
@@ -607,7 +610,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         <div class="space-y-4">
                             <div>
                                 <label for="project-name" class="block text-sm font-medium mb-2" data-translate="project_name">プロジェクト名 <span class="text-red-500 text-xs font-bold" aria-hidden="true">必須</span></label>
-                                <input type="text" id="project-name" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white" required aria-required="true" aria-label="プロジェクト名" placeholder="例：書籍執筆プロジェクト" maxlength="50">
+                                <input type="text" id="project-name" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white" required aria-required="true" aria-label="プロジェクト名" aria-describedby="error-project-name" placeholder="例：書籍執筆プロジェクト" maxlength="50" autocomplete="off">
                                 <div class="flex justify-between items-center mt-1">
                                     <span id="error-project-name" class="text-red-500 text-xs hidden" role="alert"></span>
                                     <span id="project-name-counter" class="text-xs text-gray-400 ml-auto">0/50</span>
@@ -617,8 +620,9 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label for="project-deadline" class="block text-sm font-medium mb-2" data-translate="deadline">締切日 <span class="text-red-500 text-xs font-bold" aria-hidden="true">必須</span></label>
-                                    <input type="date" id="project-deadline" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white" placeholder="例：2026-06-30" required aria-required="true" aria-label="締切日（例：2026-06-30）">
+                                    <input type="date" id="project-deadline" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white" placeholder="例：2026-06-30" required aria-required="true" aria-label="締切日（例：2026-06-30）" aria-describedby="error-project-deadline deadline-hint">
                                     <span id="error-project-deadline" class="text-red-500 text-xs mt-1 hidden" role="alert"></span>
+                                    <span id="deadline-hint" class="text-gray-400 text-xs mt-1 block">本日以降の日付を選択してください</span>
                                 </div>
 
                                 <div>
@@ -634,8 +638,9 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
 
                             <div>
                                 <label for="total-work" class="block text-sm font-medium mb-2" data-translate="total_work">総作業量 <span class="text-red-500 text-xs font-bold" aria-hidden="true">必須</span></label>
-                                <input type="number" id="total-work" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white" min="1" required aria-required="true" aria-label="総作業量（1以上の数値）" placeholder="例：100（最小値: 1）">
+                                <input type="number" id="total-work" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white" min="0.5" step="1" required aria-required="true" aria-label="総作業量（1以上の数値）" aria-describedby="error-total-work total-work-hint" placeholder="例：100（最小値: 1）">
                                 <span id="error-total-work" class="text-red-500 text-xs mt-1 hidden" role="alert"></span>
+                                <span id="total-work-hint" class="text-gray-400 text-xs mt-1 block">作業単位に合わせた合計量を入力（例: 時間なら「40」、ページなら「200」）</span>
                                 <p id="daily-quota-preview" class="text-xs text-blue-600 mt-1 hidden">1日のノルマ目安: <strong id="daily-quota-value">-</strong></p>
                             </div>
 
@@ -1102,6 +1107,12 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     }
                 });
 
+                // 入力フィールドの成功/エラー状態を視覚的に切替えるユーティリティ
+                const setInputState = (inputEl, isValid) => {
+                    inputEl.classList.toggle('input-success', isValid);
+                    inputEl.classList.toggle('input-error', !isValid);
+                };
+
                 // プロジェクト名の文字カウンター＋ブラーバリデーション
                 const projectNameInput = document.getElementById('project-name');
                 const projectNameCounter = document.getElementById('project-name-counter');
@@ -1117,11 +1128,14 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         if (!val) {
                             errEl.textContent = 'プロジェクト名を入力してください';
                             errEl.classList.remove('hidden');
+                            setInputState(projectNameInput, false);
                         } else if (val.length > 50) {
                             errEl.textContent = 'プロジェクト名は50文字以内で入力してください';
                             errEl.classList.remove('hidden');
+                            setInputState(projectNameInput, false);
                         } else {
                             errEl.classList.add('hidden');
+                            setInputState(projectNameInput, true);
                         }
                     });
                 }
@@ -1153,30 +1167,64 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 });
 
                 // 締切日のブラーバリデーション
-                document.getElementById('project-deadline').addEventListener('blur', () => {
-                    const val = document.getElementById('project-deadline').value;
+                const deadlineInput = document.getElementById('project-deadline');
+                deadlineInput.addEventListener('blur', () => {
+                    const val = deadlineInput.value;
                     const errEl = document.getElementById('error-project-deadline');
                     if (!val) {
                         errEl.textContent = '締切日を選択してください';
                         errEl.classList.remove('hidden');
+                        setInputState(deadlineInput, false);
                     } else {
                         const sel = new Date(val); const today = new Date(); today.setHours(0,0,0,0);
                         if (sel < today) {
                             errEl.textContent = '締切日は本日以降を選択してください';
                             errEl.classList.remove('hidden');
-                        } else { errEl.classList.add('hidden'); }
+                            setInputState(deadlineInput, false);
+                        } else {
+                            errEl.classList.add('hidden');
+                            setInputState(deadlineInput, true);
+                        }
                     }
                     updateDailyPreview();
                 });
 
+                // 作業単位変更時にtotal-workのstepとplaceholderを動的更新
+                const workUnitSelect = document.getElementById('work-unit');
+                const totalWorkInput = document.getElementById('total-work');
+                const updateTotalWorkHints = () => {
+                    const unit = workUnitSelect ? workUnitSelect.value : 'hours';
+                    const hints = {
+                        hours: { step: '0.5', placeholder: '例：40（0.5時間単位）', hint: '合計時間数（例: 40時間 = 5日×8時間）' },
+                        pages: { step: '1',   placeholder: '例：200（1ページ単位）', hint: '合計ページ数を入力（例: 200ページ）' },
+                        items: { step: '1',   placeholder: '例：50（1個単位）',      hint: '完成させるアイテム総数を入力' },
+                        tasks: { step: '1',   placeholder: '例：30（1タスク単位）',  hint: '完了させるタスク総数を入力' }
+                    };
+                    const h = hints[unit] || hints.hours;
+                    if (totalWorkInput) {
+                        totalWorkInput.step = h.step;
+                        totalWorkInput.placeholder = h.placeholder;
+                    }
+                    const hintEl = document.getElementById('total-work-hint');
+                    if (hintEl) hintEl.textContent = h.hint;
+                    updateDailyPreview();
+                };
+                if (workUnitSelect) workUnitSelect.addEventListener('change', updateTotalWorkHints);
+                // 初回実行
+                updateTotalWorkHints();
+
                 // 総作業量のブラーバリデーション
-                document.getElementById('total-work').addEventListener('blur', () => {
-                    const val = document.getElementById('total-work').value;
+                totalWorkInput.addEventListener('blur', () => {
+                    const val = totalWorkInput.value;
                     const errEl = document.getElementById('error-total-work');
-                    if (!val || isNaN(val) || parseInt(val) < 1) {
-                        errEl.textContent = '総作業量は1以上の数値を入力してください';
+                    if (!val || isNaN(val) || parseFloat(val) < 0.5) {
+                        errEl.textContent = '総作業量は0.5以上の数値を入力してください';
                         errEl.classList.remove('hidden');
-                    } else { errEl.classList.add('hidden'); }
+                        setInputState(totalWorkInput, false);
+                    } else {
+                        errEl.classList.add('hidden');
+                        setInputState(totalWorkInput, true);
+                    }
                     updateDailyPreview();
                 });
 
@@ -1319,6 +1367,11 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 }
                 
                 modal.classList.remove('hidden');
+                // モーダル表示後にプロジェクト名へ自動フォーカス
+                requestAnimationFrame(() => {
+                    const nameInput = document.getElementById('project-name');
+                    if (nameInput) nameInput.focus();
+                });
             }
 
             // プロジェクトモーダル非表示
@@ -1406,8 +1459,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
 
                 const totalWork = document.getElementById('total-work').value;
                 const totalWorkError = document.getElementById('error-total-work');
-                if (!totalWork || isNaN(totalWork) || parseInt(totalWork) < 1) {
-                    totalWorkError.textContent = '総作業量は1以上の数値を入力してください';
+                if (!totalWork || isNaN(totalWork) || parseFloat(totalWork) < 0.5) {
+                    totalWorkError.textContent = '総作業量は0.5以上の数値を入力してください';
                     totalWorkError.classList.remove('hidden');
                     hasError = true;
                 } else {
