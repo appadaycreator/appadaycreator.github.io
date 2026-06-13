@@ -961,12 +961,33 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
           <div class="mb-4">
             <label class="block text-sm font-semibold text-gray-700 mb-2">目標削減額（月額） <span class="text-red-500">*</span></label>
-            <div class="flex items-center gap-2">
-              <input type="number" id="goal-input" placeholder="例: ${saving}" value="${saving}" min="100" max="50000" step="100" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" aria-label="月額削減目標（100円～50000円）" aria-describedby="goal-error goal-hint">
+
+            <!-- 数値入力フィールド -->
+            <div class="flex items-center gap-2 mb-3">
+              <input type="number" id="goal-input" placeholder="例: ${saving}" value="${saving}" min="100" max="50000" step="100" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" aria-label="月額削減目標（100円～50000円）" aria-describedby="goal-error goal-hint" onchange="updateGoalSlider()">
               <span class="text-lg font-semibold text-gray-700">円</span>
             </div>
-            <p class="text-xs text-gray-500 mt-2" id="goal-hint">推奨: ${saving}円（診断結果） | 範囲: 100～50,000円</p>
-            <p class="text-xs text-red-600 mt-1 hidden" id="goal-error" role="alert"></p>
+
+            <!-- 範囲スライダー -->
+            <input type="range" id="goal-slider" min="100" max="50000" step="100" value="${saving}" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-green-600" aria-label="目標削減額スライダー（100～50,000円）" oninput="updateGoalInput()">
+
+            <!-- スライダー値表示 -->
+            <div class="flex justify-between text-xs text-gray-500 mt-1 px-1">
+              <span>100円</span>
+              <span id="slider-display" class="font-semibold text-green-600">${saving}円</span>
+              <span>50,000円</span>
+            </div>
+
+            <!-- クイックプリセットボタン -->
+            <div class="mt-3 grid grid-cols-2 gap-2">
+              <button type="button" onclick="setGoalPreset(Math.round(${saving} * 0.5))" class="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition">50%</button>
+              <button type="button" onclick="setGoalPreset(Math.round(${saving} * 0.75))" class="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition">75%</button>
+              <button type="button" onclick="setGoalPreset(${saving})" class="px-2 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-800 rounded font-semibold transition">推奨</button>
+              <button type="button" onclick="setGoalPreset(Math.round(${saving} * 1.25))" class="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition">+25%</button>
+            </div>
+
+            <p class="text-xs text-gray-500 mt-3" id="goal-hint">推奨: ${saving}円（診断結果） | 範囲: 100～50,000円</p>
+            <p class="text-xs text-red-600 mt-2 hidden" id="goal-error" role="alert"></p>
           </div>
 
           <div class="flex gap-2">
@@ -983,6 +1004,40 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       modal.innerHTML = content;
       document.body.appendChild(modal);
       document.getElementById('goal-input').focus();
+    }
+
+    // スライダーの値を入力フィールドに反映
+    function updateGoalInput() {
+      const slider = document.getElementById('goal-slider');
+      const input = document.getElementById('goal-input');
+      const display = document.getElementById('slider-display');
+      if (slider && input) {
+        input.value = slider.value;
+        display.textContent = parseInt(slider.value).toLocaleString() + '円';
+      }
+    }
+
+    // 入力フィールドの値をスライダーに反映
+    function updateGoalSlider() {
+      const input = document.getElementById('goal-input');
+      const slider = document.getElementById('goal-slider');
+      const display = document.getElementById('slider-display');
+      if (input && slider) {
+        const val = Math.max(100, Math.min(50000, parseInt(input.value) || 100));
+        slider.value = val;
+        display.textContent = val.toLocaleString() + '円';
+      }
+    }
+
+    // クイックプリセット設定
+    function setGoalPreset(value) {
+      const input = document.getElementById('goal-input');
+      const slider = document.getElementById('goal-slider');
+      const display = document.getElementById('slider-display');
+      value = Math.max(100, Math.min(50000, value));
+      if (input) input.value = value;
+      if (slider) slider.value = value;
+      if (display) display.textContent = value.toLocaleString() + '円';
     }
 
     function saveGoal() {
