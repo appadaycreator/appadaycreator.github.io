@@ -14,8 +14,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#EA580C" />
-    <title>偏頭痛トリガー記録アプリ【無料】無料診断・アドバイス</title>
-    <meta name="description" content="偏頭痛の発症状況・トリガーを記録して傾向を分析。医師への相談にも役立つ記録ツール">
+    <title>偏頭痛トリガー記録アプリ【無料】トリガー分析・医師相談対応診断ツール</title>
+    <meta name="description" content="偏頭痛の発症状況・トリガーを記録して傾向を分析。医師への相談にも役立つ記録ツール。複数パターン比較・シミュレーション機能で最適な対策を発見">
 <meta name="author" content="AppADayCreator">
     <link rel="canonical" href="https://appadaycreator.com/migraine-trigger-checker/">
     <meta name="mobile-web-app-capable" content="yes">
@@ -239,12 +239,82 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               </div>
             </div>
 
-            <!-- アクション ボタン -->
-            <div style="display:flex;flex-direction:column;gap:8px;margin:20px 0;">
-              <button class="btn" style="background:#4f46e5;" onclick="printResult()">📄 結果を印刷</button>
-              <button class="btn" style="background:#10b981;" onclick="copyResult()">📋 結果をコピー</button>
-              <button class="btn" style="background:#f59e0b;" onclick="downloadCSV()">📥 CSVダウンロード</button>
-              <button class="btn" onclick="location.reload()">🔄 もう一度診断</button>
+            <!-- モード切替ボタン -->
+            <div style="display:flex;gap:8px;margin:20px 0;border-bottom:2px solid #e5e7eb;padding-bottom:16px;">
+              <button class="btn" style="background:#ea580c;flex:1;" onclick="switchMode('normal')" id="modeNormalBtn">📊 通常診断</button>
+              <button class="btn" style="background:#6b7280;flex:1;" onclick="switchMode('compare')" id="modeCompareBtn">🔀 比較・シミュレーション</button>
+            </div>
+
+            <!-- 通常診断モード -->
+            <div id="normalMode">
+              <!-- アクション ボタン -->
+              <div style="display:flex;flex-direction:column;gap:8px;margin:20px 0;">
+                <button class="btn" style="background:#4f46e5;" onclick="printResult()">📄 結果を印刷</button>
+                <button class="btn" style="background:#10b981;" onclick="copyResult()">📋 結果をコピー</button>
+                <button class="btn" style="background:#f59e0b;" onclick="downloadCSV()">📥 CSVダウンロード</button>
+                <button class="btn" style="background:#10b981;margin-top:8px;" onclick="saveScenario()">💾 このパターンを保存</button>
+                <button class="btn" onclick="location.reload()">🔄 もう一度診断</button>
+              </div>
+            </div>
+
+            <!-- 比較・シミュレーションモード -->
+            <div id="compareMode" style="display:none;">
+              <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:16px;margin:16px 0;">
+                <p style="font-size:13px;font-weight:600;color:#166534;margin:0 0 12px;">📊 複数パターン比較</p>
+                <p style="font-size:12px;color:#4b5563;margin:0 0 12px;">保存したパターンを比較して、最適な対策を見つけましょう。</p>
+                <div id="scenarioList" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:12px;"></div>
+                <button class="btn" style="background:#16a34a;font-size:13px;padding:10px;margin-top:8px;" onclick="showComparisonTable()">📈 比較表を表示</button>
+                <button class="btn" style="background:#ef4444;font-size:13px;padding:10px;margin-top:4px;" onclick="clearAllScenarios()">🗑️ 全パターン削除</button>
+              </div>
+
+              <!-- 比較テーブル -->
+              <div id="comparisonTableSection" style="display:none;margin:16px 0;overflow-x:auto;">
+                <table id="comparisonTable" style="width:100%;border-collapse:collapse;font-size:13px;">
+                  <thead>
+                    <tr style="background:#f3f4f6;border-bottom:2px solid #d1d5db;">
+                      <th style="padding:12px;text-align:left;border:1px solid #e5e7eb;font-weight:700;color:#374151;">項目</th>
+                      <th style="padding:12px;text-align:center;border:1px solid #e5e7eb;font-weight:700;color:#ea580c;" id="col1">パターン 1</th>
+                      <th style="padding:12px;text-align:center;border:1px solid #e5e7eb;font-weight:700;color:#ea580c;" id="col2">パターン 2</th>
+                      <th style="padding:12px;text-align:center;border:1px solid #e5e7eb;font-weight:700;color:#ea580c;" id="col3">パターン 3</th>
+                    </tr>
+                  </thead>
+                  <tbody id="comparisonTableBody">
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- シミュレーションUI -->
+              <div style="background:#eff6ff;border:1px solid #bae6fd;border-radius:10px;padding:16px;margin:16px 0;">
+                <p style="font-size:13px;font-weight:600;color:#0c4a6e;margin:0 0 12px;">❓ 「もし〜だったら」シミュレーション</p>
+                <div style="margin-bottom:12px;">
+                  <label style="font-size:12px;font-weight:600;color:#0c4a6e;display:block;margin-bottom:6px;">条件を変更して診断結果を比較：</label>
+                  <select id="simQ1" style="width:100%;padding:10px;border:1.5px solid #bae6fd;border-radius:8px;font-size:13px;margin-bottom:8px;">
+                    <option value="">Q1: 発症頻度を選択</option>
+                    <option value="0">月1回以下</option>
+                    <option value="1">月2〜3回</option>
+                    <option value="2">週1回程度</option>
+                    <option value="3">週2回以上</option>
+                  </select>
+                  <select id="simQ2" style="width:100%;padding:10px;border:1.5px solid #bae6fd;border-radius:8px;font-size:13px;margin-bottom:8px;">
+                    <option value="">Q2: トリガーを選択</option>
+                    <option value="0">睡眠不足・疲労</option>
+                    <option value="1">ストレス</option>
+                    <option value="2">食事スキップ</option>
+                    <option value="3">気圧変化</option>
+                  </select>
+                </div>
+                <button class="btn" style="background:#0284c7;font-size:13px;padding:10px;" onclick="runSimulation()">▶ シミュレーション実行</button>
+              </div>
+
+              <!-- シミュレーション結果 -->
+              <div id="simulationResult" style="display:none;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:16px;margin:16px 0;">
+                <p style="font-size:13px;font-weight:600;color:#166534;margin:0 0 8px;">🎯 シミュレーション結果</p>
+                <div id="simResultContent" style="font-size:12px;color:#374151;line-height:1.8;"></div>
+              </div>
+
+              <div style="display:flex;flex-direction:column;gap:8px;margin:20px 0;">
+                <button class="btn" onclick="switchMode('normal')">← 通常診断に戻る</button>
+              </div>
             </div>
 
             <!-- 履歴表示 -->
@@ -508,6 +578,147 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       displayHistory();
       saveToHistory(ans, r);
       document.getElementById('result').classList.add('show');
+      loadScenariosUI();
+    }
+
+    // 比較・シミュレーション機能
+    let scenarios = JSON.parse(localStorage.getItem('scenarioComparison') || '[]');
+
+    function switchMode(mode) {
+      const normalEl = document.getElementById('normalMode');
+      const compareEl = document.getElementById('compareMode');
+      const normalBtn = document.getElementById('modeNormalBtn');
+      const compareBtn = document.getElementById('modeCompareBtn');
+
+      if (mode === 'normal') {
+        normalEl.style.display = 'block';
+        compareEl.style.display = 'none';
+        normalBtn.style.background = '#ea580c';
+        compareBtn.style.background = '#6b7280';
+      } else {
+        normalEl.style.display = 'none';
+        compareEl.style.display = 'block';
+        normalBtn.style.background = '#6b7280';
+        compareBtn.style.background = '#ea580c';
+        loadScenariosUI();
+      }
+    }
+
+    function saveScenario() {
+      if (ans.length === 0) {
+        alert('診断を実行した後で保存できます');
+        return;
+      }
+      const r = getResult(ans);
+      const timestamp = new Date().toLocaleString('ja-JP');
+      const scenario = {
+        id: Date.now(),
+        timestamp: timestamp,
+        answers: ans.map(a => a.idx),
+        result: r,
+        labels: ans.map((a, i) => QUESTIONS[i].opts[a.idx])
+      };
+      scenarios.push(scenario);
+      if (scenarios.length > 3) scenarios.shift();
+      localStorage.setItem('scenarioComparison', JSON.stringify(scenarios));
+      alert(`パターンを保存しました（保存数: ${scenarios.length}/3）`);
+      loadScenariosUI();
+    }
+
+    function loadScenariosUI() {
+      scenarios = JSON.parse(localStorage.getItem('scenarioComparison') || '[]');
+      const list = document.getElementById('scenarioList');
+      if (scenarios.length === 0) {
+        list.innerHTML = '<p style="grid-column:1/-1;color:#999;font-size:12px;">保存されたパターンはまだありません。「このパターンを保存」で複数シナリオを比較できます。</p>';
+        return;
+      }
+      list.innerHTML = scenarios.map((s, i) =>
+        `<div style="padding:10px;background:#dcfce7;border:1px solid #86efac;border-radius:8px;cursor:pointer;" onclick="selectScenario(${i})">
+          <p style="font-weight:600;color:#166534;margin:0 0 4px;font-size:12px;">パターン ${i+1}</p>
+          <p style="font-size:11px;color:#4b5563;margin:0;">${s.timestamp}</p>
+          <p style="font-size:11px;color:#ea580c;margin:4px 0 0;font-weight:600;">${s.result.score}点</p>
+        </div>`
+      ).join('');
+    }
+
+    function selectScenario(idx) {
+      const s = scenarios[idx];
+      ans.length = 0;
+      s.answers.forEach(a => ans.push({idx: a}));
+      const r = s.result;
+      document.getElementById('r-title').textContent = r.title;
+      document.getElementById('r-desc').textContent = r.desc;
+      createScoreGauge(r.score);
+      createTriggerChart();
+      createRadarChart();
+      switchMode('normal');
+    }
+
+    function showComparisonTable() {
+      if (scenarios.length === 0) {
+        alert('比較するパターンを保存してください');
+        return;
+      }
+      const tbody = document.getElementById('comparisonTableBody');
+      const cols = ['col1', 'col2', 'col3'];
+
+      // ヘッダー更新
+      scenarios.forEach((s, i) => {
+        const el = document.getElementById(cols[i]);
+        if (el) el.textContent = `パターン ${i+1}`;
+      });
+
+      // テーブル行生成
+      const rows = [
+        { label: '保存日時', getter: s => s.timestamp },
+        { label: 'スコア', getter: s => s.result.score + '点' },
+        { label: '診断結果', getter: s => s.result.title },
+        ...QUESTIONS.map((q, i) => ({ label: `Q${i+1}: ${q.text.substring(0, 20)}...`, getter: s => s.labels[i] }))
+      ];
+
+      tbody.innerHTML = rows.map(row =>
+        `<tr style="border-bottom:1px solid #e5e7eb;">
+          <td style="padding:12px;border:1px solid #e5e7eb;font-weight:600;color:#374151;background:#f8fafc;width:140px;">${row.label}</td>
+          ${scenarios.map(s => `<td style="padding:12px;border:1px solid #e5e7eb;text-align:center;color:#4b5563;font-size:12px;">${row.getter(s)}</td>`).join('')}
+          ${scenarios.length < 3 ? `<td style="padding:12px;border:1px solid #e5e7eb;background:#f8fafc;"></td>`.repeat(3 - scenarios.length) : ''}
+        </tr>`
+      ).join('');
+
+      document.getElementById('comparisonTableSection').style.display = 'block';
+    }
+
+    function runSimulation() {
+      const q1Val = document.getElementById('simQ1').value;
+      const q2Val = document.getElementById('simQ2').value;
+      if (q1Val === '' || q2Val === '') {
+        alert('条件を選択してください');
+        return;
+      }
+      const simAns = [
+        {idx: parseInt(q1Val)},
+        {idx: parseInt(q2Val)},
+        {idx: ans[2]?.idx || 1},
+        {idx: ans[3]?.idx || 1},
+        {idx: ans[4]?.idx || 1}
+      ];
+      const r = getResult(simAns);
+      const simResult = document.getElementById('simulationResult');
+      const content = document.getElementById('simResultContent');
+      content.innerHTML = `
+        <p style="font-weight:600;color:#166534;margin:0 0 8px;">📊 予想スコア: <span style="font-size:16px;color:#ea580c;">${r.score}点</span></p>
+        <p style="font-weight:600;color:#166534;margin:0 0 4px;font-size:13px;">${r.title}</p>
+        <p style="margin:0;line-height:1.7;color:#374151;font-size:12px;">${r.desc}</p>
+      `;
+      simResult.style.display = 'block';
+    }
+
+    function clearAllScenarios() {
+      if (confirm('すべての保存パターンを削除してもよろしいですか？')) {
+        scenarios = [];
+        localStorage.removeItem('scenarioComparison');
+        loadScenariosUI();
+        document.getElementById('comparisonTableSection').style.display = 'none';
+      }
     }
     </script>
     <!-- r31-use-cases -->
