@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":
 new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],
@@ -10,6 +13,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-ZDPNYD2875"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-ZDPNYD2875',{send_page_view:false});</script>
 <!-- End Google Tag Manager -->
+<!-- M4: Chart.js for visualization -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <!-- phase8-schema-enhanced -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -177,6 +182,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <p class="text-xs text-gray-500 mb-3">複数選択可</p>
     <div class="grid grid-cols-2 gap-2 mb-5" id="parts-container"></div>
 
+    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:0.75rem;padding:12px;margin-bottom:12px;">
+      <label style="display:block;font-size:0.875rem;font-weight:600;color:#374151;margin-bottom:6px;">🎯 目標予算（任意）</label>
+      <input type="number" id="budget-goal" class="input-field" placeholder="例: 1500000" style="margin-bottom:6px;">
+      <p class="text-xs text-gray-500">目標額を入力すると、達成度が表示されます</p>
+    </div>
+
     <button class="btn-primary" onclick="calculate()" aria-label="費用を計算する →">費用を計算する →</button>
 
     <div id="history-section" style="margin-top:12px;">
@@ -192,11 +203,33 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <div class="text-gray-400 text-sm" id="r-total-range"></div>
     </div>
 
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4" id="chart-container" style="position:relative;height:300px;">
+      <canvas id="breakdown-chart"></canvas>
+    </div>
+
     <div class="space-y-2 mb-5" id="breakdown"></div>
 
     <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
       <div class="font-bold text-green-800 text-sm mb-2">💰 活用できる補助金・減税</div>
       <div id="subsidies" class="text-sm text-gray-700 space-y-1"></div>
+    </div>
+
+    <div id="goal-tracking" class="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4" style="display:none;">
+      <div class="font-bold text-purple-800 text-sm mb-3">🎯 目標予算達成度</div>
+      <div style="margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <span class="text-sm text-gray-700" id="goal-status">目標額: 1,500,000円</span>
+          <span class="text-sm font-bold text-purple-700" id="goal-percentage">50%</span>
+        </div>
+        <div style="width:100%;height:20px;background:#e9d5ff;border-radius:10px;overflow:hidden;">
+          <div id="goal-progress-bar" style="height:100%;background:#a855f7;width:50%;transition:width 0.3s ease;"></div>
+        </div>
+      </div>
+      <div class="text-xs text-purple-700 space-y-1">
+        <div>試算額: <span id="goal-current" style="font-weight:bold;">0円</span></div>
+        <div id="goal-remaining-section" style="display:none;">残額: <span id="goal-remaining" style="font-weight:bold;color:#ea580c;">0円</span></div>
+        <div id="goal-exceeded-section" style="display:none;">予算超過: <span id="goal-exceeded" style="font-weight:bold;color:#dc2626;">+0円</span></div>
+      </div>
     </div>
 
     <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
@@ -278,6 +311,12 @@ function init() {
     };
     c.appendChild(btn);
   });
+
+  // M6: 前回の目標額を復元
+  var savedGoal = localStorage.getItem('budgetGoal');
+  if(savedGoal) {
+    document.getElementById('budget-goal').value = savedGoal;
+  }
 }
 
 function getHistory() {
@@ -388,11 +427,13 @@ function calculate() {
 
   document.getElementById('r-total-low').textContent = '約'+Math.round(totalLow/10000)+'万円〜';
   document.getElementById('r-total-range').textContent = gradeLabel+'グレード・高い場合 '+Math.round(totalHigh/10000)+'万円まで';
-  // シェアURLを動的生成
   var shareText = 'リフォーム費用シミュレーター結果：約'+Math.round(totalLow/10000)+'万円〜'+Math.round(totalHigh/10000)+'万円（'+gradeLabel+'グレード）';
   var shareUrl = 'https://appadaycreator.com/reform-cost-simulator/';
   document.getElementById('share-line-result').href = 'https://line.me/R/share?text='+encodeURIComponent(shareText+' '+shareUrl);
   document.getElementById('share-x-result').href = 'https://twitter.com/intent/tweet?text='+encodeURIComponent(shareText)+'&url='+encodeURIComponent(shareUrl)+'&via=appadaycreator';
+
+  // M4: グラフ描画
+  drawBreakdownChart(breakdown);
 
   var bd = document.getElementById('breakdown');
   bd.innerHTML = '';
@@ -410,9 +451,99 @@ function calculate() {
     subEl.innerHTML = '<div class="text-gray-500">現在選択中の箇所では主要補助金の対象外の可能性があります</div>';
   }
 
+  // M6: 目標達成度の計算と表示
+  var budgetGoal = parseFloat(document.getElementById('budget-goal').value);
+  if(budgetGoal && budgetGoal > 0) {
+    updateGoalTracking(totalLow, budgetGoal);
+    document.getElementById('goal-tracking').style.display = 'block';
+    try { localStorage.setItem('budgetGoal', budgetGoal.toString()); } catch(e) {}
+  } else {
+    document.getElementById('goal-tracking').style.display = 'none';
+  }
+
   document.getElementById('results').style.display='block';
   document.getElementById('affiliate-section').style.display='block';
   document.getElementById('results').scrollIntoView({behavior:'smooth'});
+}
+
+// M4: グラフ描画関数
+function drawBreakdownChart(breakdown) {
+  var canvas = document.getElementById('breakdown-chart');
+  if(!canvas) return;
+
+  var ctx = canvas.getContext('2d');
+  if(window.breakdownChartInstance) { window.breakdownChartInstance.destroy(); }
+
+  var labels = breakdown.map(function(b) { return b.name; });
+  var lows = breakdown.map(function(b) { return Math.round(b.low / 10000); });
+  var highs = breakdown.map(function(b) { return Math.round(b.high / 10000); });
+
+  window.breakdownChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: '低い場合（万円）',
+          data: lows,
+          backgroundColor: '#dbeafe',
+          borderColor: '#0284c7',
+          borderWidth: 1
+        },
+        {
+          label: '高い場合（万円）',
+          data: highs,
+          backgroundColor: '#fef08a',
+          borderColor: '#b45309',
+          borderWidth: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { font: { size: 11 } },
+          title: { display: true, text: '費用（万円）' }
+        },
+        x: {
+          ticks: { font: { size: 10 } }
+        }
+      },
+      plugins: {
+        legend: { display: true, position: 'top' }
+      }
+    }
+  });
+}
+
+// M6: 目標達成度の計算と表示
+function updateGoalTracking(currentAmount, budgetGoal) {
+  var percentage = Math.round((currentAmount / budgetGoal) * 100);
+  percentage = Math.min(percentage, 100);
+
+  document.getElementById('goal-status').textContent = '目標額: '+formatCurrency(budgetGoal);
+  document.getElementById('goal-current').textContent = formatCurrency(currentAmount);
+  document.getElementById('goal-percentage').textContent = percentage + '%';
+  document.getElementById('goal-progress-bar').style.width = percentage + '%';
+
+  if(currentAmount <= budgetGoal) {
+    var remaining = budgetGoal - currentAmount;
+    document.getElementById('goal-remaining-section').style.display = 'block';
+    document.getElementById('goal-exceeded-section').style.display = 'none';
+    document.getElementById('goal-remaining').textContent = formatCurrency(remaining);
+  } else {
+    var exceeded = currentAmount - budgetGoal;
+    document.getElementById('goal-remaining-section').style.display = 'none';
+    document.getElementById('goal-exceeded-section').style.display = 'block';
+    document.getElementById('goal-exceeded').textContent = '+' + formatCurrency(exceeded);
+  }
+}
+
+function formatCurrency(num) {
+  return num.toLocaleString('ja-JP') + '円';
 }
 
 function resetForm() {
@@ -421,6 +552,7 @@ function resetForm() {
   document.getElementById('results').style.display = 'none';
   document.getElementById('affiliate-section').style.display = 'none';
   document.getElementById('history-modal').style.display = 'none';
+  if(window.breakdownChartInstance) { window.breakdownChartInstance.destroy(); }
   document.getElementById('main').scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -710,12 +842,13 @@ init();
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 <!-- r46-org-footer -->
 <div style="text-align:center;font-size:11px;color:#9ca3af;padding:6px 0 4px;background:#f8fafc;border-top:1px solid #e5e7eb;">
   運営: <a href="https://appadaycreator.com/" style="color:#9ca3af;text-decoration:none;">AppADayCreator</a> | <a href="https://tech-and-brace.co.jp/" rel="noopener" style="color:#9ca3af;text-decoration:none;">株式会社Tech&amp;Brace</a>
 </div>
+<script src="/assets/consent-mode.js"></script>
 </body>
 </html>
