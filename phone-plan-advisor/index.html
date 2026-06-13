@@ -357,7 +357,57 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <div id="copy-notification" class="copy-notification">✓ コピーしました</div>
       <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
         <button class="btn-primary" style="flex:1;min-width:130px" onclick="copyResult()">📋 コピー</button>
+        <button class="btn-primary" style="flex:1;min-width:130px" onclick="downloadCSV()">📥 CSV出力</button>
+        <button class="btn-primary" style="flex:1;min-width:130px" onclick="window.print()">🖨️ 印刷</button>
         <button class="btn-secondary" style="flex:1;min-width:130px" onclick="location.reload()">🔄 もう一度診断</button>
+      </div>
+      <div id="comparison-section" style="margin-top:18px;padding-top:18px;border-top:1px solid var(--br)">
+        <p style="font-size:13px;font-weight:700;color:var(--td);margin-bottom:10px">🔄 「もし〜だったら」シミュレーション</p>
+        <p style="font-size:12px;color:#94a3b8;margin-bottom:14px">別パターンの条件を入力して、結果を比較できます</p>
+        <div id="simulation-controls" style="display:flex;flex-direction:column;gap:10px;margin-bottom:12px">
+          <div>
+            <label style="font-size:12px;font-weight:600;color:var(--td);display:block;margin-bottom:4px">Q1. 月間データ使用量は？</label>
+            <select id="sim-data" onchange="runSimulation()" style="width:100%;padding:10px;border:1.5px solid var(--br);border-radius:8px;font-size:13px;font-family:var(--f)">
+              <option value="0">〜3GB</option>
+              <option value="1">3〜10GB</option>
+              <option value="2">10〜20GB</option>
+              <option value="3">20GB以上</option>
+              <option value="4">無制限希望</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:600;color:var(--td);display:block;margin-bottom:4px">Q2. 電話・通話の頻度は？</label>
+            <select id="sim-call" onchange="runSimulation()" style="width:100%;padding:10px;border:1.5px solid var(--br);border-radius:8px;font-size:13px;font-family:var(--f)">
+              <option value="0">ほぼしない</option>
+              <option value="1">月数回程度</option>
+              <option value="2">週数回</option>
+              <option value="3">ほぼ毎日</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:600;color:var(--td);display:block;margin-bottom:4px">Q4. 重視することは？</label>
+            <select id="sim-priority" onchange="runSimulation()" style="width:100%;padding:10px;border:1.5px solid var(--br);border-radius:8px;font-size:13px;font-family:var(--f)">
+              <option value="0">とにかく安さ</option>
+              <option value="1">通信品質・安定性</option>
+              <option value="2">サポート・安心感</option>
+              <option value="3">ポイント還元</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12px;font-weight:600;color:var(--td);display:block;margin-bottom:4px">Q5. 家族との利用は？</label>
+            <select id="sim-family" onchange="runSimulation()" style="width:100%;padding:10px;border:1.5px solid var(--br);border-radius:8px;font-size:13px;font-family:var(--f)">
+              <option value="0">一人で契約</option>
+              <option value="1">家族割を使いたい</option>
+              <option value="2">すでに家族割あり</option>
+            </select>
+          </div>
+        </div>
+        <div id="simulation-result" style="background:linear-gradient(135deg,#f0f9ff,#e0f2fe);border-radius:12px;padding:12px;display:none">
+          <div style="font-size:12px;font-weight:600;color:#1e40af;margin-bottom:6px">📊 シミュレーション結果</div>
+          <div id="sim-result-title" style="font-size:14px;font-weight:700;color:#1e40af;margin-bottom:4px"></div>
+          <div id="sim-result-price" style="font-size:16px;font-weight:700;color:#0284c7;margin-bottom:4px"></div>
+          <div id="sim-result-diff" style="font-size:12px;color:#0369a1"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -800,6 +850,50 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }).catch(() => alert('コピーできませんでした。もう一度お試しください。'));
     }
 
+    function downloadCSV() {
+      const title = document.getElementById('r-title').textContent;
+      const priceText = document.getElementById('r-price').textContent;
+      const desc = document.getElementById('r-desc').textContent;
+      const currentMid = CURRENT_MID[ans[2].idx];
+      const saving = currentMid - parseInt(priceText.match(/\d+/)[0]);
+      const header = 'スマホ料金プラン最適診断 - 診断結果\n';
+      const csv = `${header}\n推奨プラン,${title}\n推奨月額料金,${priceText.match(/\d+/)[0]}円\n現在の月額目安,${currentMid}円\n月間節約額,${saving}円\n説明,${desc}\n`;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `スマホ料金診断_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function runSimulation() {
+      const simData = parseInt(document.getElementById('sim-data').value);
+      const simCall = parseInt(document.getElementById('sim-call').value);
+      const simPriority = parseInt(document.getElementById('sim-priority').value);
+      const simFamily = parseInt(document.getElementById('sim-family').value);
+      const simAnswers = [
+        { idx: simData },
+        { idx: simCall },
+        { idx: ans[2].idx },
+        { idx: simPriority },
+        { idx: simFamily }
+      ];
+      const simResult = getResult(simAnswers);
+      const simCurrentMid = CURRENT_MID[ans[2].idx];
+      const simSaving = simCurrentMid - simResult.monthlyPrice;
+      const resultDiv = document.getElementById('simulation-result');
+      const diffStr = simSaving !== (simCurrentMid - parseInt(document.getElementById('r-price').textContent.match(/\d+/)[0]))
+        ? `💰 節約額: ${simSaving.toLocaleString()}円 (元の診断より${(simSaving - (simCurrentMid - parseInt(document.getElementById('r-price').textContent.match(/\d+/)[0]))) >= 0 ? '+' : ''}${(simSaving - (simCurrentMid - parseInt(document.getElementById('r-price').textContent.match(/\d+/)[0]))).toLocaleString()}円)`
+        : `💰 節約額: ${simSaving.toLocaleString()}円`;
+      document.getElementById('sim-result-title').textContent = simResult.title;
+      document.getElementById('sim-result-price').textContent = `月額${simResult.monthlyPrice.toLocaleString()}円〜`;
+      document.getElementById('sim-result-diff').textContent = diffStr;
+      resultDiv.style.display = 'block';
+    }
+
     function showResult() {
       document.getElementById('quiz-area').style.display = 'none';
       const r = getResult(ans);
@@ -828,6 +922,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       saveToHistory(r);
       renderHistorySection();
       renderGoalAchievement(saving);
+
+      // シミュレーション用の初期値を設定
+      document.getElementById('sim-data').value = ans[0].idx;
+      document.getElementById('sim-call').value = ans[1].idx;
+      document.getElementById('sim-priority').value = ans[3].idx;
+      document.getElementById('sim-family').value = ans[4].idx;
+      document.getElementById('simulation-result').style.display = 'none';
 
       document.getElementById('result').classList.add('show');
       document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
