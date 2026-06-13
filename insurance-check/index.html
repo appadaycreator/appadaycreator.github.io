@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":
 new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],
@@ -72,8 +75,9 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         body { font-family:'Hiragino Sans','Yu Gothic',sans-serif; background: #f8fafc; min-height:100vh; }
         .hero-bg { background:linear-gradient(135deg,#065f46 0%,#1e40af 100%); }
         .question-card { background:white; border-radius:20px; padding:28px; box-shadow:0 4px 20px rgba(0,0,0,0.08); }
-        .option-btn { width:100%; text-align:left; padding:16px 18px; border-radius:14px; border:2px solid #e5e7eb; background:white; cursor:pointer; font-size:0.95rem; transition:all .2s; min-height:56px; display:flex; align-items:center; gap:10px; }
+        .option-btn { width:100%; text-align:left; padding:16px 18px; border-radius:14px; border:2px solid #e5e7eb; background:white; cursor:pointer; font-size:0.95rem; transition:all .2s; min-height:56px; display:flex; align-items:center; gap:10px; outline:none; }
         .option-btn:hover,.option-btn.selected { border-color:#059669; background:#ecfdf5; color:#065f46; font-weight:bold; }
+        .option-btn:focus { outline:2px solid #059669; outline-offset:2px; }
         .option-btn.selected { box-shadow:0 0 0 3px rgba(5,150,105,0.2); }
         .progress-bar { height:8px; border-radius:4px; background:#e5e7eb; }
         .progress-fill { height:100%; border-radius:4px; background:linear-gradient(90deg,#059669,#1e40af); transition:width .4s; }
@@ -83,6 +87,9 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .agent-card { background:white; border-radius:14px; padding:16px; display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; box-shadow:0 2px 8px rgba(0,0,0,0.06); transition:all .2s; text-decoration:none; }
         .agent-card:hover { transform:translateY(-2px); box-shadow:0 6px 16px rgba(0,0,0,0.1); }
         .hidden { display:none; }
+        .form-input-wrapper { margin-bottom:12px; }
+        .form-input-label { display:block; font-size:0.85rem; font-weight:600; color:#374151; margin-bottom:6px; }
+        .input-feedback-msg { font-size:0.8rem; color:#6b7280; margin-top:4px; font-style:italic; }
         /* モバイルベース：本文16px以上、タップターゲット48px以上を保証 */
         body { font-size: 16px; }
         .option-btn { font-size: 1rem; }
@@ -241,14 +248,35 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             </div>
             <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:10%"></div></div>
         </div>
-        <div class="question-card">
-            <div class="text-2xl mb-3" id="q-emoji">🏠</div>
+        <form class="question-card" id="quiz-form" aria-label="保険見直し診断フォーム" novalidate>
+            <div class="text-2xl mb-3" id="q-emoji" aria-hidden="true">🏠</div>
             <h2 class="text-lg font-bold text-gray-800 mb-5" id="q-text">...</h2>
-            <div id="options-container" class="space-y-3"></div>
-        </div>
+            <fieldset style="border:none;padding:0;margin:0;">
+                <legend class="sr-only" id="options-legend">質問の選択肢</legend>
+                <div id="options-container" class="space-y-3" role="radiogroup" aria-labelledby="q-text" aria-describedby="form-error-msg"></div>
+            </fieldset>
+            <div id="form-error-msg" style="margin-top:14px;padding:12px 14px;border-radius:8px;color:#991b1b;background:#fee2e2;display:none;font-size:0.9rem;border-left:4px solid #dc2626;border-right:1px solid #fecaca;">
+                <strong style="display:block;margin-bottom:4px;">⚠️ 選択が必要です</strong>
+                <span id="error-text">選択肢を1つ選んでから次へ進んでください</span>
+            </div>
+            <div id="form-success-msg" style="margin-top:14px;padding:12px 14px;border-radius:8px;color:#166534;background:#dcfce7;display:none;font-size:0.85rem;border-left:4px solid #16a34a;">
+                ✅ <span id="success-text">選択されました</span>
+            </div>
+        </form>
         <div class="flex gap-3 mt-5">
-            <button id="prev-btn" class="flex-1 py-3 rounded-xl border-2 border-gray-200 text-gray-600 font-bold bg-white hidden" onclick="prev()">← 前へ</button>
-            <button id="next-btn" class="flex-1 py-3 rounded-xl text-white font-bold opacity-50 cursor-not-allowed" style="background:#f0f9ff;" disabled onclick="next()">次へ →</button>
+            <button
+                id="prev-btn"
+                class="flex-1 py-3 rounded-xl border-2 border-gray-200 text-gray-600 font-bold bg-white hidden"
+                onclick="prev()"
+                aria-label="前の質問に戻る">← 前へ</button>
+            <button
+                id="next-btn"
+                class="flex-1 py-3 rounded-xl text-white font-bold opacity-50 cursor-not-allowed"
+                style="background:#f0f9ff;"
+                disabled
+                onclick="next()"
+                aria-describedby="form-error-msg"
+                aria-label="次の質問へ進む">次へ →</button>
         </div>
     </div>
 
@@ -283,13 +311,37 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         <div class="bg-purple-50 border border-purple-100 rounded-2xl p-5 mb-6">
             <div class="font-bold text-gray-800 mb-3">🎯 保険診断スコア目標設定</div>
             <p class="text-sm text-gray-600 mb-4">今回のスコアをベースに、3ヶ月後の目標値を設定しましょう。継続的な見直しで保険を最適化します。</p>
-            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-                <label style="font-size:0.85rem;color:#6b7280;min-width:40px;">スコア:</label>
-                <input type="range" id="goal-slider" min="0" max="100" value="50" style="flex:1;cursor:pointer;height:6px;">
-                <span id="goal-value" style="font-weight:bold;color:#7c3aed;min-width:30px;text-align:right;">50</span>
-            </div>
-            <button onclick="setGoalScore()" style="width:100%;background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:10px;font-weight:bold;cursor:pointer;font-size:0.9rem;transition:all 0.2s;">目標を設定する</button>
-            <div id="goal-status" style="margin-top:10px;font-size:0.85rem;color:#6b7280;display:none;"></div>
+            <fieldset style="border:none;padding:0;margin-bottom:12px;">
+                <legend style="font-size:0.85rem;color:#1f2937;margin-bottom:8px;display:block;font-weight:600;">目標スコアを選択（0〜100点）</legend>
+                <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:14px;margin-bottom:12px;">
+                    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                        <label style="font-size:0.75rem;color:#6b7280;min-width:20px;text-align:center;font-weight:600;">0</label>
+                        <input
+                            type="range"
+                            id="goal-slider"
+                            min="0"
+                            max="100"
+                            value="50"
+                            aria-label="目標スコアをスライダーで選択（0から100）"
+                            title="スライダーを左右に動かして目標スコアを設定します"
+                            style="flex:1;cursor:pointer;height:6px;outline:none;"
+                            onchange="updateGoalDisplay()">
+                        <label style="font-size:0.75rem;color:#6b7280;min-width:20px;text-align:center;font-weight:600;">100</label>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 4px;">
+                        <span style="font-size:0.8rem;color:#6b7280;">現在の目標:</span>
+                        <span id="goal-value" style="font-weight:bold;color:#7c3aed;font-size:1.25rem;min-width:60px;text-align:right;background:#f3e8ff;padding:4px 8px;border-radius:4px;">50</span>
+                        <span style="font-size:0.8rem;color:#6b7280;">点</span>
+                    </div>
+                </div>
+                <div id="goal-input-hint" style="margin-bottom:10px;padding:8px;font-size:0.75rem;color:#7c3aed;background:#f3e8ff;border-radius:6px;border-left:3px solid #7c3aed;">💡 スライダーを動かすと目標値がリアルタイムに更新されます</div>
+            </fieldset>
+            <button
+                onclick="setGoalScore()"
+                aria-label="目標スコアを設定する"
+                title="現在のスライダー値を目標として保存します"
+                style="width:100%;background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:12px;font-weight:bold;cursor:pointer;font-size:0.9rem;transition:all 0.2s;min-height:48px;outline:none;" onmouseover="this.style.background='#6d28d9'" onmouseout="this.style.background='#7c3aed'" onfocus="this.style.outline='2px solid #6d28d9';this.style.outlineOffset='2px'" onblur="this.style.outline='none'">目標を設定する</button>
+            <div id="goal-status" style="margin-top:10px;font-size:0.85rem;color:#16a34a;display:none;padding:10px;background:#dcfce7;border-radius:6px;border-left:3px solid #16a34a;font-weight:500;"></div>
         </div>
 
         <div id="goalProgressWrapper" class="prev-score-section hidden">
@@ -491,29 +543,78 @@ function render() {
     document.getElementById('q-text').innerHTML=qText;
     const c=document.getElementById('options-container'); c.innerHTML='';
     q.opts.forEach((o,i)=>{
-        const btn=document.createElement('div');
-        btn.style.marginBottom='10px';
-        const b=document.createElement('button');
-        b.className='option-btn'+(st.ans[st.q]===i?' selected':'');
-        b.textContent=o.text;
-        b.onclick=()=>{st.ans[st.q]=i;render();};
-        btn.appendChild(b);
+        const wrapper=document.createElement('div');
+        wrapper.className='form-input-wrapper';
+
+        // ラジオボタン要素を作成
+        const radioId='opt_'+st.q+'_'+i;
+        const radio=document.createElement('input');
+        radio.type='radio';
+        radio.id=radioId;
+        radio.name='question_'+st.q;
+        radio.value=i;
+        radio.checked=st.ans[st.q]===i;
+        radio.style.display='none';
+        radio.required=true;
+        radio.onchange=()=>{st.ans[st.q]=i;hideFormError();showSuccess();render();};
+
+        // ラベル要素を作成（見た目はボタンのまま）
+        const label=document.createElement('label');
+        label.htmlFor=radioId;
+        label.className='option-btn'+(st.ans[st.q]===i?' selected':'');
+        label.textContent=o.text;
+        label.style.cursor='pointer';
+        label.setAttribute('role','button');
+        label.setAttribute('tabindex','0');
+
+        wrapper.appendChild(radio);
+        wrapper.appendChild(label);
+
         if(o.hint) {
             const hint=document.createElement('div');
             hint.className='option-hint';
             hint.textContent='💡 '+o.hint;
-            btn.appendChild(hint);
+            wrapper.appendChild(hint);
         }
-        c.appendChild(btn);
+        c.appendChild(wrapper);
     });
     const nb=document.getElementById('next-btn'), pb=document.getElementById('prev-btn');
     const has=st.ans[st.q]!==undefined;
     nb.disabled=!has; nb.classList.toggle('opacity-50',!has); nb.classList.toggle('cursor-not-allowed',!has);
     nb.textContent=st.q===total-1?'結果を見る 🛡️':'次へ →';
     pb.classList.toggle('hidden',st.q===0);
+    hideFormError();
 }
 
-function next(){if(st.ans[st.q]===undefined)return; if(st.q<Q.length-1){st.q++;render();}else showResult();}
+function showFormError(){
+    document.getElementById('form-error-msg').style.display='block';
+    document.getElementById('form-success-msg').style.display='none';
+}
+
+function hideFormError(){
+    document.getElementById('form-error-msg').style.display='none';
+}
+
+function showSuccess(){
+    const s=document.getElementById('form-success-msg');
+    s.style.display='block';
+    setTimeout(()=>{s.style.display='none';},2000);
+}
+
+function updateGoalDisplay(){
+    const slider=document.getElementById('goal-slider');
+    document.getElementById('goal-value').textContent=slider.value;
+}
+
+function next(){
+    if(st.ans[st.q]===undefined){
+        showFormError();
+        document.getElementById('options-container').focus();
+        return;
+    }
+    hideFormError();
+    if(st.q<Q.length-1){st.q++;render();}else showResult();
+}
 function prev(){if(st.q>0){st.q--;render();}}
 
 function calcScores(){
@@ -1060,12 +1161,13 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 <!-- r46-org-footer -->
 <div style="text-align:center;font-size:11px;color:#9ca3af;padding:6px 0 4px;background:#f8fafc;border-top:1px solid #e5e7eb;">
   運営: <a href="https://appadaycreator.com/" style="color:#9ca3af;text-decoration:none;">AppADayCreator</a> | <a href="https://tech-and-brace.co.jp/" rel="noopener" style="color:#9ca3af;text-decoration:none;">株式会社Tech&amp;Brace</a>
 </div>
+<script src="/assets/consent-mode.js"></script>
 </body>
 </html>
