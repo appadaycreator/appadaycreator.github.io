@@ -376,17 +376,35 @@
             background: white;
             font-family: inherit;
         }
-        
+
+        .input-field:hover:not(:disabled) {
+            border-color: var(--gray-300);
+            background: #fafbfc;
+        }
+
         .input-field:focus {
             outline: none;
             border-color: var(--primary-500);
             box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
             transform: translateY(-1px);
+            background: white;
         }
-        
+
         .input-field.error {
             border-color: var(--error-500);
             box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+            background: rgba(239, 68, 68, 0.02);
+        }
+
+        .input-field.error:focus {
+            border-color: var(--error-500);
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+        }
+
+        .input-field:disabled {
+            background: var(--gray-50);
+            color: var(--gray-400);
+            cursor: not-allowed;
         }
         
         .input-error {
@@ -405,6 +423,16 @@
             display: flex;
             align-items: center;
             gap: var(--space-1);
+        }
+
+        .input-help {
+            color: var(--gray-500);
+            font-size: var(--text-xs);
+            margin-top: var(--space-2);
+            padding: var(--space-2) var(--space-3);
+            background: rgba(59, 130, 246, 0.05);
+            border-left: 2px solid var(--primary-400);
+            border-radius: var(--radius-sm);
         }
 
         /* Slider Styles */
@@ -1762,13 +1790,20 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     </div>
                     
                     <!-- 月次予算上限 -->
+                    <!-- Quick Guide -->
+                    <div style="background: rgba(14, 165, 233, 0.08); border: 1px solid rgba(14, 165, 233, 0.2); border-radius: var(--radius-lg); padding: var(--space-4); margin-bottom: var(--space-6);">
+                        <p style="font-size: var(--text-sm); color: var(--gray-700); margin: 0;">
+                            📝 <strong>使い方</strong>: 契約中のサブスクを1つずつ入力 → 月額・年額・節約可能額を自動計算 → 解約候補をチェック
+                        </p>
+                    </div>
+
                     <div class="budget-section">
                         <div class="budget-label-row">
-                            <label for="budgetLimit">月次予算上限（円）<span style="font-size: 0.75rem; color: var(--gray-400); font-weight: 400; margin-left: 4px;">オプション</span></label>
-                            <input type="number" id="budgetLimit" class="input-field" placeholder="例: 5000" min="0" max="1000000" step="100" style="padding: 8px 12px; height: auto; min-height: 44px;" aria-label="月次予算上限を入力（0以上）">
+                            <label for="budgetLimit" class="input-label">月次予算上限（円） <span style="font-size: 0.75rem; color: var(--gray-400); font-weight: 400; margin-left: 4px;">（オプション）</span></label>
+                            <input type="number" id="budgetLimit" class="input-field" placeholder="例: 5000" min="0" max="1000000" step="100" aria-label="月次予算上限を入力（オプション）" aria-describedby="budgetHint budgetStatus">
                         </div>
                         <div id="budgetStatus" class="budget-status"></div>
-                        <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 4px;">💡 入力すると、サブスク総額が予算を超えているか判定します</div>
+                        <div id="budgetHint" style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 4px;">💡 月の予算上限を設定すると、サブスク総額が予算を超えているか自動判定します</div>
                     </div>
 
                     <div class="progress-bar">
@@ -1777,73 +1812,78 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
 
                     <form id="subscriptionForm" class="form-section">
                         <div class="input-group">
-                            <label for="serviceName" class="input-label">サービス名 *</label>
-                            <input 
-                                type="text" 
-                                id="serviceName" list="serviceList" 
-                                class="input-field" 
-                                placeholder="例: Netflix, Spotify, Amazon Prime"
-                                aria-describedby="serviceNameHelp"
+                            <label for="serviceName" class="input-label">サービス名 <span style="color: var(--error-500);">*</span></label>
+                            <input
+                                type="text"
+                                id="serviceName" list="serviceList"
+                                class="input-field"
+                                placeholder="Netflix・Spotify・Amazon Prime等（2字以上）"
+                                aria-describedby="serviceNameHelp serviceNameError"
                                 required
-                             aria-label="例: Netflix, Spotify, Amazon Prime">
+                                minlength="2"
+                                aria-label="サービス名を入力（例: Netflix, Spotify）">
                               <datalist id="serviceList"></datalist>
+                            <div id="serviceNameHelp" class="input-help">💡 登録中のサービスから選択するか、2文字以上のサービス名を入力してください</div>
                             <div id="serviceNameError" class="input-error" style="display: none;">
-                                ❌ サービス名を入力してください
+                                ❌ サービス名を2字以上で入力してください
                             </div>
                             <div id="serviceNameSuccess" class="input-success" style="display: none;">
-                                ✅ 入力完了
+                                ✅ サービス名を入力
                             </div>
                         </div>
                           <div class="input-group">
-                              <label for="planSelect" class="input-label">料金プラン</label>
-                              <select id="planSelect" class="input-field" style="display:none;"></select>
-                              <a id="planLink" class="plan-link" href="" target="_blank" style="display:none;" rel="noopener noreferrer">料金詳細</a>
+                              <label for="planSelect" class="input-label">料金プラン <span style="font-size: 0.75rem; color: var(--gray-400); font-weight: 400; margin-left: 4px;">（自動検出）</span></label>
+                              <select id="planSelect" class="input-field" style="display:none;" aria-describedby="planHelp" aria-label="料金プランを選択"></select>
+                              <div id="planHelp" style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 4px;">💡 サービス名を入力すると利用可能なプランが表示されます</div>
+                              <a id="planLink" class="plan-link" href="" target="_blank" style="display:none;" rel="noopener noreferrer">📖 公式の料金詳細を確認</a>
                           </div>
 
                         <div class="input-group">
-                            <label for="billingCycle" class="input-label">支払いサイクル <span style="font-size: 0.75rem; color: var(--gray-500); font-weight: 400; margin-left: 4px;">（オプション）</span></label>
-                            <select id="billingCycle" class="input-field" aria-label="支払いサイクルを選択: 月払いまたは年払い">
-                                <option value="monthly">📅 月払い</option>
-                                <option value="yearly">📆 年払い</option>
+                            <label for="billingCycle" class="input-label">支払いサイクル <span style="font-size: 0.75rem; color: var(--gray-400); font-weight: 400; margin-left: 4px;">（オプション）</span></label>
+                            <select id="billingCycle" class="input-field" aria-describedby="billingHint" aria-label="支払いサイクルを選択: 月払いまたは年払い">
+                                <option value="monthly">📅 月払い（毎月支払い）</option>
+                                <option value="yearly">📆 年払い（年1回支払い・割引あり）</option>
                             </select>
+                            <div id="billingHint" style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 4px;">💡 年払いの場合は自動で月額換算します</div>
                         </div>
 
                         <div class="input-group">
-                            <label for="category" class="input-label">カテゴリ <span style="font-size: 0.75rem; color: var(--gray-500); font-weight: 400; margin-left: 4px;">（オプション）</span></label>
-                            <select id="category" class="input-field" aria-label="サービスのカテゴリを選択（デフォルト: その他）">
-                                <option value="動画配信">🎬 動画配信</option>
-                                <option value="音楽">🎵 音楽</option>
-                                <option value="本・雑誌">📚 本・雑誌</option>
-                                <option value="仕事効率化">💼 仕事効率化</option>
-                                <option value="ゲーム">🎮 ゲーム</option>
-                                <option value="AI">🤖 AI</option>
-                                <option value="クラウド">☁️ クラウド</option>
-                                <option value="健康・フィットネス">💪 健康・フィットネス</option>
+                            <label for="category" class="input-label">カテゴリ <span style="font-size: 0.75rem; color: var(--gray-400); font-weight: 400; margin-left: 4px;">（オプション）</span></label>
+                            <select id="category" class="input-field" aria-describedby="categoryHint" aria-label="サービスのカテゴリを選択：動画配信・音楽・本・仕事効率化など">
+                                <option value="動画配信">🎬 動画配信（Netflix・Hulu等）</option>
+                                <option value="音楽">🎵 音楽配信（Spotify・Apple Music等）</option>
+                                <option value="本・雑誌">📚 本・雑誌（Kindle Unlimited等）</option>
+                                <option value="仕事効率化">💼 仕事効率化（Slack・Notion等）</option>
+                                <option value="ゲーム">🎮 ゲーム（Xbox Game Pass等）</option>
+                                <option value="AI">🤖 AI・アシスタント（ChatGPT等）</option>
+                                <option value="クラウド">☁️ クラウドストレージ（Google One等）</option>
+                                <option value="健康・フィットネス">💪 健康・フィットネス（Fitbit等）</option>
                                 <option value="その他" selected>📦 その他</option>
                             </select>
+                            <div id="categoryHint" style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 4px;">💡 カテゴリ別の費用内訳を表示します</div>
                         </div>
 
                         <div class="input-group">
-                            <label for="monthlyFee" class="input-label" id="monthlyFeeLabel">月額料金（円）*</label>
+                            <label for="monthlyFee" class="input-label" id="monthlyFeeLabel">月額料金（円） <span style="color: var(--error-500);">*</span></label>
                             <input
                                 type="number"
                                 id="monthlyFee"
                                 class="input-field"
-                                placeholder="例: 1980"
+                                placeholder="1980（数値のみ・0〜100000円）"
                                 min="0"
                                 max="100000"
                                 step="1"
                                 aria-describedby="monthlyFeeError monthlyFeeHelp"
                                 required
-                             aria-label="月額料金を入力（0〜100000円）">
+                                aria-label="月額料金を入力（0〜100000円）">
                             <div id="monthlyFeeError" class="input-error" style="display: none;">
-                                ❌ 正しい金額を入力してください
+                                ❌ 1〜100,000円の間で入力してください
                             </div>
                             <div id="monthlyFeeSuccess" class="input-success" style="display: none;">
-                                ✅ 入力完了
+                                ✅ 料金を入力
                             </div>
-                            <div id="monthlyFeeHelp" style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 4px; display: none;">
-                                💡 スライダーでも調整できます（0〜100,000円）
+                            <div id="monthlyFeeHelp" style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 4px;">
+                                💡 0〜100,000円の範囲で入力してください。スライダー（下）でも調整可能（0〜30,000円クイック設定）
                             </div>
                             <div class="slider-container" style="margin-top: 12px;">
                                 <input type="range" id="monthlyFeeSlider" class="input-slider" min="0" max="30000" step="100" value="0" aria-label="月額料金スライダー: 0〜30,000円の範囲で調整">
@@ -1859,26 +1899,26 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         <div id="monthlyEquivHint" class="monthly-equiv-hint"></div>
 
                         <div class="input-group">
-                            <label for="usageFreq" class="input-label">月の利用回数 *</label>
+                            <label for="usageFreq" class="input-label">月の利用回数 <span style="color: var(--error-500);">*</span></label>
                             <input
                                 type="number"
                                 id="usageFreq"
                                 class="input-field"
-                                placeholder="例: 15（0で解約推奨）"
+                                placeholder="15（0=ほぼ未使用、30=毎日）"
                                 min="0"
                                 max="1000"
                                 step="1"
                                 aria-describedby="usageFreqError usageFreqHelp"
                                 required
-                             aria-label="月の利用回数を入力（0〜1000回）">
+                                aria-label="月の利用回数を入力（0〜1000回。0で解約推奨フラグ）">
                             <div id="usageFreqError" class="input-error" style="display: none;">
-                                ❌ 利用回数を入力してください
+                                ❌ 利用回数を0〜1000の範囲で入力してください
                             </div>
                             <div id="usageFreqSuccess" class="input-success" style="display: none;">
-                                ✅ 入力完了
+                                ✅ 利用回数を入力
                             </div>
-                            <div id="usageFreqHelp" style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 4px; display: none;">
-                                💡 月に何回利用するか目安を入力。0回の場合は解約推奨
+                            <div id="usageFreqHelp" style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 4px;">
+                                💡 月の利用回数の目安: 0回=ほぼ未使用（要検討）→ 10回=月数回 → 30回=ほぼ毎日。スライダー（下）でも調整可能
                             </div>
                             <div class="slider-container" style="margin-top: 12px;">
                                 <input type="range" id="usageFreqSlider" class="input-slider" min="0" max="30" step="1" value="0" aria-label="月の利用回数スライダー: 0〜30回の範囲で調整">
@@ -1892,8 +1932,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         </div>
 
                         <div class="input-group">
-                            <label class="input-label">満足度</label>
-                            <div class="star-rating" id="satisfactionStars" role="radiogroup" aria-label="満足度（1〜5）">
+                            <label class="input-label">満足度 <span style="font-size: 0.75rem; color: var(--gray-400); font-weight: 400; margin-left: 4px;">（オプション）</span></label>
+                            <div class="star-rating" id="satisfactionStars" role="radiogroup" aria-label="満足度を星で評価（1〜5）" aria-describedby="satisfactionHint">
                                 <button type="button" class="star-btn" data-value="1" aria-label="1 - 全く満足していない">★</button>
                                 <button type="button" class="star-btn" data-value="2" aria-label="2 - あまり満足していない">★</button>
                                 <button type="button" class="star-btn active" data-value="3" aria-label="3 - 普通">★</button>
@@ -1902,12 +1942,16 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                             </div>
                             <input type="hidden" id="satisfaction" value="3">
                             <div class="star-label" id="satisfactionLabel">⭐⭐⭐ 普通</div>
+                            <div id="satisfactionHint" style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 4px;">💡 サービスへの満足度で解約優先度が変わります</div>
                         </div>
 
-                        <button type="submit" class="btn btn-primary btn-full" id="addBtn">
+                        <button type="submit" class="btn btn-primary btn-full" id="addBtn" aria-label="必須項目を入力して、サブスクリプションを一覧に追加する">
                             <span id="addBtnText">サブスクを追加</span>
                             <span id="addBtnLoader" class="loading-spinner" style="display: none;"></span>
                         </button>
+                        <div style="font-size: var(--text-xs); color: var(--gray-500); margin-top: 8px; text-align: center;">
+                            💡 <span style="color: var(--error-500);">*</span>は必須項目です（サービス名・月額料金・利用回数）
+                        </div>
                     </form>
                 </section>
 
@@ -2351,29 +2395,40 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 const errorEl = document.getElementById(field.id + 'Error');
                 const successEl = document.getElementById(field.id + 'Success');
                 let isValid = false;
-                
+
                 switch(field.id) {
                     case 'serviceName':
                         isValid = field.value.trim().length >= 2;
+                        if (!isValid && field.value.trim().length > 0) {
+                            errorEl.textContent = '❌ サービス名は2字以上で入力してください';
+                        } else if (!isValid) {
+                            errorEl.textContent = '❌ サービス名を入力してください（例: Netflix）';
+                        }
                         break;
                     case 'monthlyFee':
                         isValid = field.value > 0 && field.value <= 100000;
                         if (!isValid && field.value > 100000) {
-                            errorEl.textContent = '❌ 金額が高すぎます（10万円以下で入力）';
+                            errorEl.textContent = '❌ 金額が高すぎます（100,000円以下で入力）';
+                        } else if (!isValid && field.value < 0) {
+                            errorEl.textContent = '❌ マイナスの金額は入力できません';
+                        } else if (!isValid && field.value == 0) {
+                            errorEl.textContent = '❌ 月額料金を入力してください（1円以上）';
                         } else if (!isValid) {
-                            errorEl.textContent = '❌ 正しい金額を入力してください';
+                            errorEl.textContent = '❌ 1〜100,000円の範囲で金額を入力';
                         }
                         break;
                     case 'usageFreq':
-                        isValid = field.value >= 0 && field.value <= 1000;
+                        isValid = field.value >= 0 && field.value <= 1000 && field.value !== '';
                         if (!isValid && field.value > 1000) {
-                            errorEl.textContent = '❌ 利用回数が多すぎます';
+                            errorEl.textContent = '❌ 利用回数が多すぎます（1,000回以下で入力）';
+                        } else if (!isValid && field.value < 0) {
+                            errorEl.textContent = '❌ マイナスの値は入力できません';
                         } else if (!isValid) {
-                            errorEl.textContent = '❌ 利用回数を入力してください';
+                            errorEl.textContent = '❌ 利用回数を入力してください（0回以上）';
                         }
                         break;
                 }
-                
+
                 if (isValid) {
                     field.classList.remove('error');
                     errorEl.style.display = 'none';
@@ -2383,15 +2438,20 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     errorEl.style.display = 'flex';
                     successEl.style.display = 'none';
                 }
-                
+
                 return isValid;
             }
             
             isFieldValid(field) {
                 switch(field.id) {
-                    case 'serviceName': return field.value.trim().length >= 2;
-                    case 'monthlyFee': return parseFloat(field.value) > 0 && parseFloat(field.value) <= 100000;
-                    case 'usageFreq': return parseInt(field.value) >= 0 && parseInt(field.value) <= 1000 && field.value !== '';
+                    case 'serviceName':
+                        return field.value.trim().length >= 2;
+                    case 'monthlyFee':
+                        const fee = parseFloat(field.value);
+                        return !isNaN(fee) && fee > 0 && fee <= 100000;
+                    case 'usageFreq':
+                        const freq = parseInt(field.value);
+                        return !isNaN(freq) && freq >= 0 && freq <= 1000 && field.value !== '';
                 }
                 return false;
             }
