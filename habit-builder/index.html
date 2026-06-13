@@ -39,6 +39,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.clarity.ms">
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Clarity -->
     <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
@@ -78,6 +79,17 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         /* ── サービス固有CSS ── */
         .day-btn{width:36px;height:36px;border-radius:50%;border:2px solid #d8b4fe;background:#fff;cursor:pointer;font-size:12px;font-weight:600;color:#9333EA;transition:.2s;}
         .day-btn.done{background:#9333EA;color:#fff;border-color:#9333EA;}
+        .label-with-help{display:flex;align-items:center;gap:6px;margin-top:14px;margin-bottom:2px;}
+        .help-icon{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;background:#9333EA;color:#fff;border-radius:50%;font-size:11px;font-weight:700;cursor:help;position:relative;}
+        .help-icon:hover::after{content:attr(data-tooltip);position:absolute;bottom:120%;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:6px 10px;border-radius:6px;font-size:12px;white-space:nowrap;z-index:100;pointer-events:none;font-weight:400;}
+        .progress-bar-container{background:#e9d5ff;border-radius:8px;height:20px;overflow:hidden;margin:12px 0;}
+        .progress-bar{height:100%;background:#9333EA;transition:width .3s ease;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:600;}
+        .comparison-table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px;}
+        .comparison-table th{background:#9333EA;color:#fff;padding:10px;text-align:left;font-weight:600;}
+        .comparison-table td{border:1px solid #e9d5ff;padding:10px;}
+        .simulation-input{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap;}
+        .simulation-input input{flex:1;min-width:150px;}
+        .simulation-input button{flex:0 0 auto;}
     
 @media print{
   header,footer,nav,button,.no-print,
@@ -193,12 +205,36 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   <ul style="margin:0;padding-left:1.25rem;color:#4b5563;line-height:1.9"><li><a href="https://www.caa.go.jp/" target="_blank" rel="noopener noreferrer" style="color:#4f46e5;font-size:.85rem">消費者庁「くらしの安心ガイド」</a></li></ul>
 </div>
 <h2 style="font-size:18px;font-weight:700;margin-bottom:16px;">✅ 習慣化トラッカー・21日継続チェッカー</h2>
-          <label>習慣名（例: 毎朝10分読書）</label>
-          <input type="text" id="habitName" placeholder="習慣名を入力" style="margin-bottom:12px;">
-          <button class="btn" onclick="calculate()">21日チャレンジ開始</button>
+          <div class="label-with-help">
+            <label>習慣名</label>
+            <span class="help-icon" data-tooltip="毎朝10分読書、週3回ジム、早寝早起き、瞑想10分などが効果的です。漠然とした目標より「いつ」「何を」「どのくらい」を含めると継続しやすいです。">?</span>
+          </div>
+          <input type="text" id="habitName" placeholder="例：毎朝10分読書、週3回ジム" title="身につけたい習慣を具体的に入力。含めると良い情報：タイミング（毎朝、毎晩）、内容（読書、ジム、瞑想）、期間（10分、30分）。複数の習慣を登録して同時管理もできます。" style="margin-bottom:4px;">
+          <p style="font-size:11px;color:#666;margin:0 0 12px;line-height:1.6;">💡 <strong>実例</strong>：「読書をする」より「毎朝7時に10分読書」が継続しやすいです。複数の習慣は「＋習慣を追加」で登録できます。</p>
+          <div id="habitTabs" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;"></div>
+          <button class="btn" onclick="calculate()" style="margin-bottom:8px;">21日チャレンジ開始</button>
+          <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+            <button class="btn" onclick="addHabit()" style="background:#7c3aed;flex:1;min-width:150px;">＋ 習慣を追加</button>
+            <button class="btn" onclick="toggleComparison()" id="compareBtn" style="background:#8b5cf6;flex:1;min-width:150px;display:none;">比較表示</button>
+            <button class="btn" onclick="toggleSimulation()" id="simulateBtn" style="background:#a78bfa;flex:1;min-width:150px;display:none;">シミュレーション</button>
+          </div>
           <div class="result" id="result" style="margin-top:16px;">
             <div class="card">
+              <div style="background:#f8fafc;border-left:4px solid #9333EA;padding:12px;border-radius:4px;margin-bottom:16px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                  <p style="font-size:12px;color:#666;margin:0;font-weight:600;">📊 日付をクリックして記録</p>
+                  <span class="help-icon" data-tooltip="青くハイライトされた日付は実行済み。赤い日付は未実行。21日すべて記録すると習慣化達成です。">?</span>
+                </div>
+                <p style="font-size:11px;color:#999;margin:0;">各日付をクリックして習慣を実行したかどうかを記録します。継続率とプログレスがリアルタイムで更新されます。</p>
+              </div>
               <div id="output" style="font-size:1.4rem;font-weight:700;color:#9333EA;padding:8px 0;text-align:center;"></div>
+              <div class="progress-bar-container" style="margin:16px 0;">
+                <div id="progressBar" class="progress-bar" style="width:0%"></div>
+              </div>
+              <canvas id="progressChart" style="max-height:300px;margin:16px 0;"></canvas>
+              <div id="scoreGauge" style="text-align:center;margin:16px 0;font-size:48px;font-weight:700;color:#9333EA;"></div>
+              <div id="comparisonContainer" style="display:none;margin:16px 0;"></div>
+              <div id="simulationContainer" style="display:none;margin:16px 0;"></div>
               <div id="dayGrid" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:16px 0;"></div>
               <p id="detail" style="color:#666;font-size:14px;text-align:center;"></p>
             </div>
@@ -234,11 +270,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="card" style="margin-top:8px;">
             <h2 style="font-size:15px;font-weight:700;margin-bottom:14px;color:#374151;">❓ よくある質問</h2>
             <div style="display:flex;flex-direction:column;gap:14px;">
-            
-            
-            
-            
-            
+              <div style="padding:12px;background:#f9fafb;border-left:3px solid #9333EA;border-radius:4px;">
+                <p style="font-size:13px;font-weight:700;color:#9333EA;margin:0 0 6px;">Q. 習慣を複数登録できますか？</p>
+                <p style="font-size:12px;color:#666;margin:0;">はい、「＋習慣を追加」ボタンで複数登録できます。「比較表示」機能で進捗を並べて確認することもできます。</p>
+              </div>
+              <div style="padding:12px;background:#f9fafb;border-left:3px solid #9333EA;border-radius:4px;">
+                <p style="font-size:13px;font-weight:700;color:#9333EA;margin:0 0 6px;">Q. 「シミュレーション」機能は何に使いますか？</p>
+                <p style="font-size:12px;color:#666;margin:0;">「あと何日継続すれば目標達成？」という予測ができます。モチベーション維持に効果的です。</p>
+              </div>
+              <div style="padding:12px;background:#f9fafb;border-left:3px solid #9333EA;border-radius:4px;">
+                <p style="font-size:13px;font-weight:700;color:#9333EA;margin:0 0 6px;">Q. 習慣を削除できますか？</p>
+                <p style="font-size:12px;color:#666;margin:0;">習慣タブの「✕」ボタンで削除できます。習慣タブの右上にある✕マークをクリックしてください。</p>
+              </div>
             </div>
         </div>
 
@@ -302,40 +345,193 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       inputs: ['habitName'],
       error: '習慣名を入力してください',
     };
-    let checked = new Array(21).fill(false);
+    let habits = [];
+    let currentHabitId = 0;
     function calcLogic(vals) {
-      const done = checked.filter(Boolean).length;
+      const habit = habits[currentHabitId];
+      if(!habit) return { result: '習慣を作成してください', detail: '' };
+      const done = habit.checked.filter(Boolean).length;
       const pct = Math.round(done / 21 * 100);
       const msg = done === 21 ? '習慣化達成！素晴らしい！🎉' : done >= 14 ? 'あと少し！続けましょう💪' : done >= 7 ? '折り返し地点！いい調子！' : 'スタート！毎日チェックしよう';
       return { result: `継続率 ${pct}%（${done}/21日）`, detail: msg };
     }
+    function saveHabits() {
+      localStorage.setItem('habits', JSON.stringify(habits));
+    }
+    function loadHabits() {
+      const saved = localStorage.getItem('habits');
+      if(saved) { habits = JSON.parse(saved); } else { habits = []; }
+    }
+    function addHabit() {
+      const name = document.getElementById('habitName').value.trim();
+      if(!name) { alert('習慣名を入力してください'); return; }
+      const id = habits.length;
+      habits.push({ id, name, checked: new Array(21).fill(false) });
+      currentHabitId = id;
+      document.getElementById('habitName').value = '';
+      saveHabits();
+      renderTabs();
+    }
+    function switchHabit(id) {
+      currentHabitId = id;
+      document.getElementById('result').classList.remove('show');
+      renderTabs();
+    }
+    function renderTabs() {
+      const tabs = document.getElementById('habitTabs');
+      tabs.innerHTML = habits.map(h =>
+        `<button style="padding:8px 16px;border-radius:8px;border:1px solid #d8b4fe;background:${currentHabitId===h.id?'#9333EA':'#fff'};color:${currentHabitId===h.id?'#fff':'#9333EA'};cursor:pointer;font-weight:600;font-size:13px;" onclick="switchHabit(${h.id})">${h.name} <span style="margin-left:6px;cursor:pointer;opacity:0.7;" onclick="event.stopPropagation();deleteHabit(${h.id})">✕</span></button>`
+      ).join('');
+    }
+    function deleteHabit(id) {
+      habits = habits.filter(h => h.id !== id);
+      if(currentHabitId === id) currentHabitId = habits.length > 0 ? habits[0].id : -1;
+      saveHabits();
+      document.getElementById('result').classList.remove('show');
+      renderTabs();
+    }
     function renderGrid() {
+      const habit = habits[currentHabitId];
       const grid = document.getElementById('dayGrid');
-      grid.innerHTML = checked.map((c,i) =>
+      if(!habit) { grid.innerHTML = ''; return; }
+      grid.innerHTML = habit.checked.map((c,i) =>
         `<button class="day-btn${c?' done':''}" onclick="toggleDay(${i})">${i+1}</button>`
       ).join('');
     }
+    function renderChart(done) {
+      const pct = Math.round(done / 21 * 100);
+      const ctx = document.getElementById('progressChart');
+      if(!ctx) return;
+      if(window.habitChart) window.habitChart.destroy();
+      window.habitChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          datasets: [{
+            data: [done, 21-done],
+            backgroundColor: ['#9333EA', '#e9d5ff'],
+            borderColor: '#fff',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: () => '' } }
+          }
+        }
+      });
+      const gauge = document.getElementById('scoreGauge');
+      if(gauge) {
+        gauge.innerHTML = `${pct}%`;
+      }
+      const progressBar = document.getElementById('progressBar');
+      if(progressBar) {
+        progressBar.style.width = `${pct}%`;
+        progressBar.textContent = `${done}/${21}`;
+      }
+    }
+    function toggleComparison() {
+      const container = document.getElementById('comparisonContainer');
+      if(container.style.display === 'none') {
+        renderComparison();
+        container.style.display = 'block';
+      } else {
+        container.style.display = 'none';
+      }
+    }
+    function renderComparison() {
+      const container = document.getElementById('comparisonContainer');
+      if(habits.length === 0) {
+        container.innerHTML = '<p style="color:#666;font-size:13px;">習慣がまだ登録されていません</p>';
+        return;
+      }
+      let html = '<h3 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#9333EA;">📊 習慣の比較</h3>';
+      html += '<table class="comparison-table"><thead><tr><th>習慣名</th><th>完了日数</th><th>継続率</th><th>ステータス</th></tr></thead><tbody>';
+      habits.forEach(h => {
+        const done = h.checked.filter(Boolean).length;
+        const pct = Math.round(done / 21 * 100);
+        const status = done === 21 ? '達成！🎉' : done >= 14 ? 'あと少し💪' : done >= 7 ? '折り返し！' : 'スタート';
+        html += `<tr><td style="font-weight:600">${h.name}</td><td>${done}</td><td>${pct}%</td><td>${status}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      container.innerHTML = html;
+    }
+    function toggleSimulation() {
+      const container = document.getElementById('simulationContainer');
+      if(container.style.display === 'none') {
+        renderSimulation();
+        container.style.display = 'block';
+      } else {
+        container.style.display = 'none';
+      }
+    }
+    function renderSimulation() {
+      const habit = habits[currentHabitId];
+      const container = document.getElementById('simulationContainer');
+      if(!habit) {
+        container.innerHTML = '<p style="color:#666;font-size:13px;">習慣を選択してください</p>';
+        return;
+      }
+      const done = habit.checked.filter(Boolean).length;
+      let html = '<h3 style="font-size:14px;font-weight:700;margin-bottom:12px;color:#9333EA;">🎯 シミュレーション</h3>';
+      html += '<div style="background:#f0fdf4;border-left:4px solid #388e3c;padding:12px;border-radius:4px;margin-bottom:12px;"><p style="font-size:12px;color:#1b5e20;margin:0;">これからあと何日継続できたら目標達成？</p></div>';
+      html += '<div class="simulation-input">';
+      html += `<input type="number" id="simDays" min="0" max="${21-done}" value="7" style="flex:1;min-width:100px;" title="あと何日継続するかを入力してください">`;
+      html += '<button class="btn" onclick="runSimulation()" style="background:#388e3c;flex:0 0 auto;padding:10px 20px;">計算</button>';
+      html += '</div>';
+      html += `<div id="simResult" style="background:#f0fdf4;border-left:4px solid #388e3c;padding:12px;border-radius:4px;display:none;"><p id="simResultText" style="font-size:13px;color:#1b5e20;margin:0;"></p></div>`;
+      container.innerHTML = html;
+    }
+    function runSimulation() {
+      const habit = habits[currentHabitId];
+      if(!habit) return;
+      const done = habit.checked.filter(Boolean).length;
+      const simDays = parseInt(document.getElementById('simDays').value) || 0;
+      const projected = Math.min(done + simDays, 21);
+      const projectedPct = Math.round(projected / 21 * 100);
+      const resultDiv = document.getElementById('simResult');
+      const resultText = document.getElementById('simResultText');
+      if(projected === 21) {
+        resultText.textContent = `✨ あと${simDays}日継続すれば目標達成！習慣化完成率${projectedPct}%になります`;
+      } else {
+        resultText.textContent = `あと${simDays}日で継続率${projectedPct}%（${projected}/21日）に到達します`;
+      }
+      resultDiv.style.display = 'block';
+    }
     function toggleDay(i) {
-      checked[i] = !checked[i];
+      const habit = habits[currentHabitId];
+      if(!habit) return;
+      habit.checked[i] = !habit.checked[i];
+      saveHabits();
       renderGrid();
-      const name = document.getElementById('habitName').value || '習慣';
-      const {result, detail} = calcLogic([name]);
+      const {result, detail} = calcLogic([]);
+      const done = habit.checked.filter(Boolean).length;
       document.getElementById('output').textContent = result;
       document.getElementById('detail').textContent = detail;
+      renderChart(done);
     }
     // ★以下変更不要★
     document.addEventListener('DOMContentLoaded',()=>{
-      CFG.inputs.forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') calculate(); }); });
+      loadHabits();
+      renderTabs();
+      CFG.inputs.forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') addHabit(); }); });
     });
     function calculate(){
-      const vals=CFG.inputs.map(id=>document.getElementById(id)?.value||'');
-      if(!vals[0]){ alert(CFG.error); return; }
-      checked = new Array(21).fill(false);
-      const {result,detail}=calcLogic(vals);
+      if(habits.length === 0) { alert('習慣を追加してください'); return; }
+      const habit = habits[currentHabitId];
+      const {result,detail}=calcLogic([habit.name]);
+      const done = habit.checked.filter(Boolean).length;
       document.getElementById('output').textContent=result;
       const d=document.getElementById('detail'); if(d) d.textContent=detail||'';
       renderGrid();
+      renderChart(done);
       document.getElementById('result').classList.add('show');
+      if(habits.length > 1) {
+        document.getElementById('compareBtn').style.display = 'block';
+      }
+      document.getElementById('simulateBtn').style.display = 'block';
     }
     </script>
     <!-- r31-use-cases -->
