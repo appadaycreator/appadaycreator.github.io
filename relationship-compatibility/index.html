@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":
 new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],
@@ -154,6 +157,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://appadaycreator.com/"},{"@type":"ListItem","position":2,"name":"診断/アドバイス","item":"https://appadaycreator.com/category/advisor/"},{"@type":"ListItem","position":3,"name":"相性診断ツール - 完全無料で使えるWebツール【登録不要】","item":"https://appadaycreator.com/relationship-compatibility/"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"「相性診断ツール」は無料で使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要です。"}},{"@type":"Question","name":"スマートフォンでも使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、モバイル対応済みです。"}}]}</script>
 </head>
 <body>
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -293,6 +297,21 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
                         <div id="goalProgressFill" style="height:100%;background:#f59e0b;border-radius:3px;width:0%;transition:width .3s;"></div>
                     </div>
                 </div>
+            </div>
+
+            <!-- M7: 比較・シミュレーション機能 -->
+            <div class="card" style="margin-top:8px;background:#f0f9ff;border:1px solid #bae6fd;">
+                <h3 style="font-size:15px;font-weight:700;color:#0c4a6e;margin-bottom:12px;">🔄 シミュレーション - 「もし〜だったら」を試す</h3>
+                <div style="font-size:13px;color:#0c4a6e;margin-bottom:16px;line-height:1.7;">
+                    <p>各質問の回答を変更して、相性スコアがどう変わるか確認できます。</p>
+                </div>
+                <div id="simulationQuestions" style="display:flex;flex-direction:column;gap:16px;"></div>
+                <div style="margin-top:16px;padding:12px;background:#dbeafe;border-left:3px solid #0284c7;border-radius:4px;">
+                    <div style="font-size:12px;color:#0c4a6e;font-weight:600;margin-bottom:4px;">📊 シミュレーション結果</div>
+                    <div style="font-size:18px;font-weight:700;color:#0284c7;" id="simulationScore">-</div>
+                    <div style="font-size:11px;color:#0c4a6e;margin-top:4px;">相性度（シミュレーション値）</div>
+                </div>
+                <button onclick="resetSimulation()" style="width:100%;margin-top:12px;background:#0284c7;color:white;padding:10px;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;">シミュレーションをリセット</button>
             </div>
 
             <!-- M3: 履歴表示セクション -->
@@ -774,6 +793,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const goal = loadGoal();
       setTimeout(() => updateGoalDisplay(goal, percentage), 100);
 
+      // M7: シミュレーション機能初期化
+      setTimeout(() => renderSimulation(), 150);
+
       // SNSシェアURLに結果内容を含める
       const shareText = encodeURIComponent(`相性診断結果：${label.emoji} ${label.title}\n相性度 ${percentage}%\n2人の価値観を診断してみよう！ #相性診断 #無料ツール`);
       const shareUrl = encodeURIComponent('https://appadaycreator.com/relationship-compatibility/');
@@ -830,6 +852,38 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
+    }
+
+    // M7: シミュレーション機能
+    let simulationAnswersA = [];
+
+    function renderSimulation() {
+      simulationAnswersA = [...answersA];
+      const container = document.getElementById('simulationQuestions');
+      container.innerHTML = QUESTIONS.map((q, i) => {
+        const opts = q.opts.map((opt, idx) => `<option value="${idx}" ${idx === answersA[i] ? 'selected' : ''}>${opt}</option>`).join('');
+        return `<div style="padding:12px;background:white;border-radius:8px;border:1px solid #bae6fd;">
+          <label style="font-size:13px;font-weight:600;color:#0c4a6e;margin-bottom:6px;display:block;">${q.text.replace(/^Q\d+\. /, '')}</label>
+          <select onchange="updateSimulationScore(${i}, parseInt(this.value))" style="width:100%;padding:8px;border:1px solid #bae6fd;border-radius:6px;font-size:13px;background:white;">
+            ${opts}
+          </select>
+        </div>`;
+      }).join('');
+    }
+
+    function updateSimulationScore(questionIdx, newAnswer) {
+      simulationAnswersA[questionIdx] = newAnswer;
+      const simScore = calcScore(simulationAnswersA, answersB);
+      const simPercentage = Math.round((simScore / 125) * 100);
+      document.getElementById('simulationScore').textContent = simPercentage + '%';
+    }
+
+    function resetSimulation() {
+      simulationAnswersA = [...answersA];
+      renderSimulation();
+      const originalScore = calcScore(answersA, answersB);
+      const originalPercentage = Math.round((originalScore / 125) * 100);
+      document.getElementById('simulationScore').textContent = originalPercentage + '%';
     }
 
     window.addEventListener('load', initPage);
@@ -936,8 +990,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
+<script src="/assets/consent-mode.js"></script>
 </body>
 </html>
