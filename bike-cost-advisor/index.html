@@ -128,6 +128,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <style>
 @media(max-width:480px){button,[class*=btn]{min-height:48px!important;font-size:15px!important;}input,select,textarea{font-size:16px!important;min-height:44px!important;}[class*=card],[class*=max-w]{padding:16px!important;}}
 </style>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"「バイク・原付購入維持費診断」は無料で使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要です。"}},{"@type":"Question","name":"スマートフォンでも使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、モバイル対応済みです。"}}]}</script>
 </head>
 <body class=" font-sans text-gray-800" style="background:#f8fafc;"><a href="#main" class="sr-only">本文へスキップ</a>
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -598,6 +599,40 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </div>
       </div>
 
+      <!-- M6: 目標設定・達成度トラッキング -->
+      <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-5">
+        <p class="text-sm font-semibold text-indigo-800 mb-3">🎯 目標値設定・達成度トラッキング（M6）</p>
+        <div class="flex gap-2 mb-3">
+          <input type="number" id="target-annual-cost" placeholder="年間維持費の目標値（万円）" value="" style="flex:1;padding:10px;border:1px solid #c7d2fe;border-radius:6px;font-size:13px" min="1" max="999">
+          <button onclick="saveTargetGoal()" style="background:#4f46e5;color:white;padding:10px 16px;border-radius:6px;font-size:13px;font-weight:bold;border:none;cursor:pointer;white-space:nowrap;">目標を設定</button>
+        </div>
+        <div id="achievement-display" style="display:none;">
+          <div class="bg-white border border-indigo-200 rounded-lg p-3">
+            <p class="text-xs font-semibold text-gray-700 mb-2" id="achievement-text"></p>
+            <div style="background:#e5e7eb;height:12px;border-radius:6px;overflow:hidden;margin-bottom:8px">
+              <div id="achievement-bar" style="background:linear-gradient(90deg, #4f46e5, #7c3aed);height:100%;width:0%;transition:width 0.3s ease"></div>
+            </div>
+            <div class="text-xs text-gray-600 space-y-1">
+              <div class="flex justify-between">
+                <span>目標値</span>
+                <span id="target-display" class="font-semibold">—</span>
+              </div>
+              <div class="flex justify-between">
+                <span>実績（今回）</span>
+                <span id="current-display" class="font-semibold">—</span>
+              </div>
+              <div id="previous-comparison" style="border-top:1px solid #e5e7eb;padding-top:8px;margin-top:8px">
+                <div class="flex justify-between">
+                  <span>前回の実績</span>
+                  <span id="previous-display" class="font-semibold">—</span>
+                </div>
+                <div id="improvement-indicator" class="text-xs mt-2"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <h3 class="font-bold text-gray-700 mb-3">バイク購入アドバイス</h3>
       <div class="space-y-3 mb-5">
         ${advice.map(a => `<div class="flex gap-3 p-3 bg-gray-50 rounded-xl"><span class="text-xl">🏍️</span><p class="text-sm text-gray-700">${a}</p></div>`).join('')}
@@ -700,6 +735,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }
     }, 100);
 
+    // M6: 目標値設定初期化
+    initializeGoalTracking(annualCost);
+
     // 履歴表示
     renderHistory();
   }
@@ -739,6 +777,103 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     document.getElementById('quiz-section').classList.remove('hidden');
     document.getElementById('result-section').classList.add('hidden');
     renderQuestion();
+  }
+
+  // M6: 目標値設定・達成度トラッキング機能
+  function initializeGoalTracking(currentAnnualCost) {
+    try {
+      const goalData = JSON.parse(localStorage.getItem('bikeGoalData') || '{}');
+      const currentTarget = goalData.targetAnnualCost || null;
+      const previousResults = goalData.previousResults || null;
+
+      // 前回の結果があれば以前の実績として保存
+      const currentResultData = { annualCost: currentAnnualCost, timestamp: new Date().toLocaleDateString('ja-JP') };
+
+      // 目標値入力フィールドに前回の目標値を復元
+      if (currentTarget) {
+        document.getElementById('target-annual-cost').value = currentTarget;
+        updateAchievementDisplay(currentAnnualCost, currentTarget, previousResults);
+      }
+
+      // 診断終了時に現在の結果を保存（次回の比較用）
+      setTimeout(() => {
+        const updated = { targetAnnualCost: currentTarget, previousResults: currentResultData };
+        localStorage.setItem('bikeGoalData', JSON.stringify(updated));
+      }, 100);
+    } catch (e) {
+      console.error('Goal tracking init error:', e);
+    }
+  }
+
+  function saveTargetGoal() {
+    const inputEl = document.getElementById('target-annual-cost');
+    const target = parseFloat(inputEl.value);
+    if (!target || target <= 0) {
+      alert('正の数値を入力してください');
+      return;
+    }
+
+    const achievementDisplay = document.getElementById('achievement-display');
+    const currentAnnual = lastResults ? lastResults.annualCost : 0;
+
+    try {
+      const goalData = JSON.parse(localStorage.getItem('bikeGoalData') || '{}');
+      goalData.targetAnnualCost = target;
+      localStorage.setItem('bikeGoalData', JSON.stringify(goalData));
+
+      updateAchievementDisplay(currentAnnual, target, goalData.previousResults || null);
+      achievementDisplay.style.display = 'block';
+
+      // 成功メッセージ
+      const btn = event.target;
+      const orig = btn.textContent;
+      btn.textContent = '✅ 目標を設定しました';
+      setTimeout(() => { btn.textContent = orig; }, 2000);
+    } catch (e) {
+      alert('目標値の保存に失敗しました');
+    }
+  }
+
+  function updateAchievementDisplay(currentAnnualCost, targetAnnualCost, previousResults) {
+    const achievementDisplay = document.getElementById('achievement-display');
+    const achievementText = document.getElementById('achievement-text');
+    const achievementBar = document.getElementById('achievement-bar');
+    const targetDisplay = document.getElementById('target-display');
+    const currentDisplay = document.getElementById('current-display');
+    const previousDisplay = document.getElementById('previous-display');
+    const improvementIndicator = document.getElementById('improvement-indicator');
+    const previousComparison = document.getElementById('previous-comparison');
+
+    // 達成度計算：目標値との比較（目標値100%を基準）
+    const achievementRate = Math.min((targetAnnualCost / currentAnnualCost) * 100, 100);
+    const color = achievementRate >= 100 ? '#10b981' : achievementRate >= 75 ? '#f59e0b' : '#ef4444';
+
+    achievementText.textContent = `達成度: ${Math.round(achievementRate)}%`;
+    achievementBar.style.width = `${Math.min(achievementRate, 100)}%`;
+    achievementBar.style.background = achievementRate >= 100 ? 'linear-gradient(90deg, #10b981, #34d399)' : 'linear-gradient(90deg, #4f46e5, #7c3aed)';
+
+    targetDisplay.textContent = `${targetAnnualCost}万円/年`;
+    currentDisplay.textContent = `${currentAnnualCost}万円/年`;
+
+    // 前回との比較
+    if (previousResults && previousResults.annualCost) {
+      const prevAnnual = previousResults.annualCost;
+      const diff = currentAnnualCost - prevAnnual;
+      const diffRate = ((diff / prevAnnual) * 100).toFixed(1);
+
+      previousDisplay.textContent = `${prevAnnual}万円（${previousResults.timestamp}）`;
+
+      const indicator = diff < 0
+        ? `<span style="color:#10b981;font-weight:bold">📈 改善: ${Math.abs(diff).toFixed(1)}万円削減（${Math.abs(diffRate)}%↓）</span>`
+        : diff > 0
+        ? `<span style="color:#ef4444;font-weight:bold">📉 増加: ${diff.toFixed(1)}万円増（${diffRate}%↑）</span>`
+        : `<span style="color:#6b7280">— 前回と同額</span>`;
+      improvementIndicator.innerHTML = indicator;
+    } else {
+      previousComparison.style.display = 'none';
+    }
+
+    achievementDisplay.style.display = 'block';
   }
 
   renderQuestion();
