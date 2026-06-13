@@ -14,8 +14,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#7C3AED" />
-    <title>子どもの学習スタイル診断【無料】｜習い事・勉強法がわかる - まなびのコンパス</title>
-    <meta name="description" content="子どもの得意・行動パターンから視覚型・聴覚型・体感型を診断。最適な習い事と家庭学習のコツを無料でご提案します。">
+    <title>子どもの学習スタイル診断【視覚・聴覚・体感型判定】無料診断ツール - まなびのコンパス</title>
+    <meta name="description" content="子どもの学習スタイル診断【無料】視覚型・聴覚型・体感型を5つの質問で診断。最適な習い事・家庭学習法・効果的な学習アプローチがわかります。">
 <meta name="author" content="AppADayCreator">
     <link rel="canonical" href="https://appadaycreator.com/kids-learning-style-quiz/">
     <meta name="mobile-web-app-capable" content="yes">
@@ -377,6 +377,44 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
               <!-- Score bars -->
               <div id="r-bars" style="margin:14px 0 4px"></div>
               <div id="final-score" style="display:none"></div>
+
+              <!-- Simulation section -->
+              <div id="simulation-section" style="margin:20px 0;padding:16px;background:#F8F4FE;border-radius:12px;border:2px solid #DDD6FE">
+                <h3 style="font-size:15px;font-weight:700;color:#5B21B6;margin-bottom:12px">🔮 スタイルシミュレーション</h3>
+                <p style="font-size:12px;color:#6B7280;margin-bottom:14px">スコアを調整して、別のスタイルパターンを試してみましょう</p>
+                <div id="simulation-sliders" style="margin-bottom:14px"></div>
+                <div style="display:flex;gap:8px;margin-bottom:8px">
+                  <button id="simulation-btn" onclick="toggleSimulation()" style="flex:1;background:#7C3AED;color:#fff;border:none;padding:10px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">シミュレーションを開始</button>
+                  <button id="save-pattern-btn" onclick="savePattern()" style="flex:1;background:#10B981;color:#fff;border:none;padding:10px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;display:none">パターンを保存</button>
+                </div>
+                <div id="simulation-result" style="display:none;padding:12px;background:#fff;border-radius:10px;margin-top:8px">
+                  <p style="font-size:13px;font-weight:700;color:#1F2937;margin-bottom:8px">シミュレーション結果：</p>
+                  <p id="simulation-type-result" style="font-size:14px;color:#5B21B6;font-weight:700;margin-bottom:8px"></p>
+                  <canvas id="simulationChartCanvas" style="max-height:180px;margin-top:8px"></canvas>
+                  <p id="simulation-comparison-text" style="font-size:12px;color:#6B7280;margin-top:8px;text-align:center"></p>
+                </div>
+              </div>
+
+              <!-- Comparison table -->
+              <div id="comparison-table-section" style="display:none;margin:20px 0;padding:16px;background:#FFFAF0;border-radius:12px;border:2px solid #FED7AA">
+                <h3 style="font-size:15px;font-weight:700;color:#92400E;margin-bottom:12px">📊 複数パターン比較</h3>
+                <div style="overflow-x:auto">
+                  <table id="comparison-table" style="width:100%;border-collapse:collapse;font-size:12px">
+                    <thead>
+                      <tr style="background:#F59E0B;color:#fff">
+                        <th style="padding:8px 10px;text-align:left;border:1px solid #FED7AA">パターン</th>
+                        <th style="padding:8px 10px;text-align:center;border:1px solid #FED7AA">論理型</th>
+                        <th style="padding:8px 10px;text-align:center;border:1px solid #FED7AA">体感型</th>
+                        <th style="padding:8px 10px;text-align:center;border:1px solid #FED7AA">視覚型</th>
+                        <th style="padding:8px 10px;text-align:center;border:1px solid #FED7AA">聴覚型</th>
+                        <th style="padding:8px 10px;text-align:center;border:1px solid #FED7AA">言語型</th>
+                        <th style="padding:8px 10px;text-align:left;border:1px solid #FED7AA">最強タイプ</th>
+                      </tr>
+                    </thead>
+                    <tbody id="comparison-tbody"></tbody>
+                  </table>
+                </div>
+              </div>
 
               <!-- Goal -->
               <div class="goal-box">
@@ -932,6 +970,125 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
       var item=btn.closest('.faq-item');
       var isOpen=item.classList.toggle('open');
       btn.setAttribute('aria-expanded',isOpen);
+    }
+
+    // M7: Simulation feature
+    let simulationActive = false;
+    let simulationChart = null;
+    let savedPatterns = [];
+
+    function toggleSimulation(){
+      simulationActive = !simulationActive;
+      const btn = document.getElementById('simulation-btn');
+      const saveBtn = document.getElementById('save-pattern-btn');
+      const sliders = document.getElementById('simulation-sliders');
+      const result = document.getElementById('simulation-result');
+      if(simulationActive){
+        btn.textContent = '✓ シミュレーション中止';
+        btn.style.background = '#94a3b8';
+        saveBtn.style.display = 'block';
+        sliders.style.display = 'block';
+        if(currentScores){
+          sliders.innerHTML = TYPE_LABELS.map((label, i) => {
+            return `<div style="margin-bottom:10px">
+              <label style="display:flex;justify-content:space-between;font-size:12px;color:#6B7280;margin-bottom:4px">
+                <span>${label}</span>
+                <span id="sim-val-${i}">${currentScores[i]}</span>
+              </label>
+              <input type="range" min="0" max="5" value="${currentScores[i]}" id="sim-slider-${i}" onchange="updateSimulation()" oninput="updateSimulationPreview(${i})" style="width:100%;cursor:pointer;accent-color:#7C3AED">
+            </div>`;
+          }).join('');
+        }
+        result.style.display = 'block';
+        updateSimulation();
+      } else {
+        btn.textContent = 'シミュレーションを開始';
+        btn.style.background = '#7C3AED';
+        saveBtn.style.display = 'none';
+        sliders.style.display = 'none';
+        result.style.display = 'none';
+      }
+    }
+
+    function updateSimulationPreview(i){
+      const val = document.getElementById(`sim-slider-${i}`).value;
+      document.getElementById(`sim-val-${i}`).textContent = val;
+    }
+
+    function updateSimulation(){
+      const simScores = TYPE_LABELS.map((_, i) => parseInt(document.getElementById(`sim-slider-${i}`).value || 0));
+      const maxVal = Math.max(...simScores);
+      const maxIdx = simScores.indexOf(maxVal);
+      const r = RESULTS[maxIdx];
+      document.getElementById('simulation-type-result').textContent = r.title;
+      drawSimulationChart(simScores, maxIdx);
+      const diff = maxIdx !== currentTypeIndex ? `タイプが変わりました！ ${TYPE_LABELS[currentTypeIndex]} → ${TYPE_LABELS[maxIdx]}` : 'スタイルは同じです';
+      document.getElementById('simulation-comparison-text').textContent = diff;
+    }
+
+    function drawSimulationChart(scores, typeIdx){
+      const ctx = document.getElementById('simulationChartCanvas');
+      if(!ctx) return;
+      if(simulationChart) simulationChart.destroy();
+      simulationChart = new Chart(ctx, {
+        type: 'radar',
+        data: {
+          labels: TYPE_LABELS,
+          datasets: [
+            { label: 'シミュレーション', data: scores, borderColor: '#F59E0B', backgroundColor: 'rgba(245,158,11,.1)', borderWidth: 2, pointRadius: 4, fill: true },
+            { label: '実際の結果', data: currentScores, borderColor: '#7C3AED', backgroundColor: 'rgba(124,58,237,.1)', borderWidth: 2, pointRadius: 4, fill: true }
+          ]
+        },
+        options: { responsive: true, maintainAspectRatio: true,
+          plugins: { legend: { labels: { font: { size: 11 } } } },
+          scales: { r: { beginAtZero: true, max: 5 } } }
+      });
+    }
+
+    // M7: Comparison table feature
+    function savePattern(){
+      if(!simulationActive || !currentScores) return;
+      const simScores = TYPE_LABELS.map((_, i) => parseInt(document.getElementById(`sim-slider-${i}`).value || 0));
+      const maxIdx = simScores.indexOf(Math.max(...simScores));
+      const r = RESULTS[maxIdx];
+      const pattern = {
+        name: `パターン${savedPatterns.length + 1}`,
+        scores: simScores,
+        type: r.title,
+        timestamp: Date.now()
+      };
+      savedPatterns.push(pattern);
+      updateComparisonTable();
+      alert(`${pattern.name} を保存しました！`);
+    }
+
+    function updateComparisonTable(){
+      if(savedPatterns.length === 0){
+        document.getElementById('comparison-table-section').style.display = 'none';
+        return;
+      }
+      document.getElementById('comparison-table-section').style.display = 'block';
+      const tbody = document.getElementById('comparison-tbody');
+      tbody.innerHTML = savedPatterns.map((p, idx) => {
+        const typeScore = p.scores[4];
+        const topIdx = p.scores.indexOf(Math.max(...p.scores));
+        return `<tr style="background:${idx%2?'#fafaf8':'#fff'}">
+          <td style="padding:8px 10px;border:1px solid #FED7AA;font-weight:600">${p.name}</td>
+          <td style="padding:8px 10px;text-align:center;border:1px solid #FED7AA">${p.scores[0]}</td>
+          <td style="padding:8px 10px;text-align:center;border:1px solid #FED7AA">${p.scores[1]}</td>
+          <td style="padding:8px 10px;text-align:center;border:1px solid #FED7AA">${p.scores[2]}</td>
+          <td style="padding:8px 10px;text-align:center;border:1px solid #FED7AA">${p.scores[3]}</td>
+          <td style="padding:8px 10px;text-align:center;border:1px solid #FED7AA">${p.scores[4]}</td>
+          <td style="padding:8px 10px;border:1px solid #FED7AA">${TYPE_LABELS[topIdx]}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function clearPatterns(){
+      if(confirm('保存したパターンをすべて削除してもよろしいですか？')){
+        savedPatterns = [];
+        document.getElementById('comparison-table-section').style.display = 'none';
+      }
     }
 
     document.addEventListener('DOMContentLoaded', function(){
