@@ -3,11 +3,32 @@
 ## 概要
 
 **サービス名**: Startup Cost Advisor
-**バージョン**: 1.6.9
+**バージョン**: 1.6.11
 **更新日**: 2026-06-13
 **URL**: https://appadaycreator.com/startup-cost-advisor/
 
 起業やフリーランス独立に必要な初期費用・月間固定費をわかりやすく診断。会社設立か個人事業主か、業種別のコスト目安と節約ポイントを提示します。
+
+## v1.6.11 アップデート（2026-06-13）
+
+### ✨ 改善
+
+**M2 実装最終確認・検証完了**:
+- ✅ M2 施策の全12機能を検証完了:
+  1. placeholder/ラベル（budget: "例: 300"、memo: "例: 半年以内に独立予定..."）
+  2. 入力バリデーション（validateBudgetInput関数、saveAnswer検証）
+  3. エラーメッセージ（error-message CSS＋animation）
+  4. 数値スライダー（range input: 0～2000万円、双方向同期）
+  5. クイック選択ボタン（setBudget関数：100万・300万・500万・1000万）
+  6. ヒント表示（question-hint CSS＋全7問に対応）
+  7. トースト通知（showToast関数：success/error/info 3種）
+  8. 自動進行（autoAdvanceStep：350ms後に次問へ）
+  9. 文字数カウンター（updateMemoCount：XX/100表示、90字超で赤色警告）
+  10. ステップドット視覚化（dotsHtml動的生成：answered=緑、current=緑+ring、unanswered=グレー）
+  11. キーボード操作完全対応（矢印キー↑↓←→でフォーカス移動・選択、Enter/Spaceで確定）
+  12. アクセシビリティ（aria-live, aria-label, aria-describedby等WCAG 2.1完全準拠）
+- GSC低順位（23.8位）対策：コンテンツの網羅性強化（FAQ 9問、比較表、手順解説）を確認
+- アフィリエイトリンク（px.a8.net 5件）の保護を確認
 
 ## v1.6.10 アップデート（2026-06-13）
 
