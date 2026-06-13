@@ -320,26 +320,26 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div>
                 <label>🔢 銘柄コード</label>
                 <input type="text" id="f-code" placeholder="例: 7203" maxlength="10" aria-label="銘柄コード（4〜5桁。例: 7203）" oninput="validateCode()">
-                <div style="font-size:0.72em;color:#64748b;margin-top:2px;">証券取引所の銘柄コード（4〜5桁）</div>
+                <div style="font-size:0.72em;color:#64748b;margin-top:2px;">証券取引所の銘柄コード（4〜5桁）<br/>例: トヨタ=7203、ソニー=6758、楽天=4755</div>
                 <div id="f-code-error" style="color:#dc2626;font-size:0.75em;margin-top:2px;display:none;">銘柄コードは4〜5桁の数字またはアルファベットで入力してください</div>
             </div>
             <div>
                 <label>🏷️ セクター<span class="tooltip-icon" data-tooltip="株のカテゴリ。ポートフォリオの分散バランスを分析するのに使用します。">?</span></label>
-                <select id="f-sector">
-                    <option value="輸送用機器">輸送用機器</option>
-                    <option value="電気機器">電気機器</option>
-                    <option value="情報・通信">情報・通信</option>
-                    <option value="金融・保険">金融・保険</option>
-                    <option value="小売業">小売業</option>
-                    <option value="不動産">不動産</option>
-                    <option value="医薬品">医薬品</option>
-                    <option value="食料品">食料品</option>
-                    <option value="化学">化学</option>
-                    <option value="サービス" selected>サービス業</option>
-                    <option value="エネルギー">エネルギー</option>
-                    <option value="ヘルスケア">ヘルスケア</option>
-                    <option value="公益事業">公益事業</option>
-                    <option value="ETF・投資信託">ETF・投資信託</option>
+                <select id="f-sector" aria-label="セクターを選択">
+                    <option value="輸送用機器">輸送用機器（トヨタ、日産など）</option>
+                    <option value="電気機器">電気機器（パナソニック、東芝など）</option>
+                    <option value="情報・通信">情報・通信（NTT、ソフトバンクなど）</option>
+                    <option value="金融・保険">金融・保険（三菱UFJ、三井住友など）</option>
+                    <option value="小売業">小売業（イオン、ユニクロなど）</option>
+                    <option value="不動産">不動産（大京、野村不動産など）</option>
+                    <option value="医薬品">医薬品（武田薬品、大塚製薬など）</option>
+                    <option value="食料品">食料品（ハウス、アサヒなど）</option>
+                    <option value="化学">化学（三菱ケミカル、住友化学など）</option>
+                    <option value="サービス" selected>サービス業（その他）</option>
+                    <option value="エネルギー">エネルギー（ENEOS、出光など）</option>
+                    <option value="ヘルスケア">ヘルスケア（アルフレッサ、メドレーなど）</option>
+                    <option value="公益事業">公益事業（東京電力、関西電力など）</option>
+                    <option value="ETF・投資信託">ETF・投資信託（VTI、VOOなど）</option>
                     <option value="REIT">REIT・不動産投資信託</option>
                     <option value="その他">その他</option>
                 </select>
@@ -371,7 +371,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div>
                 <label>📦 保有数量（株）<span style="color:#dc2626;">*</span></label>
                 <input type="number" id="f-qty" placeholder="例: 100" min="1" max="9999999" required aria-label="保有数量（例: 100株）" oninput="validateQuantity()">
-                <div id="f-qty-display" style="font-size:0.72em;color:#0369a1;margin-top:2px;"></div>
+                <input type="range" id="f-qty-slider" min="1" max="5000" value="100" style="width:100%;margin-top:6px;cursor:pointer;" aria-label="保有数量スライダー" oninput="syncQtySlider(this.value)">
+                <div style="font-size:0.68em;color:#94a3b8;margin-top:2px;display:flex;justify-content:space-between;"><span>1株</span><span id="qty-slider-label">100株</span><span>5000株以上</span></div>
+                <div id="f-qty-display" style="font-size:0.72em;color:#0369a1;margin-top:4px;"></div>
                 <div style="font-size:0.72em;color:#64748b;">現在保有している株数</div>
             </div>
         </div>
@@ -852,6 +854,16 @@ function renderPortfolio() {
     renderSummary();
 }
 
+// ===== スライダー同期 =====
+function syncQtySlider(value) {
+    const qtyField = document.getElementById('f-qty');
+    const sliderLabel = document.getElementById('qty-slider-label');
+    const intVal = parseInt(value);
+    if (qtyField) qtyField.value = intVal;
+    if (sliderLabel) sliderLabel.textContent = intVal.toLocaleString() + '株';
+    validateQuantity();
+}
+
 // ===== フォーム入力バリデーション =====
 function validateName() {
     const el = document.getElementById('f-name');
@@ -909,6 +921,14 @@ function validateQuantity() {
     if (val > 0 && val <= 9999999) {
         displayEl.textContent = '✓ 有効な数量です（投資額概算：' + fmt(val * (parseFloat(document.getElementById('f-buy-price').value) || 0)) + '円）';
         el.classList.remove('field-error');
+        // スライダーも同期
+        const slider = document.getElementById('f-qty-slider');
+        if (slider) {
+            if (val > parseInt(slider.max)) slider.max = val;
+            slider.value = val;
+            const label = document.getElementById('qty-slider-label');
+            if (label) label.textContent = val.toLocaleString() + '株';
+        }
     } else if (el.value !== '') {
         displayEl.textContent = '✗ 1以上の整数を入力してください';
         el.classList.add('field-error');
@@ -1003,6 +1023,13 @@ function editStock(id) {
     if (s.exchangeRate) document.getElementById('f-exchange-rate').value = s.exchangeRate;
     document.getElementById('f-buy-price').value = s.buyPrice;
     document.getElementById('f-qty').value = s.qty;
+    const slider = document.getElementById('f-qty-slider');
+    if (slider) {
+        const sliderMax = Math.max(5000, s.qty * 1.2);
+        slider.max = Math.round(sliderMax);
+        slider.value = s.qty;
+        syncQtySlider(s.qty);
+    }
     document.getElementById('f-current').value = s.currentPrice;
     document.getElementById('f-dividend').value = s.dividend || 0;
     document.getElementById('f-account').value = s.account || '特定口座';
@@ -1036,6 +1063,11 @@ function clearForm() {
     if (acc) acc.value = '特定口座';
     const bd = document.getElementById('f-buy-date');
     if (bd) bd.value = '';
+    const slider = document.getElementById('f-qty-slider');
+    if (slider) {
+        slider.value = '100';
+        syncQtySlider('100');
+    }
     toggleExchangeRate();
 }
 
