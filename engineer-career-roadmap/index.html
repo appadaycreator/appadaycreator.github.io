@@ -232,7 +232,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="card-title">🎯 あなたのプロフィールを入力</div>
         <div id="form-error" style="display:none;background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:12px;margin-bottom:12px;color:#991b1b;font-size:0.85em;"></div>
         <label>👔 現在の職業 <span style="color:#dc2626;">*</span> <span class="help-icon" title="あなたの現在の職業を選択してください。複数職歴がある場合は現在のメイン職業でOK。">?</span></label>
-        <select id="current-job" required title="現在の職業を選択してください">
+        <select id="current-job" required title="現在の職業を選択してください" aria-required="true">
             <option value="" disabled selected style="color:#9ca3af;">職業を選択してください</option>
             <option value="sales">営業・販売</option>
             <option value="office">事務・管理</option>
@@ -246,7 +246,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <option value="other">その他</option>
         </select>
         <label>💻 現在のITスキルレベル <span style="color:#dc2626;">*</span> <span class="help-icon" title="プログラミング経験の有無を選択してください。「ほぼゼロ」は独学未経験、「基礎あり」はHTML/CSSの基本学習済み。">?</span></label>
-        <select id="it-level" required title="プログラミングスキルレベルを選択してください">
+        <select id="it-level" required title="プログラミングスキルレベルを選択してください" aria-required="true">
             <option value="" disabled selected style="color:#9ca3af;">スキルレベルを選択してください</option>
             <option value="zero">ほぼゼロ（PC操作のみ）</option>
             <option value="basic">基礎あり（HTML/CSS触ったことある程度）</option>
@@ -254,7 +254,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <option value="experienced">経験あり（IT業務経験1〜3年）</option>
         </select>
         <label>🎓 希望するIT職種 <span style="color:#dc2626;">*</span> <span class="help-icon" title="転職を目指したい職種を選択してください。未決定なら「まだ決まっていない」で経歴に合わせた職種を提案します。">?</span></label>
-        <select id="target-role" required title="希望するIT職種を選択してください">
+        <select id="target-role" required title="希望するIT職種を選択してください" aria-required="true">
             <option value="" disabled selected style="color:#9ca3af;">職種を選択してください</option>
             <option value="frontend">Webフロントエンドエンジニア</option>
             <option value="backend">Webバックエンドエンジニア</option>
@@ -321,7 +321,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="card">
         <div class="card-title">💰 IT職種別年収シミュレーション</div>
         <label>🎓 希望職種 <span class="help-icon" title="年収を計算したいIT職種を選択してください。転職直後の年収から5年キャリアまでの推移が表示されます。">?</span></label>
-        <select id="salary-role" onchange="updateSalary()" required title="年収を確認したい職種を選択">
+        <select id="salary-role" onchange="updateSalary()" required title="年収を確認したい職種を選択" aria-required="true">
             <option value="" disabled selected style="color:#9ca3af;">職種を選択してください</option>
             <option value="frontend">Webフロントエンドエンジニア</option>
             <option value="backend">Webバックエンドエンジニア</option>
@@ -505,27 +505,43 @@ function generateRoadmap() {
     // M2: バリデーション - 必須項目チェック
     if (!job || !level || !roleVal) {
         const missing = [];
+        const currentJobEl = document.getElementById('current-job');
+        const itLevelEl = document.getElementById('it-level');
+        const targetRoleEl = document.getElementById('target-role');
+
         if (!job) {
-            missing.push('現在の職業');
-            document.getElementById('current-job').style.borderColor = '#ef4444';
+            missing.push('👔 現在の職業');
+            currentJobEl.style.borderColor = '#ef4444';
+            currentJobEl.setAttribute('aria-invalid', 'true');
+        } else {
+            currentJobEl.setAttribute('aria-invalid', 'false');
         }
         if (!level) {
-            missing.push('ITスキルレベル');
-            document.getElementById('it-level').style.borderColor = '#ef4444';
+            missing.push('💻 ITスキルレベル');
+            itLevelEl.style.borderColor = '#ef4444';
+            itLevelEl.setAttribute('aria-invalid', 'true');
+        } else {
+            itLevelEl.setAttribute('aria-invalid', 'false');
         }
         if (!roleVal) {
-            missing.push('希望するIT職種');
-            document.getElementById('target-role').style.borderColor = '#ef4444';
+            missing.push('🎓 希望するIT職種');
+            targetRoleEl.style.borderColor = '#ef4444';
+            targetRoleEl.setAttribute('aria-invalid', 'true');
+        } else {
+            targetRoleEl.setAttribute('aria-invalid', 'false');
         }
-        errorEl.innerHTML = '⚠️ <strong>入力エラー</strong><br>' + missing.join('・') + ' は必須項目です。すべて選択してください。';
+        errorEl.innerHTML = '⚠️ <strong>入力エラー</strong><br>以下の項目を入力してください:<br>' + missing.map(m => '• ' + m).join('<br>');
         errorEl.style.display = 'block';
-        showError('❌ 必須項目を入力してください');
+        showError('❌ ' + missing.length + '個の必須項目が未入力です');
         return;
     }
     // バリデーション成功時：エラーをクリア
     document.getElementById('current-job').style.borderColor = '';
     document.getElementById('it-level').style.borderColor = '';
     document.getElementById('target-role').style.borderColor = '';
+    document.getElementById('current-job').setAttribute('aria-invalid', 'false');
+    document.getElementById('it-level').setAttribute('aria-invalid', 'false');
+    document.getElementById('target-role').setAttribute('aria-invalid', 'false');
     errorEl.style.display = 'none';
 
     let finalRole = roleVal;
