@@ -212,7 +212,7 @@ input.input-valid{border-color:#16A34A!important}
           <!-- 本業年収 -->
           <label for="main-income">本業の年収（給与）<span style="color:#DC2626;">*</span></label>
           <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-            <input type="number" id="main-income" placeholder="5000000（例）" min="0" max="30000000" step="100000"
+            <input type="number" id="main-income" placeholder="例）5,000,000円 / 源泉徴収票の支払金額" min="0" max="30000000" step="100000"
               inputmode="numeric" aria-required="true" aria-invalid="false"
               aria-describedby="main-income-hint main-income-error" style="flex:1;" oninput="syncSlider('main',this.value);validateInput('main');debouncedCalc()" onblur="validateInput('main')" required>
             <span style="font-size:14px;color:#666;">円</span>
@@ -235,7 +235,7 @@ input.input-valid{border-color:#16A34A!important}
           <!-- 副業収入 -->
           <label for="side-income">副業の年間収入（売上・報酬総額）<span style="color:#DC2626;">*</span></label>
           <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-            <input type="number" id="side-income" placeholder="300000（例）" min="0" max="10000000" step="10000"
+            <input type="number" id="side-income" placeholder="例）300,000円 / 経費差し引く前の総売上" min="0" max="10000000" step="10000"
               inputmode="numeric" aria-required="true" aria-invalid="false"
               aria-describedby="side-income-hint side-income-error" style="flex:1;" oninput="syncSlider('side',this.value);validateInput('side');adjustExpenseSliderMax(this.value);debouncedCalc()" onblur="validateInput('side')" required>
             <span style="font-size:14px;color:#666;">円</span>
@@ -263,7 +263,7 @@ input.input-valid{border-color:#16A34A!important}
           <!-- 経費 -->
           <label for="expenses">副業の年間経費（見込み）</label>
           <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-            <input type="number" id="expenses" placeholder="50000（例・経費がなければ0）" min="0" max="10000000" step="10000"
+            <input type="number" id="expenses" placeholder="例）50,000円 / PC・通信費・書籍代など（ない場合は0）" min="0" max="10000000" step="10000"
               inputmode="numeric" aria-invalid="false"
               aria-describedby="expenses-hint expenses-error" style="flex:1;" oninput="validateInput('expenses');syncExpensesFromInput(this.value);debouncedCalc()" onblur="validateInput('expenses')">
             <span style="font-size:14px;color:#666;">円</span>
@@ -599,6 +599,15 @@ input.input-valid{border-color:#16A34A!important}
       if (income <= 6600000) return Math.floor(income * 0.2) + 440000;
       if (income <= 8500000) return Math.floor(income * 0.1) + 1100000;
       return 1950000;
+    }
+
+    /* M2: ページ初期化 */
+    function initializeForm() {
+      updateExpenseGuide();
+      updateTypeDescription();
+      updateFormReadyHint();
+      updateExpenseRatio();
+      loadFromStorage();
     }
 
     /* ── スライダー / プリセット連動 ── */
@@ -1037,8 +1046,14 @@ input.input-valid{border-color:#16A34A!important}
           document.getElementById('expenses').value = data.exp;
           syncExpensesFromInput(data.exp);
         }
-        if (data.type) document.getElementById('type').value = data.type;
+        if (data.type) {
+          document.getElementById('type').value = data.type;
+          updateTypeDescription();
+        }
         document.getElementById('restore-banner').classList.add('show');
+        /* M2: 復元後に入力状態を更新 */
+        updateFormReadyHint();
+        updateExpenseRatio();
         /* M6: 目標値を復元 */
         const goalData = loadGoal();
         if (goalData.income) document.getElementById('goal-income').value = goalData.income;
@@ -1411,20 +1426,14 @@ input.input-valid{border-color:#16A34A!important}
 
     /* ── 初期化 ── */
     window.addEventListener('DOMContentLoaded', () => {
-      /* スライダー初期値表示 */
+      /* M2: スライダー初期値表示 */
       syncSlider('main', 5000000);
       syncSlider('side', 300000);
       /* 経費スライダー初期値 */
       const expLabel = document.getElementById('expenses-slider-val');
       if (expLabel) expLabel.textContent = '0円';
-      /* 経費ガイド初期表示 */
-      updateExpenseGuide();
-      /* M2: 副業種別説明の初期表示 */
-      updateTypeDescription();
-      /* 前回値を復元 */
-      loadFromStorage();
-      /* M2: フォーム入力ヒント初期表示 */
-      updateFormReadyHint();
+      /* M2: フォーム完全初期化（経費ガイド・種別説明・入力状態・前回値復元を統合実行） */
+      initializeForm();
     });
     </script>
 
