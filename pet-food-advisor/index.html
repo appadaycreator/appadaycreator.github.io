@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":
 new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],
@@ -30,6 +33,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 <script type="text/javascript">(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y)})(window,document,"clarity","script","s3t9vl8h3v");</script>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode.js/1.5.3/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 <style>
   body { background: #f8fafc; min-height: 100vh; }
   .card { background: white; border-radius: 1rem; box-shadow: 0 4px 24px rgba(0,0,0,0.09); }
@@ -255,6 +259,70 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="text-sm text-gray-700" id="res-tips"></div>
       </div>
     </div>
+
+    <!-- M4: グラフ・スコア・ゲージで結果を可視化（Chart.js） -->
+    <div class="card p-6 mb-4">
+      <h3 class="font-bold text-gray-800 mb-4">📊 健康スコア・栄養バランス</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div style="text-align:center;">
+          <canvas id="healthScoreChart" style="max-width:200px;"></canvas>
+          <div class="text-xs text-gray-600 mt-2">総合健康スコア</div>
+        </div>
+        <div style="text-align:center;">
+          <canvas id="nutritionChart" style="max-width:200px;"></canvas>
+          <div class="text-xs text-gray-600 mt-2">栄養バランス評価</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- M6: 目標設定・達成度トラッキング -->
+    <div class="card p-6 mb-4">
+      <h3 class="font-bold text-gray-800 mb-3">🎯 目標設定・追跡</h3>
+      <div style="display:grid;gap:10px;margin-bottom:12px;">
+        <div>
+          <label class="text-xs font-bold text-gray-700">目標体重（kg）：</label>
+          <input type="number" id="goalWeight" placeholder="例: 5.0" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:14px;" />
+        </div>
+      </div>
+      <button onclick="saveGoal()" style="background:#4f46e5;color:white;border:none;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;width:100%;margin-bottom:12px;">📌 目標を保存</button>
+      <div id="goalProgress" style="display:none;background:#f0f7ff;border-left:3px solid #3b82f6;padding:10px 12px;border-radius:4px;">
+        <div style="font-size:12px;color:#1e40af;font-weight:600;">前回診断からの進捗</div>
+        <div style="font-size:13px;color:#1e40af;margin-top:4px;"><span id="progressText"></span></div>
+      </div>
+    </div>
+
+    <!-- M7: 比較・シミュレーション機能 -->
+    <div class="card p-6 mb-4">
+      <h3 class="font-bold text-gray-800 mb-3">🔄 条件を変更してシミュレーション</h3>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:10px;">
+        <div style="font-size:12px;color:#475569;margin-bottom:10px;"><strong>現在の条件:</strong><span id="currentCondition"></span></div>
+        <div style="display:grid;gap:8px;font-size:13px;">
+          <div>
+            <label style="display:block;font-weight:600;margin-bottom:4px;color:#374151;">年齢を変更して試す：</label>
+            <select id="simAge" onchange="runSimulation()" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;">
+              <option value="">-- 現在の値のままにする --</option>
+              <option value="子犬・子猫">子犬・子猫（1歳未満）</option>
+              <option value="成犬・成猫">成犬・成猫（1〜7歳）</option>
+              <option value="シニア">シニア（8歳以上）</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block;font-weight:600;margin-bottom:4px;color:#374151;">体型を変更して試す：</label>
+            <select id="simWeight" onchange="runSimulation()" style="width:100%;padding:8px;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;">
+              <option value="">-- 現在の値のままにする --</option>
+              <option value="やせぎみ">やせぎみ</option>
+              <option value="ちょうど良い">ちょうど良い</option>
+              <option value="少し太りぎみ">少し太りぎみ</option>
+              <option value="かなり肥満">かなり肥満</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div id="simResult" style="display:none;background:#f0fdf4;border-left:3px solid #388e3c;padding:10px 12px;border-radius:4px;margin-top:10px;">
+        <div style="font-size:12px;color:#166534;font-weight:600;">シミュレーション結果</div>
+        <div style="font-size:13px;color:#166534;margin-top:4px;"><span id="simResultText"></span></div>
+      </div>
+    </div>
     <div class="card p-6 mb-4">
       <h3 class="font-bold text-gray-800 mb-3">📋 結果を保存・共有</h3>
       <div class="grid grid-cols-3 gap-2 mb-4">
@@ -399,9 +467,186 @@ function showResults() {
 
   document.getElementById('aff-area').innerHTML='<a href="'+amazonUrl+'" target="_blank" rel="noopener" class="block bg-yellow-400 text-gray-900 font-bold py-3 px-4 rounded-xl text-center text-sm hover:bg-yellow-500 transition">'+petEmoji+' Amazonで'+food.type+'を探す →</a><p class="text-xs text-gray-400 text-center mt-2">Amazonアソシエイトプログラム参加中</p>';
 
-  lastResult = { type:food.type, desc:food.desc, tips:food.tips };
+  lastResult = { type:food.type, desc:food.desc, tips:food.tips, key:key, ans:ans };
+
+  // M4: チャート表示
+  renderCharts(concernIdx, ageIdx, weightIdx, key);
+
+  // M6: 目標トラッキング
+  loadGoalTracking();
+
+  // M7: シミュレーション初期化
+  initSimulation(ageIdx, weightIdx, Qs[1].opts[ageIdx], Qs[2].opts[weightIdx]);
+
   show('results');
 }
+
+// M4: グラフ・スコア・ゲージで結果を可視化
+function renderCharts(concernIdx, ageIdx, weightIdx, foodKey) {
+  setTimeout(function(){
+    // 健康スコア（0-100）を計算
+    var healthScore = 50;
+    if(ageIdx===1) healthScore += 20;
+    if(ageIdx===0) healthScore += 10;
+    if(weightIdx===1) healthScore += 20;
+    if(concernIdx===3) healthScore += 10;
+    healthScore = Math.min(100, healthScore);
+
+    // ゲージチャート（ドーナツチャート）
+    var healthCtx = document.getElementById('healthScoreChart');
+    if(healthCtx) {
+      new Chart(healthCtx, {
+        type: 'doughnut',
+        data: {
+          datasets: [{
+            data: [healthScore, 100-healthScore],
+            backgroundColor: ['#65a30d', '#e5e7eb'],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { display: false }, tooltip: { enabled: true } },
+          cutout: '70%'
+        }
+      });
+
+      // スコア表示をテキストで上書き
+      var scoreText = document.createElement('div');
+      scoreText.textContent = healthScore;
+      scoreText.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:24px;font-weight:bold;color:#65a30d;';
+    }
+
+    // 栄養バランス評価（レーダーチャート）
+    var nutritionScores = {
+      allergy: { protein:85, fat:80, fiber:90, calcium:75, digest:95 },
+      diet: { protein:75, fat:50, fiber:95, calcium:70, digest:80 },
+      senior: { protein:70, fat:65, fiber:75, calcium:90, digest:85 },
+      puppy: { protein:95, fat:85, fiber:70, calcium:95, digest:90 },
+      standard: { protein:80, fat:75, fiber:75, calcium:80, digest:85 }
+    };
+
+    var scores = nutritionScores[foodKey] || nutritionScores.standard;
+
+    var nutritionCtx = document.getElementById('nutritionChart');
+    if(nutritionCtx) {
+      new Chart(nutritionCtx, {
+        type: 'radar',
+        data: {
+          labels: ['タンパク質','脂質','食物繊維','カルシウム','消化性'],
+          datasets: [{
+            label: 'スコア',
+            data: [scores.protein, scores.fat, scores.fiber, scores.calcium, scores.digest],
+            borderColor: '#65a30d',
+            backgroundColor: 'rgba(101, 163, 13, 0.1)',
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { display: false } },
+          scales: { r: { beginAtZero: true, max: 100, ticks: { stepSize: 25 } } }
+        }
+      });
+    }
+  }, 100);
+}
+
+// M6: 目標設定・達成度トラッキング
+function saveGoal() {
+  var goalWeight = parseFloat(document.getElementById('goalWeight').value);
+  if(!goalWeight || goalWeight<=0) {
+    alert('有効な体重を入力してください');
+    return;
+  }
+
+  var history = JSON.parse(localStorage.getItem('petDiagnosisHistory') || '[]');
+  var currentResult = { goal: goalWeight, date: new Date().toISOString(), answers: ans };
+  history.push(currentResult);
+  localStorage.setItem('petDiagnosisHistory', JSON.stringify(history));
+  localStorage.setItem('petGoalWeight', goalWeight);
+
+  alert('目標を保存しました！');
+  loadGoalTracking();
+}
+
+function loadGoalTracking() {
+  var history = JSON.parse(localStorage.getItem('petDiagnosisHistory') || '[]');
+  var goalWeight = parseFloat(localStorage.getItem('petGoalWeight') || '0');
+
+  if(history.length > 0 && goalWeight > 0) {
+    var lastResult = history[history.length-1];
+    var progressText = '';
+
+    if(history.length >= 2) {
+      var prevWeight = history[history.length-2].goal || 'データなし';
+      var diff = lastResult.goal - prevWeight;
+      progressText = '前回から ' + (diff > 0 ? '+' : '') + diff.toFixed(1) + 'kg';
+    } else {
+      progressText = '前回データを記録してください';
+    }
+
+    document.getElementById('goalProgress').style.display = 'block';
+    document.getElementById('progressText').textContent = progressText + ' | 目標値: ' + goalWeight.toFixed(1) + 'kg';
+  } else {
+    document.getElementById('goalProgress').style.display = 'none';
+  }
+}
+
+// M7: 比較・シミュレーション機能
+function initSimulation(ageIdx, weightIdx, ageVal, weightVal) {
+  var condition = Qs[1].opts[ageIdx] + ' / ' + Qs[2].opts[weightIdx];
+  document.getElementById('currentCondition').textContent = ' ' + condition;
+
+  // シミュレーション選択肢を初期化
+  document.getElementById('simAge').value = '';
+  document.getElementById('simWeight').value = '';
+  document.getElementById('simResult').style.display = 'none';
+}
+
+function runSimulation() {
+  var simAge = document.getElementById('simAge').value;
+  var simWeight = document.getElementById('simWeight').value;
+
+  if(!simAge && !simWeight) {
+    document.getElementById('simResult').style.display = 'none';
+    return;
+  }
+
+  // シミュレーション用の一時的な回答を作成
+  var simAns = JSON.parse(JSON.stringify(ans));
+
+  if(simAge) {
+    var ageIdx = Qs[1].opts.indexOf(simAge);
+    if(ageIdx >= 0) simAns.age = { i: ageIdx, val: simAge };
+  }
+
+  if(simWeight) {
+    var weightIdx = Qs[2].opts.indexOf(simWeight);
+    if(weightIdx >= 0) simAns.weight = { i: weightIdx, val: simWeight };
+  }
+
+  // シミュレーション結果を計算
+  var concernIdx = simAns.concern ? simAns.concern.i : 3;
+  var ageIdx = simAns.age ? simAns.age.i : 1;
+  var weightIdx = simAns.weight ? simAns.weight.i : 1;
+
+  var foodKey;
+  if(concernIdx===2) { foodKey='allergy'; }
+  else if(weightIdx>=2) { foodKey='diet'; }
+  else if(ageIdx===2) { foodKey='senior'; }
+  else if(ageIdx===0) { foodKey='puppy'; }
+  else { foodKey='standard'; }
+
+  var food = foodMap[foodKey];
+  document.getElementById('simResult').style.display = 'block';
+  document.getElementById('simResultText').innerHTML = '<strong>推奨:</strong> ' + food.type + '<br><em>※条件変更に基づく参考結果です</em>';
+}
+
+
 
 function copyResult() {
   if(!lastResult) return;
@@ -717,12 +962,13 @@ function restart() { cur=0; ans={}; lastResult=null; show('intro'); }
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 <!-- r46-org-footer -->
 <div style="text-align:center;font-size:11px;color:#9ca3af;padding:6px 0 4px;background:#f8fafc;border-top:1px solid #e5e7eb;">
   運営: <a href="https://appadaycreator.com/" style="color:#9ca3af;text-decoration:none;">AppADayCreator</a> | <a href="https://tech-and-brace.co.jp/" rel="noopener" style="color:#9ca3af;text-decoration:none;">株式会社Tech&amp;Brace</a>
 </div>
+<script src="/assets/consent-mode.js"></script>
 </body>
 </html>
