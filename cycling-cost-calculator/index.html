@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":
 new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],
@@ -223,6 +226,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://appadaycreator.com/"},{"@type":"ListItem","position":2,"name":"計算機/お金","item":"https://appadaycreator.com/category/finance/"},{"@type":"ListItem","position":3,"name":"自転車通勤コスト計算ツール簡単・無料計算","item":"https://appadaycreator.com/cycling-cost-calculator/"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"「自転車通勤コスト計算ツール」は無料で使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要です。"}},{"@type":"Question","name":"スマートフォンでも使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、モバイル対応済みです。"}}]}</script>
 </head>
 <body>
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -327,6 +331,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <label class="cyc-label">年間メンテナンス費 (円/年)</label>
           <input type="number" id="maintenance" class="cyc-input" placeholder="例: 5000" min="0" value="5000">
 
+          <!-- 目標設定セクション M6 -->
+          <div class="section-title">🎯 目標設定・進捗管理</div>
+          <label class="cyc-label">目標年間節約額 (円)</label>
+          <div style="display:flex;gap:8px;align-items:flex-end;">
+            <input type="number" id="saving-goal" class="cyc-input" placeholder="例: 100000" min="0" value="" style="flex:1;">
+            <button onclick="saveSavingGoal()" style="background:#4338ca;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;min-height:44px;white-space:nowrap;">目標を設定</button>
+          </div>
+          <div id="goal-status" style="display:none;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:12px 14px;margin-top:10px;">
+            <div style="font-size:13px;font-weight:700;color:#166534;margin-bottom:8px;">📍 目標設定状況</div>
+            <div style="font-size:12px;color:#166534;line-height:1.6;"><span id="current-goal-val" style="font-weight:700;">-</span></div>
+          </div>
+
           <button class="btn" style="margin-top:20px;width:100%;" onclick="calculate()">🧮 コストを比較する</button>
 
           <!-- 履歴セクション -->
@@ -352,6 +368,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <canvas id="costChart" style="margin-bottom:16px;"></canvas>
 
               <div class="saving-banner" id="saving-banner"></div>
+
+              <div id="progress-box" style="display:none;background:#eff6ff;border:1.5px solid #93c5fd;border-radius:10px;padding:12px 14px;margin-bottom:10px;">
+                <div style="font-size:13px;font-weight:700;color:#1e40af;margin-bottom:10px;">🎯 目標達成度</div>
+                <div style="margin-bottom:10px;">
+                  <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:12px;color:#1e40af;font-weight:600;">
+                    <span id="progress-label">-</span>
+                    <span id="progress-percent">0%</span>
+                  </div>
+                  <div style="width:100%;background:#d1d5db;border-radius:8px;height:8px;overflow:hidden;">
+                    <div id="progress-bar" style="background:#3b82f6;height:100%;border-radius:8px;width:0%;transition:width 0.3s ease;"></div>
+                  </div>
+                </div>
+                <div id="progress-detail" style="font-size:12px;color:#1e40af;line-height:1.6;"></div>
+              </div>
 
               <div class="health-box" id="health-box"></div>
 
@@ -630,6 +660,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       // グラフを描画
       renderCostChart(currentLabel, currentAnnual, bikeAnnual);
 
+      // 目標達成度を更新
+      updateProgressDisplay(saving);
+
       // localStorage に入力値と結果を保存
       saveInputs();
 
@@ -867,9 +900,75 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       });
     }
 
+    // ========== 目標設定・達成度トラッキング ==========
+    function saveSavingGoal() {
+      const goalVal = parseFloat(document.getElementById('saving-goal').value) || 0;
+      if (goalVal <= 0) {
+        alert('目標年間節約額を入力してください（0より大きい値）');
+        return;
+      }
+      localStorage.setItem('cycling-saving-goal', JSON.stringify({
+        goal: goalVal,
+        setDate: new Date().toISOString()
+      }));
+      alert('目標を設定しました：' + (Math.round(goalVal / 10000 * 10) / 10) + '万円');
+      loadSavingGoal();
+    }
+
+    function loadSavingGoal() {
+      const saved = localStorage.getItem('cycling-saving-goal');
+      if (!saved) {
+        document.getElementById('goal-status').style.display = 'none';
+        return;
+      }
+      try {
+        const data = JSON.parse(saved);
+        const goalVal = data.goal;
+        const setDate = new Date(data.setDate);
+        const dateStr = setDate.toLocaleDateString('ja-JP', { month: '2-digit', day: '2-digit' });
+        document.getElementById('saving-goal').value = goalVal;
+        document.getElementById('goal-status').style.display = 'block';
+        document.getElementById('current-goal-val').innerHTML =
+          '目標: ' + (Math.round(goalVal / 10000 * 10) / 10) + '万円（' + dateStr + '設定）';
+      } catch (e) {
+        console.error('Failed to load goal:', e);
+      }
+    }
+
+    function updateProgressDisplay(saving) {
+      const saved = localStorage.getItem('cycling-saving-goal');
+      if (!saved) {
+        document.getElementById('progress-box').style.display = 'none';
+        return;
+      }
+      try {
+        const data = JSON.parse(saved);
+        const goal = data.goal;
+        const progress = Math.min(100, Math.round(saving / goal * 100));
+        const progressCeil = Math.ceil(saving / goal * 100);
+
+        document.getElementById('progress-box').style.display = 'block';
+        document.getElementById('progress-label').innerHTML = '目標: ' + (Math.round(goal / 10000 * 10) / 10) + '万円';
+        document.getElementById('progress-percent').innerHTML = Math.min(100, progressCeil) + '%';
+        document.getElementById('progress-bar').style.width = progress + '%';
+
+        let detail = '';
+        if (saving >= goal) {
+          detail = '✅ 目標を達成しました！あと ' + (Math.round((saving - goal) / 10000 * 10) / 10) + '万円上回っています。';
+        } else {
+          const remaining = goal - saving;
+          detail = '📍 目標まで あと ' + (Math.round(remaining / 10000 * 10) / 10) + '万円です。';
+        }
+        document.getElementById('progress-detail').innerHTML = detail;
+      } catch (e) {
+        console.error('Failed to update progress:', e);
+      }
+    }
+
     // ========== 初期化 ==========
     document.addEventListener('DOMContentLoaded', () => {
       loadInputs();
+      loadSavingGoal();
       renderHistory();
       document.querySelectorAll('input[type="number"]').forEach(inp => {
         inp.addEventListener('change', saveInputs);
@@ -994,8 +1093,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
+<script src="/assets/consent-mode.js"></script>
 </body>
 </html>
