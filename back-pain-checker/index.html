@@ -77,6 +77,8 @@
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "item": {"@id": "https://appadaycreator.com/", "name": "AppADayCreator"}}, {"@type": "ListItem", "position": 2, "item": {"@id": "https://appadaycreator.com/back-pain-checker/", "name": "腰痛・肩こり原因チェッカー"}}]}</script>
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-ZDPNYD2875"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-ZDPNYD2875',{send_page_view:false});</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"「腰痛・肩こり原因チェッカー」は無料で使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要です。"}},{"@type":"Question","name":"スマートフォンでも使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、モバイル対応済みです。"}}]}</script>
+<link rel="manifest" href="/back-pain-checker/manifest.json">
 </head>
 <body>
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -222,10 +224,15 @@
               <canvas id="scoreChart" style="max-width:100%;margin:0 auto;display:block"></canvas>
               <div id="scoreDetails" style="margin-top:12px;font-size:12px;color:#475569"></div>
             </div>
+            <!-- M1: 診断後CTAボタン -->
+            <div id="recommendSection" style="background:#fef3c7;border:1px solid #fcd34d;border-radius:10px;padding:16px;margin:16px 0">
+              <p style="font-size:12px;font-weight:600;color:#92400e;margin-bottom:12px">💡 診断結果に基づいた改善グッズ・商品</p>
+              <div id="recommendedItems" style="display:flex;flex-direction:column;gap:10px;font-size:13px"></div>
+            </div>
             <div style="display:flex;gap:8px;margin:16px 0;flex-wrap:wrap">
               <button class="btn" style="margin:0;flex:1;min-width:120px;background:#3b82f6;min-height:44px" onclick="printResult()" aria-label="診断結果を印刷">🖨️ 印刷</button>
               <button class="btn" style="margin:0;flex:1;min-width:120px;background:#10b981;min-height:44px" onclick="downloadCSV()" aria-label="診断結果をCSVダウンロード">📥 CSV</button>
-              <button class="btn" style="margin:0;flex:1;min-width:120px;background:#EA580C;min-height:44px" onclick="location.reload()" aria-label="もう一度診断">🔄 再診断</button>
+              <button class="btn" style="margin:0;flex:1;min-width:120px;background:#EA580C;min-height:44px" onclick="toggleComparison()" aria-label="複数条件を比較">⚖️ 比較</button>
             </div>
           </div>
         </div>
@@ -538,6 +545,84 @@
       document.getElementById('q-options').innerHTML=q.opts.map((o,i)=>`<button onclick="answer(${i})" style="width:100%;padding:12px;margin-bottom:8px;border:2px solid #e5e7eb;border-radius:10px;font-size:14px;cursor:pointer;background:#fff;text-align:left;">${o}</button>`).join('');
     }
     function answer(idx){ ans.push({idx}); cur++; if(cur>=QUESTIONS.length) showResult(); else renderQ(); }
+    // M1: 診断タイプごとの推奨商品
+    const recommendations = {
+      0: [ // デスクワーク型
+        {name:'バランスクッション',desc:'骨盤を立てた正しい座り姿勢をサポート',affiliate:'https://px.a8.net/svt/ejp?a8mat=ZLYQZQ+ALXZ0A+250L+62CSY&a8ejpredirect=https%3A%2F%2Fwww.amazon.co.jp%2Fs%3Fk%3D%25E3%2583%2590%25E3%2583%25A9%25E3%2583%25B3%25E3%2582%25B9%25E3%2582%25AF%25E3%2583%2583%25E3%2582%25B7%25E3%2583%25A7%25E3%2583%25B3'},
+        {name:'モニタースタンド',desc:'画面の高さを目線に合わせて首の負担を軽減',affiliate:'https://px.a8.net/svt/ejp?a8mat=ZLYQZQ+ALXZ0A+250L+62CSY&a8ejpredirect=https%3A%2F%2Fwww.amazon.co.jp%2Fs%3Fk%3D%25E3%2583%25A2%25E3%2583%258B%25E3%2582%25BF%25E3%2583%25BC%25E3%2582%25B9%25E3%2582%25BF%25E3%2583%25B3%25E3%2583%2589'},
+        {name:'腰痛対策クッション',desc:'腰椎の自然なS字カーブを維持',affiliate:'https://px.a8.net/svt/ejp?a8mat=ZLYQZQ+ALXZ0A+250L+62CSY&a8ejpredirect=https%3A%2F%2Fwww.amazon.co.jp%2Fs%3Fk%3D%25E8%2585%25B0%25E7%2597%259B%25E5%25AF%25BE%25E7%25AD%2596'}
+      ],
+      1: [ // 首・肩こり型
+        {name:'タオル枕',desc:'首の下に置く。ストレートネック対策に有効',affiliate:'https://px.a8.net/svt/ejp?a8mat=ZLYQZQ+ALXZ0A+250L+62CSY&a8ejpredirect=https%3A%2F%2Fwww.amazon.co.jp%2Fs%3Fk%3D%25E3%2582%25BF%25E3%2582%25AA%25E3%2583%25AB%25E6%2590%25A0'},
+        {name:'肩甲骨ストレッチャー',desc:'肩甲骨周りの筋肉をほぐす',affiliate:'https://px.a8.net/svt/ejp?a8mat=ZLYQZQ+ALXZ0A+250L+62CSY&a8ejpredirect=https%3A%2F%2Fwww.amazon.co.jp%2Fs%3Fk%3D%25E8%2582%25A9%25E7%25BE%25A4%25E9%25AA%25A8%25E3%2582%25B9%25E3%2583%2588%25E3%2583%25AC%25E3%2583%2583%25E3%2583%2581'},
+        {name:'首サポーター',desc:'スマホ首による不安定を軽減',affiliate:'https://px.a8.net/svt/ejp?a8mat=ZLYQZQ+ALXZ0A+250L+62CSY&a8ejpredirect=https%3A%2F%2Fwww.amazon.co.jp%2Fs%3Fk%3D%25E9%25A6%25A6%25E3%2582%25B5%25E3%2583%259D%25E3%2583%25BC%25E3%2582%25BF%25E3%2583%25BC'}
+      ],
+      2: [ // 筋疲労型
+        {name:'フォームローラー',desc:'筋膜リリースで筋疲労を軽減',affiliate:'https://px.a8.net/svt/ejp?a8mat=ZLYQZQ+ALXZ0A+250L+62CSY&a8ejpredirect=https%3A%2F%2Fwww.amazon.co.jp%2Fs%3Fk%3D%25E3%2583%2595%25E3%2582%25A9%25E3%2583%25BC%25E3%2583%25A0%25E3%2583%25AD%25E3%2583%25BC%25E3%2583%25A9%25E3%2583%25BC'},
+        {name:'スポーツマッサージ器',desc:'深部筋まで効率的にほぐす',affiliate:'https://px.a8.net/svt/ejp?a8mat=ZLYQZQ+ALXZ0A+250L+62CSY&a8ejpredirect=https%3A%2F%2Fwww.amazon.co.jp%2Fs%3Fk%3D%25E3%2583%259E%25E3%2583%2583%25E3%2582%25B5%25E3%2583%25BC%25E3%2582%25B8'},
+        {name:'アイスパック',desc:'急性期の炎症軽減に',affiliate:'https://px.a8.net/svt/ejp?a8mat=ZLYQZQ+ALXZ0A+250L+62CSY&a8ejpredirect=https%3A%2F%2Fwww.amazon.co.jp%2Fs%3Fk%3D%25E3%2582%25A2%25E3%2582%25A4%25E3%2582%25B9%25E3%2583%2591%25E3%2583%2583%25E3%2582%25AF'}
+      ],
+      3: [ // 姿勢・生活習慣型
+        {name:'ヨガマット',desc:'ストレッチ・ピラティスに最適',affiliate:'https://px.a8.net/svt/ejp?a8mat=ZLYQZQ+ALXZ0A+250L+62CSY&a8ejpredirect=https%3A%2F%2Fwww.amazon.co.jp%2Fs%3Fk%3D%25E3%2583%25A8%25E3%2582%25AC%25E3%2583%259E%25E3%2583%2583%25E3%2583%2588'},
+        {name:'高反発マットレス',desc:'睡眠中の姿勢をサポート',affiliate:'https://px.a8.net/svt/ejp?a8mat=ZLYQZQ+ALXZ0A+250L+62CSY&a8ejpredirect=https%3A%2F%2Fwww.amazon.co.jp%2Fs%3Fk%3D%25E9%25AB%2598%25E5%258F%25B7%25E5%258F%25B7%25E3%2583%259E%25E3%2583%2583%25E3%2583%2588'},
+        {name:'低反発枕',desc:'首の自然なカーブをサポート',affiliate:'https://px.a8.net/svt/ejp?a8mat=ZLYQZQ+ALXZ0A+250L+62CSY&a8ejpredirect=https%3A%2F%2Fwww.amazon.co.jp%2Fs%3Fk%3D%25E4%25BD%258E%25E5%258F%25B7%25E5%258F%25B7%25E6%25A0%2581'}
+      ]
+    };
+    // M7: 比較パネルの状態管理
+    let comparisonMode = false;
+    let comparisonAnswers = null;
+    function toggleComparison() {
+      comparisonMode = !comparisonMode;
+      if(!comparisonMode) {
+        document.getElementById('comparisonPanel').style.display = 'none';
+        return;
+      }
+      comparisonAnswers = [...ans];
+      showComparisonUI();
+    }
+    function showComparisonUI() {
+      let html = `<div id="comparisonPanel" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:16px;margin:16px 0">
+        <p style="font-size:13px;font-weight:600;color:#166534;margin-bottom:14px">⚖️ シミュレーション: 条件を変更して結果を比較</p>
+        <div style="max-height:300px;overflow-y:auto;margin-bottom:12px">`;
+      QUESTIONS.forEach((q,idx)=>{
+        html += `<div style="margin-bottom:12px;padding:12px;background:white;border-radius:8px;border:1px solid #d1fae5">
+          <p style="font-size:12px;font-weight:600;color:#374151;margin-bottom:8px">${q.text}</p>
+          <div style="display:flex;flex-direction:column;gap:6px">`;
+        q.opts.forEach((opt,optIdx)=>{
+          const isSelected = comparisonAnswers[idx]?.idx === optIdx;
+          html += `<button onclick="updateComparison(${idx},${optIdx})" style="background:${isSelected?'#10b981':'white'};color:${isSelected?'white':'#374151'};border:1px solid ${isSelected?'#10b981':'#d1e7f6'};padding:8px;border-radius:6px;font-size:12px;cursor:pointer;text-align:left;transition:all .2s;min-height:36px">${isSelected?'✓ ':''}${opt}</button>`;
+        });
+        html += `</div></div>`;
+      });
+      html += `</div><button onclick="showComparisonResult()" style="background:#10b981;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:13px;cursor:pointer;width:100%;font-weight:600;min-height:44px">シミュレーション結果を表示</button></div>`;
+      const panel = document.createElement('div');
+      panel.innerHTML = html;
+      const existingPanel = document.getElementById('comparisonPanel');
+      if(existingPanel) existingPanel.parentElement.removeChild(existingPanel);
+      document.getElementById('result').querySelector('.card').insertBefore(panel.firstElementChild, document.getElementById('recommendSection'));
+    }
+    function updateComparison(qIdx, optIdx) {
+      comparisonAnswers[qIdx] = {idx:optIdx};
+      showComparisonUI();
+    }
+    function showComparisonResult() {
+      const r1 = getResult(ans);
+      const r2 = getResult(comparisonAnswers);
+      const typeLabels = ['デスクワーク型','首・肩こり型','筋疲労型','姿勢・生活習慣型'];
+      let html = `<div style="background:#dbeafe;border:1px solid #93c5fd;border-radius:10px;padding:16px;margin:12px 0">
+        <p style="font-size:12px;font-weight:600;color:#1e40af;margin-bottom:12px">📊 現在の診断 vs シミュレーション結果</p>
+        <table style="width:100%;font-size:12px;border-collapse:collapse;margin-bottom:12px">
+          <tr style="background:#dbeafe"><th style="padding:8px;text-align:left;border:1px solid #93c5fd">タイプ</th><th style="padding:8px;text-align:center;border:1px solid #93c5fd">現在</th><th style="padding:8px;text-align:center;border:1px solid #93c5fd">シミュ</th><th style="padding:8px;text-align:center;border:1px solid #93c5fd">変化</th></tr>`;
+      typeLabels.forEach((label,i)=>{
+        const diff = r2.scores[i] - r1.scores[i];
+        const diffText = diff > 0 ? `+${diff}` : `${diff}`;
+        const color = diff > 0 ? '#ef4444' : diff < 0 ? '#10b981' : '#9ca3af';
+        html += `<tr><td style="padding:8px;border:1px solid #93c5fd;font-weight:600">${label}</td><td style="padding:8px;border:1px solid #93c5fd;text-align:center">${r1.scores[i]}</td><td style="padding:8px;border:1px solid #93c5fd;text-align:center"><strong style="color:#1e40af">${r2.scores[i]}</strong></td><td style="padding:8px;border:1px solid #93c5fd;text-align:center;color:${color};font-weight:600">${diffText}</td></tr>`;
+      });
+      html += `</table><p style="font-size:11px;color:#1e40af;margin:0">最高スコア: <strong>${RESULTS[r2.typeIdx].title.split('—')[0].trim()}</strong></p></div>`;
+      const resultDiv = document.getElementById('comparisonPanel');
+      if(resultDiv) resultDiv.innerHTML = html;
+    }
     function showResult(){
       document.getElementById('quiz-area').style.display='none';
       const r=getResult(ans);
@@ -548,6 +633,14 @@
       const scoreDetailsDiv = document.getElementById('scoreDetails');
       scoreDetailsDiv.dataset.scores = JSON.stringify(r.scores);
       scoreDetailsDiv.innerHTML = r.scores.map((s,i)=>`<div style="margin:6px 0"><span style="font-weight:600">●${typeLabels[i]}:</span> <strong style="color:#EA580C">${s}点</strong></div>`).join('');
+      // M1: 推奨商品を表示
+      const recommendedHTML = recommendations[r.typeIdx].map(item=>
+        `<a href="${item.affiliate}" target="_blank" rel="noopener noreferrer" style="display:block;background:white;border:1px solid #fbbf24;border-radius:8px;padding:10px;text-decoration:none;color:#374151;transition:all .2s;cursor:pointer;min-height:50px;display:flex;flex-direction:column;justify-content:center">
+          <strong style="color:#ea580c;font-size:13px">${item.name}</strong>
+          <span style="font-size:12px;color:#6b7280;margin-top:2px">${item.desc}</span>
+        </a>`
+      ).join('');
+      document.getElementById('recommendedItems').innerHTML = recommendedHTML;
       setTimeout(()=>{
         const ctx = document.getElementById('scoreChart');
         if(ctx) {
