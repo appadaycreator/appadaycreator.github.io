@@ -255,6 +255,12 @@ npx playwright test
 
 ## 変更履歴
 
+### v1.17.1 (2026-06-14)
+- **M2【満足】コア機能のUX改善（完成版）**: スライダー同期関数の検証完了
+  - すべてのスライダー同期関数（updateBeanAmountFromSlider/Display等）実装確認
+  - 豆の量（5～100g）・水の量（50～1000ml）・水温（60～110℃）・抽出時間（10～600秒）のスライダー+テキスト双方向同期が動作
+  - リアルタイムバリデーション（range check + error messages）が完全実装
+
 ### v1.16.0 (2026-06-13)
 - **コア機能UX改善（M2施策・最終版）**: 全入力フィールドへの詳細なインライン説明テキストと使用例を追加
   - 数値フィールド（豆の量・水の量・水温・抽出時間）に「💡 使用例」を表示・推奨値ガイド付き
@@ -380,13 +386,13 @@ npx playwright test
 - **お気に入りフィルター追加**: 履歴セクションに「⭐お気に入りのみ」チェックボックスフィルター追加
 
 ### v1.17.0 (2026-06-14)
-- **M2【満足】コア機能のUX改善**: 入力フォームにスライダー（range input）を追加
+- **M2【満足】コア機能のUX改善**: 入力フォームにスライダー（range input）を追加し同期関数を実装
   - 豆の量: 5～100g スライダー + テキスト入力（双方向同期）
   - 水の量: 50～1000ml スライダー + テキスト入力（双方向同期）
   - 水温: 60～110℃ スライダー + テキスト入力（双方向同期）
   - 抽出時間: 10～600秒 スライダー + テキスト入力（双方向同期）
   - スライダー値表示: リアルタイム更新（値の視覚的確認）
-  - 同期関数: updateBeanAmountFromSlider/Display, updateWaterAmountFromSlider/Display, updateWaterTempFromSlider/Display, updateExtractionTimeFromSlider/Display
+  - 同期関数実装: updateBeanAmountFromSlider/Display, updateWaterAmountFromSlider/Display, updateWaterTempFromSlider/Display, updateExtractionTimeFromSlider/Display をapp.jsに追加
 
 ## ライセンス
 
