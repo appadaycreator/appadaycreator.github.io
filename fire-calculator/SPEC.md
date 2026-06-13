@@ -7,6 +7,23 @@
 **更新日**: 2026-06-13
 **URL**: https://appadaycreator.com/fire-calculator/
 
+## 変更履歴（v2.6.3）
+- M2: コア機能のUX改善 - 入力UI・バリデーション・アクセシビリティ拡張
+  - title 属性追加：全フォームフィールドにツールチップヘルプを実装（ホバー時に入力補助表示）
+  - エラーメッセージコンテナの統一化：全フォームグループで一貫性のある error-message div 配置
+  - スライダー説明強化：expectedReturnSlider・inflationRateSlider に詳細な title 属性を追加（ドラッグ方向を明記）
+  - セレクトボックスの説明強化：nenkinStartAge・idecoTaxRate に title 属性で選択ガイドを追加
+  - アクセシビリティ強化：すべての input/select に title を統一し、スクリーンリーダー・ホバーで操作補助を実現
+
+## 変更履歴（v2.6.2）
+- M2: コア機能のUX改善 - バリデーション・スライダー機能の完全実装確認
+  - validateAgeInput() 関数：現在の年齢フィールド（20〜70歳）の入力検証
+  - validateNumberInput() 関数：全数値フィールドの範囲チェック＆エラー表示
+  - エラーメッセージリアルタイム表示：入力時・失焦時に即座にエラー表示
+  - is-error クラス適用：不正な値に対して赤い枠線＆背景色で視覚的フィードバック
+  - スライダー同期機能：syncSliderToInput/syncInputToSlider で数値とスライダーを双方向同期
+  - updateTotalSavings/updateSavingsSummary：リアルタイム計算更新
+
 ## 変更履歴（v2.6.1）
 - M2: コア機能のUX改善 - バリデーション関数の実装補完
   - validateAgeInput() 関数：現在の年齢フィールド（20〜70歳）の入力検証
