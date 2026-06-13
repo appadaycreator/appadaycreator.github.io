@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":
 new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],
@@ -230,7 +233,7 @@ input.input-valid{border-color:#16A34A!important}
           <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
             <input type="number" id="side-income" placeholder="300000（例）" min="0" max="10000000" step="10000"
               inputmode="numeric" aria-required="true" aria-invalid="false"
-              aria-describedby="side-income-hint side-income-error" style="flex:1;" oninput="syncSlider('side',this.value);validateInput('side');debouncedCalc()" onblur="validateInput('side')" required>
+              aria-describedby="side-income-hint side-income-error" style="flex:1;" oninput="syncSlider('side',this.value);validateInput('side');adjustExpenseSliderMax(this.value);debouncedCalc()" onblur="validateInput('side')" required>
             <span style="font-size:14px;color:#666;">円</span>
           </div>
           <div id="side-income-error" role="alert" aria-live="polite" style="display:none;color:#DC2626;font-size:12px;margin-top:2px;"></div>
@@ -238,6 +241,11 @@ input.input-valid{border-color:#16A34A!important}
             <input type="range" id="side-slider" min="0" max="2000000" step="10000" value="300000"
               oninput="syncInput('side',this.value);debouncedCalc()" aria-label="副業収入スライダー">
             <span class="slider-val" id="side-slider-val">30万</span>
+          </div>
+          <!-- 20万円ルール閾値マーカー（確定申告ライン） -->
+          <div style="position:relative;height:16px;margin-top:1px;" aria-hidden="true">
+            <div style="position:absolute;left:calc(10% - 1px);top:0;width:2px;height:10px;background:#DC2626;opacity:.7;"></div>
+            <span style="position:absolute;left:calc(10% + 4px);top:-1px;font-size:10px;color:#DC2626;white-space:nowrap;">↑ 20万円（確定申告ライン）</span>
           </div>
           <div class="preset-btns" role="group" aria-label="副業収入プリセット">
             <button class="preset-btn" type="button" onclick="setPreset('side',100000)" aria-label="副業収入を10万に設定">10万</button>
@@ -257,6 +265,8 @@ input.input-valid{border-color:#16A34A!important}
             <span style="font-size:14px;color:#666;">円</span>
           </div>
           <div id="expenses-error" role="alert" aria-live="polite" style="display:none;color:#DC2626;font-size:12px;margin-top:2px;"></div>
+          <!-- M2: 経費率リアルタイム表示 -->
+          <div id="expense-ratio-display" aria-live="polite" style="display:none;font-size:12px;margin-top:4px;padding:5px 10px;border-radius:6px;background:#f9fafb;border:1px solid #e5e7eb;"></div>
           <div class="slider-wrap">
             <input type="range" id="expenses-slider" min="0" max="500000" step="5000" value="0"
               oninput="syncExpensesSlider(this.value);debouncedCalc()" aria-label="経費スライダー">
@@ -627,11 +637,44 @@ input.input-valid{border-color:#16A34A!important}
       if (hint) hint.style.display = (main > 0 && side > 0) ? 'block' : 'none';
     }
 
+    /* M2: 経費率リアルタイム表示 */
+    function updateExpenseRatio() {
+      const side = parseInt(document.getElementById('side-income').value) || 0;
+      const exp = parseInt(document.getElementById('expenses').value) || 0;
+      const el = document.getElementById('expense-ratio-display');
+      if (!el) return;
+      if (side > 0 && exp > 0) {
+        const ratio = Math.round(exp / side * 100);
+        const color = ratio >= 80 ? '#DC2626' : ratio >= 50 ? '#D97706' : '#16A34A';
+        const msg = ratio >= 80 ? '⚠️ 経費が収入の大部分です' : ratio >= 50 ? '💡 経費は高めです。領収書を保管してください' : '✅ 適切な経費率です';
+        el.style.display = 'block';
+        el.innerHTML = '<span style="color:' + color + ';font-weight:700;">経費率: ' + ratio + '%</span>　' + msg;
+      } else {
+        el.style.display = 'none';
+      }
+    }
+
+    /* M2: 副業収入に合わせて経費スライダー上限を動的調整 */
+    function adjustExpenseSliderMax(sideVal) {
+      const v = parseInt(sideVal) || 0;
+      const slider = document.getElementById('expenses-slider');
+      if (!slider) return;
+      const newMax = v > 0 ? Math.min(Math.max(v, 500000), 5000000) : 500000;
+      slider.max = newMax;
+      /* 既存の経費値が新しい上限を超えていたら上限値に調整 */
+      const expInput = document.getElementById('expenses');
+      if (expInput && parseInt(expInput.value) > newMax) {
+        expInput.value = newMax;
+        syncExpensesFromInput(newMax);
+      }
+    }
+
     /* ── デバウンス付きリアルタイム計算 ── */
     let debounceTimer = null;
     function debouncedCalc() {
       clearTimeout(debounceTimer);
       updateFormReadyHint();
+      updateExpenseRatio();
       debounceTimer = setTimeout(() => {
         const main = parseInt(document.getElementById('main-income').value) || 0;
         const side = parseInt(document.getElementById('side-income').value) || 0;
@@ -913,6 +956,7 @@ input.input-valid{border-color:#16A34A!important}
         if (data.side) {
           document.getElementById('side-income').value = data.side;
           syncSlider('side', data.side);
+          adjustExpenseSliderMax(data.side);
         }
         if (data.exp) {
           document.getElementById('expenses').value = data.exp;
@@ -960,8 +1004,9 @@ input.input-valid{border-color:#16A34A!important}
       const v = parseInt(val) || 0;
       const slider = document.getElementById('expenses-slider');
       const label = document.getElementById('expenses-slider-val');
-      if (slider) slider.value = Math.min(v, 500000);
+      if (slider) slider.value = Math.min(v, parseInt(slider.max) || 500000);
       if (label) label.textContent = v.toLocaleString() + '円';
+      updateExpenseRatio();
     }
 
     /* ── 入力バリデーション（リアルタイム・M2強化） ── */
@@ -1085,7 +1130,7 @@ input.input-valid{border-color:#16A34A!important}
         <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 </body>
@@ -1418,5 +1463,6 @@ input.input-valid{border-color:#16A34A!important}
   }, {passive:true});
 })();
 </script>
+<script src="/assets/consent-mode.js"></script>
 </body>
 </html>
