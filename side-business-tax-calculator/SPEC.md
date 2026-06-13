@@ -65,6 +65,15 @@
 - **前回比較機能**: 前回計算との副業純利益・追加税負担の差分をリアルタイム比較表示
 - **自動保存**: 目標値を `localStorage` に自動保存し、ページリロード後も復元・パネルを自動展開
 
+## v2.7.0 M2: 入力アクセシビリティ完全強化（2026-06-13）
+
+### M2: モバイルUX・アクセシビリティ最終仕上げ
+- **inputmode="numeric"追加**: 本業年収・副業収入・経費フィールドにinputmode="numeric"を追加し、モバイルで数字キーボードが自動表示されるよう改善
+- **aria-invalid管理**: validateInput()/validateForSubmit()でエラー時にaria-invalid="true"、正常時にaria-invalid="false"を動的にセットし、スクリーンリーダーがフィールドの入力状態を把握可能に
+- **aria-describedby拡充**: エラーdiv（*-error）をaria-describedbyに追加し、エラー発生時にメッセージと入力フィールドが自動的に関連付けられる
+- **expensesにmax属性追加**: 経費フィールドにmax="10000000"を追加し不正値の入力を抑止
+- **副業種別selectにhint追加**: aria-describedby="type-hint"とヒントテキストを追加し、選択目的を説明
+
 ## v2.6.0 M2: 入力UX最終仕上げ・GSC SEO強化（2026-06-13）
 
 ### M2: アクセシビリティ・UX改善
