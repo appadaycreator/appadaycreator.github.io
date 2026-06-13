@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":
 new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],
@@ -300,6 +303,22 @@ input[type="range"]{padding:2px 0;min-height:auto;height:auto;border:none;box-sh
               <div id="chart-area" style="margin-top:16px;display:none;">
                 <p style="font-size:12px;font-weight:600;color:#888;text-align:center;margin-bottom:6px;">年金内訳（月額）</p>
                 <canvas id="pension-chart" style="max-height:200px;"></canvas>
+              </div>
+              <!-- M2: 受給開始年齢 比較シミュレーション -->
+              <div id="compare-table" style="margin-top:16px;display:none;">
+                <p style="font-size:12px;font-weight:600;color:#888;text-align:center;margin-bottom:6px;">受給開始年齢 比較シミュレーション</p>
+                <table style="width:100%;border-collapse:collapse;font-size:12px;" aria-label="受給開始年齢別の月額比較">
+                  <thead>
+                    <tr style="background:#FDE68A;color:#92400e;">
+                      <th style="padding:6px 8px;text-align:center;border:1px solid #FCD34D;">開始年齢</th>
+                      <th style="padding:6px 8px;text-align:right;border:1px solid #FCD34D;">月額見込み</th>
+                      <th style="padding:6px 8px;text-align:right;border:1px solid #FCD34D;">増減率</th>
+                      <th style="padding:6px 8px;text-align:right;border:1px solid #FCD34D;">損益分岐年齢</th>
+                    </tr>
+                  </thead>
+                  <tbody id="compare-tbody"></tbody>
+                </table>
+                <p style="font-size:10px;color:#aaa;margin-top:4px;text-align:right;">★ = 現在の選択</p>
               </div>
             </div>
           </div>
@@ -759,6 +778,44 @@ input[type="range"]{padding:2px 0;min-height:auto;height:auto;border:none;box-sh
       localStorage.setItem('pensionLastMonthly', String(totalMonthly));
       document.getElementById('goal-section').style.display = 'block';
       updateGoalDisplay(totalMonthly, _lastMonthly);
+
+      // M2: 受給開始年齢 比較シミュレーション テーブル
+      const stdAges = [60, 65, 70, 75];
+      const showAges = stdAges.includes(retireAge) ? stdAges : [...stdAges, retireAge].sort((a, b) => a - b);
+      const tbody = document.getElementById('compare-tbody');
+      if (tbody) {
+        tbody.innerHTML = showAges.map(age => {
+          let rate = 1.0, rateLabel = '±0%';
+          if (age < 65) { const mo = (65 - age) * 12; rate = 1 - mo * 0.004; rateLabel = '-' + (mo * 0.4).toFixed(0) + '%'; }
+          else if (age > 65) { const mo = (age - 65) * 12; rate = 1 + mo * 0.007; rateLabel = '+' + (mo * 0.7).toFixed(0) + '%'; }
+          const mo = Math.round(baseMonthly * rate);
+          // 損益分岐：65歳時点での月額と比較して総受給額が逆転する年齢
+          let beAge = '—';
+          if (age !== 65) {
+            const base65 = baseMonthly;
+            const diff = mo - base65; // 月額差額
+            if (diff !== 0) {
+              // 65歳から受け取り始めたと仮定した場合の累計差を0にする年齢
+              // diff > 0 (繰下げ): age歳開始遅延分を差額で回収 → breakeven = age + 累計損失/diff(月) /12
+              // diff < 0 (繰上げ): age歳から多く受け取った分が65歳受給に追いつかれる → 逆算
+              const lostMonths = Math.abs(65 - age) * 12; // 受取なし期間 × 65歳月額
+              const lostTotal = lostMonths * base65;
+              const gainPerMonth = Math.abs(diff);
+              const months = Math.round(lostTotal / gainPerMonth);
+              const be = age + Math.round(months / 12);
+              beAge = be <= 100 ? be + '歳' : '100歳超';
+            }
+          }
+          const sel = age === retireAge;
+          return `<tr style="background:${sel ? '#FEF9C3' : 'white'};${sel ? 'font-weight:700;' : ''}">
+            <td style="padding:5px 8px;text-align:center;border:1px solid #FDE68A;">${age}歳${sel ? ' ★' : ''}</td>
+            <td style="padding:5px 8px;text-align:right;border:1px solid #FDE68A;color:#B45309;">${mo.toLocaleString()}円</td>
+            <td style="padding:5px 8px;text-align:right;border:1px solid #FDE68A;">${rateLabel}</td>
+            <td style="padding:5px 8px;text-align:right;border:1px solid #FDE68A;font-size:11px;color:#666;">${beAge}</td>
+          </tr>`;
+        }).join('');
+        document.getElementById('compare-table').style.display = 'block';
+      }
     }
 
     // M4: Chart.js ドーナツグラフで年金内訳を可視化
@@ -1037,8 +1094,9 @@ input[type="range"]{padding:2px 0;min-height:auto;height:auto;border:none;box-sh
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
+<script src="/assets/consent-mode.js"></script>
 </body>
 </html>
