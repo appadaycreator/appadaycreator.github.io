@@ -70,11 +70,32 @@ GitHub Pages（mainブランチ push → 自動デプロイ）
 
 ## 変更履歴
 
-### v2.1.1 (2026-06-13) [M2: コア機能のUX改善 - 入力UI・バリデーション実装]
-- M2: 入力フォームへのplaceholder/ラベル追加・バリデーション・エラーメッセージ実装
+### v2.1.3 (2026-06-14) [M2: コア機能のUX改善 - 数値入力フィールド実装]
+- M2: 入力フォームのUX改善実装
+  - STEP 1（年齢選択）にnumber入力フィールドを追加、スライダーとの2way同期実装
+    - syncAgeInput() 関数を実装、年齢スライダーとnumber入力の双方向同期
+    - 年齢入力フィールド（0〜18）横並び表示、スライダーと同時更新
+  - STEP 2（月間予算設定）にnumber入力フィールドを追加、スライダーとの2way同期実装
+    - syncBudgetInput() 関数を実装、予算スライダーとnumber入力の双方向同期
+    - 予算入力フィールド（¥5,000〜¥100,000、5000円刻み）横並び表示
+    - number入力値を自動的に5000円の倍数に調整（Math.round(val / 5000) * 5000）
+  - STEP 4（継続年数設定）にnumber入力フィールドを追加、スライダーとの2way同期実装
+    - syncYearsInput() 関数を実装、年数スライダーとnumber入力の双方向同期
+    - 継続年数入力フィールド（1〜10年）横並び表示
+  - CSS focus-visible スタイルで、入力フィールドフォーカス時に紫のボーダー＋影を表示
+  - アクセシビリティ: 各入力フィールドにaria-label属性を追加、スクリーンリーダー対応
+
+### v2.1.2 (2026-06-14) [M2: コア機能のUX改善 - 入力UI・バリデーション実装完結]
+- M2: 入力フォームへのplaceholder/ラベル追加・バリデーション・エラーメッセージ実装完結
   - STEP 1（年齢選択）に「お子様の年齢*（必須）」ラベル追加、aria-required/aria-describedby 設定
   - STEP 2（月間予算設定）に「月間予算上限（¥5,000 〜 ¥100,000）」ラベル追加
   - STEP 4（継続年数設定）に「📅 通う予定年数*（必須）」ラベル追加、年数レンジ表示を追加
+  - 家計比率入力フィールド（月収入力）の UX 改善
+    - validateIncomeInput() 関数実装（100,000〜2,000,000円範囲のバリデーション）
+    - income-input にaria-label/aria-describedby/aria-error属性追加
+    - エラー表示用の <div id="income-error"> 追加、入力値に応じてリアルタイム表示
+    - 入力フォーカス時に視覚的フィードバック（border-color + box-shadow）
+    - ヒント表示「5〜10%が目安」を明記
   - validateAgeInput()/validateBudgetInput()/validateYearsInput() 関数実装
     - 各入力値のバリデーション実施、エラーメッセージを aria-alert で表示
     - スライダー変更時にリアルタイムバリデーション、display更新と同時実行
@@ -82,6 +103,13 @@ GitHub Pages（mainブランチ push → 自動デプロイ）
   - aria-live="polite" をヒント領域に設定し、スクリーンリーダー対応強化
   - 重複していた addEventListener を削除し、oninput ハンドラーに統一
   - 初期化時に validateAgeInput/validateBudgetInput/validateYearsInput を呼び出し、ページロード時にヒント表示
+  - CSS で input[type="number"] の focus-visible 状態を実装（border/box-shadowで視覚的フィードバック）
+
+### v2.1.1 (2026-06-13) [M2: コア機能のUX改善 - 入力UI・バリデーション実装]
+- M2: 入力フォーム基本実装
+  - 各スライダーのバリデーション関数実装
+  - エラーメッセージと aria-alert 対応
+  - フォーム要素に aria 属性追加
 
 ### v2.1.0 (2026-06-09) [improve_auto P2 実装]
 - P2-7: 結果のPDF出力機能追加
