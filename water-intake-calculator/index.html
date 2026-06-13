@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":
 new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],
@@ -156,6 +159,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://appadaycreator.com/"},{"@type":"ListItem","position":2,"name":"計算機/お金","item":"https://appadaycreator.com/category/finance/"},{"@type":"ListItem","position":3,"name":"1日の水分摂取量計算ツール簡単・無料計算","item":"https://appadaycreator.com/water-intake-calculator/"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"「1日の水分摂取量計算ツール」は無料で使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要です。"}},{"@type":"Question","name":"スマートフォンでも使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、モバイル対応済みです。"}}]}</script>
 </head>
 <body>
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -440,6 +444,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       updateRiskBadge(riskLevel);
       updateSchedule(schedule);
       updateChart(base, exerciseBonus, tempBonus, total);
+      createGaugeDisplay(total, 3000);
     }
     function updateRiskBadge(riskLevel) {
       let badgeHTML = '';
@@ -452,6 +457,83 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       let badgeEl = resultEl.querySelector('.risk-badge');
       if (!badgeEl) { badgeEl = document.createElement('div'); badgeEl.className = 'risk-badge'; resultEl.querySelector('[id="output"]').parentElement.appendChild(badgeEl); }
       badgeEl.innerHTML = badgeHTML;
+    }
+    function drawGaugeChart(canvas, current, max, label) {
+      const ctx = canvas.getContext('2d');
+      const size = 180;
+      const radius = 70;
+      const centerX = 90;
+      const centerY = 90;
+
+      ctx.clearRect(0, 0, size, size);
+
+      // 背景の円
+      ctx.strokeStyle = '#e5e7eb';
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 進捗の円
+      const ratio = Math.min(current / max, 1);
+      const color = ratio < 0.5 ? '#10b981' : ratio < 0.8 ? '#3b82f6' : '#f59e0b';
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ratio);
+      ctx.stroke();
+
+      // 中央のテキスト
+      ctx.fillStyle = '#1f2937';
+      ctx.font = 'bold 20px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(Math.round(ratio * 100) + '%', centerX, centerY - 10);
+
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '12px Inter, sans-serif';
+      ctx.fillText(label, centerX, centerY + 15);
+    }
+    function createGaugeDisplay(total, max) {
+      const resultEl = document.getElementById('result');
+      let gaugeEl = resultEl.querySelector('.gauge-display');
+      if (!gaugeEl) {
+        gaugeEl = document.createElement('div');
+        gaugeEl.className = 'gauge-display';
+        gaugeEl.style.cssText = 'margin-top:16px;';
+        resultEl.appendChild(gaugeEl);
+      }
+
+      const htmlContent = `
+        <strong style="font-size:12px;color:#374151;">📈 摂取進捗ゲージ</strong>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-top:10px;">
+          <div style="text-align:center;">
+            <canvas width="180" height="180" id="gauge-chart-1" style="max-width:100%;height:auto;"></canvas>
+            <div style="font-size:11px;color:#6b7280;margin-top:4px;">推奨量達成度</div>
+          </div>
+          <div style="text-align:center;">
+            <canvas width="180" height="180" id="gauge-chart-2" style="max-width:100%;height:auto;"></canvas>
+            <div style="font-size:11px;color:#6b7280;margin-top:4px;">適正範囲内</div>
+          </div>
+        </div>
+      `;
+      gaugeEl.innerHTML = htmlContent;
+
+      // ゲージ1：推奨量達成度（3000mlを100%とする）
+      setTimeout(() => {
+        const canvas1 = document.getElementById('gauge-chart-1');
+        if (canvas1) drawGaugeChart(canvas1, total, 3000, '推奨量');
+      }, 0);
+
+      // ゲージ2：適正範囲（1500-3000ml）
+      setTimeout(() => {
+        const canvas2 = document.getElementById('gauge-chart-2');
+        if (canvas2) {
+          const ctx = canvas2.getContext('2d');
+          const inRange = (total >= 1500 && total <= 3000) ? 100 : (total < 1500 ? (total / 1500 * 100) : 100);
+          drawGaugeChart(canvas2, inRange, 100, '健康範囲');
+        }
+      }, 0);
     }
     function updateSchedule(schedule) {
       const resultEl = document.getElementById('result');
@@ -466,15 +548,48 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       const basePercent = (base / total * 100).toFixed(0);
       const exPercent = (exerciseBonus / total * 100).toFixed(0);
       const tempPercent = (tempBonus / total * 100).toFixed(0);
-      chartEl.innerHTML = `<strong style="font-size:12px;color:#374151;">📊 水分摂取量の内訳</strong><div style="display:flex;height:24px;border-radius:8px;overflow:hidden;margin-top:6px;background:#e5e7eb;">
-        <div style="width:${basePercent}%;background:#3b82f6;transition:width 0.3s;" title="基本量: ${base}ml"></div>
-        <div style="width:${exPercent}%;background:#10b981;transition:width 0.3s;" title="運動補正: ${exerciseBonus}ml"></div>
-        <div style="width:${tempPercent}%;background:#f59e0b;transition:width 0.3s;" title="気温補正: ${tempBonus}ml"></div>
-      </div><div style="font-size:11px;color:#6b7280;margin-top:6px;display:flex;gap:12px;">
-        <span><span style="display:inline-block;width:12px;height:12px;background:#3b82f6;border-radius:3px;"></span> 基本量 ${basePercent}%</span>
-        <span><span style="display:inline-block;width:12px;height:12px;background:#10b981;border-radius:3px;"></span> 運動 ${exPercent}%</span>
-        <span><span style="display:inline-block;width:12px;height:12px;background:#f59e0b;border-radius:3px;"></span> 気温 ${tempPercent}%</span>
-      </div>`;
+
+      // スコア計算
+      let scorePoints = 0;
+      if (total >= 1500 && total <= 3000) scorePoints += 40;
+      else if (total >= 1200 && total <= 3500) scorePoints += 30;
+      else if (total > 0) scorePoints += 15;
+
+      if (base >= 1500) scorePoints += 25;
+      if (exerciseBonus > 0) scorePoints += 20;
+      if (tempBonus > 0) scorePoints += 15;
+
+      const maxScore = 100;
+      const scorePercent = Math.min(scorePoints, maxScore);
+      const scoreColor = scorePercent >= 80 ? '#10b981' : scorePercent >= 60 ? '#3b82f6' : scorePercent >= 40 ? '#f59e0b' : '#ef4444';
+
+      chartEl.innerHTML = `
+        <div style="margin-bottom:14px;">
+          <strong style="font-size:12px;color:#374151;">🎯 水分管理スコア</strong>
+          <div style="margin-top:6px;">
+            <div style="display:flex;height:28px;border-radius:8px;overflow:hidden;background:#e5e7eb;">
+              <div style="width:${scorePercent}%;background:${scoreColor};transition:width 0.3s;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;color:white;font-weight:600;font-size:12px;">
+                ${scorePercent}点
+              </div>
+            </div>
+            <div style="font-size:11px;color:#6b7280;margin-top:4px;">
+              ${scorePercent >= 80 ? '✅ 優秀' : scorePercent >= 60 ? '👍 良好' : scorePercent >= 40 ? '⚠️ 要改善' : '❌ リスク高'}
+            </div>
+          </div>
+        </div>
+
+        <strong style="font-size:12px;color:#374151;">📊 水分摂取量の内訳</strong>
+        <div style="display:flex;height:24px;border-radius:8px;overflow:hidden;margin-top:6px;background:#e5e7eb;">
+          <div style="width:${basePercent}%;background:#3b82f6;transition:width 0.3s;" title="基本量: ${base}ml"></div>
+          <div style="width:${exPercent}%;background:#10b981;transition:width 0.3s;" title="運動補正: ${exerciseBonus}ml"></div>
+          <div style="width:${tempPercent}%;background:#f59e0b;transition:width 0.3s;" title="気温補正: ${tempBonus}ml"></div>
+        </div>
+        <div style="font-size:11px;color:#6b7280;margin-top:6px;display:flex;gap:12px;flex-wrap:wrap;">
+          <span><span style="display:inline-block;width:12px;height:12px;background:#3b82f6;border-radius:3px;"></span> 基本量 ${base}ml (${basePercent}%)</span>
+          <span><span style="display:inline-block;width:12px;height:12px;background:#10b981;border-radius:3px;"></span> 運動補正 ${exerciseBonus}ml (${exPercent}%)</span>
+          <span><span style="display:inline-block;width:12px;height:12px;background:#f59e0b;border-radius:3px;"></span> 気温補正 ${tempBonus}ml (${tempPercent}%)</span>
+        </div>
+      `;
     }
     function toggleTooltip(event) {
       event.preventDefault();
@@ -704,8 +819,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
+<script src="/assets/consent-mode.js"></script>
 </body>
 </html>
