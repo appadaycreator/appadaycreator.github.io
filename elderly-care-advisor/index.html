@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":
 new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],
@@ -374,9 +377,47 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <p style="font-size:11px;color:#64748b;margin-top:8px;text-align:center;">※ 費用は要介護度・地域によって異なります。施設への直接問い合わせをおすすめします</p>
     </div>
 
+    <!-- M6: 目標設定・達成度トラッキング -->
+    <div class="card p-6 mb-4">
+      <h3 class="font-bold text-gray-800 mb-3">🎯 目標値の設定と進捗追跡</h3>
+      <div class="mb-4">
+        <label class="text-sm text-gray-700 block mb-2">月額目標額を設定（予算管理）</label>
+        <input type="number" id="targetBudget" placeholder="例: 150000" min="0" step="10000" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" style="font-size:16px;">
+      </div>
+      <div class="mb-4">
+        <label class="text-sm text-gray-700 block mb-2">実際の月額費用</label>
+        <input type="number" id="actualCost" placeholder="例: 120000" min="0" step="10000" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" style="font-size:16px;">
+      </div>
+      <button onclick="saveGoal()" class="w-full bg-purple-600 text-white font-bold py-2 rounded-lg hover:bg-purple-700 transition mb-3" style="min-height:48px;">目標を保存</button>
+      <div id="goalProgress" style="display:none;">
+        <div class="bg-gray-50 rounded-lg p-3">
+          <div class="text-xs text-gray-500 mb-1">予算達成率</div>
+          <div class="flex items-end gap-2">
+            <div class="flex-1">
+              <div class="progress-track"><div class="progress-bar" id="goalBar" style="width:0%"></div></div>
+            </div>
+            <span class="text-sm font-bold text-purple-600" id="goalPercent">0%</span>
+          </div>
+          <div class="text-xs text-gray-600 mt-2">
+            <span id="goalText"></span>
+            <span id="prevCompare" style="display:none;color:#059669;margin-left:8px;"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- M10: 印刷・結果エクスポート機能 -->
+    <div class="card p-4 mb-4">
+      <div class="text-xs text-gray-500 mb-2 text-center">結果の共有・保存</div>
+      <div class="flex gap-2 flex-wrap" id="share-btns"></div>
+      <button onclick="printResults()" class="w-full bg-blue-600 text-white font-bold py-2 rounded-lg hover:bg-blue-700 transition mt-2" style="min-height:48px;font-size:14px;">🖨️ 結果を印刷</button>
+      <button onclick="copyToClipboard()" class="w-full bg-green-600 text-white font-bold py-2 rounded-lg hover:bg-green-700 transition mt-2" style="min-height:48px;font-size:14px;">📋 結果をコピー</button>
+      <button onclick="downloadCSV()" class="w-full bg-orange-600 text-white font-bold py-2 rounded-lg hover:bg-orange-700 transition mt-2" style="min-height:48px;font-size:14px;">📊 CSVダウンロード</button>
+    </div>
+
     <div class="card p-4 mb-4">
       <div class="text-xs text-gray-500 mb-2 text-center">診断結果をシェア</div>
-      <div class="flex gap-2" id="share-btns"></div>
+      <div class="flex gap-2" id="share-btns-social"></div>
     </div>
     <button class="btn-primary" style="background:#6b7280;" onclick="restart()" aria-label="もう一度診断する">もう一度診断する</button>
   </div>
@@ -631,10 +672,13 @@ function showResults() {
   // シェアボタン生成
   var shareText = '介護費用診断：' + facility.type + 'が最適と診断されました！目安費用：' + facility.cost;
   var shareUrl = 'https://appadaycreator.com/elderly-care-advisor/';
-  var btnsEl = document.getElementById('share-btns');
+  var btnsEl = document.getElementById('share-btns-social');
   btnsEl.innerHTML =
     '<a href="https://line.me/R/share?text=' + encodeURIComponent(shareText + ' ' + shareUrl) + '" target="_blank" rel="noopener" style="flex:1;display:block;text-align:center;background:#06C755;color:white;padding:10px;border-radius:8px;font-size:13px;font-weight:bold;text-decoration:none;">LINEでシェア</a>' +
     '<a href="https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText) + '&url=' + encodeURIComponent(shareUrl) + '&via=appadaycreator" target="_blank" rel="noopener" style="flex:1;display:block;text-align:center;background:#000;color:white;padding:10px;border-radius:8px;font-size:13px;font-weight:bold;text-decoration:none;">Xでシェア</a>';
+
+  // M6: 目標値を復元・表示
+  loadGoalProgress();
 
   // グラフ描画（診断結果画面表示後に実行）
   setTimeout(function(){ drawCostComparisonChart(facility.type); }, 100);
@@ -643,6 +687,132 @@ function showResults() {
 }
 
 function restart() { cur=0; ans={}; localStorage.removeItem('elderly-care-diag-answers'); show('intro'); }
+
+// M6: 目標値保存・進捗表示
+function saveGoal() {
+  var targetBudget = parseInt(document.getElementById('targetBudget').value) || 0;
+  var actualCost = parseInt(document.getElementById('actualCost').value) || 0;
+  if(targetBudget <= 0) { alert('目標額を入力してください'); return; }
+  var goal = {
+    target: targetBudget,
+    actual: actualCost,
+    date: new Date().toISOString(),
+    facility: document.getElementById('res-type').textContent
+  };
+  var prevGoal = JSON.parse(localStorage.getItem('elderly-care-goal') || '{}');
+  localStorage.setItem('elderly-care-goal-prev', JSON.stringify(prevGoal));
+  localStorage.setItem('elderly-care-goal', JSON.stringify(goal));
+  loadGoalProgress();
+}
+
+function loadGoalProgress() {
+  var goal = JSON.parse(localStorage.getItem('elderly-care-goal') || '{}');
+  var prevGoal = JSON.parse(localStorage.getItem('elderly-care-goal-prev') || '{}');
+  var progressEl = document.getElementById('goalProgress');
+  if(!goal.target) return;
+
+  document.getElementById('targetBudget').value = goal.target;
+  document.getElementById('actualCost').value = goal.actual || 0;
+
+  var percent = goal.actual ? Math.min(100, Math.round(goal.actual / goal.target * 100)) : 0;
+  document.getElementById('goalBar').style.width = percent + '%';
+  document.getElementById('goalPercent').textContent = percent + '%';
+
+  var status = percent <= 100 ? '✅ 予算内' : '⚠️ 予算超過';
+  var diff = goal.target - goal.actual;
+  document.getElementById('goalText').textContent = status + ' • 目標: ' + (goal.target/10000).toFixed(1) + '万円 / 実績: ' + (goal.actual/10000).toFixed(1) + '万円';
+
+  if(prevGoal.actual && prevGoal.target) {
+    var prevPercent = Math.round(prevGoal.actual / prevGoal.target * 100);
+    var improveTxt = percent < prevPercent ? '👍 ' + (prevPercent - percent) + '%改善' : '📈 ' + (percent - prevPercent) + '%増加';
+    document.getElementById('prevCompare').textContent = improveTxt;
+    document.getElementById('prevCompare').style.display = 'inline';
+  }
+  progressEl.style.display = 'block';
+}
+
+// M10: 印刷機能
+function printResults() {
+  var printContent = '=== 介護費用診断 結果 ===\n\n';
+  printContent += '施設タイプ: ' + document.getElementById('res-type').textContent + '\n';
+  printContent += '月額費用目安: ' + document.getElementById('res-cost').textContent + '\n';
+  printContent += '説明: ' + document.getElementById('res-desc').textContent + '\n\n';
+
+  var goal = JSON.parse(localStorage.getItem('elderly-care-goal') || '{}');
+  if(goal.target) {
+    var percent = goal.actual ? Math.round(goal.actual / goal.target * 100) : 0;
+    printContent += '--- 予算管理 ---\n';
+    printContent += '目標額: ' + (goal.target/10000).toFixed(1) + '万円\n';
+    printContent += '実績: ' + (goal.actual/10000).toFixed(1) + '万円\n';
+    printContent += '達成率: ' + percent + '%\n\n';
+  }
+  printContent += document.getElementById('res-detail').textContent + '\n\n';
+  printContent += '手続きの流れ:\n' + document.getElementById('res-next').textContent + '\n';
+
+  var printWindow = window.open('', '', 'height=600,width=800');
+  printWindow.document.write('<pre style="font-family:monospace;white-space:pre-wrap;">' + printContent.replace(/</g, '&lt;') + '</pre>');
+  printWindow.document.close();
+  printWindow.print();
+}
+
+// M10: クリップボードコピー
+function copyToClipboard() {
+  var text = '【介護施設・費用診断 結果】\n\n';
+  text += '推奨施設: ' + document.getElementById('res-type').textContent + '\n';
+  text += '月額費用目安: ' + document.getElementById('res-cost').textContent + '\n\n';
+  text += document.getElementById('res-desc').textContent + '\n\n';
+  var goal = JSON.parse(localStorage.getItem('elderly-care-goal') || '{}');
+  if(goal.target) {
+    var percent = goal.actual ? Math.round(goal.actual / goal.target * 100) : 0;
+    text += '=== あなたの予算 ===\n目標: ' + (goal.target/10000).toFixed(1) + '万円 | 実績: ' + (goal.actual/10000).toFixed(1) + '万円 | 達成率: ' + percent + '%\n\n';
+  }
+  text += 'URL: https://appadaycreator.com/elderly-care-advisor/';
+
+  navigator.clipboard.writeText(text).then(function(){
+    alert('✅ 結果をコピーしました');
+  }).catch(function(){
+    var textarea = document.createElement('textarea');
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    alert('✅ 結果をコピーしました');
+  });
+}
+
+// M10: CSVダウンロード
+function downloadCSV() {
+  var facility = document.getElementById('res-type').textContent;
+  var cost = document.getElementById('res-cost').textContent;
+  var goal = JSON.parse(localStorage.getItem('elderly-care-goal') || '{}');
+
+  var csv = '項目,値\n';
+  csv += '推奨施設,' + facility + '\n';
+  csv += '月額費用目安,' + cost + '\n';
+  csv += '施設説明,' + document.getElementById('res-desc').textContent.replace(/\n/g, ' ') + '\n';
+
+  if(goal.target) {
+    var percent = goal.actual ? Math.round(goal.actual / goal.target * 100) : 0;
+    csv += '目標額,' + goal.target + '\n';
+    csv += '実績額,' + goal.actual + '\n';
+    csv += '達成率,' + percent + '%\n';
+    csv += '診断日,' + new Date(goal.date).toLocaleString('ja-JP') + '\n';
+  }
+
+  csv += '医療ケア,' + document.getElementById('res-medical').textContent.replace(/\n/g, ' ') + '\n';
+  csv += '待機期間,' + document.getElementById('res-wait').textContent.replace(/\n/g, ' ') + '\n';
+
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  var link = document.createElement('a');
+  var url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', '介護費用診断_' + new Date().toISOString().split('T')[0] + '.csv');
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
 </script>
 <script>
 // ページロード時に保存状態を復元
@@ -886,12 +1056,13 @@ window.addEventListener('DOMContentLoaded', function(){
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 <!-- r46-org-footer -->
 <div style="text-align:center;font-size:11px;color:#9ca3af;padding:6px 0 4px;background:#f8fafc;border-top:1px solid #e5e7eb;">
   運営: <a href="https://appadaycreator.com/" style="color:#9ca3af;text-decoration:none;">AppADayCreator</a> | <a href="https://tech-and-brace.co.jp/" rel="noopener" style="color:#9ca3af;text-decoration:none;">株式会社Tech&amp;Brace</a>
 </div>
+<script src="/assets/consent-mode.js"></script>
 </body>
 </html>
