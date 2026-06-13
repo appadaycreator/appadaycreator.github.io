@@ -430,7 +430,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
     </div>
     <div class="form-group">
       <label class="form-label">生年月日<span style="font-size:0.75rem;color:#ef4444"> *必須</span></label>
-      <input type="date" id="input-child-birth" class="form-input" placeholder="出生日を選択" required aria-label="生年月日を選択">
+      <input type="date" id="input-child-birth" class="form-input" required aria-label="生年月日を選択">
       <div class="form-error">生年月日を選択してください</div>
     </div>
     <div class="form-group">
@@ -1034,6 +1034,94 @@ function activeChild() {
 // ──────────────────────────────────
 // Child management
 // ──────────────────────────────────
+function initChildFormValidation() {
+  const nameInput = document.getElementById('input-child-name');
+  const birthInput = document.getElementById('input-child-birth');
+
+  if (nameInput) nameInput.addEventListener('input', validateChildForm);
+  if (birthInput) birthInput.addEventListener('change', validateChildForm);
+}
+
+function initEditChildFormValidation() {
+  const nameInput = document.getElementById('edit-child-name');
+  const birthInput = document.getElementById('edit-child-birth');
+
+  if (nameInput) nameInput.addEventListener('input', validateEditChildForm);
+  if (birthInput) birthInput.addEventListener('change', validateEditChildForm);
+}
+
+function validateChildForm() {
+  const nameInput = document.getElementById('input-child-name');
+  const birthInput = document.getElementById('input-child-birth');
+
+  // 名前の検証
+  const nameGroup = nameInput?.parentElement;
+  const nameError = nameGroup?.querySelector('.form-error');
+  if (nameError) {
+    if (!nameInput.value.trim()) {
+      nameError.classList.add('show');
+    } else if (nameInput.value.trim().length > 20) {
+      nameError.classList.add('show');
+      nameError.textContent = 'お名前は20文字以内でお願いします';
+    } else {
+      nameError.classList.remove('show');
+    }
+  }
+
+  // 生年月日の検証
+  const birthGroup = birthInput?.parentElement;
+  const birthError = birthGroup?.querySelector('.form-error');
+  if (birthError) {
+    if (!birthInput.value) {
+      birthError.classList.add('show');
+    } else {
+      const birthDate = new Date(birthInput.value);
+      if (birthDate > new Date()) {
+        birthError.classList.add('show');
+        birthError.textContent = '生年月日は今日以前の日付を選択してください';
+      } else {
+        birthError.classList.remove('show');
+      }
+    }
+  }
+}
+
+function validateEditChildForm() {
+  const nameInput = document.getElementById('edit-child-name');
+  const birthInput = document.getElementById('edit-child-birth');
+
+  // 名前の検証
+  const nameGroup = nameInput?.parentElement;
+  const nameError = nameGroup?.querySelector('.form-error');
+  if (nameError) {
+    if (!nameInput.value.trim()) {
+      nameError.classList.add('show');
+    } else if (nameInput.value.trim().length > 20) {
+      nameError.classList.add('show');
+      nameError.textContent = 'お名前は20文字以内でお願いします';
+    } else {
+      nameError.classList.remove('show');
+    }
+  }
+
+  // 生年月日の検証
+  const birthGroup = birthInput?.parentElement;
+  const birthError = birthGroup?.querySelector('.form-error');
+  if (birthError) {
+    if (!birthInput.value) {
+      birthError.classList.add('show');
+    } else {
+      const birthDate = new Date(birthInput.value);
+      if (birthDate > new Date()) {
+        birthError.classList.add('show');
+        birthError.textContent = '生年月日は今日以前の日付を選択してください';
+      } else {
+        birthError.classList.remove('show');
+      }
+    }
+  }
+}
+
 function addChild() {
   const name = document.getElementById('input-child-name').value.trim();
   const birth = document.getElementById('input-child-birth').value;
@@ -1197,10 +1285,23 @@ function initGrowthFormValidation() {
   const dateInput = document.getElementById('r-date');
   const heightInput = document.getElementById('r-height');
   const weightInput = document.getElementById('r-weight');
+  const memoInput = document.getElementById('r-memo');
 
-  if (dateInput) dateInput.addEventListener('change', validateGrowthForm);
-  if (heightInput) heightInput.addEventListener('blur', validateGrowthForm);
-  if (weightInput) weightInput.addEventListener('blur', validateGrowthForm);
+  if (dateInput) {
+    dateInput.addEventListener('change', validateGrowthForm);
+    dateInput.addEventListener('input', validateGrowthForm);
+  }
+  if (heightInput) {
+    heightInput.addEventListener('change', validateGrowthForm);
+    heightInput.addEventListener('blur', validateGrowthForm);
+  }
+  if (weightInput) {
+    weightInput.addEventListener('change', validateGrowthForm);
+    weightInput.addEventListener('blur', validateGrowthForm);
+  }
+  if (memoInput) {
+    memoInput.addEventListener('input', validateMemoLength);
+  }
 }
 
 function validateGrowthForm() {
@@ -1208,27 +1309,65 @@ function validateGrowthForm() {
   const height = document.getElementById('r-height').value;
   const weight = document.getElementById('r-weight').value;
 
-  // 日付の検証
-  const dateError = document.querySelector('label:has(~#r-date)+.form-error');
+  // 日付の検証 - form-groupの中のform-errorを取得
+  const dateGroup = document.getElementById('r-date')?.closest('.form-group');
+  const dateError = dateGroup?.querySelector('.form-error');
   if (dateError) {
-    if (!date) dateError.classList.add('show');
-    else dateError.classList.remove('show');
+    if (!date) {
+      dateError.classList.add('show');
+      dateError.textContent = '日付を選択してください';
+    } else {
+      dateError.classList.remove('show');
+    }
   }
 
   // 身長の検証
-  const heightError = document.querySelector('#r-height').parentElement.querySelector('.form-error');
+  const heightInput = document.getElementById('r-height');
+  const heightGroup = heightInput?.closest('.form-group');
+  const heightError = heightGroup?.querySelector('.form-error');
   if (heightError && height) {
     const h = parseFloat(height);
-    if (isNaN(h) || h < 30 || h > 250) heightError.classList.add('show');
-    else heightError.classList.remove('show');
+    if (isNaN(h)) {
+      heightError.classList.add('show');
+      heightError.textContent = '数値を入力してください';
+    } else if (h < 30 || h > 250) {
+      heightError.classList.add('show');
+      heightError.textContent = '身長は30〜250cmで入力してください';
+    } else {
+      heightError.classList.remove('show');
+    }
+  } else if (heightError && !height) {
+    heightError.classList.remove('show');
   }
 
   // 体重の検証
-  const weightError = document.querySelector('#r-weight').parentElement.querySelector('.form-error');
+  const weightInput = document.getElementById('r-weight');
+  const weightGroup = weightInput?.closest('.form-group');
+  const weightError = weightGroup?.querySelector('.form-error');
   if (weightError && weight) {
     const w = parseFloat(weight);
-    if (isNaN(w) || w < 0.5 || w > 300) weightError.classList.add('show');
-    else weightError.classList.remove('show');
+    if (isNaN(w)) {
+      weightError.classList.add('show');
+      weightError.textContent = '数値を入力してください';
+    } else if (w < 0.5 || w > 300) {
+      weightError.classList.add('show');
+      weightError.textContent = '体重は0.5〜300kgで入力してください';
+    } else {
+      weightError.classList.remove('show');
+    }
+  } else if (weightError && !weight) {
+    weightError.classList.remove('show');
+  }
+}
+
+function validateMemoLength() {
+  const memoInput = document.getElementById('r-memo');
+  if (memoInput) {
+    const remaining = 60 - memoInput.value.length;
+    // 文字数インジケータは既存の UI には無いので基本的なバリデーションのみ
+    if (remaining < 0) {
+      memoInput.value = memoInput.value.substring(0, 60);
+    }
   }
 }
 
@@ -2177,6 +2316,8 @@ function switchTab(name) {
 function openModal(id) {
   document.getElementById(id).classList.add('active');
   if (id === 'modal-settings') renderDataStats();
+  if (id === 'modal-add-child') initChildFormValidation();
+  if (id === 'modal-edit-child') initEditChildFormValidation();
 }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 

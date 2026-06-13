@@ -72,8 +72,8 @@ GitHub Pages（mainブランチ push → 自動デプロイ）
 
 ### v1.5.5 (2026-06-13)
 - **M2実装：コア機能のUX改善（入力フォーム・バリデーション）**: 成長記録フォームにplaceholder追加（「例：65.0 cm」等）、リアルタイムバリデーション・エラーメッセージ表示機能、子どもプロフィール追加フォームのplaceholder強化
+- **フォーム入力体験向上（拡充）**: initGrowthFormValidation/initChildFormValidation 関数で change/blur/input イベント時にリアルタイムバリデーション実装、エラーメッセージの動的表示（数値エラー時の詳細メッセージ、生年月日の未来日付チェック）、子どもプロフィール編集時のバリデーション追加
 - **GSC対応：構造化データ強化**: FAQPage スキーマ追加（5つのQA）、WebApplication スキーマにキーワード追加（「月齢自動計算」「成長グラフ」等）、meta description に「月齢自動計算」「グラフ化」キーワード追記
-- **フォーム入力体験向上**: initGrowthFormValidation 関数で date/height/weight フィールドの onChange イベント時にリアルタイムバリデーション
 
 ### v1.5.4 (2026-06-08)
 - **meta description SEO最適化**: 「身長・体重・成長記録アプリ」「月齢自動計算」「グラフ化」などキーワード強化（160字以下最適化）
