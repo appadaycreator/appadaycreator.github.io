@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":
 new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],
@@ -296,6 +299,33 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
         </button>
       </div>
 
+      <div id="goalTrackingSection" class="bg-green-50 rounded-xl p-4 mb-4 no-print hidden border border-green-200">
+        <h3 class="font-bold text-green-800 mb-3">🎯 目標設定・進捗管理</h3>
+        <div class="space-y-3">
+          <div>
+            <label class="block text-sm text-gray-700 font-medium mb-1">目標補償スコア（0-100）</label>
+            <div class="flex gap-2">
+              <input type="number" id="targetScore" min="0" max="100" value="80" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="例：80">
+              <button onclick="saveTargetScore()" class="bg-green-600 hover:bg-green-700 text-white font-bold px-4 py-2 rounded-lg text-sm transition-colors">保存</button>
+            </div>
+          </div>
+          <div id="goalProgressDiv" class="hidden">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-sm text-gray-700 font-medium">達成率</span>
+              <span id="goalProgress" class="text-lg font-bold text-green-600">0%</span>
+            </div>
+            <div class="w-full bg-gray-300 rounded-full h-4 overflow-hidden">
+              <div id="goalProgressBar" class="h-4 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full transition-all" style="width:0%"></div>
+            </div>
+          </div>
+          <div id="comparisonDiv" class="hidden text-sm">
+            <p class="text-gray-700"><span class="font-medium">前回スコア:</span> <span id="prevScore" class="text-blue-600 font-bold">-</span></p>
+            <p class="text-gray-700"><span class="font-medium">今回スコア:</span> <span id="currScore" class="text-purple-600 font-bold">-</span></p>
+            <p id="improvement" class="text-green-700 font-medium mt-1">📈 前回比 <span id="improvementPct">0</span>% 向上</p>
+          </div>
+        </div>
+      </div>
+
       <div class="flex gap-3">
         <button onclick="restart()" class="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl transition-colors">
           🔄 もう一度診断する
@@ -546,6 +576,16 @@ function showResult() {
   // M3対応: 診断履歴を保存・初期化
   saveDiagnosisState();
   setTimeout(initHistoryUI, 100);
+
+  // M6対応: 目標設定・進捗管理（スコアを再計算）
+  let score = 50;
+  if (dest >= 3) score += 15;
+  if (days >= 2) score += 10;
+  if (Array.isArray(activity) && activity.length >= 2) score += 5;
+  if (cardIns === 1 || cardIns === 2) score += 15;
+  score = Math.min(100, score);
+  initGoalTrackingUI(score);
+  localStorage.setItem('tia_prev_score', score);
 }
 
 function encodeResult() {
@@ -709,6 +749,69 @@ ${new Date().toLocaleString('ja-JP')}
   navigator.clipboard.writeText(text).then(() => {
     alert('診断結果をコピーしました！');
   });
+}
+
+// M6対応: 目標値を localStorage に保存
+function saveTargetScore() {
+  const target = parseInt(document.getElementById('targetScore').value);
+  if (target < 0 || target > 100) {
+    alert('0～100の数値を入力してください');
+    return;
+  }
+  localStorage.setItem('tia_target_score', target);
+  const currentScore = parseInt(document.getElementById('currScore').textContent);
+  updateGoalProgress(currentScore);
+  alert(`目標スコア: ${target} に設定しました！`);
+}
+
+// M6対応: 目標設定セクションを初期化・表示
+function initGoalTrackingUI(currentScore) {
+  const goalSection = document.getElementById('goalTrackingSection');
+  goalSection.classList.remove('hidden');
+
+  const targetInput = document.getElementById('targetScore');
+  const savedTarget = localStorage.getItem('tia_target_score');
+  if (savedTarget) {
+    targetInput.value = savedTarget;
+  }
+
+  document.getElementById('currScore').textContent = currentScore;
+  updateGoalProgress(currentScore);
+}
+
+// M6対応: 達成率と改善度を計算・表示
+function updateGoalProgress(currentScore) {
+  const target = parseInt(localStorage.getItem('tia_target_score') || '80');
+  const prevScore = parseInt(localStorage.getItem('tia_prev_score') || '-1');
+
+  // 達成率を計算
+  const progress = Math.round((currentScore / target) * 100);
+  document.getElementById('goalProgress').textContent = `${progress}%`;
+  document.getElementById('goalProgressBar').style.width = `${progress}%`;
+
+  const progressDiv = document.getElementById('goalProgressDiv');
+  progressDiv.classList.remove('hidden');
+
+  // 前回スコアがある場合は比較を表示
+  if (prevScore > 0) {
+    const comparisonDiv = document.getElementById('comparisonDiv');
+    document.getElementById('prevScore').textContent = prevScore;
+    const improvement = currentScore - prevScore;
+    const improvementPct = Math.round((improvement / prevScore) * 100);
+    document.getElementById('improvementPct').textContent = improvementPct >= 0 ? `+${improvementPct}` : improvementPct;
+
+    const improvementEl = document.getElementById('improvement');
+    if (improvement >= 0) {
+      improvementEl.classList.remove('text-red-700');
+      improvementEl.classList.add('text-green-700');
+      improvementEl.innerHTML = `📈 前回比 <span id="improvementPct">${improvementPct >= 0 ? '+' : ''}${improvementPct}</span>% 向上`;
+    } else {
+      improvementEl.classList.remove('text-green-700');
+      improvementEl.classList.add('text-red-700');
+      improvementEl.innerHTML = `📉 前回比 <span id="improvementPct">${improvementPct}</span>% 低下`;
+    }
+    comparisonDiv.classList.remove('hidden');
+  }
 }
 
 function restart() {
@@ -972,12 +1075,13 @@ if (params.has('result')) {
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 <!-- r46-org-footer -->
 <div style="text-align:center;font-size:11px;color:#9ca3af;padding:6px 0 4px;background:#f8fafc;border-top:1px solid #e5e7eb;">
   運営: <a href="https://appadaycreator.com/" style="color:#9ca3af;text-decoration:none;">AppADayCreator</a> | <a href="https://tech-and-brace.co.jp/" rel="noopener" style="color:#9ca3af;text-decoration:none;">株式会社Tech&amp;Brace</a>
 </div>
+<script src="/assets/consent-mode.js"></script>
 </body>
 </html>
