@@ -11,6 +11,22 @@
 
 ## 変更履歴
 
+### v1.5.0 (2026-06-13)
+**SEO / インデックス流入改善（GSC 0表示 → 流入狙い）**
+- **robots.txt 修正**: Sitemap URL を GitHub Pages → appadaycreator.com に修正
+- **sitemap.xml 更新**: lastmod を 2026-05-21 → 2026-06-13 に更新
+- **メタタイトル最適化**: 80文字超→62文字に短縮、キーワード前置（「栄養素」「サプリメント」「5問」）
+- **meta description 最適化**: 168文字→118文字に短縮、「無料」「登録不要」キーワード前置
+- **FAQPage スキーマ拡張**: 2件 → 5件に拡張
+  - Q1: サプリメント診断とは（新規）
+  - Q2: 医療診断か（既存）
+  - Q3: スマートフォン対応（新規）
+  - Q4: 毎日使用可能（既存）
+  - Q5: データ送信について（新規）
+- **WebApplication スキーマ強化**: 
+  - `applicationCategory`: UtilityApplication → HealthAndFitnessApplication に変更
+  - `author` フィールド追加（E-A-T信号強化）
+
 ### v1.4.0 (2026-06-13)
 **M7: 比較・シミュレーション機能**
 - **比較機能**: 複数の診断結果を保存・比較表示
