@@ -297,6 +297,23 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         transition: all .2s;
       }
       .btn-reset:hover { background: var(--primary); color: var(--white); }
+      .export-btn {
+        background: #f3f4f6;
+        color: var(--text);
+        border: 1px solid var(--border);
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+        transition: all .2s;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .export-btn:hover { background: #e5e7eb; border-color: var(--primary); }
+      .export-btn:active { transform: scale(.95); }
 
       .result-type {
         font-size: 20px;
@@ -520,13 +537,16 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 
       /* Print */
       @media print {
-        header, footer, nav, button, .no-print,
+        header, footer, nav, .no-print,
         [class*="share"],[class*="affiliate"],[id*="share"],
         [id*="affiliate"],[id*="banner"],
-        script, noscript { display: none !important; }
+        script, noscript, .result-actions { display: none !important; }
         body { background: #fff !important; color: #000 !important; font-size: 12pt; }
         [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"] { display: block !important; }
+        #goalProgress { display: block !important; }
         a[href]::after { content: none !important; }
+        .card { box-shadow: none !important; border: 1px solid #ccc !important; }
+        canvas { max-height: 300px !important; }
       }
 
       /* AdSense unfilled */
@@ -676,16 +696,49 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
           </select>
         </div>
 
+        <!-- M6: Goal Setting -->
+        <div class="q-block" style="margin-top: 24px; padding-top: 16px; border-top: 2px solid var(--primary-light);">
+          <div class="q-label" style="font-size: 12px; color: var(--text-sub); margin-bottom: 12px;">💾 目標を設定（オプション）</div>
+          <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; cursor: pointer;">
+            <input type="checkbox" id="useGoal" onchange="toggleGoalInput()" style="width: 18px; height: 18px; cursor: pointer;">
+            <span style="font-size: 13px; color: var(--text); font-weight: 600;">目標値を設定してトラッキングする</span>
+          </label>
+          <input type="text" id="goalLabel" placeholder="例：最適なノイキャンイヤホン探し" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; margin-bottom: 8px; display: none; font-family: inherit;" maxlength="50">
+          <input type="number" id="goalTarget" placeholder="目標値（例：5回の再診断で決定）" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; display: none; font-family: inherit;" min="1" max="99">
+        </div>
+
         <button class="btn-diagnose" onclick="diagnose()">診断する →</button>
       </div>
 
       <!-- ===== RESULT ===== -->
       <div class="result" id="result">
         <div class="card">
+          <!-- Goal Progress (M6) -->
+          <div id="goalProgress" style="display: none; background: var(--primary-light); border-radius: 10px; padding: 14px; margin-bottom: 16px; border: 1px solid var(--primary-mid);">
+            <div style="font-size: 13px; font-weight: 700; color: var(--primary); margin-bottom: 8px;">📊 目標進捗トラッキング</div>
+            <div style="font-size: 12px; color: var(--text); margin-bottom: 6px;">
+              目標：<span id="goalLabelDisplay" style="font-weight: 600;"></span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div style="flex: 1; background: #fff; border-radius: 8px; height: 20px; overflow: hidden;">
+                <div id="progressBar" style="height: 100%; background: linear-gradient(90deg, var(--primary), #1e6fff); transition: width .3s ease; width: 0%;"></div>
+              </div>
+              <span id="progressText" style="font-size: 12px; font-weight: 600; color: var(--primary); min-width: 40px;">0/0</span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-sub); margin-top: 8px;" id="goalComparison"></div>
+          </div>
+
           <!-- Back / Reset actions -->
           <div class="result-actions">
             <button class="btn-back" onclick="backToForm()">← 回答を修正する</button>
             <button class="btn-reset" onclick="location.reload()">↻ 最初からやり直す</button>
+          </div>
+
+          <!-- M10: Export & Print -->
+          <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+            <button class="export-btn" onclick="window.print()" title="結果を印刷">🖨️ 印刷</button>
+            <button class="export-btn" onclick="copyResultToClipboard()" title="テキストをコピー">📋 コピー</button>
+            <button class="export-btn" onclick="downloadCSV()" title="CSV形式で保存">📥 CSV</button>
           </div>
 
           <div class="result-type" id="r-type"></div>
@@ -972,6 +1025,13 @@ function saveDiagnosis(scene, budget, form, priority, pain, result) {
   history = history.slice(0, 5);
   localStorage.setItem('diagnosisHistory', JSON.stringify(history));
   localStorage.setItem('lastDiagnosis', JSON.stringify({scene, budget, form, priority, pain}));
+
+  // M6: Goal tracking
+  if(document.getElementById('useGoal').checked) {
+    const goalLabel = document.getElementById('goalLabel').value || '目標';
+    const goalTarget = parseInt(document.getElementById('goalTarget').value) || 5;
+    localStorage.setItem('activeGoal', JSON.stringify({label: goalLabel, target: goalTarget, createdAt: Date.now()}));
+  }
 }
 
 function restoreLastDiagnosis() {
@@ -990,6 +1050,89 @@ function checkRestoreHint() {
   const last = localStorage.getItem('lastDiagnosis');
   const hint = document.getElementById('restore-hint');
   if(last && hint) hint.style.display = 'block';
+}
+
+function toggleGoalInput() {
+  const useGoal = document.getElementById('useGoal').checked;
+  document.getElementById('goalLabel').style.display = useGoal ? 'block' : 'none';
+  document.getElementById('goalTarget').style.display = useGoal ? 'block' : 'none';
+}
+
+function updateGoalProgress() {
+  const activeGoal = localStorage.getItem('activeGoal');
+  const history = JSON.parse(localStorage.getItem('diagnosisHistory') || '[]');
+  const goalEl = document.getElementById('goalProgress');
+
+  if(!activeGoal || history.length === 0) {
+    goalEl.style.display = 'none';
+    return;
+  }
+
+  const goal = JSON.parse(activeGoal);
+  const progressCount = history.length;
+  const progressPercent = Math.min(100, (progressCount / goal.target) * 100);
+
+  goalEl.style.display = 'block';
+  document.getElementById('goalLabelDisplay').textContent = goal.label;
+  document.getElementById('progressText').textContent = `${progressCount}/${goal.target}`;
+  document.getElementById('progressBar').style.width = `${progressPercent}%`;
+
+  // 前回との比較表示
+  if(history.length >= 2) {
+    const lastDiagnosis = history[0];
+    const prevDiagnosis = history[1];
+    const isSame = lastDiagnosis.result === prevDiagnosis.result;
+    const comparison = isSame ? '✅ 前回と同じ結果' : '🔄 異なる結果を選択（引き続き検討中）';
+    document.getElementById('goalComparison').textContent = comparison;
+  } else {
+    document.getElementById('goalComparison').textContent = '📍 初回診断';
+  }
+}
+
+function copyResultToClipboard() {
+  const type = document.getElementById('r-type').textContent;
+  const rec = document.getElementById('r-rec').textContent;
+  const models = document.getElementById('r-models').textContent;
+  const text = `${type}\n\n${rec}\n\n${models}`;
+  navigator.clipboard.writeText(text).then(() => {
+    alert('診断結果をコピーしました！');
+  }).catch(() => {
+    alert('コピーに失敗しました');
+  });
+}
+
+function downloadCSV() {
+  const history = JSON.parse(localStorage.getItem('diagnosisHistory') || '[]');
+  if(history.length === 0) { alert('保存された診断がありません'); return; }
+
+  const headers = ['日時', '使用シーン', '予算', '形状', '重視点', '現在の悩み', '結果タイプ'];
+  const rows = history.map(d => [
+    d.timestamp,
+    getLabelByValue(d.scene, 'scene'),
+    getLabelByValue(d.budget, 'budget'),
+    getLabelByValue(d.form, 'form'),
+    getLabelByValue(d.priority, 'priority'),
+    getLabelByValue(d.pain, 'pain'),
+    d.result
+  ]);
+
+  const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  const blob = new Blob(['﻿' + csv], {type: 'text/csv;charset=utf-8;'});
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `noise-advisor-${new Date().toISOString().slice(0,10)}.csv`;
+  link.click();
+}
+
+function getLabelByValue(value, type) {
+  const options = {
+    scene: {commute:'通勤・通学', remote:'在宅ワーク・集中作業', flight:'飛行機・長距離移動', gym:'ジム・ランニング'},
+    budget: {low:'〜5,000円', mid:'5,000〜20,000円', high:'20,000〜40,000円', premium:'40,000円以上'},
+    form: {inear:'完全ワイヤレス', canal:'カナル型', inearopen:'インナーイヤー型', overear:'オーバーイヤー型', onear:'オンイヤー型'},
+    priority: {nc:'NC最優先', sound:'音質重視', mic:'マイク品質', battery:'バッテリー持続'},
+    pain: {noise:'騒音が悩み', fit:'装着感が悩み', call:'通話品質が悩み', price:'価格が悩み'}
+  };
+  return options[type]?.[value] || value;
 }
 
 function backToForm() {
@@ -1042,6 +1185,7 @@ function diagnose() {
 
   drawScoreChart(scores);
   saveDiagnosis(scene, budget, form, priority, pain, type);
+  updateGoalProgress();
 
   const resultEl = document.getElementById('result');
   resultEl.classList.add('show');
