@@ -1,5 +1,15 @@
 # 機能仕様
 
+## v1.3.3 - 2026年6月13日（M2 Phase2 実装・入力UI最適化版）
+
+### 改善
+- **M2【満足】コア機能のUX改善（Phase2 直接実装版）**:
+  - 記録・製品フォーム全入力要素（input/select/textarea）に focus 時のビジュアルフィードバック追加：border-color を purple-500 に、ring-2 ring-purple-200 で focus時の視認性大幅向上
+  - input/select のpadding を p-2 から p-3 に拡大、タッチ操作でのヒット領域を拡張（モバイルUX向上）
+  - placeholder テキストを簡潔化・実践的に（例：「SK-II朝晩、睡眠7時間」など最小限の記入例に統一）
+  - memo/product-memo のカウンター表示に「文字」を追記（「0 / 500 文字」→視認性向上）
+  - textarea に resize-none を追加してレイアウト崩れを防止
+
 ## v1.3.2 - 2026年6月13日（M2・M8強化版）
 
 ### 改善
