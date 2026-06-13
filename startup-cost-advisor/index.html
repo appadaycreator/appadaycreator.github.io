@@ -44,7 +44,10 @@
   {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "ホーム", "item": "https://appadaycreator.com/"}, {"@type": "ListItem", "position": 2, "name": "起業・フリーランス独立費用診断", "item": "https://appadaycreator.com/startup-cost-advisor/"}]}
   </script>
   <!-- Google Tag Manager -->
-  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
+  <!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-TXQGZRF9');</script>
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-ZDPNYD2875"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','G-ZDPNYD2875',{send_page_view:false});</script>
   <!-- Google AdSense -->
@@ -200,9 +203,19 @@ label:has(input[type="radio"]:checked) {
   40%,80%{ transform: translateX(6px); }
 }
 .shake-error { animation: shakeQuestion 0.4s ease; }
+
+/* M2: トースト通知 */
+#toast-container { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); z-index: 10000; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
+.toast { padding: 10px 20px; border-radius: 24px; font-size: .86rem; font-weight: 600; color: #fff; box-shadow: 0 4px 16px rgba(0,0,0,.18); opacity: 0; transform: translateY(8px); transition: opacity .25s ease, transform .25s ease; pointer-events: none; max-width: 90vw; text-align: center; }
+.toast.toast-show { opacity: 1; transform: translateY(0); }
+.toast.toast-success { background: #059669; }
+.toast.toast-error { background: #dc2626; }
+.toast.toast-info { background: #2563eb; }
 </style>
 </head>
 <body class=" font-sans text-gray-800" style="background:#f8fafc;"><a href="#main" class="sr-only">本文へスキップ</a>
+<!-- M2: トースト通知コンテナ -->
+<div id="toast-container" aria-live="polite" aria-atomic="true"></div>
 <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 
 <header class="bg-emerald-700 text-white py-4 px-4 shadow-md">
@@ -1060,12 +1073,27 @@ ${advice.join('\n')}`;
     }
   }
 
+  // M2: トースト通知（alert()の代替・非ブロッキング）
+  function showToast(msg, type = 'success', duration = 2600) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    const el = document.createElement('div');
+    el.className = `toast toast-${type}`;
+    el.textContent = msg;
+    container.appendChild(el);
+    requestAnimationFrame(() => { el.classList.add('toast-show'); });
+    setTimeout(() => {
+      el.classList.remove('toast-show');
+      setTimeout(() => el.remove(), 280);
+    }, duration);
+  }
+
   // P2-1: グローバル変数からテキスト取得（onclick属性への直接埋め込みを排除）
   function copyResult() {
     const text = window.currentResultText || '';
     navigator.clipboard.writeText(text).then(() => {
-      alert('結果をコピーしました！');
-    }).catch(() => alert('コピーに失敗しました'));
+      showToast('📋 結果をコピーしました！');
+    }).catch(() => showToast('⚠️ コピーに失敗しました', 'error'));
   }
 
   function downloadResult() {
@@ -1113,8 +1141,8 @@ ${advice.join('\n')}`;
         navigator.share({ title: '起業費用診断', text: shareText, url: shareUrl }).catch(() => {});
       } else {
         navigator.clipboard.writeText(`${shareText}\n${shareUrl}`).then(() => {
-          alert('リンクをコピーしました！');
-        }).catch(() => alert('コピーに失敗しました'));
+          showToast('🔗 リンクをコピーしました');
+        }).catch(() => showToast('⚠️ コピーに失敗しました', 'error'));
       }
     }
   }
@@ -1140,7 +1168,7 @@ ${advice.join('\n')}`;
     if (history.length > 10) history.pop();
     localStorage.setItem('diagnosis_history', JSON.stringify(history));
     updateHistoryButtonVisibility();
-    alert('診断結果を履歴に保存しました！');
+    showToast('✅ 診断結果を履歴に保存しました');
   }
 
   function showHistory() {
@@ -1206,7 +1234,7 @@ ${advice.join('\n')}`;
     document.getElementById('result-section').classList.add('hidden');
     closeHistoryModal();
     renderQuestion();
-    alert('診断内容を復元しました。修正してから診断を実行してください。');
+    showToast('🔄 診断内容を復元しました', 'info');
   }
 
   function deleteHistory(id) {
@@ -1216,7 +1244,7 @@ ${advice.join('\n')}`;
       localStorage.setItem('diagnosis_history', JSON.stringify(history));
       closeHistoryModal();
       if (history.length > 0) showHistory();
-      else alert('履歴がすべて削除されました');
+      else showToast('🗑️ 履歴をすべて削除しました', 'info');
     }
   }
 
@@ -1273,7 +1301,7 @@ ${advice.join('\n')}`;
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 <!-- r46-org-footer -->
@@ -1292,7 +1320,7 @@ ${advice.join('\n')}`;
   function compareHistory() {
     const checkboxes = document.querySelectorAll('.history-checkbox:checked');
     if (checkboxes.length !== 2) {
-      alert('比較する診断結果を正確に2つ選択してください');
+      showToast('⚠️ 比較する診断を2つ選択してください', 'error');
       return;
     }
 
@@ -1510,5 +1538,6 @@ ${advice.join('\n')}`;
   }, {passive:true});
 })();
 </script>
+<script src="/assets/consent-mode.js"></script>
 </body>
 </html>
