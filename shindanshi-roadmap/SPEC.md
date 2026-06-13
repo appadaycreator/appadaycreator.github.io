@@ -243,11 +243,21 @@
   - 「何が正しいか」
   - 「具体的な例」（条件を満たす値など）
 
-### v1.12.0 (2026-06-12) — M2 UX改善（aria-describedby・role="alert"・blurバリデーション追加）
-- examDate/dailyHours/simExamDateにaria-describedby追加、エラーdivにrole="alert"追加（スクリーンリーダー対応）
-- examDate onchange・dailyHours onblur・quickHoursInput onblurバリデーション追加
-- validateExamDateField() / validateDailyHoursField() / validateQuickHoursField() 関数追加
-- quickHoursInputにaria-label・aria-describedby追加
+### v1.13.0 (2026-06-14) — M2 UX改善（入力フォーム・バリデーション・アクセシビリティ強化）
+**index.html 入力フォーム強化**:
+- 試験日フィールド: label のfor属性追加、aria-required・aria-describedby強化、placeholder詳細化（例：YYYY-MM-DD）
+- 学習時間フィールド: スライダーのaria-label詳細化、numberフィールドのaria-required・aria-describedby強化
+- シミュレーション試験日: label のfor属性追加、aria-required・aria-describedby追加
+- 科目選択: label のfor属性追加、aria-describedby追加
+- 学習時間（記録）: label のfor属性追加、aria-required・aria-describedby強化、placeholderに具体例追加
+- メモ入力: label のfor属性追加、aria-describedby強化、maxlength属性追加、文字数カウンターにrole="status"追加
+
+**contact.html フォーム検証強化**:
+- カテゴリ選択: aria-describedby追加、placeholder改善（任意と明記）
+- メールアドレス: aria-describedby追加、バリデーション関数isValidEmail()追加、blur時リアルタイム検証
+- 問い合わせ内容: aria-required追加、aria-describedby強化、maxlength="1000"追加、プレースホルダー詳細化
+- フォーム検証ロジック: 10文字以上の必須化、メール形式チェック、エラーメッセージボックス表示
+- novalidate属性追加（HTML5標準バリデーション無効化）、カスタムバリデーション実装
 
 ### v1.11.0 (2026-06-12) — M2 UX改善（インラインバリデーション・文字数カウンター強化）
 - 学習記録フォーム: studySubjectにインラインエラー表示div追加、addStudyRecord()バリデーション強化（科目・時間・メモ個別エラー）
@@ -255,3 +265,14 @@
 - クイックログモーダル: quickSubject・quickHoursにインラインエラー表示div追加、submitQuickLog()インライン表示対応
 - studyHoursにblurバリデーション（入力フォーカスアウト時に即時エラー表示）追加
 - ヘルパー関数追加: clearFieldError(), updateMemoCounter(), validateStudyHoursField(), showQuickFieldError(), clearQuickFieldError()
+
+### v1.14.0 (2026-06-14) — M2 UX改善フェーズ2（入力フォーム・バリデーション・アクセシビリティ）
+**index.html 改善**:
+- デスクトップ・モバイルヘッダーのlangSelect・fontSizeSelectorに aria-label 追加（言語選択・文字サイズ選択オプション明記）
+
+**contact.html フォーム強化（送信フォーム）**:
+- カテゴリセレクト: aria-labelとヒント更新（「カテゴリを選択するとサポート対応がスムーズになります」→絵文字付き💡）
+- メールアドレス入力: placeholder改善（example@example.com→your-email@example.com）、aria-label追加、oninput="validateEmailField()"で即座検証
+- メッセージテキストエリア: 文字数カウンター実装（0/1000表示、入力時リアルタイム更新、750字以上で色変化）、ヒント更新（絵文字付き💡）
+- バリデーション関数: validateEmailField()実装（空文字時は検証スキップ、形式エラー時に具体例表示）、updateMessageCounter()実装（残り100字以下で赤色警告）
+- エラーメッセージ: より親切な文言に更新、メール形式エラーに具体例追加
