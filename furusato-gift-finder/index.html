@@ -338,6 +338,36 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <h3 class="text-sm font-bold text-indigo-700 mb-3">診断スコア</h3>
           <div id="score-chart-container" style="position:relative;height:200px;"></div>
         </div>
+
+        <!-- M6: 目標設定・達成度トラッキング -->
+        <div id="goal-section" class="mb-6 p-4 bg-green-50 rounded-xl border border-green-200">
+          <h3 class="text-sm font-bold text-green-700 mb-4">🎯 年間寄附目標の設定</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-gray-700 mb-1">年間目標寄附額（万円）</label>
+              <input type="number" id="goal-amount" placeholder="例: 10" min="0" max="100" step="1" class="w-full px-3 py-2 border border-green-300 rounded-lg text-sm" value="">
+              <button onclick="saveGoal()" class="mt-2 w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg text-sm transition">目標を設定</button>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-700 mb-1">実績寄附額（万円）</label>
+              <input type="number" id="actual-amount" placeholder="例: 5" min="0" max="100" step="0.1" class="w-full px-3 py-2 border border-green-300 rounded-lg text-sm" value="">
+              <button onclick="recordDonation()" class="mt-2 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg text-sm transition">実績を記録</button>
+            </div>
+          </div>
+          <div id="goal-progress" class="mt-4 hidden">
+            <div class="bg-white p-3 rounded-lg">
+              <div class="flex justify-between items-center mb-2">
+                <p class="text-xs font-semibold text-gray-700">達成率</p>
+                <p id="goal-percentage" class="text-sm font-bold text-green-700">0%</p>
+              </div>
+              <div class="w-full bg-gray-200 rounded-full h-3">
+                <div id="goal-bar" class="bg-green-600 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+              </div>
+              <div id="goal-comparison" class="mt-3 text-xs text-gray-600 space-y-1"></div>
+            </div>
+          </div>
+        </div>
+
         <div id="result-content"></div>
       </div>
 
@@ -561,6 +591,63 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       }
     };
 
+    // M6: 目標管理
+    const GoalManager = {
+      goalKey: 'furusato_annual_goal',
+      donationKey: 'furusato_donation_history',
+
+      setGoal(amount) {
+        const goal = {
+          amount: parseFloat(amount),
+          setDate: new Date().toLocaleString('ja-JP'),
+          year: new Date().getFullYear()
+        };
+        localStorage.setItem(this.goalKey, JSON.stringify(goal));
+      },
+
+      getGoal() {
+        try {
+          return JSON.parse(localStorage.getItem(this.goalKey));
+        } catch(e) { return null; }
+      },
+
+      addDonation(amount) {
+        const donations = this.getDonations() || [];
+        const currentYear = new Date().getFullYear();
+
+        const entry = {
+          id: Date.now(),
+          date: new Date().toLocaleString('ja-JP'),
+          amount: parseFloat(amount),
+          year: currentYear
+        };
+        donations.push(entry);
+        localStorage.setItem(this.donationKey, JSON.stringify(donations));
+        return entry;
+      },
+
+      getDonations() {
+        try {
+          return JSON.parse(localStorage.getItem(this.donationKey)) || [];
+        } catch(e) { return []; }
+      },
+
+      getYearlyTotal() {
+        const currentYear = new Date().getFullYear();
+        const donations = this.getDonations();
+        return donations
+          .filter(d => d.year === currentYear)
+          .reduce((sum, d) => sum + d.amount, 0);
+      },
+
+      getAchievementRate() {
+        const goal = this.getGoal();
+        if (!goal) return 0;
+        const total = this.getYearlyTotal();
+        return Math.min((total / goal.amount) * 100, 100);
+      }
+    };
+
     document.querySelectorAll('.quiz-btn').forEach(btn => {
       btn.addEventListener('click', function() {
         const q = parseInt(this.dataset.q);
@@ -585,9 +672,62 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       });
     });
 
+    // M6: 目標管理UI制御
+    function saveGoal() {
+      const goalAmount = document.getElementById('goal-amount').value;
+      if (!goalAmount || goalAmount <= 0) {
+        alert('目標額を入力してください（0より大きい値）');
+        return;
+      }
+      GoalManager.setGoal(goalAmount);
+      updateGoalDisplay();
+      alert(`目標額: ${goalAmount}万円 に設定しました`);
+    }
+
+    function recordDonation() {
+      const actualAmount = document.getElementById('actual-amount').value;
+      if (!actualAmount || actualAmount <= 0) {
+        alert('寄附額を入力してください（0より大きい値）');
+        return;
+      }
+      GoalManager.addDonation(actualAmount);
+      document.getElementById('actual-amount').value = '';
+      updateGoalDisplay();
+      alert(`${actualAmount}万円の実績を記録しました`);
+    }
+
+    function updateGoalDisplay() {
+      const goal = GoalManager.getGoal();
+      if (!goal) return;
+
+      const total = GoalManager.getYearlyTotal();
+      const rate = GoalManager.getAchievementRate();
+      const progressSection = document.getElementById('goal-progress');
+
+      document.getElementById('goal-amount').value = goal.amount;
+      document.getElementById('goal-percentage').textContent = Math.round(rate) + '%';
+      document.getElementById('goal-bar').style.width = rate + '%';
+
+      const donations = GoalManager.getDonations().filter(d => d.year === new Date().getFullYear());
+      let comparison = `<strong>累計寄附額: ${total}万円 / 目標: ${goal.amount}万円</strong><br>`;
+      comparison += `残り: ${Math.max(0, goal.amount - total).toFixed(1)}万円<br>`;
+
+      if (donations.length > 0) {
+        const lastDonation = donations[donations.length - 1];
+        comparison += `<p style="margin-top:.5rem">📋 最新実績: ${lastDonation.date}</p>`;
+        comparison += `<ul style="margin:.25rem 0;padding-left:1rem"><li>+${lastDonation.amount}万円</li></ul>`;
+      }
+
+      document.getElementById('goal-comparison').innerHTML = comparison;
+      progressSection.classList.remove('hidden');
+    }
+
     function showResult() {
       document.getElementById('quiz-section').classList.add('hidden');
       document.getElementById('result-section').classList.remove('hidden');
+
+      // M6: 目標管理を初期化
+      updateGoalDisplay();
 
       const food = answers[2];
       const family = answers[3];
