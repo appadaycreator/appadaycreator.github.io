@@ -254,6 +254,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             inputmode="numeric" oninput="niSyncSlider('nisa-monthly');updateNisa()" aria-label="月額を直接入力" placeholder="例: 30000" title="例: 30000（月3万円）" data-clarity-mask="True">
           <span style="font-size:0.75em;color:#64748b;white-space:nowrap;">円</span>
         </div>
+        <div id="nisa-monthly-err" style="display:none;font-size:0.75rem;color:#dc2626;font-weight:600;margin-top:2px;"></div>
         <div style="font-size:0.75rem;color:#64748b;margin-top:4px;">💡 例: 1万円=年12万円、3万円=年36万円、10万円=年120万円</div>
         <label>📈 想定年利率 <span class="help-icon" title="3%（低リスク・債券中心）、5%（標準・バランスファンド）、7%（高成長・株式中心）から選べます。複数試して比較しましょう。">?</span> <span style="font-size:0.75rem;color:#64748b;font-weight:400;">（複数シナリオで試してみてください）</span></label>
         <div style="display:flex;gap:8px;">
@@ -272,6 +273,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             <option value="both">つみたて＋成長投資枠（月30万円上限）</option>
             <option value="growth">成長投資枠のみ（月20万円上限）</option>
         </select>
+        <div id="nisa-type-hint" style="display:none;font-size:0.78em;font-weight:600;border-radius:8px;padding:8px 12px;background:#f0fdf4;color:#166534;border:1px solid #86efac;margin-top:6px;"></div>
         <label>💼 月収 <span class="help-icon" title="月収を入力すると、積立額が月収のどの程度かを『積立比率』で表示できます。目安は月収の10～20%程度の積立がおすすめです。">?</span> <span style="display:inline-block;background:#f1f5f9;color:#64748b;border-radius:4px;padding:2px 6px;font-size:0.7rem;font-weight:600;margin-left:6px;">オプション</span> <span style="font-size:0.75rem;color:#666;font-weight:400;">積立比率を確認できます</span></label>
         <div style="display:flex;align-items:center;gap:6px;margin:4px 0;">
           <input type="number" id="nisa-income-monthly" value="" min="100000" max="5000000" step="10000"
@@ -338,6 +340,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             <option value="civil">公務員 月1.2万円</option>
             <option value="housewife">専業主婦/夫 月2.3万円</option>
         </select>
+        <div id="ideco-job-hint" style="display:none;font-size:0.78em;font-weight:600;border-radius:8px;padding:8px 12px;background:#f0fdf4;color:#166534;border:1px solid #86efac;margin-top:6px;"></div>
         <div style="font-size:0.75rem;color:#64748b;margin-top:4px;">💡 月間上限: 1.2万円～6.8万円（職業で異なる）/ 年間では14.4万円～81.6万円</div>
         <label>💴 月の拠出額 <span class="help-icon" title="月1,000円から職業ごとの上限まで拠出できます。多いほど節税効果（所得税+住民税）が大きくなります。">?</span> <span style="font-size:0.75rem;color:#64748b;font-weight:400;">（職業別の上限まで）</span></label>
         <input type="range" id="ideco-monthly" min="1000" max="68000" step="1000" value="23000" oninput="niSyncNum('ideco-monthly');updateIdeco()" aria-label="月の拠出額スライダー" title="月1,000円から拠出できます。多いほど節税効果が大きくなります" data-clarity-mask="True">
@@ -348,6 +351,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             inputmode="numeric" oninput="niSyncSlider('ideco-monthly');updateIdeco()" aria-label="月額を直接入力" placeholder="例: 23000" title="例: 23000（月2.3万円）" data-clarity-mask="True">
           <span style="font-size:0.75em;color:#64748b;white-space:nowrap;">円</span>
         </div>
+        <div id="ideco-monthly-err" style="display:none;font-size:0.75rem;color:#dc2626;font-weight:600;margin-top:2px;"></div>
         <div style="font-size:0.75rem;color:#64748b;margin-top:4px;">💡 例: 会社員（企業型DCなし）なら最大2.3万円、自営業なら最大6.8万円まで</div>
         <label>💰 年収 <span class="help-icon" title="年収の目安を選択すると、所得税率が設定されて、より正確な年間節税額が計算されます。年収が高いほど節税効果が大きいです。">?</span> <span style="font-size:0.75rem;color:#64748b;font-weight:400;">（所得税率の計算に使用）</span></label>
         <select id="ideco-income" onchange="updateIdeco()" title="年収の目安を選択すると、節税効果がより正確に計算されます" data-clarity-mask="True">
@@ -481,6 +485,10 @@ function calcCompound(monthly, rateAnnual, years) {
 // ===== NISA =====
 function updateNisa() {
     const type    = document.getElementById('nisa-type').value;
+    if (!type) {
+        document.getElementById('nisa-result').innerHTML = '<div style="background:#fef9c3;border:1.5px solid #fde68a;border-radius:10px;padding:14px;text-align:center;color:#92400e;font-weight:700;">📌 上の「枠の種類」を選択すると計算結果が表示されます</div>';
+        return;
+    }
     // 枠種別に応じてスライダーmax更新
     const maxMap = { tsumitate: 100000, both: 300000, growth: 200000 };
     const slider = document.getElementById('nisa-monthly');
@@ -495,6 +503,14 @@ function updateNisa() {
 
     document.getElementById('nisa-monthly-disp').textContent = '月 ' + fmtW(actual);
     document.getElementById('nisa-years-disp').textContent   = years + '年';
+
+    // M8: 枠選択後のインライン動的ヒント
+    const typeHint = document.getElementById('nisa-type-hint');
+    if (typeHint) {
+        const typeHintTexts = { tsumitate: '✅ つみたて投資枠: 月最大10万円。長期・積立・分散向けの認定商品のみ。初心者に最適。', both: '✅ つみたて＋成長投資枠: 月最大30万円。年間360万円枠をフル活用したい方向け。', growth: '✅ 成長投資枠: 月最大20万円。個別株・ETFも対象。つみたて枠との併用が最大効果。' };
+        typeHint.textContent = typeHintTexts[type] || '';
+        typeHint.style.display = 'block';
+    }
 
     const res = calcCompound(actual, nisaRate, years);
 
@@ -655,6 +671,10 @@ function updateNisaGauge(monthly, years) {
 // ===== iDeCo =====
 function updateIdeco() {
     const job     = document.getElementById('ideco-job').value;
+    if (!job) {
+        document.getElementById('ideco-result').innerHTML = '<div style="background:#fef9c3;border:1.5px solid #fde68a;border-radius:10px;padding:14px;text-align:center;color:#92400e;font-weight:700;">📌 上の「職業区分」を選択すると計算結果が表示されます</div>';
+        return;
+    }
     const income  = parseInt(document.getElementById('ideco-income').value);
     const years   = parseInt(document.getElementById('ideco-years').value);
     const limit   = LIMITS[job];
@@ -672,6 +692,14 @@ function updateIdeco() {
 
     document.getElementById('ideco-monthly-disp').textContent = '月 ' + fmtW(monthly);
     document.getElementById('ideco-years-disp').textContent = years + '年';
+
+    // M8: 職業選択後のインライン動的ヒント
+    const jobHint = document.getElementById('ideco-job-hint');
+    if (jobHint) {
+        const jobHintTexts = { employee_no_dc: '✅ 会社員（DCなし）: 月最大23,000円。年27.6万円の所得控除で節税効果大。', employee_dc: '✅ 会社員（DCあり）: 月最大12,000円。企業型DCとの合算で上限が決まります。', self: '✅ 自営業: 月最大68,000円。全職種中最大の拠出上限・節税メリット。', civil: '✅ 公務員: 月最大12,000円。2024年から上限が拡充されました。', housewife: '✅ 専業主婦/夫: 月最大23,000円。国民年金加入者であれば利用可能。' };
+        jobHint.textContent = jobHintTexts[job] || '';
+        jobHint.style.display = 'block';
+    }
 
     const res = calcCompound(monthly, idecoRate, years);
     const annualTaxSave = Math.round(monthly * 12 * (taxRate + juminRate));
@@ -989,7 +1017,16 @@ function niSyncSlider(id) {
     if (!num || !slider) return;
     const min = parseInt(slider.min) || 1000;
     const max = parseInt(slider.max);
-    const val = Math.max(min, Math.min(max, parseInt(num.value) || min));
+    const rawVal = parseInt(num.value);
+    const errEl = document.getElementById(id + '-err');
+    if (!isNaN(rawVal) && rawVal < min) {
+        if (errEl) { errEl.textContent = '⚠️ 最小値は' + min.toLocaleString() + '円です'; errEl.style.display = 'block'; }
+    } else if (!isNaN(rawVal) && rawVal > max) {
+        if (errEl) { errEl.textContent = '⚠️ 上限は' + max.toLocaleString() + '円です'; errEl.style.display = 'block'; }
+    } else {
+        if (errEl) errEl.style.display = 'none';
+    }
+    const val = Math.max(min, Math.min(max, rawVal || min));
     num.value = val;
     slider.value = val;
 }
