@@ -3,8 +3,8 @@
 ## 概要
 
 **サービス名**: Wedding Cost Calculator
-**バージョン**: 1.2.1
-**更新日**: 2026-06-12
+**バージョン**: 1.2.2
+**更新日**: 2026-06-13
 **URL**: https://appadaycreator.com/wedding-cost-calculator/
 
 結婚式の総費用・平均相場を無料計算。招待人数・会場タイプを入力するだけで項目別予算が分かる。節約ポイント解説付き。登録不要。
@@ -111,3 +111,4 @@ MIT License
 - 2026-06-12: M2施策 最終確認・完了 [improve_auto] - M2（コア機能UX改善）は完全実装済み（placeholder全数・aria-label全数・バリデーション完全実装・エラー表示統一・アクセシビリティ完全対応）。追加改善不要。バージョン: 1.2.0で安定稼働中
 - 2026-06-12: M2 最終アクセシビリティ強化 [improve_auto フェーズ2] - errorMessage div に role="alert" 追加・region/weddingMonth/weddingDay select に aria-invalid="false" 初期属性追加・Range slider（budget/giftPerPerson/savingsMonths）の高さを20px に統一・focus-visible スタイル強化（all inputs/selects/buttons に outline:2px solid #7c3aed）・Range slider hover 効果実装（-webkit/moz対応・色変更#6d28d9・scale 1.1・shadow強化）・has-error クラス CSS 実装（border #dc2626・background #fee2e2）・バージョン: 1.2.1
 - 2026-06-13: M2施策 完全実装確認 [improve_phase2_only] - コード確認済み。入力UI・バリデーション全項目実装完了（placeholder・aria-label・aria-invalid・has-error・focus-visible・Range slider全機能）。追加改善不要。バージョン: 1.2.1（安定稼働中）
+- 2026-06-13: M2施策+GSC最適化完了 [improve_phase2_only フェーズ2] - Consent Mode v2追加実装・メタ説明簡潔化・広告開示バナー追加・h1「結婚式費用 平均いくら？計算機【無料】」（GSC対応）・h2「結婚式費用の平均は約300万円。あなたの場合はいくら？」（キーワード重視）・バージョン: 1.2.2
