@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":
 new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],
@@ -97,6 +100,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://appadaycreator.com/"},{"@type":"ListItem","position":2,"name":"計算機/お金","item":"https://appadaycreator.com/category/finance/"},{"@type":"ListItem","position":3,"name":"ペンキ・塗料必要量計算【無料】簡単・無料計算","item":"https://appadaycreator.com/paint-quantity-calculator/"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"「ペンキ・塗料必要量計算」は無料で使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要です。"}},{"@type":"Question","name":"スマートフォンでも使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、モバイル対応済みです。"}}]}</script>
 </head>
 <body>
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -231,6 +235,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <option value="16">16L缶</option>
           </select>
 
+          <label for="goalQuantity" style="margin-top:14px;" class="label-with-tooltip">目標塗料量（L）<span class="tooltip-icon" data-tooltip="年間で塗装する予定の目標塗料量を入力。達成度を追跡できます">?</span></label>
+          <input type="number" id="goalQuantity" value="" min="0" step="0.1" placeholder="例）50.0" aria-label="目標塗料量をリットル単位で入力">
+          <p style="font-size:12px;color:#666;margin:4px 0 0;">年間の目標塗料量を入力すると、達成度を追跡できます</p>
+
           <div style="display:flex;gap:8px;margin-top:20px;flex-wrap:wrap;">
             <button class="btn" style="flex:1;min-width:200px;" onclick="calculate()">必要量を計算する</button>
             <button class="btn" style="background:#6b7280;flex:0 1 auto;min-width:100px;" onclick="clearHistory()" title="入力値をリセット">入力値をリセット</button>
@@ -240,6 +248,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div style="background:linear-gradient(135deg,#f5f3ff,#f0f9ff);border-radius:12px;padding:20px;border:1px solid #e9d5ff;">
               <div id="output" style="font-size:3rem;font-weight:700;color:#7c3aed;text-align:center;padding:8px 0;"></div>
               <div id="breakdown" style="margin-top:12px;display:flex;flex-direction:column;gap:8px;"></div>
+              <div id="goalSection" style="display:none;margin-top:20px;padding:16px;background:#f0fdf4;border-radius:10px;border:1px solid #bbf7d0;">
+                <h4 style="font-size:14px;font-weight:700;color:#14532d;margin:0 0 12px;">🎯 目標達成度トラッキング</h4>
+                <div id="goalTracking" style="font-size:14px;color:#374151;line-height:2;"></div>
+              </div>
               <div style="margin-top:20px;padding:12px 0;border-top:1px solid #e2e8f0;">
                 <div style="position:relative;height:280px;max-width:500px;margin:0 auto;">
                   <canvas id="resultChart"></canvas>
@@ -564,6 +576,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
       document.getElementById('result').classList.add('show');
       renderChart(needed, cans, cost, paint.label);
+      renderGoalTracking(needed.toFixed(1));
+      saveGoalHistory(needed.toFixed(1));
       const resultEl = document.getElementById('result');
       resultEl.scrollIntoView({ behavior: 'smooth' });
       setTimeout(() => resultEl.focus(), 600);
@@ -577,6 +591,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         paintType: document.getElementById('paintType').value,
         coats: document.getElementById('coats').value,
         canSize: document.getElementById('canSize').value,
+        goalQuantity: document.getElementById('goalQuantity').value,
       };
       localStorage.setItem('paintCalcData', JSON.stringify(data));
     }
@@ -591,10 +606,90 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           document.getElementById('paintType').value = data.paintType || 'water';
           document.getElementById('coats').value = data.coats || '2';
           document.getElementById('canSize').value = data.canSize || '4';
+          document.getElementById('goalQuantity').value = data.goalQuantity || '';
         } catch (e) {
           console.error('localStorage 復元エラー:', e);
         }
       }
+    }
+
+    // M6: 目標達成度トラッキング
+    function loadGoalHistory() {
+      const history = JSON.parse(localStorage.getItem('paintGoalHistory') || '[]');
+      return history;
+    }
+
+    function saveGoalHistory(neededQuantity) {
+      if (!neededQuantity) return;
+      let history = loadGoalHistory();
+      history.push({
+        timestamp: Date.now(),
+        quantity: parseFloat(neededQuantity)
+      });
+      // 最新50件を保持
+      if (history.length > 50) {
+        history = history.slice(-50);
+      }
+      localStorage.setItem('paintGoalHistory', JSON.stringify(history));
+    }
+
+    function renderGoalTracking(needed) {
+      const goalStr = document.getElementById('goalQuantity').value;
+      const goalSection = document.getElementById('goalSection');
+      const goalTracking = document.getElementById('goalTracking');
+
+      if (!goalStr || parseFloat(goalStr) <= 0) {
+        goalSection.style.display = 'none';
+        return;
+      }
+
+      const goal = parseFloat(goalStr);
+      const history = loadGoalHistory();
+
+      // 達成率計算
+      let accumulated = 0;
+      history.forEach(h => accumulated += h.quantity);
+      accumulated += parseFloat(needed);
+
+      const achievementRate = (accumulated / goal * 100).toFixed(1);
+      const remaining = Math.max(0, goal - accumulated).toFixed(1);
+
+      // 前回との比較
+      let prevQuantity = 0;
+      if (history.length > 0) {
+        prevQuantity = history[history.length - 1].quantity;
+      }
+      const comparison = parseFloat(needed) - prevQuantity;
+      const comparisonText = comparison > 0 ?
+        `+${comparison.toFixed(1)}L (前回比 +${(comparison/Math.max(prevQuantity, 0.1)*100).toFixed(0)}%)` :
+        comparison < 0 ?
+        `${comparison.toFixed(1)}L (前回比 ${(comparison/Math.max(prevQuantity, 0.1)*100).toFixed(0)}%)` :
+        '前回と同量';
+
+      goalTracking.innerHTML = `
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <span style="color:#374151;">目標値</span>
+          <span style="font-weight:600;color:#14532d;">${goal.toFixed(1)}L</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <span style="color:#374151;">現在の累計</span>
+          <span style="font-weight:600;color:#14532d;">${accumulated.toFixed(1)}L</span>
+        </div>
+        <div style="margin-bottom:12px;background:#fff;border-radius:6px;overflow:hidden;border:1px solid #bbf7d0;">
+          <div style="width:${Math.min(achievementRate, 100)}%;height:24px;background:linear-gradient(90deg,#16a34a,#22c55e);display:flex;align-items:center;justify-content:flex-end;padding:0 8px;color:white;font-size:12px;font-weight:600;transition:width 0.3s ease;">
+            ${achievementRate}%
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px;">
+          <span style="color:#6b7280;">残り必要量</span>
+          <span style="font-weight:600;color:#059669;">${remaining}L</span>
+        </div>
+        <div style="padding:10px;background:#f0fdf4;border-radius:6px;border-left:3px solid #16a34a;font-size:13px;">
+          <strong>前回:</strong> ${prevQuantity.toFixed(1)}L → <strong>今回:</strong> ${needed.toFixed(1)}L ${comparisonText}
+        </div>
+      `;
+
+      goalSection.style.display = 'block';
     }
 
     function clearHistory() {
@@ -680,6 +775,25 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           });
         }
       });
+
+      // M6: 目標値フィールドの変更を保存
+      const goalEl = document.getElementById('goalQuantity');
+      if (goalEl) {
+        goalEl.addEventListener('change', () => {
+          saveToLocalStorage();
+          // 現在の計算結果があれば、目標トラッキングを再表示
+          if (document.getElementById('result').classList.contains('show')) {
+            const output = document.getElementById('output').textContent;
+            const match = output.match(/^([\d.]+)/);
+            if (match) {
+              renderGoalTracking(match[1]);
+            }
+          }
+        });
+        goalEl.addEventListener('input', () => {
+          saveToLocalStorage();
+        });
+      }
       ['width','height'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });
@@ -793,8 +907,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
+<script src="/assets/consent-mode.js"></script>
 </body>
 </html>
