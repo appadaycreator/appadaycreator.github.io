@@ -181,6 +181,13 @@ body{font-family:"M PLUS Rounded 1c","Noto Sans JP",-apple-system,BlinkMacSystem
                     <label class="block font-semibold mb-1 text-sm text-gray-700">お問い合わせ内容 <span class="text-red-500">*</span></label>
                     <textarea name="message" required rows="6" placeholder="ご質問・ご要望・不具合の詳細をご記入ください。&#10;&#10;（不具合の場合）使用デバイス・ブラウザ・再現手順もお書きいただけると助かります。" class="w-full border border-gray-200 rounded-lg px-4 py-3 text-base resize-vertical"></textarea>
                 </div>
+                <!-- スパム防止 math challenge -->
+                <div id="math-challenge-wrap">
+                    <label class="block font-semibold mb-1 text-sm text-gray-700">スパム防止のため、計算にお答えください <span class="text-red-500">*</span></label>
+                    <p id="math-question" class="font-bold text-base text-gray-800 my-2"></p>
+                    <input type="text" id="math-answer" inputmode="numeric" pattern="[0-9]*" placeholder="答えを半角数字で入力" autocomplete="off" class="w-full border border-gray-200 rounded-lg px-4 py-3 text-base">
+                    <p id="math-error" class="hidden text-red-500 text-sm mt-1">答えが違います。もう一度確認してください。</p>
+                </div>
                 <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl text-base hover:bg-indigo-700 transition-colors">送信する →</button>
                 <p class="text-xs text-gray-400 text-center">直接メールでのお問い合わせ: appadaycreator@gmail.com</p>
             </form>
@@ -335,15 +342,34 @@ body{font-family:"M PLUS Rounded 1c","Noto Sans JP",-apple-system,BlinkMacSystem
 </div>
 </footer>
     <script>
+    /* math challenge: ページ読み込み時に問題を生成 */
+    (function(){
+        var a = Math.floor(Math.random()*20)+3;
+        var b = Math.floor(Math.random()*20)+3;
+        window._mcA = a; window._mcB = b;
+        document.getElementById('math-question').textContent = a + ' + ' + b + ' = ?';
+    })();
+
     document.getElementById('form').addEventListener('submit', async function(e) {
         e.preventDefault();
-        const btn = this.querySelector('button');
+        const btn = this.querySelector('button[type="submit"]');
+
+        /* math challenge 検証 */
+        var ans = parseInt((document.getElementById('math-answer').value || '').trim(), 10);
+        var err = document.getElementById('math-error');
+        if (isNaN(ans) || ans !== (window._mcA + window._mcB)) {
+            err.classList.remove('hidden');
+            document.getElementById('math-answer').focus();
+            return;
+        }
+        err.classList.add('hidden');
+
         btn.textContent = '送信中...'; btn.disabled = true;
         try {
             const res = await fetch(this.action, {method:'POST', body: new FormData(this), headers:{Accept:'application/json'}});
             if (res.ok) { this.style.display='none'; document.getElementById('success').classList.remove('hidden'); }
-            else { btn.textContent='送信する'; btn.disabled=false; alert('送信に失敗しました。appadaycreator@gmail.comへ直接ご連絡ください。'); }
-        } catch { btn.textContent='送信する'; btn.disabled=false; }
+            else { btn.textContent='送信する →'; btn.disabled=false; alert('送信に失敗しました。appadaycreator@gmail.comへ直接ご連絡ください。'); }
+        } catch { btn.textContent='送信する →'; btn.disabled=false; }
     });
     </script>
     <script>
