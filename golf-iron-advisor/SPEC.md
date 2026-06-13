@@ -690,3 +690,11 @@ This specification documents the current state before refactoring begins.
   - アクセシビリティ: aria-label / aria-describedby で支援技術対応
   - モバイル最適化: min-height: 44px以上（WCAG 2.1 AA準拠）
 - **結論**: M2施策はほぼ完全実装済み。追加改善は不要。
+
+## v1.x.x - 2026-06-13 (#44 improve_phase2_only)
+
+### M2検証完了（Phase 2直接実装）★★★★★
+- **実装状況確認**: validateNumberInput関数・getFieldNameByInputId関数により、全数値入力フィールド（身長・体重・HS・HCP）で詳細エラーメッセージ・アニメーション完全実装
+- **UI/UX**: placeholder(170/70/40/18)・aria-label・range slider・shake/checkmark-pop エラーアニメーション全装備
+- **クイズUI**: Step 2-8 全て「分からない」オプション実装済み（入力バリデーション完全カバー）
+- **結論**: M2施策追加改善不要 - 既存実装で全要件満たす
