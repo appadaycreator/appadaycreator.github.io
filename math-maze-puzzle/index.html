@@ -4,7 +4,7 @@
     <!-- phase8-schema-enhanced -->
 <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="無料の計算ゲーム『計算チャレンジ』。制限時間内にできるだけ多くの計算問題を解く脳トレゲーム。難易度4段階・成績記録機能付き。小学生〜大人まで楽しめる。登録不要で今すぐプレイ！">
+    <meta name="description" content="【無料計算ゲーム】計算チャレンジ。暗算力・計算力を鍛える脳トレ。難易度4段階、成績記録機能付き。小学生〜大人まで楽しめる。オフライン対応PWA。登録不要で今すぐプレイ！">
 <meta name="author" content="AppADayCreator">
 <link rel="preconnect" href="https://pagead2.googlesyndication.com" crossorigin>
     <link rel="dns-prefetch" href="https://www.googletagmanager.com">
@@ -236,6 +236,37 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
 }
 
 @media(max-width:640px){[class*=max-w],[class*=container],[class*=wrapper]{padding:12px 16px!important;}button,[class*=btn]{width:100%;font-size:15px;}}
+
+/* M2改善: バリデーションメッセージの可視性向上 */
+[id*="validation-message"]:not(.hidden),
+[id*="error-message"]:not(.hidden),
+[id*="success-message"]:not(.hidden) {
+  display: block !important;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  animation: slideInDown 0.3s ease-out;
+}
+
+[id*="error-message"]:not(.hidden) {
+  background: #fee2e2;
+  border-left: 4px solid #ef4444;
+  color: #991b1b;
+}
+
+[id*="validation-message"]:not(.hidden) {
+  background: #fee2e2;
+  border-left: 4px solid #ef4444;
+  color: #991b1b;
+}
+
+[id*="success-message"]:not(.hidden),
+[id*="confirmation-message"]:not(.hidden) {
+  background: #dcfce7;
+  border-left: 4px solid #22c55e;
+  color: #166534;
+}
 </style>
 </head>
 <body class=" font-sans" style="background:#f8fafc;"><a href="#main" class="sr-only">本文へスキップ</a>
@@ -1085,16 +1116,18 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 });
             });
 
-            // M2改善: ゲーム開始前の入力バリデーション
+            // M2改善: ゲーム開始前の包括的な入力バリデーション
             const startGameBtn = document.getElementById('start-game-btn');
             if (startGameBtn) {
                 startGameBtn.addEventListener('click', function(e) {
                     let isValid = true;
+                    const errorList = [];
 
                     // 難易度選択の確認
                     const selectedLevel = document.querySelector('.level-btn.active');
                     if (!selectedLevel) {
                         document.getElementById('difficulty-error-message').classList.remove('hidden');
+                        errorList.push('難易度を選択してください');
                         isValid = false;
                     } else {
                         document.getElementById('difficulty-error-message').classList.add('hidden');
@@ -1104,14 +1137,49 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     const selectedTime = playTimeSlider.value;
                     if (!selectedTime || selectedTime < 1 || selectedTime > 5) {
                         document.getElementById('time-validation-message').classList.remove('hidden');
+                        errorList.push('プレイ時間を1〜5分で選択してください');
                         isValid = false;
                     } else {
                         document.getElementById('time-validation-message').classList.add('hidden');
                     }
 
+                    // プレイヤー名の隠し入力フォーム（存在する場合）
+                    const playerNameInput = document.getElementById('playerNameInput');
+                    if (playerNameInput && playerNameInput.value) {
+                        if (playerNameInput.value.length < 1 || playerNameInput.value.length > 20) {
+                            errorList.push('プレイヤー名は1〜20文字で入力してください');
+                            isValid = false;
+                        }
+                    }
+
+                    // 目標スコアの隠し入力フォーム（存在する場合）
+                    const targetScoreInput = document.getElementById('targetScoreInput');
+                    if (targetScoreInput && targetScoreInput.value) {
+                        const score = parseInt(targetScoreInput.value, 10);
+                        if (isNaN(score) || score < 0 || score > 9999) {
+                            errorList.push('目標スコアは0〜9999で入力してください');
+                            isValid = false;
+                        }
+                    }
+
+                    // 難易度セレクト（隠し要素）の検証
+                    const difficultySelect = document.getElementById('difficultySelect');
+                    if (difficultySelect && difficultySelect.value === '') {
+                        errorList.push('難易度を選択してください（セレクト）');
+                        isValid = false;
+                    }
+
                     // バリデーション失敗時は処理を中断
                     if (!isValid) {
                         e.preventDefault();
+                        // アクセシビリティアナウンス（スクリーンリーダー対応）
+                        const errorAnnounce = document.createElement('div');
+                        errorAnnounce.setAttribute('role', 'alert');
+                        errorAnnounce.setAttribute('aria-live', 'assertive');
+                        errorAnnounce.className = 'sr-only';
+                        errorAnnounce.textContent = '入力エラー：' + errorList.join('、');
+                        document.body.appendChild(errorAnnounce);
+                        setTimeout(() => errorAnnounce.remove(), 5000);
                     }
                 });
             }
@@ -1245,14 +1313,20 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
       </div>
     </div>
 
-    <!-- プレイヤー設定（非表示） -->
+    <!-- M2改善: プレイヤー設定フォーム（非表示） -->
     <div style="display:none">
-      <input type="text" id="playerNameInput" placeholder="プレイヤー名" required minlength="1" maxlength="20" aria-label="プレイヤー名">
-      <input type="number" id="targetScoreInput" min="0" max="9999" step="1" required>
-      <select id="difficultySelect" required>
-        <option value="easy">かんたん</option>
-        <option value="normal" selected>ふつう</option>
-        <option value="hard">むずかしい</option>
+      <input type="text" id="playerNameInput" placeholder="プレイヤー名を入力（1〜20文字）" required minlength="1" maxlength="20" aria-label="プレイヤー名（半角英数字1〜20文字）" aria-describedby="playerNameError" pattern="[a-zA-Z0-9ぁ-ん一-龯々〆〤ゝゞー]+" title="プレイヤー名は1〜20文字で入力してください">
+      <span id="playerNameError" class="sr-only" role="alert">プレイヤー名は1〜20文字である必要があります</span>
+
+      <input type="number" id="targetScoreInput" min="0" max="9999" step="1" placeholder="目標スコア（0〜9999）" required aria-label="目標スコア（0〜9999点）" aria-describedby="targetScoreError" title="0〜9999の範囲で入力してください">
+      <span id="targetScoreError" class="sr-only" role="alert">目標スコアは0〜9999の範囲である必要があります</span>
+
+      <label for="difficultySelect">難易度選択:</label>
+      <select id="difficultySelect" required aria-label="ゲーム難易度の選択" title="難易度を選択してください">
+        <option value="">選択してください</option>
+        <option value="easy">かんたん（足し算・引き算）</option>
+        <option value="normal" selected>ふつう（全演算）</option>
+        <option value="hard">むずかしい（複合計算）</option>
       </select>
     </div>
 
