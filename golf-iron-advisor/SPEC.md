@@ -114,9 +114,12 @@ golf-iron-advisor/
 
 ## Recent Updates
 
-- ✅ **2026-06-13**: v4.4 M2施策：コア機能UX改善（/improve_phase2_only — 完全実装版）
-  - **P1: 入力フォームのplaceholder・aria-label最適化** ✅ — 身長・体重・ハンディキャップ・ヘッドスピードの4つの主要数値入力フィールドに placeholder 属性を簡潔化（「例: 170」→「170」）。aria-label を詳細化（単位や入力範囲を明示）してスクリーンリーダー利用者の入力補助を強化。aria-describedby属性で hint/error メッセージをリンク。
-  - **P2: バリデーション・エラーメッセージUI強化** ✅ — validateNumberInput(inputEl, minVal, maxVal) グローバル関数を実装。無効な値の入力時にエラーメッセージを動的表示。成功時にはチェックマーク ✓（.validation-check）と背景色フィードバック（.border-green-500）を表示。入力フィールドのシェイクアニメーション（animation: shake）でエラー時に注意喚起。min/max属性と組み合わせて堅牢なバリデーション実現。
+- ✅ **2026-06-14**: v4.4 M2施策：コア機能UX改善（/improve_phase2_only — 実装完了）
+  - **M2-1: 入力フォームのplaceholder・aria-label詳細化** ✅ — 身長・体重・ハンディキャップ・ヘッドスピードの4つの主要数値入力フィールドに placeholder 属性を詳細化（「170」→「例：170cm」等）。aria-label を詳細化（単位や入力範囲を明示）してスクリーンリーダー利用者の入力補助を強化。aria-describedby属性で hint/error メッセージをリンク。アクセシビリティWCAG 2.1 AA対応。
+  - **M2-2: バリデーション・エラーメッセージUI強化** ✅ — validateNumberInput(inputEl, minVal, maxVal) グローバル関数で入力値検証。無効な値入力時にエラーメッセージを#[id]-error に動的表示。成功時にはチェックマーク ✓（.validation-check）と背景色フィードバック（.border-green-500）を表示。エラー時のシェイクアニメーション（@keyframes shake）で視覚的フィードバック。min/max属性と組み合わせて堅牢なバリデーション実現。
+  - **M2-3: スライダー・インプット双方向同期機能** ✅ — `window._syncHeightInput()` / `window._syncHeightSlider()` / `window._syncWeightInput()` / `window._syncWeightSlider()` グローバル関数を実装。身長・体重のスライダーとテキスト入力フィールドが常に同期（リアルタイム）。ユーザーはスライダーまたは直接入力どちらからでも値を変更可能。スライダー下の表示値（`#heightSliderVal` / `#weightSliderVal`）も同期。モバイルUX向上。
+  - **M2-4: フォーム送信前総合バリデーション** ✅ — `window._validateStep1()` グローバル関数で Step1 送信時に全フィールド（身長・体重・年齢）を一括チェック。エラー時は `#step1ErrorSummary` に`<li>`リスト形式でエラーメッセージ表示。正常時はエラーサマリーを非表示化。`next-1`ボタンのクリックハンドラーで自動実行。フロー進行を厳格に制御。
+  - **M2-5: スキップボタン確認ダイアログ機能** ✅ — `window._skipStep1WithConfirmation()` グローバル関数。身長・体重入力を省略して平均値（170cm, 70kg）で診断を続けるユーザーに対して事前確認ダイアログを表示。キャンセル選択時は処理を中止。確認後は `window._skipStep1()` で平均値をセットして Step1 スキップ。UX向上（誤操作防止）。
 
 - ✅ **2026-05-29**: v4.3 UX・SEO・アクセシビリティ改善（P44 /improve_auto）
   - **P1: 結果ページCTAボタン整理** — 6ボタン（シェア/テキストコピー/PDF/保存/再診断/カード）を「もう一度診断」（プライマリ）+「シェア」（セカンダリ）+「その他▼」折りたたみに再構成。モバイルでの視認性向上。
