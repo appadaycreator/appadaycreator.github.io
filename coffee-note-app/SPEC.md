@@ -379,6 +379,15 @@ npx playwright test
 - **JSONインポート機能追加**: エクスポートしたJSONをインポートしてデータ移行が可能に（重複ID除外）
 - **お気に入りフィルター追加**: 履歴セクションに「⭐お気に入りのみ」チェックボックスフィルター追加
 
+### v1.17.0 (2026-06-14)
+- **M2【満足】コア機能のUX改善**: 入力フォームにスライダー（range input）を追加
+  - 豆の量: 5～100g スライダー + テキスト入力（双方向同期）
+  - 水の量: 50～1000ml スライダー + テキスト入力（双方向同期）
+  - 水温: 60～110℃ スライダー + テキスト入力（双方向同期）
+  - 抽出時間: 10～600秒 スライダー + テキスト入力（双方向同期）
+  - スライダー値表示: リアルタイム更新（値の視覚的確認）
+  - 同期関数: updateBeanAmountFromSlider/Display, updateWaterAmountFromSlider/Display, updateWaterTempFromSlider/Display, updateExtractionTimeFromSlider/Display
+
 ## ライセンス
 
 MIT License
