@@ -1,20 +1,36 @@
 # FlashCard Master 仕様書
 
 ## v1.8 (2026-06-13) - M2【満足】コア機能のUX改善（入力UI・バリデーション）
-- メタ情報・SEO強化：
-  - meta keywords を追加「暗記カード, フラッシュカード, 無料, 英単語, 資格試験, 1問1答, 間隔反復, 学習, 記憶定着, 効率学習」
-- リアルタイム入力バリデーション機能（setupRealtimeValidation）を実装：
-  - すべての入力フィールド（デッキ名/説明/問題/答え）に対応
-  - 入力時の文字数カウント自動更新
-  - 最大文字数超過時にエラーメッセージを動的表示
-  - フォーカス時にエラーメッセージを非表示化
-  - フォーカス喪失時（blur）に必須項目の空チェック実行
-  - エラー時のボーダーカラー（赤色）変更でビジュアルフィードバック
-- バリデーション対象フォーム（8フィールド）：
-  - deck-name-input / deck-description-input（デッキ作成時）
-  - new-question / new-answer（カード追加時）
-  - edit-card-question / edit-card-answer（カード編集時）
-  - edit-deck-name / edit-deck-description（デッキ編集時）
+**実装内容**:
+1. **入力フォームUI改善**（4フィールド対応）：
+   - 問題・答え入力フォーム：border-2（濃い枠）・focus:ring-2（より視認性の高いリング）・placeholder に文字数制限記載
+   - デッキ名・説明入力フォーム：同様に枠・リング・placeholder を改善
+   - 必須項目表示：「*」から「必須」ラベルに変更（より分かりやすく）
+
+2. **入力ガイド・ヒント追加**：
+   - 各フォーム下に💡アイコン付きのヒントテキストを表示
+   - 問題：「具体的で分かりやすい問題を入力してください」
+   - 答え：「分かりやすく、簡潔に答えを入力してください」
+   - デッキ名：「分かりやすい名前をつけましょう」
+   - 説明：「学習の目的や内容を簡潔に説明すると後で分かりやすい」
+
+3. **エラーメッセージ改善**：
+   - ❌ アイコン + エラーメッセージテキスト（2段構成 from 従来の1段）
+   - setupRealtimeValidation 関数をUX改善版に更新
+   - エラー表示時：border-red-500・ring-red-200（更に視認性向上）
+   - 文字数表示：「0/500」→「0/500 文字」（単位を明記）
+
+4. **リアルタイムバリデーション関数の改善**：
+   - エラー要素の span:last-child に直接テキストを設定
+   - CSS クラス（border-gray-300 → border-red-500）で状態管理
+   - focus 時に border-indigo-500・ring-indigo-200 を適用
+   - blur 時に必須項目の空チェック実行
+
+**対応フォーム（8フィールド）**:
+- deck-name-input / deck-description-input（デッキ作成時）
+- new-question / new-answer（カード追加時）
+- edit-card-question / edit-card-answer（カード編集時）
+- edit-deck-name / edit-deck-description（デッキ編集時）
 
 ## v1.7 (2026-06-05)
 - コード品質改善：importCards/importCardsFromClipboard の重複コードを共通関数 addCardsToCurrentDeck に統合
