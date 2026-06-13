@@ -33,3 +33,4 @@
 - 2026-06-13: v1.4.0 M3・M9施策完成: localStorage履歴機能（History.tsx・storageManager.ts）・SNSシェア機能（URL・Twitter・LINE）実装完了
 - 2026-06-13: v1.5.0 M4再実装・検証完了: 3種類グラフ（Doughnut/Bar/Line）・アニメーション付きゲージ・税効率スコアカード・利用シミュレーション線グラフ（fillプラグイン適用）・全機能ブラウザ内実装
 - 2026-06-13: v1.6.0 M4施策ビルド完成: Chart.js CDN リンク追加・dist/index.html に Chart.js グラフ実装を完全反映
+- 2026-06-13: v1.7.0 /improve_phase2_only: M3・M9施策確認・検証完了（History.tsx・storageManager.ts・Result.tsx シェア機能が完全実装）
