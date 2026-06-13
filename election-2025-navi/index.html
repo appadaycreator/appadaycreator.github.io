@@ -41,7 +41,10 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
     
-    <!-- Google Tag Manager -->
+    <!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
+<!-- Google Tag Manager -->
     <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
     new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
     j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
@@ -115,10 +118,19 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
   header,footer,nav,button,.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
   [id*="affiliate"],[id*="banner"],
+  #mobileMenu,#mobileMenuBtn,#fontSizeSelect,
+  .card-hover:hover,
   script,noscript{display:none!important}
-  body{background:#fff!important;color:#000!important;font-size:12pt}
-  [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
+  body{background:#fff!important;color:#000!important;font-size:11pt;margin:0;padding:0}
+  .container{max-width:100%!important;margin:0!important;padding:0!important}
+  section{page-break-inside:avoid;margin-bottom:20pt;padding:0}
+  h1,h2,h3{margin-top:12pt;margin-bottom:8pt;page-break-after:avoid}
+  [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[id*="progress"],[class*="result"]{display:block!important}
   a[href]::after{content:none!important}
+  .print-header::before{content:"参院選2025ナビ - 学習進捗レポート";display:block;font-size:16pt;font-weight:700;margin-bottom:12pt}
+  .print-header::after{content:"生成: " attr(data-date);display:block;font-size:9pt;color:#666;margin-bottom:12pt}
+  .grid{display:block!important}
+  .grid>*{margin-bottom:8pt}
 }
 
 .card{background:#fff;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.08);overflow:hidden;}
@@ -578,7 +590,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
                 <h2 class="text-3xl font-bold text-gray-800 mb-4">学習進捗</h2>
                 <p class="text-gray-600">あなたの学習状況と獲得したバッジを確認しましょう</p>
             </div>
-            
+
             <div class="max-w-4xl mx-auto">
                 <div class="grid md:grid-cols-3 gap-6 mb-8">
                     <div class="bg-blue-50 rounded-lg p-6 text-center">
@@ -594,8 +606,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
                         <div class="text-gray-600">完了モジュール</div>
                     </div>
                 </div>
-                
-                <div class="bg-gray-50 rounded-lg p-6">
+
+                <div class="bg-gray-50 rounded-lg p-6 mb-6">
                     <h3 class="text-xl font-semibold mb-4">獲得バッジ</h3>
                     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div class="bg-white rounded-lg p-4 text-center">
@@ -614,6 +626,22 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
                             <div class="text-gray-400 text-3xl mb-2">🗳️</div>
                             <div class="text-sm font-medium">投票マスター</div>
                         </div>
+                    </div>
+                </div>
+
+                <div class="bg-white border-2 border-blue-200 rounded-lg p-6">
+                    <h3 class="text-xl font-semibold mb-4">結果をエクスポート</h3>
+                    <p class="text-gray-600 mb-4">学習進捗と診断結果を保存・共有できます</p>
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <button id="printResultBtn" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2" aria-label="結果を印刷">
+                            <span>🖨️</span> 印刷
+                        </button>
+                        <button id="copyResultBtn" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2" aria-label="結果をコピー">
+                            <span>📋</span> コピー
+                        </button>
+                        <button id="downloadResultBtn" class="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition flex items-center justify-center gap-2" aria-label="結果をCSVダウンロード">
+                            <span>📥</span> CSV
+                        </button>
                     </div>
                 </div>
             </div>
@@ -873,6 +901,92 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           });
         });
 
+        // M10: 印刷・エクスポート機能
+        function getProgressData() {
+          const progressData = JSON.parse(localStorage.getItem('election_progress') || '{}');
+          const badges = JSON.parse(localStorage.getItem('election_badges') || '[]');
+          const moduleNames = ['参院選の基礎', '選挙制度', '政党と政策', '投票方法'];
+          let totalPct = 0;
+          moduleNames.forEach(name => {
+            totalPct += progressData[name] || 0;
+          });
+          const avg = Math.round(totalPct / moduleNames.length);
+          return {
+            overallProgress: avg,
+            badgeCount: badges.length,
+            completedModules: moduleNames.filter(name => (progressData[name] || 0) >= 100).length,
+            details: progressData,
+            badges: badges
+          };
+        }
+
+        // 印刷ボタン
+        const printResultBtn = document.getElementById('printResultBtn');
+        if (printResultBtn) {
+          printResultBtn.addEventListener('click', () => {
+            window.print();
+          });
+        }
+
+        // コピーボタン
+        const copyResultBtn = document.getElementById('copyResultBtn');
+        if (copyResultBtn) {
+          copyResultBtn.addEventListener('click', () => {
+            const data = getProgressData();
+            const text = `参院選2025ナビ - 学習進捗レポート
+
+【進捗サマリー】
+学習進捗: ${data.overallProgress}%
+獲得バッジ: ${data.badgeCount}個
+完了モジュール: ${data.completedModules}/4
+
+【モジュール別進捗】
+参院選の基礎: ${data.details['参院選の基礎'] || 0}%
+選挙制度: ${data.details['選挙制度'] || 0}%
+政党と政策: ${data.details['政党と政策'] || 0}%
+投票方法: ${data.details['投票方法'] || 0}%
+
+【獲得バッジ】
+${data.badges.length > 0 ? data.badges.join(', ') : 'なし'}
+
+生成日時: ${new Date().toLocaleString('ja-JP')}
+参院選2025ナビ: https://appadaycreator.com/election-2025-navi/`;
+
+            navigator.clipboard.writeText(text).then(() => {
+              alert('結果をクリップボードにコピーしました！');
+            }).catch(() => {
+              alert('コピーに失敗しました');
+            });
+          });
+        }
+
+        // CSVダウンロードボタン
+        const downloadResultBtn = document.getElementById('downloadResultBtn');
+        if (downloadResultBtn) {
+          downloadResultBtn.addEventListener('click', () => {
+            const data = getProgressData();
+            const csvContent = `項目,値
+学習進捗,${data.overallProgress}%
+獲得バッジ,${data.badgeCount}個
+完了モジュール,${data.completedModules}/4
+参院選の基礎,${data.details['参院選の基礎'] || 0}%
+選挙制度,${data.details['選挙制度'] || 0}%
+政党と政策,${data.details['政党と政策'] || 0}%
+投票方法,${data.details['投票方法'] || 0}%
+生成日時,${new Date().toLocaleString('ja-JP')}`;
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `election-progress-${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          });
+        }
+
         // Service Worker登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
@@ -1093,12 +1207,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 <!-- r46-org-footer -->
 <div style="text-align:center;font-size:11px;color:#9ca3af;padding:6px 0 4px;background:#f8fafc;border-top:1px solid #e5e7eb;">
   運営: <a href="https://appadaycreator.com/" style="color:#9ca3af;text-decoration:none;">AppADayCreator</a> | <a href="https://tech-and-brace.co.jp/" rel="noopener" style="color:#9ca3af;text-decoration:none;">株式会社Tech&amp;Brace</a>
 </div>
+<script src="/assets/consent-mode.js"></script>
 </body>
 </html>
