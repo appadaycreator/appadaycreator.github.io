@@ -469,6 +469,7 @@ function renderResult(ranking){
         <div><span>ブランド</span><b>${c.brands[0]}</b></div>
       </div>
       <div class="apply" style="margin-top:auto">
+        <span style="display:block;font-size:0.68rem;color:#9ca3af;text-align:right;margin-bottom:4px">広告・PR</span>
         <button class="btn-apply ${applyClasses[i]}" onclick="applyCard('${r.key}')">申し込む（無料）</button>
         <a class="detail" href="${c.affiliate?.url||'#'}" target="_blank" rel="noopener">公式サイトを見る →</a>
       </div>
