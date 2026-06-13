@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":
 new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],
@@ -99,6 +102,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://appadaycreator.com/"},{"@type":"ListItem","position":2,"name":"診断/アドバイス","item":"https://appadaycreator.com/category/advisor/"},{"@type":"ListItem","position":3,"name":"家庭菜園植付けカレンダー地域別・月別の作業スケジュール","item":"https://appadaycreator.com/garden-planting-calendar/"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"「家庭菜園・植付けカレンダー」は無料で使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要です。"}},{"@type":"Question","name":"スマートフォンでも使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、モバイル対応済みです。"}}]}</script>
 </head>
 <body>
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-TXQGZRF9" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
@@ -234,6 +238,34 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </div>
         </div>
 
+        <!-- M6: 目標設定・達成度トラッキング -->
+        <div class="card">
+          <h2 style="font-size:15px;font-weight:700;margin-bottom:12px;color:#7c3aed;">🎯 目標設定・進捗管理</h2>
+          <div style="margin-bottom:16px;">
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">栽培目標を設定してください</label>
+            <input type="text" id="goal-name" placeholder="例：トマトを20個収穫する" style="width:100%;padding:10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;margin-top:4px;min-height:44px;">
+            <input type="number" id="goal-target" placeholder="目標値（個数・kg等）" min="1" style="width:100%;padding:10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;margin-top:8px;min-height:44px;">
+            <button class="btn" onclick="setGoal()" style="margin-top:12px;">目標を設定</button>
+          </div>
+          <div id="goal-section" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-top:12px;">
+            <p style="font-size:13px;font-weight:600;color:#374151;margin-bottom:8px;">📍 現在の目標</p>
+            <div id="goal-display" style="background:white;padding:10px;border-radius:6px;margin-bottom:12px;font-size:13px;color:#4b5563;"></div>
+            <p style="font-size:13px;font-weight:600;color:#374151;margin-top:12px;margin-bottom:8px;">進捗を記録</p>
+            <div style="display:flex;gap:8px;margin-bottom:12px;">
+              <input type="number" id="progress-value" placeholder="進捗値を入力" min="0" style="flex:1;padding:10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;min-height:44px;">
+              <button class="btn" onclick="addProgress()" style="flex:0 0 auto;padding:10px 20px;min-width:100px;">記録</button>
+            </div>
+            <div id="progress-display" style="background:white;padding:12px;border-radius:6px;margin-top:12px;">
+              <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:8px;">達成率</div>
+              <div class="progress-bar" style="margin-bottom:8px;">
+                <div id="progress-fill" class="progress-fill" style="width:0%;">0%</div>
+              </div>
+              <p id="progress-text" style="font-size:12px;color:#6b7280;margin-bottom:8px;"></p>
+              <button class="btn btn-secondary" onclick="clearGoal()" style="margin-top:8px;">リセット</button>
+            </div>
+          </div>
+        </div>
+
         <!-- 関連サービス -->
         <div class="card" style="margin-top:8px;">
             <h3 style="font-size:13px;font-weight:600;color:#888;margin-bottom:10px;">🔗 関連サービス</h3>
@@ -359,6 +391,65 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <tr><td style="padding:8px;background:#f3f4f6;font-weight:600;">栽培のコツ</td><td style="padding:8px;">${d.tips}</td></tr>
       </table>`;
     }
+    // M6: 目標設定・達成度トラッキング
+    const GOAL_KEY = 'garden_goal_current';
+    const PROGRESS_KEY = 'garden_progress_history';
+    function setGoal(){
+      const name = document.getElementById('goal-name').value.trim();
+      const target = parseInt(document.getElementById('goal-target').value);
+      if(!name || !target || target <= 0) { alert('目標名と目標値を正しく入力してください'); return; }
+      const goal = { name, target, createdAt:new Date().toISOString(), current:0 };
+      localStorage.setItem(GOAL_KEY, JSON.stringify(goal));
+      localStorage.setItem(PROGRESS_KEY, JSON.stringify([]));
+      updateGoalDisplay();
+      document.getElementById('goal-name').value = '';
+      document.getElementById('goal-target').value = '';
+    }
+    function addProgress(){
+      const value = parseInt(document.getElementById('progress-value').value);
+      if(isNaN(value) || value < 0) { alert('正の数値を入力してください'); return; }
+      const goal = JSON.parse(localStorage.getItem(GOAL_KEY) || '{}');
+      if(!goal.name) { alert('先に目標を設定してください'); return; }
+      const history = JSON.parse(localStorage.getItem(PROGRESS_KEY) || '[]');
+      history.push({ value, timestamp:new Date().toISOString() });
+      goal.current += value;
+      localStorage.setItem(GOAL_KEY, JSON.stringify(goal));
+      localStorage.setItem(PROGRESS_KEY, JSON.stringify(history));
+      document.getElementById('progress-value').value = '';
+      updateGoalDisplay();
+    }
+    function updateGoalDisplay(){
+      const goal = JSON.parse(localStorage.getItem(GOAL_KEY) || '{}');
+      const section = document.getElementById('goal-section');
+      if(!goal.name) { section.style.display = 'none'; return; }
+      section.style.display = 'block';
+      const percent = Math.min(Math.round((goal.current / goal.target) * 100), 100);
+      const history = JSON.parse(localStorage.getItem(PROGRESS_KEY) || '[]');
+      const prevGoals = JSON.parse(localStorage.getItem('garden_completed_goals') || '[]');
+      let prevBest = 0;
+      if(prevGoals.length > 0) prevBest = Math.max(...prevGoals.map(g => Math.round((g.current / g.target) * 100)));
+      document.getElementById('goal-display').innerHTML = `<strong>${goal.name}</strong> (目標値: ${goal.target}) | 現在: ${goal.current}`;
+      document.getElementById('progress-fill').style.width = percent + '%';
+      document.getElementById('progress-fill').textContent = percent + '%';
+      const progressText = history.length > 0 ? `記録数: ${history.length}回 | ` : '';
+      const prevText = prevBest > 0 ? `前回最高: ${prevBest}%` : '';
+      document.getElementById('progress-text').textContent = progressText + prevText;
+    }
+    function clearGoal(){
+      if(confirm('目標をリセットしてもいいですか？')) {
+        const goal = JSON.parse(localStorage.getItem(GOAL_KEY) || '{}');
+        if(goal.name) {
+          const completed = JSON.parse(localStorage.getItem('garden_completed_goals') || '[]');
+          const percent = Math.round((goal.current / goal.target) * 100);
+          completed.push({...goal, achievementPercent:percent});
+          if(completed.length > 10) completed.shift();
+          localStorage.setItem('garden_completed_goals', JSON.stringify(completed));
+        }
+        localStorage.removeItem(GOAL_KEY);
+        localStorage.removeItem(PROGRESS_KEY);
+        updateGoalDisplay();
+      }
+    }
     // ★以下変更不要★
     const HISTORY_KEY = 'garden_planting_history';
     const MONTH_NAMES = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
@@ -449,7 +540,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function clearHistory(){
       if(confirm('履歴を全削除してもいいですか？')) { localStorage.removeItem(HISTORY_KEY); updateHistoryDisplay(); }
     }
-    document.addEventListener('DOMContentLoaded',()=>{ updateHistoryDisplay(); });
+    document.addEventListener('DOMContentLoaded',()=>{ updateHistoryDisplay(); updateGoalDisplay(); });
     function generate(){
       const inputs=getInputs(); if(!inputs) return;
       currentInputs = inputs;
@@ -562,8 +653,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
+<script src="/assets/consent-mode.js"></script>
 </body>
 </html>
