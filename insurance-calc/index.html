@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<!-- Consent Mode v2 -->
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{'analytics_storage':'denied','ad_storage':'denied','ad_user_data':'denied','ad_personalization':'denied','wait_for_update':500});(function(){try{var k='cookie-consent-v2',o='cookie-consent';var c=localStorage.getItem(k);if(!c&&localStorage.getItem(o)==='1')c='granted';if(c){var s=c==='granted'?'granted':'denied';gtag('consent','update',{'analytics_storage':s,'ad_storage':s,'ad_user_data':s,'ad_personalization':s});}}catch(e){}})();</script>
+<!-- End Consent Mode v2 -->
 <!-- Google Tag Manager -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({"gtm.start":
 new Date().getTime(),event:"gtm.js"});var f=d.getElementsByTagName(s)[0],
@@ -42,6 +45,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
     <script>(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","s3t9vl8h3v");</script>
     <!-- AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858" crossorigin="anonymous"></script>
+    <!-- Chart.js: M4グラフ・ビジュアライゼーション用 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
     <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -119,7 +124,23 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .fam-btn{border:2px solid #ddd6fe;background:#fff;border-radius:9px;padding:10px 4px;text-align:center;cursor:pointer;font-size:0.78em;font-weight:600;color:#64748b;transition:all .15s;}
         .fam-btn.selected{border-color:#7c3aed;background:#f8f4ff;color:#7c3aed;}
         .fam-btn .emoji{font-size:1.3em;display:block;margin-bottom:3px;}
-    
+        /* M4: グラフ・ゲージ表示 */
+        .gauge-container{margin:16px 0;padding:12px;background:#f8f4ff;border-radius:9px;}
+        .gauge-label{font-size:0.75em;color:#64748b;margin-bottom:4px;}
+        .gauge-bar{width:100%;height:12px;background:#ddd6fe;border-radius:6px;overflow:hidden;margin:6px 0;}
+        .gauge-fill{height:100%;background:linear-gradient(90deg,#16a34a,#84cc16);transition:width 0.3s;}
+        .gauge-text{font-size:0.85em;color:#7c3aed;font-weight:700;text-align:center;}
+        .score-row{display:flex;align-items:center;margin:8px 0;font-size:0.82em;}
+        .score-bar{flex:1;margin:0 8px;height:8px;background:#f3f0ff;border-radius:4px;overflow:hidden;}
+        .score-fill{height:100%;background:#7c3aed;border-radius:4px;}
+        /* M4: チャート・グラフコンテナ */
+        .chart-container{margin:16px 0;padding:12px;background:#f8f4ff;border-radius:9px;}
+        .chart-title{font-size:0.9rem;font-weight:700;color:#7c3aed;margin-bottom:12px;}
+        .chart-canvas-wrapper{position:relative;height:250px;margin:10px 0;}
+        @media print{
+          .chart-canvas-wrapper canvas{max-height:200px;}
+        }
+
 /* Phase 8: Mobile Optimization */
 input, select, textarea { font-size: 16px !important; }
 button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min-width: 48px; touch-action: manipulation; }
@@ -249,15 +270,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="card-title">💰 収入・資産</div>
         <label>世帯年収（万円）</label>
         <div style="display:flex;align-items:center;gap:8px;">
-            <input type="range" id="income" min="200" max="1500" step="10" value="500" oninput="updateIncome()" style="flex:1;width:auto;">
-            <input type="number" id="income-num" min="200" max="1500" step="10" value="500" oninput="syncIncomeNum()" style="width:90px;padding:8px;border:1px solid #ddd6fe;border-radius:9px;background:#f8f4ff;color:#1e293b;" aria-label="年収を直接入力（万円）">
+            <input type="range" id="income" min="200" max="1500" step="10" value="500" oninput="updateIncome()" style="flex:1;width:auto;" aria-label="年収スライダー">
+            <input type="number" id="income-num" min="200" max="1500" step="10" value="500" oninput="syncIncomeNum()" style="width:90px;padding:8px;border:1px solid #ddd6fe;border-radius:9px;background:#f8f4ff;color:#1e293b;" aria-label="年収を直接入力（万円）" required>
             <span style="font-size:0.8em;color:#94a3b8;white-space:nowrap;">万円</span>
         </div>
         <div class="val-display" id="income-disp">年収 500万円</div>
         <label>貯蓄・投資残高（万円）</label>
-        <input type="number" id="savings" placeholder="例: 300" min="0" value="200" aria-label="例: 300">
+        <input type="number" id="savings" placeholder="例: 300" min="0" value="200" aria-label="貯蓄・投資残高を入力" required>
         <label>配偶者の年収（万円・いない場合は0）</label>
-        <input type="number" id="spouse-income" placeholder="例: 300" min="0" value="0" aria-label="例: 300">
+        <input type="number" id="spouse-income" placeholder="例: 300" min="0" value="0" aria-label="配偶者の年収を入力">
     </div>
 
     <div class="card">
@@ -270,7 +291,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         </select>
         <div id="loan-wrap">
             <label>住宅ローン残債（万円）</label>
-            <input type="number" id="loan" placeholder="例: 2500" min="0" value="2500" aria-label="例: 2500">
+            <input type="number" id="loan" placeholder="例: 2500" min="0" value="2500" aria-label="住宅ローン残債を入力" required>
         </div>
     </div>
 
@@ -282,6 +303,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <div class="current-row"><label>就業不能保険</label><input type="number" id="cur-disability" placeholder="月額円" min="0" aria-label="月額円"><span style="font-size:0.8em;color:#94a3b8;">円/月</span></div>
         <div class="current-row"><label>がん保険</label><input type="number" id="cur-cancer" placeholder="月額円" min="0" aria-label="月額円"><span style="font-size:0.8em;color:#94a3b8;">円/月</span></div>
         <div class="current-row"><label>その他保険</label><input type="number" id="cur-other" placeholder="月額円" min="0" aria-label="月額円"><span style="font-size:0.8em;color:#94a3b8;">円/月</span></div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">🎯 目標設定・達成度トラッキング</div>
+        <p style="font-size:0.78em;color:#64748b;margin-bottom:10px;">保険見直しの目標を設定して進捗を追跡</p>
+        <label>目標保険料（月額・円）</label>
+        <input type="number" id="target-premium" placeholder="例: 15000" min="0" value="" aria-label="目標保険料を入力">
+        <label>目標生命保険必要額（万円）</label>
+        <input type="number" id="target-life" placeholder="例: 2000" min="0" value="" aria-label="目標生命保険額を入力">
+        <button style="width:100%;background:#4f46e5;color:#fff;border:none;border-radius:9px;padding:10px;font-size:0.82em;font-weight:700;cursor:pointer;margin-top:8px;" onclick="saveGoals()">💾 目標を保存</button>
+        <div id="goal-progress" style="margin-top:12px;display:none;">
+            <div style="font-size:0.78em;color:#64748b;margin-bottom:6px;">前回との進捗</div>
+            <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:8px;font-size:0.8em;color:#16a34a;" id="progress-text"></div>
+        </div>
     </div>
 
     <button class="btn-calc" onclick="calcAndShow()">🔍 保険必要額を診断する</button>
@@ -369,6 +404,47 @@ function selectFamily(type, el) {
     if (typeof saveFormData === 'function') saveFormData();
 }
 
+function saveGoals() {
+    const targetPremium = parseInt(document.getElementById('target-premium').value) || 0;
+    const targetLife = parseInt(document.getElementById('target-life').value) || 0;
+
+    if (targetPremium === 0 && targetLife === 0) {
+        showError('目標値を入力してください');
+        return;
+    }
+
+    const prevGoals = icSafeGet('ic_goals', {});
+    const newGoals = { targetPremium, targetLife, savedDate: new Date().toISOString() };
+
+    icSafeSet('ic_goals', newGoals);
+    showSuccess('✅ 目標を保存しました');
+
+    // 進捗表示
+    if (prevGoals.targetPremium || prevGoals.targetLife) {
+        const premiumDiff = targetPremium - (prevGoals.targetPremium || targetPremium);
+        const lifeDiff = targetLife - (prevGoals.targetLife || targetLife);
+        const progressEl = document.getElementById('goal-progress');
+        const progressText = document.getElementById('progress-text');
+        if (progressEl && progressText) {
+            let msg = '前回比: ';
+            if (premiumDiff !== 0) msg += `保険料${premiumDiff > 0 ? '+' : ''}${premiumDiff}円 `;
+            if (lifeDiff !== 0) msg += `生命保険${lifeDiff > 0 ? '+' : ''}${lifeDiff}万円`;
+            progressText.textContent = msg || '目標値が更新されました';
+            progressEl.style.display = 'block';
+        }
+    }
+}
+
+function loadGoals() {
+    const goals = icSafeGet('ic_goals', null);
+    if (goals && goals.targetPremium) {
+        document.getElementById('target-premium').value = goals.targetPremium;
+    }
+    if (goals && goals.targetLife) {
+        document.getElementById('target-life').value = goals.targetLife;
+    }
+}
+
 function updateIncome() {
     const v = parseInt(document.getElementById('income').value);
     document.getElementById('income-disp').textContent = '年収 ' + v + '万円';
@@ -400,7 +476,29 @@ function calcDeduction(annualPremium) {
     return 40000;
 }
 
+function validateInputs() {
+    const income = document.getElementById('income').value;
+    const age = document.getElementById('age').value;
+    const savings = document.getElementById('savings').value;
+
+    if (!income || income < 200 || income > 1500) {
+        showError('年収は200万円～1500万円で入力してください');
+        return false;
+    }
+    if (!age || age < 18 || age > 80) {
+        showError('年齢は18～80歳で入力してください');
+        return false;
+    }
+    if (savings === '' || savings < 0) {
+        showError('貯蓄は0以上の値を入力してください');
+        return false;
+    }
+    return true;
+}
+
 function calcAndShow() {
+    if (!validateInputs()) return;
+
     const income = parseInt(document.getElementById('income').value);
     const savings = parseInt(document.getElementById('savings').value) || 0;
     const spouseIncome = parseInt(document.getElementById('spouse-income').value) || 0;
@@ -507,16 +605,59 @@ function calcAndShow() {
             <div class="r-box yellow"><div class="val">${fmtM(disabilityNeedMonthly)}</div><div class="lbl">就業不能保険/月</div></div>
             <div class="r-box ${income > 0 ? 'purple' : 'green'}"><div class="val">${fmt(Math.round(income * 0.07 / 12))}円</div><div class="lbl">保険料目安/月（年収7%）</div></div>
         </div>
-        <div style="display:flex;gap:8px;margin-top:8px;">
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
             <button onclick="copyResult()" style="flex:1;background:#7c3aed;color:#fff;border:none;border-radius:9px;padding:10px;font-size:0.82em;font-weight:700;cursor:pointer;min-height:44px;">📋 コピー</button>
             <button onclick="shareResult('tw')" style="flex:1;background:#000;color:#fff;border:none;border-radius:9px;padding:10px;font-size:0.82em;font-weight:700;cursor:pointer;min-height:44px;">𝕏 シェア</button>
             <button onclick="shareResult('line')" style="flex:1;background:#06C755;color:#fff;border:none;border-radius:9px;padding:10px;font-size:0.82em;font-weight:700;cursor:pointer;min-height:44px;">LINE</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+            <button onclick="printResult()" style="flex:1;background:#16a34a;color:#fff;border:none;border-radius:9px;padding:10px;font-size:0.82em;font-weight:700;cursor:pointer;min-height:44px;">🖨️ 印刷</button>
+            <button onclick="exportCSV()" style="flex:1;background:#0369a1;color:#fff;border:none;border-radius:9px;padding:10px;font-size:0.82em;font-weight:700;cursor:pointer;min-height:44px;">📊 CSV出力</button>
+        </div>
+        <div class="gauge-container" style="margin-top:14px;">
+            <div class="gauge-label">保険料適正度スコア</div>
+            <div class="gauge-bar"><div class="gauge-fill" id="score-gauge" style="width:50%;"></div></div>
+            <div class="gauge-text" id="score-text">目安を計算中...</div>
+        </div>
+        <div class="chart-container">
+            <div class="chart-title">📊 保険種別の内訳（グラフ）</div>
+            <div class="chart-canvas-wrapper"><canvas id="insuranceChart"></canvas></div>
+        </div>
+        <div class="chart-container">
+            <div class="chart-title">💰 現在の保険料 vs 推奨保険料</div>
+            <div class="chart-canvas-wrapper"><canvas id="premiumChart"></canvas></div>
         </div>`;
     window.lastResultText = '【保険適正額診断結果】\n生命保険必要額: ' + fmtM(lifeNeed) + '\n医療保険推奨日額: ' + fmt(medicalNeedDaily) + '円/日\n就業不能保険: ' + fmtM(disabilityNeedMonthly) + '/月\n保険料目安: ' + fmt(Math.round(income * 0.07 / 12)) + '円/月\nhttps://appadaycreator.com/insurance-calc/';
 
-    // 見直し結果
+    // 保険料適正度スコア計算
     const totalCurrentPremium = curLife + curMedical + curDisability + curCancer + curOther;
     const targetPremium = Math.round(income * 10000 * 0.07 / 12);
+    let scorePercent = 50;
+    let scoreColor = '#7c3aed';
+    if (totalCurrentPremium > 0) {
+        const scoreRatio = (totalCurrentPremium / targetPremium) * 100;
+        scorePercent = Math.min(100, Math.max(0, Math.abs(100 - scoreRatio) / 2 + 25));
+        if (scoreRatio < 50) scoreColor = '#dc2626';
+        else if (scoreRatio < 80) scoreColor = '#f97316';
+        else if (scoreRatio <= 130) scoreColor = '#16a34a';
+        else scoreColor = '#d97706';
+    }
+    setTimeout(() => {
+        const gaugeEl = document.getElementById('score-gauge');
+        const textEl = document.getElementById('score-text');
+        if (gaugeEl && textEl) {
+            gaugeEl.style.width = scorePercent + '%';
+            gaugeEl.style.background = scoreColor === '#16a34a'
+                ? 'linear-gradient(90deg,#16a34a,#84cc16)'
+                : 'linear-gradient(90deg,' + scoreColor + ',' + scoreColor + ')';
+            textEl.textContent = totalCurrentPremium > 0
+                ? `スコア: ${Math.round(scorePercent)}% (${totalCurrentPremium > targetPremium * 1.3 ? '過剰' : totalCurrentPremium < targetPremium * 0.5 ? '不足' : '適正'})`
+                : '保険料を入力するとスコアが表示されます';
+        }
+        // M4: グラフ描画処理
+        drawInsuranceChart(lifeNeed, medicalNeedDaily, disabilityNeedMonthly);
+        drawPremiumChart(curLife, curMedical, curDisability, curCancer, curOther, income);
+    }, 10);
 
     document.getElementById('review-area').innerHTML = totalCurrentPremium === 0
         ? `<div class="card"><p style="font-size:0.83em;color:#64748b;text-align:center;padding:12px;">「入力」タブで現在の保険料を入力すると<br>過剰・不足の判定が表示されます。</p></div>`
@@ -561,25 +702,161 @@ function calcAndShow() {
         </div>`;
     }
 
+    // M4: チャート初期化
+    initializeCharts(lifeNeed, medicalNeedDaily, disabilityNeedMonthly, curLife, curMedical, curDisability, income);
+
+    // M10: CSV出力データ生成
+    window.lastCSVData = generateCSVData({
+        gender: gender, age: age, family: fam.label, employ: employ, income: income,
+        savings: savings, spouseIncome: spouseIncome, housing: housing, loan: loan,
+        curLife: curLife, curMedical: curMedical, curDisability: curDisability,
+        curCancer: curCancer, curOther: curOther,
+        lifeNeed: lifeNeed, medicalNeedDaily: medicalNeedDaily,
+        disabilityNeedMonthly: disabilityNeedMonthly
+    });
+
     switchTab('result', document.querySelectorAll('.tabs .tab')[1]);
+    showSuccess('✅ 診断完了しました！');
 }
 
 window.lastResultText = '';
 
-function copyResult() {
-    if (window.lastResultText) {
-        icSafeCopy(window.lastResultText);
-        if (typeof showSuccess === 'function') showSuccess('診断結果をコピーしました！');
-    }
+function shareResult(platform) {
+// M10: CSV生成
+function generateCSVData(data) {
+    const genderStr = data.gender === 'male' ? '男性' : '女性';
+    const employStr = data.employ === 'employee' ? '会社員' : data.employ === 'part' ? 'パート' : '自営業';
+    const lines = [
+        '保険適正額診断結果',
+        new Date().toLocaleString('ja-JP'),
+        '',
+        '【基本情報】',
+        '性別,年齢,家族構成,雇用形態',
+        genderStr + ',' + data.age + ',' + data.family + ',' + employStr,
+        '',
+        '【収入・資産】',
+        '年収（万円）,貯蓄（万円）,配偶者年収（万円）',
+        data.income + ',' + data.savings + ',' + data.spouseIncome,
+        '',
+        '【住宅情報】',
+        '住宅状況,ローン残債（万円）',
+        data.housing + ',' + data.loan,
+        '',
+        '【現在の保険料（月額）】',
+        '生命保険,医療保険,就業不能保険,がん保険',
+        data.curLife + ',' + data.curMedical + ',' + data.curDisability + ',' + data.curCancer,
+        '',
+        '【診断結果】',
+        '項目,必要額,診断',
+        '生命保険（万円）,' + Math.round(data.lifeNeed) + ',必要保障額',
+        '医療保険（円/日）,' + Math.round(data.medicalNeedDaily) + ',推奨日額',
+        '就業不能保険（万円/月）,' + (Math.round(data.disabilityNeedMonthly * 100) / 100) + ',推奨月額'
+    ];
+    return lines.map(l => '"' + l.replace(/"/g, '""') + '"').join('\n');
 }
 
-function shareResult(platform) {
-    var text = window.lastResultText || '保険適正額診断ツール https://appadaycreator.com/insurance-calc/';
-    if (platform === 'tw') {
-        window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(text), '_blank', 'noopener,noreferrer');
-    } else if (platform === 'line') {
-        window.open('https://line.me/R/msg/text/?' + encodeURIComponent(text), '_blank', 'noopener,noreferrer');
-    }
+// M4: チャート初期化・描画
+function initializeCharts(lifeNeed, medicalNeedDaily, disabilityNeedMonthly, curLife, curMedical, curDisability, income) {
+    setTimeout(function() {
+        try {
+            // 保険種別の内訳（円グラフ）
+            const insuranceCtx = document.getElementById('insuranceChart');
+            if (insuranceCtx && typeof Chart !== 'undefined') {
+                const curLife_annual = (curLife || 0) * 12;
+                const curMedical_annual = (curMedical || 0) * 12;
+                const curDisability_annual = (curDisability || 0) * 12;
+                const total_annual = curLife_annual + curMedical_annual + curDisability_annual;
+
+                new Chart(insuranceCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['生命保険', '医療保険', '就業不能保険'],
+                        datasets: [{
+                            data: [curLife_annual, curMedical_annual, curDisability_annual],
+                            backgroundColor: ['#7c3aed', '#16a34a', '#d97706'],
+                            borderColor: '#fff',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { font: { size: 12 }, padding: 10 }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const val = context.parsed;
+                                        const pct = total_annual > 0 ? ((val / total_annual) * 100).toFixed(1) : 0;
+                                        return context.label + ': ' + fmt(val) + '円/年 (' + pct + '%)';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // 現在の保険料 vs 推奨額（棒グラフ）
+            const premiumCtx = document.getElementById('premiumChart');
+            if (premiumCtx && typeof Chart !== 'undefined') {
+                const targetPremium = Math.round(income * 10000 * 0.07 / 12);
+                const currentTotal = (curLife || 0) + (curMedical || 0) + (curDisability || 0);
+
+                new Chart(premiumCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['月額保険料'],
+                        datasets: [
+                            {
+                                label: '現在の保険料',
+                                data: [currentTotal],
+                                backgroundColor: '#4c1d95',
+                                borderColor: '#4c1d95',
+                                borderWidth: 1
+                            },
+                            {
+                                label: '推奨額（年収7%）',
+                                data: [targetPremium],
+                                backgroundColor: '#16a34a',
+                                borderColor: '#16a34a',
+                                borderWidth: 1
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        indexAxis: 'y',
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: { font: { size: 12 }, padding: 10 }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.dataset.label + ': ' + fmt(context.parsed.x) + '円/月';
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                beginAtZero: true,
+                                ticks: { callback: function(v) { return fmt(v) + '円'; } }
+                            }
+                        }
+                    }
+                });
+            }
+        } catch(e) {
+            console.warn('チャート初期化エラー:', e);
+        }
+    }, 50);
 }
 
 function switchTab(name, el) {
@@ -619,6 +896,7 @@ function saveFormData() {
 
 document.addEventListener('DOMContentLoaded', function(){
     updateIncome();
+    loadGoals();
     var d = icSafeGet('ic_form_data', null);
     if (d) {
         if (d.gender) document.getElementById('gender').value = d.gender;
@@ -1007,13 +1285,112 @@ document.addEventListener('DOMContentLoaded', function(){
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1')" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 <!-- r46-org-footer -->
 <div style="text-align:center;font-size:11px;color:#9ca3af;padding:6px 0 4px;background:#f8fafc;border-top:1px solid #e5e7eb;">
   運営: <a href="https://appadaycreator.com/" style="color:#9ca3af;text-decoration:none;">AppADayCreator</a> | <a href="https://tech-and-brace.co.jp/" rel="noopener" style="color:#9ca3af;text-decoration:none;">株式会社Tech&amp;Brace</a>
 </div>
+<script src="/assets/consent-mode.js"></script>
+<script>// M4: グラフ描画関数
+function drawInsuranceChart(lifeNeed, medicalDaily, disabilityMonthly) {
+  const ctx = document.getElementById('insuranceChart');
+  if (!ctx) return;
+  if (window.insuranceChartInstance) window.insuranceChartInstance.destroy();
+  
+  const lifeAmount = Math.round(lifeNeed * 100) / 100;
+  const medAmount = Math.round(medicalDaily / 100) * 100;
+  const disAmount = Math.round(disabilityMonthly * 100) / 100;
+  
+  window.insuranceChartInstance = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['生命保険', '医療保険', '就業不能保険'],
+      datasets: [{
+        data: [lifeAmount, medAmount / 100, disAmount],
+        backgroundColor: ['#7c3aed', '#16a34a', '#d97706'],
+        borderColor: '#fff',
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 12 } },
+        tooltip: { callbacks: { label: ctx => {
+          const val = ctx.parsed;
+          return ctx.label + ': ' + Math.round(val) + (ctx.datasetIndex === 0 ? '万円' : ctx.datasetIndex === 1 ? '円' : '万円');
+        }}}
+      }
+    }
+  });
+}
+
+function drawPremiumChart(curLife, curMed, curDis, curCancer, curOther, income) {
+  const ctx = document.getElementById('premiumChart');
+  if (!ctx) return;
+  if (window.premiumChartInstance) window.premiumChartInstance.destroy();
+  
+  const currentTotal = curLife + curMed + curDis + curCancer + curOther;
+  const recommendedTotal = Math.round(income * 10000 * 0.07 / 12);
+  
+  window.premiumChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['現在の保険料', '推奨保険料目安'],
+      datasets: [{
+        label: '月額保険料（円）',
+        data: [currentTotal, recommendedTotal],
+        backgroundColor: [currentTotal > recommendedTotal * 1.3 ? '#d97706' : currentTotal < recommendedTotal * 0.5 ? '#dc2626' : '#16a34a', '#4f46e5'],
+        borderRadius: 8,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      indexAxis: 'x',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: { beginAtZero: true, ticks: { callback: v => Math.round(v / 1000) + 'k円' } }
+      }
+    }
+  });
+}
+
+// M10: 印刷機能
+function printResult() {
+  window.print();
+}
+
+// M10: CSV出力機能
+function exportCSV() {
+  const resultText = window.lastResultText || '';
+  const lines = resultText.split('\n');
+  const csv = lines.map(line => '"' + line.replace(/"/g, '""') + '"').join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = '保険診断結果_' + new Date().toISOString().split('T')[0] + '.csv';
+  link.click();
+}
+
+// M10: クリップボードコピー
+function copyResult() {
+  const text = window.lastResultText || '結果が生成されていません';
+  navigator.clipboard.writeText(text).then(() => {
+    showSuccess('✅ クリップボードにコピーしました');
+  }).catch(() => {
+    alert('コピーに失敗しました\n\n' + text);
+  });
+}
+
+</script>
+
 </body>
 <!-- insurance final --><!-- 保険見直しで適正保障・適正保険料を実現。無料FP相談を活用しよう。生命保険・医療保険・就業不能保険を最適化。節約した保険料をNISAへ。保険見直し本舗・マネードクターで無料相談。年間10〜30万円節約事例多数。今すぐ見直しを始めましょう。適正保険料の目安は手取りの5〜10%。保険は必要な保障を必要な分だけ。 -->
 <!-- 保険適正額診断ツール。生命保険・医療保険・がん保険・就業不能保険・火災保険の適正額を診断。手取り収入の5〜10%が保険料の目安。保険見直しで年間10〜30万円節約も可能。無料FP相談を今すぐ活用。保険見直し本舗・マネードクターで中立的なアドバイスを受けましょう。NISAとiDeCoで資産形成も並行して進めることが現代の家計最適化の基本です。 -->
