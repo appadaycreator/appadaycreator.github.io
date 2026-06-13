@@ -293,6 +293,51 @@ function launchConfetti(){var colors=['#059669','#fbbf24','#7c3aed','#10b981','#
         .form-input:focus, .form-select:focus {
             outline: none;
             border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 5px;
+            background: var(--border-color);
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: var(--secondary-color);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            cursor: pointer;
+            border: none;
+            transition: background 0.2s;
+        }
+
+        input[type="range"]::-moz-range-thumb:hover {
+            background: var(--secondary-color);
+        }
+
+        input[type="range"]:focus {
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
         
         .checkbox-group {
@@ -822,7 +867,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         <div class="child-input">
                             <div class="form-group">
                                 <label class="form-label" for="childAge" id="childAgeLabel">お子様の現在の年齢</label>
-                                <select class="form-select" name="childAge[]" required aria-describedby="ageGuide">
+                                <select class="form-select" name="childAge[]" required aria-describedby="ageGuide ageError" data-validate="required">
                             <option value="">年齢を選択</option>
                             <option value="0" selected>0歳</option>
                             <option value="1">1歳</option>
@@ -847,6 +892,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                 <div style="font-size:0.85em;color:#888;margin-top:0.5em;" id="ageGuide">
                                     ※複数のお子様がいる場合は、お一人ずつ年齢を入力後「＋ 子供を追加」で追加できます
                                 </div>
+                                <div class="age-error form-error" style="margin-top:0.5rem; color:#EF4444; font-size:0.85em; display:none;"></div>
                             </div>
 
                             <!-- 幼稚園・保育園追加ボタンと入力枠（初期非表示） -->
@@ -916,7 +962,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                             </div>
                             <div class="form-group" style="margin-top:0.75rem;">
                                 <label class="form-label">大学</label>
-                                <select class="form-select" name="universityType[]" aria-describedby="universityGuide">
+                                <select class="form-select" name="universityType[]" aria-describedby="universityGuide universityError" data-validate="required">
                                     <option value="">進学予定の大学の種類を選択</option>
                                     <option value="none">進学なし</option>
                                     <option value="national">国立大学</option>
@@ -928,6 +974,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                 <div style="font-size:0.85em;color:#888;margin-top:0.5em;" id="universityGuide">
                                     ※進学予定のない場合は「進学なし」を選択してください
                                 </div>
+                                <div class="university-error form-error" style="margin-top:0.5rem; color:#EF4444; font-size:0.85em; display:none;"></div>
                             </div>
                         </div>
                     </div>
@@ -1051,10 +1098,14 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                             年間インフレ率（%）
                             <span class="tooltip-icon" title="将来の物価上昇を反映させます。日本の過去平均は1～3%程度。低めに設定すると教育費が低く試算されます。">?</span>
                         </label>
-                        <input type="number" class="form-input" id="inflationRate" name="inflationRate" value="2" min="0" max="10" step="0.1" inputmode="decimal" placeholder="例: 2.0 （日本の平均は1～3%）">
-                        <div style="font-size:0.85em;color:#888;margin-top:0.5em;">
+                        <div style="display:flex; gap:1rem; align-items:center; margin-bottom:0.75rem;">
+                            <input type="range" class="form-input" id="inflationSlider" name="inflationSlider" value="2" min="0" max="10" step="0.1" style="flex:1; height:40px; cursor:pointer;" aria-label="インフレ率をスライダーで選択">
+                            <input type="number" class="form-input" id="inflationRate" name="inflationRate" value="2" min="0" max="10" step="0.1" inputmode="decimal" placeholder="0～10" style="width:80px;" aria-label="インフレ率を数値で入力">
+                        </div>
+                        <div style="font-size:0.85em;color:#888;">
                             ※日本の過去平均は1～3%程度。2%が目安です。物価上昇を見込む場合は高め、保守的に見積もる場合は低めに設定してください。低金利環境では1%以下に設定することもあります。
                         </div>
+                        <div id="inflationError" style="margin-top:0.5rem; color:#EF4444; font-size:0.85em; display:none;"></div>
                     </div>
 
                     <!-- 固定ボタンのため、ここでは非表示 -->
@@ -1568,16 +1619,202 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 });
             });
             const infl = document.getElementById('inflationRate');
-            if (infl) {
+            const slider = document.getElementById('inflationSlider');
+
+            if (infl && slider) {
+                // スライダーと数値入力の連動
+                slider.addEventListener('input', () => {
+                    infl.value = parseFloat(slider.value).toFixed(1);
+                    validateInflation();
+                });
+
+                infl.addEventListener('input', () => {
+                    infl.value = infl.value.replace(/[^0-9.]/g, '');
+                    const val = parseFloat(infl.value);
+                    if (!isNaN(val) && val >= 0 && val <= 10) {
+                        slider.value = val;
+                    }
+                    validateInflation();
+                });
+
                 infl.addEventListener('keydown', e => {
                     if (['e','E','+','-'].includes(e.key)) {
                         e.preventDefault();
                     }
                 });
-                infl.addEventListener('input', () => {
-                    infl.value = infl.value.replace(/[^0-9.]/g, '');
-                });
             }
+
+            // selectフィールドのバリデーション
+            document.querySelectorAll('select[data-validate="required"]').forEach(sel => {
+                sel.addEventListener('change', () => validateSelect(sel));
+            });
+
+            // 年齢フィールドのリアルタイムバリデーション
+            const setupAgeValidation = () => {
+                document.querySelectorAll('select[name="childAge[]"]').forEach(sel => {
+                    sel.addEventListener('change', function() {
+                        const errorDiv = this.closest('.form-group').querySelector('.age-error');
+                        if (!this.value && errorDiv) {
+                            errorDiv.textContent = '年齢を選択してください';
+                            errorDiv.style.display = 'block';
+                            this.style.borderColor = 'var(--error-color)';
+                        } else if (errorDiv) {
+                            errorDiv.style.display = 'none';
+                            this.style.borderColor = 'var(--border-color)';
+                        }
+                    });
+                });
+            };
+            setupAgeValidation();
+
+            // 大学フィールドのリアルタイムバリデーション
+            const setupUniversityValidation = () => {
+                document.querySelectorAll('select[name="universityType[]"]').forEach(sel => {
+                    sel.addEventListener('change', function() {
+                        const errorDiv = this.closest('.form-group').querySelector('.university-error');
+                        if (!this.value && errorDiv) {
+                            errorDiv.textContent = '大学の進学予定を選択してください';
+                            errorDiv.style.display = 'block';
+                            this.style.borderColor = 'var(--error-color)';
+                        } else if (errorDiv) {
+                            errorDiv.style.display = 'none';
+                            this.style.borderColor = 'var(--border-color)';
+                        }
+                    });
+                });
+            };
+            setupUniversityValidation();
+        }
+
+        function validateInflation() {
+            const infl = document.getElementById('inflationRate');
+            const errorDiv = document.getElementById('inflationError');
+            const val = parseFloat(infl.value);
+
+            if (!infl.value) {
+                errorDiv.textContent = 'インフレ率を入力してください';
+                errorDiv.style.display = 'block';
+                infl.style.borderColor = 'var(--error-color)';
+                return false;
+            }
+
+            if (isNaN(val) || val < 0 || val > 10) {
+                errorDiv.textContent = 'インフレ率は0～10の範囲で入力してください';
+                errorDiv.style.display = 'block';
+                infl.style.borderColor = 'var(--error-color)';
+                return false;
+            }
+
+            errorDiv.style.display = 'none';
+            infl.style.borderColor = 'var(--border-color)';
+            return true;
+        }
+
+        function validateSelect(selectEl) {
+            let errorDiv = null;
+            const errorId = selectEl.getAttribute('aria-describedby')?.split(' ').find(id => document.getElementById(id)?.id.includes('Error'));
+            if (errorId) {
+                errorDiv = document.getElementById(errorId);
+            }
+
+            if (!selectEl.value) {
+                selectEl.style.borderColor = 'var(--error-color)';
+                if (errorDiv) {
+                    errorDiv.textContent = 'この項目は必須です';
+                    errorDiv.style.display = 'block';
+                }
+                return false;
+            }
+
+            selectEl.style.borderColor = 'var(--border-color)';
+            if (errorDiv) {
+                errorDiv.style.display = 'none';
+            }
+            return true;
+        }
+
+        function validateFormBeforeSubmit() {
+            const errors = [];
+
+            // 年齢の確認
+            const childAges = document.querySelectorAll('select[name="childAge[]"]');
+            childAges.forEach((sel, idx) => {
+                if (!sel.value) {
+                    errors.push(`お子様${idx + 1}の年齢を選択してください`);
+                    sel.style.borderColor = 'var(--error-color)';
+                    const errorDiv = sel.closest('.form-group').querySelector('.age-error');
+                    if (errorDiv) {
+                        errorDiv.textContent = '年齢を選択してください';
+                        errorDiv.style.display = 'block';
+                    }
+                } else {
+                    sel.style.borderColor = 'var(--border-color)';
+                    const errorDiv = sel.closest('.form-group').querySelector('.age-error');
+                    if (errorDiv) {
+                        errorDiv.style.display = 'none';
+                    }
+                }
+            });
+
+            // 大学選択の確認
+            const universitySelects = document.querySelectorAll('select[name="universityType[]"]');
+            universitySelects.forEach((sel, idx) => {
+                if (!sel.value) {
+                    errors.push(`お子様${idx + 1}の大学進学予定を選択してください`);
+                    sel.style.borderColor = 'var(--error-color)';
+                    const errorDiv = sel.closest('.form-group').querySelector('.university-error');
+                    if (errorDiv) {
+                        errorDiv.textContent = '大学の進学予定を選択してください';
+                        errorDiv.style.display = 'block';
+                    }
+                } else {
+                    sel.style.borderColor = 'var(--border-color)';
+                    const errorDiv = sel.closest('.form-group').querySelector('.university-error');
+                    if (errorDiv) {
+                        errorDiv.style.display = 'none';
+                    }
+                }
+            });
+
+            // インフレ率の確認
+            if (!validateInflation()) {
+                errors.push('インフレ率を正しく設定してください（0～10の範囲）');
+            }
+
+            return errors;
+        }
+
+        function showValidationErrors(errors) {
+            // 既存のエラーメッセージを削除
+            const existingAlert = document.getElementById('formErrorAlert');
+            if (existingAlert) existingAlert.remove();
+
+            // エラーメッセージを表示
+            const errorAlert = document.createElement('div');
+            errorAlert.id = 'formErrorAlert';
+            errorAlert.style.cssText = 'background:#FEE2E2;border:2px solid #EF4444;border-radius:8px;padding:1rem;margin-bottom:1rem;color:#991B1B;';
+
+            const errorTitle = document.createElement('div');
+            errorTitle.style.cssText = 'font-weight:bold;margin-bottom:0.5rem;font-size:1rem;';
+            errorTitle.textContent = '⚠️ 入力エラー';
+            errorAlert.appendChild(errorTitle);
+
+            const errorList = document.createElement('ul');
+            errorList.style.cssText = 'margin:0;padding-left:1.5rem;';
+            errors.forEach(err => {
+                const li = document.createElement('li');
+                li.textContent = err;
+                li.style.marginBottom = '0.25rem';
+                errorList.appendChild(li);
+            });
+            errorAlert.appendChild(errorList);
+
+            // フォームの上に表示
+            const form = document.getElementById('simulatorForm');
+            form.insertBefore(errorAlert, form.firstChild);
+
+            // スクロール
+            errorAlert.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
         function createChildBlock() {
@@ -1602,10 +1839,71 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             const container = document.getElementById('childrenContainer');
             const block = createChildBlock();
             container.appendChild(block);
+
+            // 新しい子要素にバリデーションイベントリスナーを設定
+            const newAgeSelects = block.querySelectorAll('select[name="childAge[]"]');
+            newAgeSelects.forEach(sel => {
+                sel.addEventListener('change', function() {
+                    const errorDiv = this.closest('.form-group').querySelector('.age-error');
+                    if (!this.value && errorDiv) {
+                        errorDiv.textContent = '年齢を選択してください';
+                        errorDiv.style.display = 'block';
+                        this.style.borderColor = 'var(--error-color)';
+                    } else if (errorDiv) {
+                        errorDiv.style.display = 'none';
+                        this.style.borderColor = 'var(--border-color)';
+                    }
+                });
+            });
+
+            const newUniversitySelects = block.querySelectorAll('select[name="universityType[]"]');
+            newUniversitySelects.forEach(sel => {
+                sel.addEventListener('change', function() {
+                    const errorDiv = this.closest('.form-group').querySelector('.university-error');
+                    if (!this.value && errorDiv) {
+                        errorDiv.textContent = '大学の進学予定を選択してください';
+                        errorDiv.style.display = 'block';
+                        this.style.borderColor = 'var(--error-color)';
+                    } else if (errorDiv) {
+                        errorDiv.style.display = 'none';
+                        this.style.borderColor = 'var(--border-color)';
+                    }
+                });
+            });
+
+            // アコーディオン機能も設定
+            const accordionBtn = block.querySelector('.accordion-btn');
+            if (accordionBtn) {
+                accordionBtn.addEventListener('click', function() {
+                    const acc = this.nextElementSibling;
+                    if (acc.style.display === 'none' || acc.style.display === '') {
+                        acc.style.display = 'block';
+                        this.textContent = '－ 保育園の選択肢を閉じる';
+                    } else {
+                        acc.style.display = 'none';
+                        this.textContent = '＋ 保育園の選択肢を表示';
+                    }
+                });
+            }
+
+            const kinderBtn = block.querySelector('.add-kinder-nursery-btn');
+            if (kinderBtn) {
+                kinderBtn.addEventListener('click', function() {
+                    block.querySelector('.kinder-nursery-fields').style.display = '';
+                    this.style.display = 'none';
+                });
+            }
         }
 
         function handleFormSubmit(e) {
             e.preventDefault();
+
+            // バリデーション実行
+            const validationErrors = validateFormBeforeSubmit();
+            if (validationErrors.length > 0) {
+                showValidationErrors(validationErrors);
+                return;
+            }
 
             const formData = new FormData(e.target);
 
@@ -1635,11 +1933,6 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 }
                 return child;
             });
-
-            if (children.some(c => isNaN(c.childAge))) {
-                alert('お子様の年齢を選択してください');
-                return;
-            }
 
             const extracurricular = formData.getAll('extracurricular');
             const inflationRate = parseFloat(formData.get('inflationRate')) || 2;
