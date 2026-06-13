@@ -3,9 +3,19 @@
 ## 概要
 
 **サービス名**: Fire Calculator
-**バージョン**: 2.5.0
-**更新日**: 2026-06-13
+**バージョン**: 2.6.3
+**更新日**: 2026-06-14
 **URL**: https://appadaycreator.com/fire-calculator/
+
+## 変更履歴（v2.6.4）
+- M2: コア機能のUX改善 - 数値スライダー完全装備版
+  - 手取り年収（annualIncome）にスライダーを追加：0〜10,000万円、ステップ10万円
+  - 年間支出（annualExpense）にスライダーを追加：0〜10,000万円、ステップ10万円
+  - リタイア後年間生活費（targetExpense）にスライダーを追加：0〜10,000万円、ステップ10万円
+  - syncSliderToInput() / syncInputToSlider() 関数を実装：数値入力とスライダーの双方向同期
+  - リアルタイム値表示：スライダー操作時に即座に「万」単位で右側に値を表示
+  - 初期化時スライダー同期：ページ読み込み時に全スライダー値を入力値と同期（localStorage復元対応）
+  - M2実装完了：全主要数値入力にスライダーを装備し、直感的な値調整が可能に
 
 ## 変更履歴（v2.6.3）
 - M2: コア機能のUX改善 - 入力UI・バリデーション・アクセシビリティ拡張
@@ -13,7 +23,8 @@
   - エラーメッセージコンテナの統一化：全フォームグループで一貫性のある error-message div 配置
   - スライダー説明強化：expectedReturnSlider・inflationRateSlider に詳細な title 属性を追加（ドラッグ方向を明記）
   - セレクトボックスの説明強化：nenkinStartAge・idecoTaxRate に title 属性で選択ガイドを追加
-  - アクセシビリティ強化：すべての input/select に title を統一し、スクリーンリーダー・ホバーで操作補助を実現
+  - checkbox説明強化：nisaEnabled・idecoEnabled の title 属性を追加（機能説明・効果を表示）
+  - アクセシビリティ強化：すべての input/select/checkbox に title を統一し、スクリーンリーダー・ホバーで操作補助を実現
 
 ## 変更履歴（v2.6.2）
 - M2: コア機能のUX改善 - バリデーション・スライダー機能の完全実装確認
