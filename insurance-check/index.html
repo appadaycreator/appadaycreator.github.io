@@ -351,12 +351,16 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                 min="0"
                                 max="100"
                                 value="50"
-                                placeholder="0〜100"
+                                placeholder="50"
                                 aria-label="目標スコアを数値で入力（0〜100）"
-                                title="スライダーまたはこのフィールドで目標値を設定できます"
-                                style="width:50px;padding:4px 8px;border:1px solid #d1d5db;border-radius:4px;font-weight:bold;color:#7c3aed;font-size:1rem;text-align:right;outline:none;transition:border-color 0.2s;"
-                                onchange="updateGoalFromInput()"
-                                oninput="updateGoalFromInput()">
+                                aria-describedby="goal-input-hint goal-input-error"
+                                aria-invalid="false"
+                                title="0〜100の数値を入力してください。スライダーと同期します"
+                                style="width:60px;padding:6px 10px;border:2px solid #d1d5db;border-radius:4px;font-weight:bold;color:#7c3aed;font-size:1rem;text-align:right;outline:none;transition:border-color 0.2s,box-shadow 0.2s;"
+                                onchange="updateGoalFromInput();validateGoalInput();"
+                                oninput="updateGoalFromInput();liveValidateGoalInput();"
+                                onblur="validateGoalInput();"
+                                onkeypress="handleGoalInputKeyPress(event);">
                             <span style="font-size:0.8rem;color:#6b7280;">点</span>
                         </div>
                     </div>
@@ -678,11 +682,96 @@ function updateGoalFromInput(){
     const val=parseInt(input.value)||0;
     if(val<0||val>100){
         input.setAttribute('aria-invalid','true');
+        input.style.borderColor='#dc2626';
+        input.style.background='#fee2e2';
         return;
     }
     input.setAttribute('aria-invalid','false');
+    input.style.borderColor='#d1d5db';
+    input.style.background='#fff';
     slider.value=val;
     updateGoalDisplay();
+}
+
+function validateGoalInput(){
+    const input=document.getElementById('goal-input');
+    const val=input.value.trim();
+    const numVal=parseInt(val)||0;
+    if(val===''||isNaN(numVal)){
+        input.setAttribute('aria-invalid','true');
+        input.style.borderColor='#dc2626';
+        input.style.background='#fee2e2';
+        showErrorMsg(input,'入力が必要です。0〜100の数値を入力してください');
+    }else if(numVal<0||numVal>100){
+        input.setAttribute('aria-invalid','true');
+        input.style.borderColor='#dc2626';
+        input.style.background='#fee2e2';
+        showErrorMsg(input,'0〜100の数値で入力してください');
+    }else{
+        input.setAttribute('aria-invalid','false');
+        input.style.borderColor='#16a34a';
+        input.style.background='#dcfce7';
+        hideErrorMsg(input);
+        setTimeout(()=>{
+            if(input.value!==''){
+                input.style.borderColor='#d1d5db';
+                input.style.background='#fff';
+            }
+        },1500);
+    }
+}
+
+function liveValidateGoalInput(){
+    const input=document.getElementById('goal-input');
+    const val=input.value.trim();
+    if(val===''||isNaN(parseInt(val))){
+        input.setAttribute('aria-invalid','true');
+        input.style.borderColor='#fca5a5';
+        input.style.background='#fef2f2';
+    }else{
+        const numVal=parseInt(val);
+        if(numVal<0||numVal>100){
+            input.setAttribute('aria-invalid','true');
+            input.style.borderColor='#fca5a5';
+            input.style.background='#fef2f2';
+        }else{
+            input.setAttribute('aria-invalid','false');
+            input.style.borderColor='#86efac';
+            input.style.background='#f0fdf4';
+        }
+    }
+}
+
+function handleGoalInputKeyPress(e){
+    if(e.key==='Enter'){
+        e.preventDefault();
+        validateGoalInput();
+        if(document.getElementById('goal-input').getAttribute('aria-invalid')==='false'){
+            setGoalScore();
+        }
+    }
+}
+
+function showErrorMsg(elem,msg){
+    let errorDiv=elem.nextElementSibling;
+    if(!errorDiv||!errorDiv.classList.contains('goal-input-error-msg')){
+        errorDiv=document.createElement('div');
+        errorDiv.className='goal-input-error-msg';
+        elem.parentNode.insertBefore(errorDiv,elem.nextSibling);
+    }
+    errorDiv.style.display='block';
+    errorDiv.style.fontSize='0.75rem';
+    errorDiv.style.color='#dc2626';
+    errorDiv.style.marginTop='4px';
+    errorDiv.style.paddingLeft='4px';
+    errorDiv.textContent='⚠️ '+msg;
+}
+
+function hideErrorMsg(elem){
+    let errorDiv=elem.nextElementSibling;
+    if(errorDiv&&errorDiv.classList.contains('goal-input-error-msg')){
+        errorDiv.style.display='none';
+    }
 }
 
 function next(){
@@ -875,8 +964,8 @@ render();
       console.error("[PromiseError]", e.reason);
     });
     </script>
-<div style="margin:20px auto;max-width:800px;padding:16px;background:#fdf4ff;border:1px solid #f0abfc;border-radius:12px;"><p style="font-size:0.85rem;font-weight:bold;color:#86198f;margin-bottom:10px;">🏥 保険・家計管理に役立つ本</p><div style="display:flex;flex-wrap:wrap;gap:10px;"><a class="js-track-affiliate" href="https://www.amazon.co.jp/s?k=生命保険+見直し+賢い選び方+本&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="background:#a21caf;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;" data-platform="Amazon" data-item-name="生命保険見直し賢い選び方" data-link-type="affiliate_link">📚 保険見直しの本をAmazonで →</a><a class="js-track-affiliate" href="https://www.amazon.co.jp/s?k=FP3級+2級+テキスト+問題集&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="background:#9333ea;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;" data-platform="Amazon" data-item-name="FP3級2級テキスト" data-link-type="affiliate_link">📋 FP資格テキスト →</a></div></div><section style="margin:20px auto;max-width:800px;padding:20px;background:#fdf4ff;border-radius:12px;"><h2 style="color:#86198f;font-size:1.1rem;margin-bottom:12px;">🏥 保険見直しの基礎知識</h2><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.85rem;min-width:320px;"><tr style="background:#f3e8ff;"><th style="padding:6px;border:1px solid #e9d5ff;text-align:left;">保険種類</th><th style="padding:6px;border:1px solid #e9d5ff;text-align:left;">主な目的</th><th style="padding:6px;border:1px solid #e9d5ff;text-align:left;">見直しタイミング</th></tr><tr><td style="padding:5px;border:1px solid #f3e8ff;">生命保険</td><td style="padding:5px;border:1px solid #f3e8ff;">死亡・高度障害時の保障</td><td style="padding:5px;border:1px solid #f3e8ff;">結婚・出産・子どもの独立時</td></tr><tr style="background:#fdf4ff;"><td style="padding:5px;border:1px solid #f3e8ff;">医療保険</td><td style="padding:5px;border:1px solid #f3e8ff;">入院・手術費用の保障</td><td style="padding:5px;border:1px solid #f3e8ff;">年齢・健康状態の変化時</td></tr><tr><td style="padding:5px;border:1px solid #f3e8ff;">がん保険</td><td style="padding:5px;border:1px solid #f3e8ff;">がん治療費の保障</td><td style="padding:5px;border:1px solid #f3e8ff;">40代以降での加入推奨</td></tr><tr style="background:#fdf4ff;"><td style="padding:5px;border:1px solid #f3e8ff;">就業不能保険</td><td style="padding:5px;border:1px solid #f3e8ff;">働けない期間の収入補償</td><td style="padding:5px;border:1px solid #f3e8ff;">住宅ローン加入時</td></tr></table></div><p style="margin-top:12px;font-size:0.85rem;"><strong>Q. 保険料の目安は？</strong><br/>
-手取り収入の5〜10%が目安。過剰な保障は家計を圧迫します。公的保険（健康保険・傷病手当金）と組み合わせて検討を。</p></section>
+<div style="margin:20px auto;max-width:800px;padding:16px;background:#fdf4ff;border:1px solid #f0abfc;border-radius:12px;"><p style="font-size:0.85rem;font-weight:bold;color:#86198f;margin-bottom:10px;">🏥 保険・家計管理に役立つ本</p><div style="display:flex;flex-wrap:wrap;gap:10px;"><a class="js-track-affiliate" href="https://www.amazon.co.jp/s?k=生命保険+見直し+賢い選び方+本&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="background:#a21caf;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;" data-platform="Amazon" data-item-name="生命保険見直し賢い選び方" data-link-type="affiliate_link">📚 保険見直しの本をAmazonで →</a><a class="js-track-affiliate" href="https://www.amazon.co.jp/s?k=FP3級+2級+テキスト+問題集&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="background:#9333ea;color:#fff;padding:8px 14px;border-radius:8px;font-size:0.82em;font-weight:bold;text-decoration:none;" data-platform="Amazon" data-item-name="FP3級2級テキスト" data-link-type="affiliate_link">📋 FP資格テキスト →</a></div></div><section style="margin:20px auto;max-width:800px;padding:20px;background:#fdf4ff;border-radius:12px;"><h2 style="color:#86198f;font-size:1.1rem;margin-bottom:12px;">🏥 保険見直しの基礎知識</h2><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.85rem;min-width:320px;"><tr style="background:#f3e8ff;"><th style="padding:8px;border:1px solid #e9d5ff;text-align:left;font-weight:700;">保険種類</th><th style="padding:8px;border:1px solid #e9d5ff;text-align:left;font-weight:700;">主な目的</th><th style="padding:8px;border:1px solid #e9d5ff;text-align:left;font-weight:700;">必要性判定</th><th style="padding:8px;border:1px solid #e9d5ff;text-align:left;font-weight:700;">見直しタイミング</th></tr><tr><td style="padding:6px;border:1px solid #f3e8ff;font-weight:600;">生命保険</td><td style="padding:6px;border:1px solid #f3e8ff;">死亡・高度障害時の遺族生活費保障</td><td style="padding:6px;border:1px solid #f3e8ff;">扶養家族がいる場合は必須</td><td style="padding:6px;border:1px solid #f3e8ff;">結婚・出産・子どもの独立時</td></tr><tr style="background:#fdf4ff;"><td style="padding:6px;border:1px solid #f3e8ff;font-weight:600;">医療保険</td><td style="padding:6px;border:1px solid #f3e8ff;">入院・手術費用の自己負担補填</td><td style="padding:6px;border:1px solid #f3e8ff;">高額療養費制度を超える不安がある場合</td><td style="padding:6px;border:1px solid #f3e8ff;">年齢・健康状態・就職状況の変化時</td></tr><tr><td style="padding:6px;border:1px solid #f3e8ff;font-weight:600;">がん保険</td><td style="padding:6px;border:1px solid #f3e8ff;">がん治療費・先進医療費の保障</td><td style="padding:6px;border:1px solid #f3e8ff;">40代以降・親族にがん罹患者がいる場合</td><td style="padding:6px;border:1px solid #f3e8ff;">健康診断結果・ライフステージの変化時</td></tr><tr style="background:#fdf4ff;"><td style="padding:6px;border:1px solid #f3e8ff;font-weight:600;">就業不能保険</td><td style="padding:6px;border:1px solid #f3e8ff;">病気・けがで働けない期間の給与補填</td><td style="padding:6px;border:1px solid #f3e8ff;">住宅ローン・子どもの教育費がある場合</td><td style="padding:6px;border:1px solid #f3e8ff;">住宅購入・転職・独立時</td></tr><tr><td style="padding:6px;border:1px solid #f3e8ff;font-weight:600;">学資保険</td><td style="padding:6px;border:1px solid #f3e8ff;">子どもの教育費を計画的に積立</td><td style="padding:6px;border:1px solid #f3e8ff;">子どもが小さいうちの加入で効果大</td><td style="padding:6px;border:1px solid #f3e8ff;">子どもの出生時〜小学校入学前</td></tr></table></div><p style="margin-top:12px;font-size:0.85rem;"><strong>💡 保険料の目安：手取り収入の5〜10%以内</strong><br/>
+月収30万円なら月1.5〜3万円が目安。公的保険（健康保険・高額療養費制度・傷病手当金・遺族年金）の仕組みを理解してから、足りない部分を民間保険で補う戦略が重要です。</p></section>
 <div id="page-loader-ic" class="loading" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.95);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;">
   <div class="spinner" style="width:40px;height:40px;border:4px solid #ede9fe;border-top-color:#7c3aed;border-radius:50%;animation:spin-ic 0.8s linear infinite;"></div>
   <p class="loading-text" style="margin-top:12px;font-size:0.85rem;color:#6b7280;">読み込み中...</p>
@@ -985,8 +1074,28 @@ window.icSave=function(d){try{var h=JSON.parse(localStorage.getItem("ic_hist")||
 <div style="margin:1.5rem auto;max-width:760px;padding:0 1rem">
 <div style="background:white;border-radius:16px;padding:1.5rem;box-shadow:0 4px 20px rgba(0,0,0,.08)">
 <h2 style="font-size:1.05rem;font-weight:700;margin:0 0 1rem;border-left:4px solid #4f46e5;padding-left:10px;color:#1e293b">よくある質問（詳細）</h2>
-
-
+<div style="space-y:3rem">
+<div style="margin-bottom:1.5rem">
+<p style="font-weight:600;color:#374151;margin:0 0 .5rem">Q. 団信（団体信用生命保険）と個人の生命保険は重複していますか？</p>
+<p style="color:#64748b;margin:0;line-height:1.7">団信は住宅ローン残高を保障するもので、残高減少とともに保障額も減ります。一方、遺族の生活費・教育費等には別途個人の生命保険が必要なケースが多いです。両者は別物と考え、家族の生活を守る観点から個人保険の保障額を設定しましょう。</p>
+</div>
+<div style="margin-bottom:1.5rem">
+<p style="font-weight:600;color:#374151;margin:0 0 .5rem">Q. 独身者に生命保険は必要ですか？</p>
+<p style="color:#64748b;margin:0;line-height:1.7">扶養家族がいない独身者は死亡保障の生命保険は原則不要です。ただし、親に借金がある、親を扶養している場合は検討が必要。むしろ就業不能保険（病気・けがで働けない期間の収入保障）の方が実用的な場合があります。</p>
+</div>
+<div style="margin-bottom:1.5rem">
+<p style="font-weight:600;color:#374151;margin:0 0 .5rem">Q. 健康診断で要精密検査と言われました。保険に入れますか？</p>
+<p style="color:#64748b;margin:0;line-height:1.7">告知義務があるため、正直に申告する必要があります。引受けは診断結果次第ですが、引受け不可や条件付き引受けもあります。診断結果が出た後であれば通常通り加入できる場合がほとんどです。</p>
+</div>
+<div style="margin-bottom:1.5rem">
+<p style="font-weight:600;color:#374151;margin:0 0 .5rem">Q. 掛け捨て保険と貯蓄型保険はどちらがいいですか？</p>
+<p style="color:#64748b;margin:0;line-height:1.7">保障の充実度を重視するなら掛け捨て。貯蓄機能を望むなら貯蓄型です。ただ貯蓄型は手数料が高く、実質利回りが定期預金以下の場合があります。貯蓄と保障を分ける考え方（掛け捨て+積立投資）も検討価値ありです。</p>
+</div>
+<div style="margin-bottom:1.5rem">
+<p style="font-weight:600;color:#374151;margin:0 0 .5rem">Q. 保険を解約するときは何に気をつけるべきですか？</p>
+<p style="color:#64748b;margin:0;line-height:1.7">解約前に①新しい保険の承認を得た上で②現在の保障が切れないタイミングで③手続きを進めることが重要。焦って解約すると保障の空白が生じます。複数保険の場合は全体の保障バランスを見直してから手続きしましょう。</p>
+</div>
+</div>
 
 
 
