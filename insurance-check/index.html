@@ -90,6 +90,11 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .form-input-wrapper { margin-bottom:12px; }
         .form-input-label { display:block; font-size:0.85rem; font-weight:600; color:#374151; margin-bottom:6px; }
         .input-feedback-msg { font-size:0.8rem; color:#6b7280; margin-top:4px; font-style:italic; }
+        .form-field-status { display:inline-block; font-size:0.7rem; padding:2px 6px; border-radius:3px; margin-left:4px; font-weight:600; }
+        .form-field-status.filled { background:#dcfce7; color:#16a34a; }
+        .form-field-status.required { background:#fee2e2; color:#dc2626; }
+        .field-validation-group { margin-top:2px; font-size:0.75rem; color:#6b7280; padding:4px 8px; background:#f3f4f6; border-radius:4px; display:none; }
+        .field-validation-group.show { display:block; }
         /* モバイルベース：本文16px以上、タップターゲット48px以上を保証 */
         body { font-size: 16px; }
         .option-btn { font-size: 1rem; }
@@ -255,13 +260,17 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 <legend class="sr-only" id="options-legend">質問の選択肢</legend>
                 <div id="options-container" class="space-y-3" role="radiogroup" aria-labelledby="q-text" aria-describedby="form-error-msg"></div>
             </fieldset>
-            <div id="form-error-msg" style="margin-top:14px;padding:12px 14px;border-radius:8px;color:#991b1b;background:#fee2e2;display:none;font-size:0.9rem;border-left:4px solid #dc2626;border-right:1px solid #fecaca;">
+            <div id="form-error-msg" style="margin-top:14px;padding:12px 14px;border-radius:8px;color:#991b1b;background:#fee2e2;display:none;font-size:0.9rem;border-left:4px solid #dc2626;border-right:1px solid #fecaca;animation:slideDown 0.2s ease-out;" role="alert" aria-live="polite">
                 <strong style="display:block;margin-bottom:4px;">⚠️ 選択が必要です</strong>
                 <span id="error-text">選択肢を1つ選んでから次へ進んでください</span>
+                <div style="margin-top:6px;font-size:0.8rem;opacity:0.9;">💡 キーボード: 上下キーで選択、Enterで確定</div>
             </div>
-            <div id="form-success-msg" style="margin-top:14px;padding:12px 14px;border-radius:8px;color:#166534;background:#dcfce7;display:none;font-size:0.85rem;border-left:4px solid #16a34a;">
-                ✅ <span id="success-text">選択されました</span>
+            <div id="form-success-msg" style="margin-top:14px;padding:12px 14px;border-radius:8px;color:#166534;background:#dcfce7;display:none;font-size:0.85rem;border-left:4px solid #16a34a;animation:slideDown 0.2s ease-out;" role="status" aria-live="polite">
+                ✅ <span id="success-text">選択されました</span> <span style="font-size:0.75rem;color:#047857;">（次へボタンが有効になります）</span>
             </div>
+            <style>
+            @keyframes slideDown { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+            </style>
         </form>
         <div class="flex gap-3 mt-5">
             <button
@@ -323,9 +332,14 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                             max="100"
                             value="50"
                             aria-label="目標スコアをスライダーで選択（0から100）"
-                            title="スライダーを左右に動かして目標スコアを設定します"
-                            style="flex:1;cursor:pointer;height:6px;outline:none;"
-                            onchange="updateGoalDisplay()">
+                            aria-valuemin="0"
+                            aria-valuemax="100"
+                            aria-valuenow="50"
+                            aria-valuetext="目標スコア: 50点"
+                            title="スライダーを左右に動かして目標スコアを設定します。上下キーでも調整可能です。"
+                            style="flex:1;cursor:pointer;height:6px;outline:none;-webkit-appearance:none;appearance:none;background:linear-gradient(to right,#e5e7eb 0%,#059669 50%,#e5e7eb 50%,#e5e7eb 100%);border-radius:3px;"
+                            onchange="updateGoalDisplay()"
+                            oninput="updateGoalDisplay()">
                         <label style="font-size:0.75rem;color:#6b7280;min-width:20px;text-align:center;font-weight:600;">100</label>
                     </div>
                     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 4px;">
@@ -566,6 +580,23 @@ function render() {
         label.style.cursor='pointer';
         label.setAttribute('role','button');
         label.setAttribute('tabindex','0');
+        label.setAttribute('aria-pressed',st.ans[st.q]===i?'true':'false');
+
+        // キーボードナビゲーション対応
+        label.addEventListener('keydown',(e)=>{
+            if(e.key===' '||e.key==='Enter'){e.preventDefault();radio.click();}
+            else if(e.key==='ArrowDown'||e.key==='ArrowRight'){
+                e.preventDefault();
+                const opts=document.querySelectorAll(`label[htmlFor^="opt_${st.q}_"]`);
+                const nextIdx=(i+1)%opts.length;
+                opts[nextIdx].focus();
+            }else if(e.key==='ArrowUp'||e.key==='ArrowLeft'){
+                e.preventDefault();
+                const opts=document.querySelectorAll(`label[htmlFor^="opt_${st.q}_"]`);
+                const prevIdx=(i-1+opts.length)%opts.length;
+                opts[prevIdx].focus();
+            }
+        });
 
         wrapper.appendChild(radio);
         wrapper.appendChild(label);
@@ -581,8 +612,11 @@ function render() {
     const nb=document.getElementById('next-btn'), pb=document.getElementById('prev-btn');
     const has=st.ans[st.q]!==undefined;
     nb.disabled=!has; nb.classList.toggle('opacity-50',!has); nb.classList.toggle('cursor-not-allowed',!has);
+    nb.setAttribute('aria-disabled',!has?'true':'false');
+    nb.setAttribute('aria-label',st.q===total-1?'診断結果を表示する':'次の質問へ進む（全'+total+'問中'+(st.q+1)+'問目）');
     nb.textContent=st.q===total-1?'結果を見る 🛡️':'次へ →';
     pb.classList.toggle('hidden',st.q===0);
+    pb.setAttribute('aria-label','前の質問へ戻る（全'+total+'問中'+(st.q+1)+'問目）');
     hideFormError();
 }
 
@@ -595,19 +629,39 @@ function hideFormError(){
     document.getElementById('form-error-msg').style.display='none';
 }
 
+function updateAriaPressed(){
+    const labels=document.querySelectorAll('label[htmlFor^="opt_"]');
+    labels.forEach(label=>{
+        const radio=document.getElementById(label.htmlFor);
+        label.setAttribute('aria-pressed',radio.checked?'true':'false');
+    });
+}
+
 function showSuccess(){
+    updateAriaPressed();
     const s=document.getElementById('form-success-msg');
+    const remaining=Q.length-st.q-1;
+    const successMsg=remaining>0?'残り'+remaining+'問です':'最後の質問です';
+    document.getElementById('success-text').textContent='選択されました（'+successMsg+'）';
     s.style.display='block';
-    setTimeout(()=>{s.style.display='none';},2000);
+    setTimeout(()=>{s.style.display='none';},2500);
 }
 
 function updateGoalDisplay(){
     const slider=document.getElementById('goal-slider');
-    document.getElementById('goal-value').textContent=slider.value;
+    const value=slider.value;
+    document.getElementById('goal-value').textContent=value;
+    slider.setAttribute('aria-valuenow',value);
+    slider.setAttribute('aria-valuetext','目標スコア: '+value+'点');
+    // スライダーの背景グラデーションを動的に更新
+    const percent=(value-0)/(100-0)*100;
+    slider.style.background=`linear-gradient(to right,#e5e7eb 0%,#059669 ${percent}%,#e5e7eb ${percent}%,#e5e7eb 100%)`;
 }
 
 function next(){
     if(st.ans[st.q]===undefined){
+        const q=Q[st.q];
+        document.getElementById('error-text').textContent='「'+q.text+'」は選択が必須です。選択肢を1つ選んでから次へ進んでください。';
         showFormError();
         document.getElementById('options-container').focus();
         return;
