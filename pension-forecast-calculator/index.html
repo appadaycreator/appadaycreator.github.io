@@ -737,10 +737,11 @@ input[type="range"]{padding:2px 0;min-height:auto;height:auto;border:none;box-sh
       if (svAge) svAge.textContent = (parseInt(document.getElementById('current-age').value) || 35) + '歳';
       const svEnroll = document.getElementById('sv-enroll');
       if (svEnroll) svEnroll.textContent = (parseInt(document.getElementById('enroll-years').value) || 0) + '年';
-      // 加入期間ヒントを現在年齢に連動して動的更新
+      // 加入期間ヒントを現在年齢に連動して動的更新（計算例付き）
       const hintEnroll = document.getElementById('hint-enroll');
       if (hintEnroll && currentAge >= 20 && currentAge <= 64) {
-        hintEnroll.textContent = '厚生年金・国民年金の合計加入年数（0〜' + Math.min(45, currentAge - 20) + '年）';
+        const maxYrs = Math.min(45, currentAge - 20);
+        hintEnroll.textContent = '📊 計算例: 20歳から加入なら最大' + maxYrs + '年（' + currentAge + '歳時点）。会社員と自営業の両期間を合計。⚠️ 最低10年の加入で年金受給資格が発生します';
       }
       const svSalary = document.getElementById('sv-salary');
       if (svSalary) svSalary.textContent = parseInt(document.getElementById('avg-salary').value || 500).toLocaleString() + '万円';
@@ -796,7 +797,12 @@ input[type="range"]{padding:2px 0;min-height:auto;height:auto;border:none;box-sh
     }
 
     function calculate() {
-      if (!validateAndSave()) return;
+      if (!validateAndSave()) {
+        // バリデーション失敗時は最初のエラー箇所へスクロール
+        const firstErr = [...document.querySelectorAll('[role="alert"]')].find(el => el.style.display !== 'none' && el.textContent.trim());
+        if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
       const currentAge  = parseInt(document.getElementById('current-age').value) || 0;
       const retireAge   = parseInt(document.getElementById('retire-age').value) || 65;
       const enrollYears = parseInt(document.getElementById('enroll-years').value) || 0;
