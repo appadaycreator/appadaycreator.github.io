@@ -3,9 +3,17 @@
 ## 概要
 
 **サービス名**: Fire Calculator
-**バージョン**: 2.6.5
+**バージョン**: 2.7.0
 **更新日**: 2026-06-14
 **URL**: https://appadaycreator.com/fire-calculator/
+
+## 変更履歴（v2.7.0）
+- M2: コア機能のUX改善（バリデーション成功フィードバック・クロスバリデーション・スライダー表示修正）
+  - is-valid CSSクラス追加：バリデーション成功時に入力フィールドを緑ボーダーで表示（正のフィードバック）
+  - validateAgeInput() 更新：成功時に is-valid クラスを付与、エラー時に is-valid を除去
+  - validateNumberInput() 更新：入力値が有効な数値かつ範囲内の場合に is-valid クラスを付与
+  - currentAge oninput 追加：年齢入力のたびに validateDesiredFireAgeField() を呼び出しクロスフィールドバリデーションをリアルタイム化
+  - スライダー表示バグ修正：syncSliderToInput/syncInputToSlider で万円フィールドの表示値に「万」単位が消えるバグを修正（400 → 400万）
 
 ## 変更履歴（v2.6.5）
 - M2: コア機能のUX改善 - バリデーションメッセージの詳細化

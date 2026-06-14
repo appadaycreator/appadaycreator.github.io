@@ -753,6 +753,12 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
   border-color: #dc2626;
 }
 
+/* バリデーション成功時の緑ボーダー */
+.form-group.is-valid input,
+.form-group.is-valid select {
+  border-color: #16a34a !important;
+}
+
 /* 計算式説明トレンド */
 .formula-tooltip {
   position: relative;
@@ -821,14 +827,17 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
             if (input.value === '') {
                 group.classList.add('is-error');
+                group.classList.remove('is-valid');
                 error.textContent = '⚠️ 現在の年齢を入力してください（20〜70歳）';
                 return false;
             } else if (isNaN(value) || value < 20 || value > 70) {
                 group.classList.add('is-error');
+                group.classList.remove('is-valid');
                 error.textContent = '⚠️ 20〜70歳の範囲で入力してください。例: 35';
                 return false;
             } else {
                 group.classList.remove('is-error');
+                group.classList.add('is-valid');
                 error.textContent = '';
                 return true;
             }
@@ -841,22 +850,53 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             const value = parseFloat(input.value);
 
             if (input.value === '') {
-                group.classList.remove('is-error');
+                group.classList.remove('is-error', 'is-valid');
                 error.textContent = '';
                 return true;
             } else if (isNaN(value)) {
                 group.classList.add('is-error');
+                group.classList.remove('is-valid');
                 error.textContent = '⚠️ 数値を入力してください';
                 return false;
             } else if (value < min || value > max) {
                 group.classList.add('is-error');
+                group.classList.remove('is-valid');
                 const range = min === max ? min : (min.toLocaleString() + '〜' + max.toLocaleString());
                 error.textContent = '⚠️ ' + errorMsg;
                 return false;
             } else {
                 group.classList.remove('is-error');
+                group.classList.add('is-valid');
                 error.textContent = '';
                 return true;
+            }
+        }
+
+        // 希望FIRE年齢：現在年齢との cross-field バリデーション
+        function validateDesiredFireAgeField() {
+            const currentAge = parseInt(document.getElementById('currentAge').value) || 0;
+            const val = parseInt(document.getElementById('desiredFireAge').value) || 0;
+            if (val > 0 && currentAge > 0 && val <= currentAge) {
+                setFieldError('desiredFireAge', '希望FIRE年齢は現在の年齢（' + currentAge + '歳）より大きくしてください');
+                updateFireYearsPreview(0);
+                return;
+            }
+            validateNumberInput('desiredFireAge', 30, 80, '希望FIRE年齢は30〜80歳の範囲で入力してください');
+            updateFireYearsPreview(currentAge && val && val > currentAge ? val - currentAge : 0);
+        }
+
+        // 希望FIRE年齢入力時の「○年後」プレビュー
+        function updateFireYearsPreview(years) {
+            const el = document.getElementById('fireYearsPreview');
+            if (!el) return;
+            const currentAge = parseInt(document.getElementById('currentAge').value) || 0;
+            const val = parseInt(document.getElementById('desiredFireAge').value) || 0;
+            const y = years !== undefined ? years : (val > currentAge ? val - currentAge : 0);
+            if (y > 0 && currentAge > 0) {
+                el.textContent = '現在' + currentAge + '歳から ' + y + '年後（' + val + '歳）のFIREを目指す';
+                el.style.display = 'block';
+            } else {
+                el.style.display = 'none';
             }
         }
 
@@ -1012,7 +1052,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 <div id="step1" class="form-grid">
                     <div class="form-group" id="currentAge-group">
                         <label for="currentAge">現在の年齢 <span style="color:#f97316;font-weight:bold;">*</span></label>
-                        <input type="number" id="currentAge" value="35" min="20" max="70" placeholder="例: 35歳" inputmode="numeric" aria-label="現在の年齢（20〜70歳）" title="現在の年齢を20〜70歳で入力してください" onchange="validateAgeInput('currentAge')" onblur="validateAgeInput('currentAge')" required>
+                        <input type="number" id="currentAge" value="35" min="20" max="70" placeholder="例: 35歳" inputmode="numeric" aria-label="現在の年齢（20〜70歳）" title="現在の年齢を20〜70歳で入力してください" oninput="validateAgeInput('currentAge'); validateDesiredFireAgeField();" onchange="validateAgeInput('currentAge'); validateDesiredFireAgeField();" onblur="validateAgeInput('currentAge'); validateDesiredFireAgeField();" required>
                         <div class="error-message"></div>
                         <small>20〜70歳の範囲で入力してください。今何歳ですか？</small>
                     </div>
@@ -1111,8 +1151,9 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     </div>
                     <div class="form-group" id="desiredFireAge-group">
                         <label for="desiredFireAge">希望FIRE年齢</label>
-                        <input type="number" id="desiredFireAge" value="60" min="30" max="80" placeholder="例: 60歳" inputmode="numeric" aria-label="希望FIRE年齢（30〜80歳）" title="FIRE目標年齢を30〜80歳で入力してください。現在の年齢より大きい値を入力してください" oninput="validateNumberInput('desiredFireAge', 30, 80, '希望FIRE年齢は30〜80歳の範囲で入力してください')" onchange="validateNumberInput('desiredFireAge', 30, 80, '希望FIRE年齢は30〜80歳の範囲で入力してください')" onblur="validateNumberInput('desiredFireAge', 30, 80, '希望FIRE年齢は30〜80歳の範囲で入力してください')">
+                        <input type="number" id="desiredFireAge" value="60" min="30" max="80" placeholder="例: 60歳" inputmode="numeric" aria-label="希望FIRE年齢（30〜80歳）" title="FIRE目標年齢を30〜80歳で入力してください。現在の年齢より大きい値を入力してください" oninput="validateDesiredFireAgeField()" onchange="validateDesiredFireAgeField()" onblur="validateDesiredFireAgeField()">
                         <div class="error-message"></div>
+                        <div id="fireYearsPreview" style="display:none;margin-top:6px;font-size:0.85em;color:#059669;background:#ecfdf5;border-radius:6px;padding:4px 10px;font-weight:600;"></div>
                         <small>🎯 何歳でリタイアしたいですか？目標年齢を入力。現在の年齢より大きい値を入力してください</small>
                     </div>
                     <div class="form-group" id="lifeExpectancyInput-group">
@@ -1842,8 +1883,12 @@ function syncInputToSlider(inputId, sliderId) {
             // 実効年間貯蓄額（iDeCo節税分を加算）
             const effectiveAnnualSaving = annualSaving + idecoTaxSaving;
 
-            // バリデーション
-            if (!validateFireInputs(currentAge, annualIncome, targetExpense, desiredFireAge, lifeExpectancy)) return;
+            // バリデーション（失敗時は最初のエラーフィールドへスクロール）
+            if (!validateFireInputs(currentAge, annualIncome, targetExpense, desiredFireAge, lifeExpectancy)) {
+                const firstErr = document.querySelector('.form-group.is-error');
+                if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
 
             // 新NISA補正: 源泉徴収20.315%が非課税 → 実質利回りを補正
             // 近似: 税なし利回り = 課税あり利回り / (1 - 0.2031)
@@ -3231,8 +3276,8 @@ function syncSliderToInput(inputId, sliderId) {
   const val = parseFloat(sliderEl.value);
   inputEl.value = val;
   if (valueEl) {
-    const displayVal = (inputId.includes("Return") || inputId.includes("Inflation")) ? val + "%" : val;
-    valueEl.textContent = displayVal;
+    const isPct = inputId.includes("Return") || inputId.includes("Inflation") || inputId.includes("Rate");
+    valueEl.textContent = isPct ? val + "%" : val + "万";
   }
 }
 function syncInputToSlider(inputId, sliderId) {
@@ -3243,8 +3288,8 @@ function syncInputToSlider(inputId, sliderId) {
   const val = parseFloat(inputEl.value) || 0;
   sliderEl.value = val;
   if (valueEl) {
-    const displayVal = (inputId.includes("Return") || inputId.includes("Inflation")) ? val + "%" : val;
-    valueEl.textContent = displayVal;
+    const isPct = inputId.includes("Return") || inputId.includes("Inflation") || inputId.includes("Rate");
+    valueEl.textContent = isPct ? val + "%" : val + "万";
   }
 }
 </script>
