@@ -713,3 +713,13 @@ This specification documents the current state before refactoring begins.
   - `#mobileFontSizeSelector` (モバイル文字サイズ): aria-label 「文字サイズを選択してください（極小から特大）」
 - **目的**: スクリーンリーダー利用者にselect要素の役割・選択肢を明確に提示 → WCAG 2.1 AA準拠
 - **修正ファイル**: `index.html`（5箇所）
+
+
+## v1.x.x - 2026-06-14 (#44 improve_phase2_only 3次実装)
+
+### M2バグ修正・UX強化：バリデーション完全動作化 ★★★★☆
+- **CSSバグ修正**: IDセレクタ(specificity 1,0,0)がTailwind `.hidden`(0,1,0)を上書きする問題修正 → `:not(.hidden)` セレクタで正常動作化
+- **aria-invalid追加**: validateNumberInput関数でエラー時`aria-invalid="true"`・成功時`aria-invalid="false"`を設定
+- **年齢選択バリデーション追加**: Step1「次へ」クリック時にage select未選択をチェック・赤枠表示
+- **方向別エラーメッセージ**: 「140以上の値を入力してください（現在: 130）」など具体的メッセージに変更
+- **select赤枠スタイル追加**: `select.border-red-500`のCSS追加でselectのバリデーション表示に対応
