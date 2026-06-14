@@ -534,20 +534,23 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 <!-- レーダーチャート -->
                 <div class="mb-6">
                     <p class="text-xs font-bold text-gray-600 mb-2">性格スコア分析</p>
+                    <p style="font-size:0.75rem;color:#6b7280;margin-bottom:8px;line-height:1.4;">5つの性格タイプのバランスを視覚化。あなたの性格的な強みと特徴が一目でわかります。</p>
                     <div style="position:relative;height:280px;width:100%;">
                         <canvas id="radarChart"></canvas>
                     </div>
                 </div>
                 <!-- 横棒グラフ（タイプ別スコア比較） -->
                 <div class="mb-6">
-                    <p class="text-xs font-bold text-gray-600 mb-2">タイプ別スコア</p>
+                    <p class="text-xs font-bold text-gray-600 mb-2">タイプ別スコア比較</p>
+                    <p style="font-size:0.75rem;color:#6b7280;margin-bottom:8px;line-height:1.4;">5つのタイプそれぞれのスコアを比較。最も長いバーがあなたの最適なタイプです。</p>
                     <div style="position:relative;height:200px;width:100%;">
                         <canvas id="barChart"></canvas>
                     </div>
                 </div>
                 <!-- ゲージ（総合適合度） -->
                 <div class="mb-2">
-                    <p class="text-xs font-bold text-gray-600 mb-2">総合適合度</p>
+                    <p class="text-xs font-bold text-gray-600 mb-2">おすすめ趣味との適合度</p>
+                    <p style="font-size:0.75rem;color:#6b7280;margin-bottom:8px;line-height:1.4;">診断結果の第1位の趣味があなたにどの程度マッチしているかを示します。高いほどあなたの性格にぴったりです。</p>
                     <div style="position:relative;height:150px;width:100%;">
                         <canvas id="gaugeChart"></canvas>
                     </div>
@@ -1148,6 +1151,45 @@ const RAKUTEN_KEYWORDS = {
     mindful:  { keyword: 'ヨガ アロマ リラックス グッズ', label: 'ヨガ・リラクゼーション用品' },
 };
 
+// 趣味別1ヶ月ロードマップ
+const HOBBY_ROADMAP = {
+    '水彩画・アクリル画': ['【Week 1】絵の具・スケッチブック・ブラシを購入して、簡単な風景を試し描き', '【Week 2】YouTubeチュートリアルで色混ぜ・グラデーション技法を学習', '【Week 3-4】お気に入りの景色を2〜3点完成させ、SNSに投稿'],
+    '陶芸': ['【Week 1】近所のカルチャーセンターで体験クラスに申し込み（初回3,000円程度）', '【Week 2-3】週1回のペースで基礎手法（玉作り・轆轤）を習得', '【Week 4】初めての作品を完成・焼成して記念に保存'],
+    '写真・カメラ': ['【Week 1】スマホのカメラアプリ設定を学び、毎日5枚以上撮影する習慣をつける', '【Week 2】写真の構図・光の捉え方を学ぶ（オンライン講座やYouTubeで無料学習）', '【Week 3-4】自分のベスト写真10枚を選んでInstagramやFlickrに投稿'],
+    '手芸・裁縫': ['【Week 1】100均で手芸キットを購入し、簡単な小物（巾着やヘアゴム）を制作', '【Week 2-3】基本的な縫い方（並縫い・玉結び）をマスターし、複数作成', '【Week 4】Creemaで販売登録し、3点以上出品してみる（販売しなくてもOK）'],
+    '料理・製菓': ['【Week 1】得意な料理1品を調べてレシピ本を購入し、1回目は教科書通りに作る', '【Week 2】同じ料理を2回目は自分流にアレンジして作成', '【Week 3-4】新しい料理に挑戦し、家族や友人に食べてもらう'],
+    '動画制作・Vlog': ['【Week 1】スマホで短い動画（15〜30秒）を3本撮影してCapCutで編集', '【Week 2】YouTube・TikTok・Instagramのいずれかにアップロード', '【Week 3-4】視聴者のコメントを参考に改善し、週2本以上の投稿を継続'],
+    'カリグラフィー': ['【Week 1】カリグラフィーペン・インク・練習用紙を購入して基本ストロークを習得', '【Week 2-3】アルファベットと簡単な単語を繰り返し練習（毎日15分）', '【Week 4】ウェルカムボードやポストカードを1枚完成させる'],
+    '登山・トレッキング': ['【Week 1】登山靴を購入し、自分の歩幅・体力を把握するため低山（高尾山など）をハイキング', '【Week 2】登山用レインウェア・バックパックを揃えて次の登山に備える', '【Week 3-4】少し高い山（1,000m級）に月2回のペースで登頂を目指す'],
+    'ランニング': ['【Week 1】ランニングシューズを購入して週3回・各3km程度のジョギングを開始', '【Week 2】Nike Run Clubなどのアプリをダウンロードしてランニング記録をつける', '【Week 3-4】目標距離（例：5km）を1回で走り切ることを目指す'],
+    'サイクリング': ['【Week 1】クロスバイクを購入またはレンタルして、往復10km程度のコース走行', '【Week 2】自転車メンテナンス（空気入れ・チェーン給油）の基本を学ぶ', '【Week 3-4】お気に入りのサイクリングロードを見つけて月2回は走行'],
+    'テニス': ['【Week 1】テニススクールに体験入学し、グリップ・ストロークの基礎を学習', '【Week 2-3】週1回のレッスンで基本技術（サーブ・フォアハンド・バックハンド）を習得', '【Week 4】簡単なゲームに参加して実戦経験を積む'],
+    'ゴルフ': ['【Week 1】近所の打ちっ放し練習場に行き、10回以上通う（各回30球程度）', '【Week 2-3】正しいグリップ・アドレス・スイングを動画で学びながら実践', '【Week 4】ゴルフスクール体験入学を検討し、本格的なレッスン開始を決断'],
+    'ボルダリング': ['【Week 1】近所のボルダリングジムに行き、基本ムーブ（ジャグ・ホールド）を習得', '【Week 2-3】週2回通って体幹を鍛え、徐々に難しい課題に挑戦', '【Week 4】自分が登れた課題を3つ記録して達成感を味わう'],
+    '水泳': ['【Week 1】市営プール開泳時間に参加し、得意なストロークで100m完泳を目指す', '【Week 2-3】週2〜3回通ってスタミナとフォームを改善（YouTubeで自動に上達法を学習）', '【Week 4】別のストローク（背泳ぎ等）にも挑戦'],
+    '語学': ['【Week 1】Duolingo・スタディサプリをダウンロードして毎日10分の学習をスタート', '【Week 2-3】講座で学んだ文法・単語を使って簡単な日記を毎日英語で書く', '【Week 4】オンライン英会話（Cambly等）で初心者向けレッスンを1回体験'],
+    '資格取得': ['【Week 1】取得したい資格を決めて参考書を購入し、学習計画を立てる', '【Week 2-3】毎日30分の学習時間を確保して参考書を読み進める', '【Week 4】過去問題を解いて自分の理解度をチェック'],
+    'プログラミング': ['【Week 1】Progateに無料登録してPython基礎コースを開始', '【Week 2-3】毎日30分の学習で変数・関数・制御文を習得', '【Week 4】簡単な小ツール（電卓・ゲーム等）の作成に挑戦'],
+    '歴史・文化': ['【Week 1】興味の歴史期（例：江戸時代）に関する図書館の本を5冊借りて読む', '【Week 2-3】歴史解説Podcast・YouTubeチャンネルを週3回以上視聴', '【Week 4】学んだ知識を活かして関連の歴史スポット・博物館を訪問'],
+    'ワイン': ['【Week 1】初心者向けワイン入門本を購入して基礎知識を習得', '【Week 2-3】週1〜2回、自分の予算内でワインを購入してテイスティング記録をつける', '【Week 4】ワイン試飲会・ワインバーで初心者講座に参加'],
+    '株式投資': ['【Week 1】本「お金の大学」「難しいことはわかりません。お金の増やし方を教えてください！」などを読んで基礎を学ぶ', '【Week 2-3】証券口座を開設（SBI・楽天等）してNISA非課税枠100円から投資開始', '【Week 4】月1回ポートフォリオを見直す習慣をつける'],
+    '天文学': ['【Week 1】天文アプリ（Star Walk等）をダウンロードして毎晩星座を観察', '【Week 2-3】双眼鏡を購入して月のクレーター・木星の衛星を観察', '【Week 4】国立天文台の観望会に参加して他の初心者と交流'],
+    'ボランティア': ['【Week 1】自分の地元の社会福祉協議会やボランティアセンターに問い合わせ', '【Week 2-3】初心者向けボランティア（清掃活動・読み聞かせなど）に1回参加', '【Week 4】活動内容が合えば継続的に参加する予定を立てる'],
+    'ダンス': ['【Week 1】ダンススクールの初心者体験クラスに参加', '【Week 2-3】週1回のペースでレッスンに通い、基本ステップを習得', '【Week 4】スクールの発表会出演を視野に入れて本格的に通う決断'],
+    '合唱': ['【Week 1】地域の合唱サークルを見学し、雰囲気を確認', '【Week 2-3】週1回のサークル参加で基本的な発声・読譜を学習', '【Week 4】コンサート出演の予定を確認して継続参加を決断'],
+    'スポーツチーム': ['【Week 1】地元の草チーム・市民サークルを探してメンバー募集に応募', '【Week 2-3】週1回の練習・試合に参加して基本的な戦術・チームワークを習得', '【Week 4】定期的に開催される試合に出場して本格活動を開始'],
+    'キャンプ': ['【Week 1】キャンプ初心者向けブログ・YouTubeで基礎知識を学ぶ', '【Week 2】デイキャンプ（日帰りキャンプ）で火おこし・調理を体験', '【Week 3-4】コテージ泊でテント設営・寝袋使用を実際に体験'],
+    'フラワーアレンジメント': ['【Week 1】フラワーアレンジメント体験クラスに参加', '【Week 2-3】週1回のレッスンで基本的なフローラルデザインを習得', '【Week 4】学んだ技法で友人へのプレゼント用アレンジを完成させる'],
+    '料理教室': ['【Week 1】料理教室の初心者向けクラスに申し込み', '【Week 2-3】週1回通ってレシピ・調理技法・食材選びを学習', '【Week 4】学んだ料理3品を家庭で再現して家族に振る舞う'],
+    'ヨガ': ['【Week 1】YouTubeの初心者向けヨガ動画を毎日10分実践', '【Week 2-3】ヨガスタジオの体験クラスに参加し、インストラクターの指導を受ける', '【Week 4】週2回のペースで通う習慣をつける'],
+    '読書': ['【Week 1】図書館へ行って自分が読みたい本を5冊借りる', '【Week 2-3】週に1冊のペースで読了し、読んだ本の記録をつける', '【Week 4】読書記録をInstagramやブログで共有できるようにする'],
+    '盆栽': ['【Week 1】多肉植物など初心者向けの苗を購入して毎日観察・水やり習慣をつける', '【Week 2-3】簡単な盆栽の剪定・姿勢整形に挑戦', '【Week 4】育てた植物が少し成長したのを観察して達成感を味わう'],
+    'お茶': ['【Week 1】自分が好きなお茶（抹茶・コーヒー・紅茶など）の入門キットを購入', '【Week 2-3】正しい淹れ方を学んで毎日実践（動画講座やワークショップ参加）', '【Week 4】気に入った茶葉3種類を購入して飲み比べ'],
+    'ジグソーパズル': ['【Week 1】1,000ピース程度のパズルを購入してスタート', '【Week 2-4】毎日30分〜1時間を費やしてパズルを完成させ、飾る'],
+    '釣り': ['【Week 1】初心者向け釣り講座動画を見て基本を学ぶ', '【Week 2-3】近所の川・池で初心者向けルアー釣りを2回以上体験', '【Week 4】釣果が出始めたら同じポイントに月2回通う習慣をつける'],
+    'アロマテラピー': ['【Week 1】アロマディフューザーとエッセンシャルオイル3種類を購入', '【Week 2-3】毎日アロマを焚きながら香りの違いを学ぶ（オンライン講座で知識習得）', '【Week 4】自分好みのブレンドを作成してディフューザーで使用'],
+};
+
 // タイプ別関連サービスマップ
 const RELATED_SERVICES = {
     creative: [
@@ -1202,6 +1244,16 @@ function makeHobbyCardHTML(h, i, cardColor, delay) {
     var skipBtnHtml = `<button onclick="replaceHobbyCard(this.closest('.result-card'),${i})" style="position:absolute;top:8px;right:8px;background:none;border:1px solid #e5e7eb;border-radius:50%;width:36px;height:36px;cursor:pointer;color:#9ca3af;font-size:1rem;display:flex;align-items:center;justify-content:center;padding:0;" title="別の趣味を見る" aria-label="別の趣味を見る">×</button>`;
     var rankBadgeClass = i===0 ? 'rank-badge-1' : (i===1 ? 'rank-badge-2' : (i===2 ? 'rank-badge-3' : ''));
     var rankBadgeStyle = '';
+    var roadmapHtml = '';
+    var roadmap = HOBBY_ROADMAP[h.name] || [];
+    if (roadmap.length > 0) {
+        roadmapHtml = `<div style="margin-top:14px;padding-top:14px;border-top:1px solid #f3f4f6;">
+            <p style="font-size:0.8rem;font-weight:bold;color:#374151;margin-bottom:8px;">📅 1ヶ月のロードマップ</p>
+            <ul style="list-style:none;padding:0;margin:0;font-size:0.75rem;color:#6b7280;line-height:1.6;">
+                ${roadmap.map(step => `<li style="padding:4px 0 4px 18px;position:relative;"><span style="position:absolute;left:0;color:${cardColor};">→</span>${step}</li>`).join('')}
+            </ul>
+        </div>`;
+    }
     return `
     <div class="result-card" style="animation:fadeInUp .4s ease ${delay}s both;position:relative;">
         ${skipBtnHtml}
@@ -1223,6 +1275,7 @@ function makeHobbyCardHTML(h, i, cardColor, delay) {
             <div class="text-xs text-gray-400">💰 費用目安: ${h.cost}${getCostBadge(h.cost)}</div>
         </div>
         ${badgesHtml}
+        ${roadmapHtml}
         ${amazonBtn}
         ${a8Btn}
     </div>`;
