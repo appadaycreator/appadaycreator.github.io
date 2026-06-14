@@ -581,6 +581,23 @@ footer.site{background:var(--green-tx);color:#dce8df;padding:54px 0 30px;positio
   </div>
 </section>
 
+<!-- P1-深層: 診断完了後のNext Step CTA（診断結果に連動したパーソナライズアフィリエイト） -->
+<section id="kaf-next-step-section" style="display:none;background:linear-gradient(135deg,#ecfdf5,#d1fae5);padding:32px 16px;border-top:2px solid #a7f3d0;">
+  <div style="max-width:760px;margin:0 auto;text-align:center;">
+    <p style="font-size:.85rem;font-weight:700;color:#059669;margin:0 0 6px;">✅ 診断完了！次のステップ</p>
+    <h2 id="kaf-next-step-title" style="font-size:1.3rem;font-weight:900;color:#1f7a44;margin:0 0 8px;font-family:'Zen Maru Gothic',system-ui,sans-serif;"></h2>
+    <p id="kaf-next-step-desc" style="font-size:.9rem;color:#374151;margin:0 0 20px;"></p>
+    <a id="kaf-next-step-cta" href="#" rel="nofollow sponsored noopener noreferrer" target="_blank"
+       style="display:inline-flex;align-items:center;gap:10px;background:linear-gradient(135deg,#2f9e5b,#1f7a44);color:#fff;font-weight:800;font-size:1.05rem;padding:16px 32px;border-radius:99px;box-shadow:0 8px 24px rgba(31,122,68,.4);text-decoration:none;transition:transform .2s,box-shadow .2s;"
+       onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 14px 32px rgba(31,122,68,.5)'"
+       onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 8px 24px rgba(31,122,68,.4)'"
+       onclick="if(window.gtag)gtag('event','af_next_step_click',{banner:'next_step_cta'})">
+      無料体験を今すぐ予約 →
+    </a>
+    <p style="font-size:.75rem;color:#6b7280;margin-top:12px;">※ アフィリエイト広告を含みます</p>
+  </div>
+</section>
+
 <!-- M7: もし〜だったら？習い事シミュレーター比較（複数パターン即時再計算） -->
 <section id="m7-simulation" style="background:linear-gradient(135deg,#fffbf0,#fff8f3);padding:44px 16px;border-top:2px solid #fed7aa;">
   <div class="wrap">
@@ -1443,6 +1460,78 @@ if(stickyCta&&hero){
   },{threshold:0.5});
   stickyCTAObs.observe(hero);
 }
+</script>
+<script>
+/* P1-深層: 診断完了後 Next Step CTA + スティッキーCTA強化（診断済みユーザーへのパーソナライズ） */
+(function(){
+  var AF_MAP = [
+    {keys:['英会話','英語'],school:'ペッピーキッズクラブ',url:'https://px.a8.net/svt/ejp?a8mat=4AX8O8+B1PQA2+2WS8+5YZ75',icon:'🌍'},
+    {keys:['プログラミング','ロボット'],school:'LITALICOワンダー',url:'https://px.a8.net/svt/ejp?a8mat=4AVDG6+4Y0S22+45KQ+64RJ5',icon:'💻'},
+    {keys:['ピアノ','バイオリン','音楽','ギター'],school:'EYSキッズ音楽教室',url:'https://px.a8.net/svt/ejp?a8mat=4AVCO8+8VPY16+3H64+15Q9SH',icon:'🎵'},
+    {keys:['サッカー','水泳','テニス','バスケ','体操','空手'],school:'スポーツ家庭教師ファースト',url:'https://px.a8.net/svt/ejp?a8mat=4AVCO8+8PRLZE+4WGS+BY641',icon:'⚽'},
+    {keys:['そろばん','学習塾','書道'],school:'明光キッズ',url:'https://px.a8.net/svt/ejp?a8mat=4AXFOD+98THCA+5FO6+BXQOH',icon:'📚'}
+  ];
+  var DEFAULT_AF = {school:'ペッピーキッズクラブ',url:'https://px.a8.net/svt/ejp?a8mat=4AX8O8+B1PQA2+2WS8+5YZ75',icon:'🌍'};
+
+  function findAF(actName) {
+    if (!actName) return DEFAULT_AF;
+    for (var i=0; i<AF_MAP.length; i++) {
+      for (var j=0; j<AF_MAP[i].keys.length; j++) {
+        if (actName.indexOf(AF_MAP[i].keys[j]) >= 0) return AF_MAP[i];
+      }
+    }
+    return DEFAULT_AF;
+  }
+
+  function initNextStep() {
+    var history = [];
+    try { history = JSON.parse(localStorage.getItem('diagnosis_history') || '[]'); } catch(e) {}
+    if (!history.length) return;
+
+    var latest = history[history.length - 1];
+    var topActs = latest.top_activities || [];
+    var topAct = topActs[0] || '';
+    var af = findAF(topAct);
+    var childName = latest.name ? latest.name + 'ちゃん' : 'お子様';
+
+    /* Next Step セクション更新 */
+    var section = document.getElementById('kaf-next-step-section');
+    var title = document.getElementById('kaf-next-step-title');
+    var desc = document.getElementById('kaf-next-step-desc');
+    var cta = document.getElementById('kaf-next-step-cta');
+    if (section && title && desc && cta) {
+      title.textContent = topAct
+        ? (childName + 'の1位は「' + topAct + '」！')
+        : (childName + 'に合った習い事が見つかりました！');
+      desc.textContent = af.icon + ' ' + af.school + 'で今すぐ無料体験の申し込みができます。';
+      cta.href = af.url;
+      section.style.display = 'block';
+    }
+
+    /* スティッキーCTA更新（診断済みユーザー向け） */
+    var sticky = document.getElementById('sticky-af-cta');
+    if (sticky) {
+      var stickyLink = sticky.querySelector('a');
+      if (stickyLink) {
+        stickyLink.href = af.url;
+        stickyLink.rel = 'nofollow sponsored noopener noreferrer';
+        stickyLink.target = '_blank';
+        stickyLink.textContent = '無料体験を予約する →';
+        stickyLink.setAttribute('onclick',"if(window.gtag)gtag('event','af_sticky_personalized',{banner:'sticky_post_diag'})");
+      }
+      var stickyText = sticky.querySelector('.cta-text');
+      if (stickyText) {
+        stickyText.innerHTML = '<strong>✅ 診断完了！' + af.icon + ' ' + af.school + '</strong><span>無料体験を今すぐ申し込む</span>';
+      }
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initNextStep);
+  } else {
+    initNextStep();
+  }
+})();
 </script>
 <div style="background:#eef2ff;border-left:4px solid #4f46e5;border-radius:.5rem;padding:1rem 1.25rem;margin:1.5rem auto;max-width:760px">
 <p style="margin:0 0 .4rem;font-size:.8rem;color:#6b7280;font-weight:700">📖 関連コラム</p>
