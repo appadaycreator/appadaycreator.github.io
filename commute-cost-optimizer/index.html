@@ -143,6 +143,17 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <script>try{try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}}catch(e){}</script>
 
         <div class="card">
+          <!-- フォーム入力完了度の進捗 -->
+          <div id="form-progress" style="margin-bottom:16px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <p style="margin:0;font-size:12px;font-weight:600;color:#15803d;">入力完了度</p>
+              <span id="progress-text" style="font-size:12px;font-weight:700;color:#16A34A;">0/3</span>
+            </div>
+            <div style="background:#e0fdf4;border-radius:6px;height:8px;overflow:hidden;">
+              <div id="progress-bar" style="background:#16A34A;height:100%;width:0%;transition:width .3s ease;border-radius:6px;"></div>
+            </div>
+            <p style="margin:8px 0 0;font-size:11px;color:#4b5563;">※ 必須3項目（片道距離・出勤日数・交通手段）を入力すると「診断する」ボタンが有効になります</p>
+          </div>
           <div id="tool-desc-box" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:1.5rem 1.75rem;margin:1.5rem 0">
   <p style="color:#374151;margin:0 0 .75rem;line-height:1.75;font-size:.92rem">通勤コスト最適化診断【無料】簡単・無料計算は、AppADayCreatorが提供する完全無料の診断・アドバイスツールです。登録・ログイン不要で、すぐにご利用いただけます。</p>
 </div>
@@ -270,7 +281,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           <input type="number" id="target-cost" placeholder="例：10000" min="0" max="100000" step="100" inputmode="numeric" aria-label="目標月間交通費（円）" aria-describedby="target-hint" onchange="validateTargetCost()">
           <small id="target-hint" style="display:block;color:#6b7280;font-size:12px;margin-top:4px;line-height:1.5;background:#f3f4f6;padding:6px 8px;border-radius:4px;">💡 削減目標額を入力すると達成度がグラフに表示されます。例：現在12,000円 → 目標10,000円（月2,000円・年24,000円削減）。未入力でも診断は実行できます。</small>
 
-          <button class="btn" style="margin-top:22px;" onclick="generate()" aria-label="必須項目を入力して通勤コスト最適化診断を実行">最適化診断する</button>
+          <button id="submit-btn" class="btn" style="margin-top:22px;opacity:0.5;cursor:not-allowed;" disabled aria-label="必須項目を入力して通勤コスト最適化診断を実行" onclick="generate()">最適化診断する</button>
           <p style="font-size:12px;color:#999;margin-top:8px;">※ 必須項目（<span style="color:#ef4444;font-weight:700;">*</span>）を入力してください。入力中にリアルタイムでバリデーションが実行されます。</p>
         </div>
         <div class="result" id="result" style="margin-top:16px;">
@@ -410,6 +421,42 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       loadHistory();
       loadLastData();
 
+      // フォーム完了度監視関数
+      function updateFormProgress() {
+        const dist = parseFloat(document.getElementById('dist').value);
+        const days = parseInt(document.getElementById('days').value);
+        const modes = [];
+        if (document.getElementById('c-train').checked) modes.push('train');
+        if (document.getElementById('c-car').checked) modes.push('car');
+        if (document.getElementById('c-bike').checked) modes.push('bike');
+        if (document.getElementById('c-walk').checked) modes.push('walk');
+
+        // 必須項目の完了度をカウント（最大3）
+        let completed = 0;
+        if (!isNaN(dist) && dist > 0 && dist <= 100) completed++;
+        if (!isNaN(days) && days >= 1 && days <= 31) completed++;
+        if (modes.length > 0) completed++;
+
+        // プログレスバーを更新
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+        const percentage = (completed / 3) * 100;
+        progressBar.style.width = percentage + '%';
+        progressText.textContent = completed + '/3';
+
+        // 送信ボタンの状態を管理
+        const submitBtn = document.getElementById('submit-btn');
+        if (completed === 3) {
+          submitBtn.disabled = false;
+          submitBtn.style.opacity = '1';
+          submitBtn.style.cursor = 'pointer';
+        } else {
+          submitBtn.disabled = true;
+          submitBtn.style.opacity = '0.5';
+          submitBtn.style.cursor = 'not-allowed';
+        }
+      }
+
       // スライダーと入力欄の同期
       const distInput = document.getElementById('dist');
       const distSlider = document.getElementById('dist-slider');
@@ -419,26 +466,60 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if (distSlider && distInput) {
         distSlider.addEventListener('input', (e) => {
           distInput.value = e.target.value;
-          document.getElementById('dist-value').textContent = e.target.value + 'km';
+          const valueDisplay = document.getElementById('dist-value');
+          valueDisplay.textContent = e.target.value + 'km';
+          // 数値表示にフラッシュエフェクト
+          valueDisplay.style.transition = 'none';
+          valueDisplay.style.transform = 'scale(1.1)';
+          setTimeout(() => {
+            valueDisplay.style.transition = 'transform .2s ease-out';
+            valueDisplay.style.transform = 'scale(1)';
+          }, 0);
           validateDist();
+          updateFormProgress();
         });
         distInput.addEventListener('input', (e) => {
           distSlider.value = e.target.value;
-          document.getElementById('dist-value').textContent = e.target.value + 'km';
+          const valueDisplay = document.getElementById('dist-value');
+          valueDisplay.textContent = e.target.value + 'km';
+          valueDisplay.style.transition = 'none';
+          valueDisplay.style.transform = 'scale(1.1)';
+          setTimeout(() => {
+            valueDisplay.style.transition = 'transform .2s ease-out';
+            valueDisplay.style.transform = 'scale(1)';
+          }, 0);
           validateDist();
+          updateFormProgress();
         });
       }
 
       if (daysSlider && daysInput) {
         daysSlider.addEventListener('input', (e) => {
           daysInput.value = e.target.value;
-          document.getElementById('days-value').textContent = e.target.value + '日';
+          const valueDisplay = document.getElementById('days-value');
+          valueDisplay.textContent = e.target.value + '日';
+          // 数値表示にフラッシュエフェクト
+          valueDisplay.style.transition = 'none';
+          valueDisplay.style.transform = 'scale(1.1)';
+          setTimeout(() => {
+            valueDisplay.style.transition = 'transform .2s ease-out';
+            valueDisplay.style.transform = 'scale(1)';
+          }, 0);
           validateDays();
+          updateFormProgress();
         });
         daysInput.addEventListener('input', (e) => {
           daysSlider.value = e.target.value;
-          document.getElementById('days-value').textContent = e.target.value + '日';
+          const valueDisplay = document.getElementById('days-value');
+          valueDisplay.textContent = e.target.value + '日';
+          valueDisplay.style.transition = 'none';
+          valueDisplay.style.transform = 'scale(1.1)';
+          setTimeout(() => {
+            valueDisplay.style.transition = 'transform .2s ease-out';
+            valueDisplay.style.transform = 'scale(1)';
+          }, 0);
           validateDays();
+          updateFormProgress();
         });
       }
 
@@ -461,10 +542,25 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         });
       }
       document.getElementById('target-cost').addEventListener('input', validateTargetCost);
-      document.getElementById('c-train').addEventListener('change', validateMode);
-      document.getElementById('c-car').addEventListener('change', validateMode);
-      document.getElementById('c-bike').addEventListener('change', validateMode);
-      document.getElementById('c-walk').addEventListener('change', validateMode);
+      document.getElementById('c-train').addEventListener('change', () => {
+        validateMode();
+        updateFormProgress();
+      });
+      document.getElementById('c-car').addEventListener('change', () => {
+        validateMode();
+        updateFormProgress();
+      });
+      document.getElementById('c-bike').addEventListener('change', () => {
+        validateMode();
+        updateFormProgress();
+      });
+      document.getElementById('c-walk').addEventListener('change', () => {
+        validateMode();
+        updateFormProgress();
+      });
+
+      // 初期状態の更新
+      updateFormProgress();
     });
 
     function saveData(dist, days, currentCost, targetCost, modes) {
@@ -657,6 +753,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if (field) {
         field.classList.remove('input-error');
         field.classList.add('input-valid');
+        // 成功時のビジュアルフィードバック：チェックマークを表示
+        const parent = field.parentElement;
+        let checkmark = parent.querySelector('.field-checkmark');
+        if (!checkmark) {
+          checkmark = document.createElement('span');
+          checkmark.className = 'field-checkmark';
+          checkmark.style.cssText = 'position:absolute;right:14px;top:50%;transform:translateY(-50%);color:#16A34A;font-weight:700;font-size:18px;';
+          checkmark.textContent = '✓';
+          parent.style.position = 'relative';
+          parent.appendChild(checkmark);
+        }
+        checkmark.style.display = 'block';
       }
     }
 
@@ -665,6 +773,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if (field) {
         field.classList.remove('input-valid');
         field.classList.add('input-error');
+        // エラー時はチェックマークを非表示
+        const parent = field.parentElement;
+        const checkmark = parent.querySelector('.field-checkmark');
+        if (checkmark) checkmark.style.display = 'none';
       }
     }
 
@@ -727,6 +839,22 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if (document.getElementById('c-bike').checked) modes.push('bike');
       if (document.getElementById('c-walk').checked) modes.push('walk');
       const elem = document.getElementById('mode-error');
+
+      // チェックボックスのラベルの視覚的フィードバック
+      const labels = document.querySelectorAll('[role="group"] label');
+      labels.forEach(label => {
+        const input = label.querySelector('input[type="checkbox"]');
+        if (input && input.checked) {
+          label.style.background = '#dcfce7';
+          label.style.borderColor = '#16A34A';
+          label.style.borderWidth = '2px';
+        } else {
+          label.style.background = '#f9fafb';
+          label.style.borderColor = '#e5e7eb';
+          label.style.borderWidth = '2px';
+        }
+      });
+
       if (modes.length === 0) {
         elem.textContent = '⚠️ 少なくとも1つの交通手段を選択してください（4つまで選択可能）';
         elem.style.display = 'block';
