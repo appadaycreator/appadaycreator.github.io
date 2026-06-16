@@ -928,6 +928,52 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
                 error.textContent = '';
             }
         }
+
+        // M2: スライダーと入力値の同期関数
+        function syncAgeSlider() {
+            const slider = document.getElementById('currentAgeSlider');
+            const input = document.getElementById('currentAge');
+            const display = document.getElementById('currentAgeValue');
+            if (slider && input) {
+                input.value = slider.value;
+                display.textContent = slider.value + '歳';
+            }
+        }
+
+        function syncAgeValue() {
+            const slider = document.getElementById('currentAgeSlider');
+            const input = document.getElementById('currentAge');
+            const display = document.getElementById('currentAgeValue');
+            if (slider && input) {
+                let val = parseInt(input.value);
+                if (isNaN(val) || val < 20) val = 20;
+                if (val > 70) val = 70;
+                slider.value = val;
+                input.value = val;
+                display.textContent = val + '歳';
+            }
+        }
+
+        // 既存の同期関数パターン対応
+        function syncInputToSlider(inputId, sliderId) {
+            const input = document.getElementById(inputId);
+            const slider = document.getElementById(sliderId);
+            const valueSpan = document.getElementById(inputId + 'Value');
+            if (input && slider) {
+                slider.value = input.value || 0;
+                if (valueSpan) valueSpan.textContent = (parseFloat(input.value) || 0).toLocaleString() + (inputId.includes('Return') || inputId.includes('inflation') ? '%' : '万');
+            }
+        }
+
+        function syncSliderToInput(inputId, sliderId) {
+            const input = document.getElementById(inputId);
+            const slider = document.getElementById(sliderId);
+            const valueSpan = document.getElementById(inputId + 'Value');
+            if (input && slider) {
+                input.value = slider.value;
+                if (valueSpan) valueSpan.textContent = (parseFloat(slider.value) || 0).toLocaleString() + (inputId.includes('Return') || inputId.includes('inflation') ? '%' : '万');
+            }
+        }
     </script>
     <meta name="twitter:image" content="https://appadaycreator.com/fire-calculator/ogp.png">
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"FIREに必要な資産はいくらですか？","acceptedAnswer":{"@type":"Answer","text":"年間生活費の25倍が目安です（4%ルール）。例えば年300万円の生活費なら7,500万円が目標額になります。"}},{"@type":"Question","name":"FIRE達成にはどのくらいかかりますか？","acceptedAnswer":{"@type":"Answer","text":"現在の貯蓄額・収入・支出によって大きく異なります。この計算機で年齢・資産・積立額を入力すると達成年齢が分かります。"}},{"@type":"Question","name":"FIREした後の生活費はどう賄いますか？","acceptedAnswer":{"@type":"Answer","text":"4%ルールに基づき、保有資産の4%を毎年取り崩します。資産運用の利回りが4%を超えれば理論上資産は減りません。"}}]}</script>
@@ -1051,22 +1097,31 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 <!-- ステップ1: 基本情報 -->
                 <div id="step1" class="form-grid">
                     <div class="form-group" id="currentAge-group">
-                        <label for="currentAge">現在の年齢 <span style="color:#f97316;font-weight:bold;">*</span></label>
-                        <input type="number" id="currentAge" value="35" min="20" max="70" placeholder="例: 35歳" inputmode="numeric" aria-label="現在の年齢（20〜70歳）" title="現在の年齢を20〜70歳で入力してください" oninput="validateAgeInput('currentAge'); validateDesiredFireAgeField();" onchange="validateAgeInput('currentAge'); validateDesiredFireAgeField();" onblur="validateAgeInput('currentAge'); validateDesiredFireAgeField();" required>
+                        <label for="currentAge">現在の年齢 <span style="color:#f97316;font-weight:bold;">*</span> <span id="currentAgeValue" style="color:#7c3aed;font-weight:bold;">35歳</span></label>
+                        <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
+                            <input type="range" id="currentAgeSlider" min="20" max="70" value="35" step="1" style="flex:1;height:8px;border-radius:4px;background:linear-gradient(to right,#7c3aed,#764ba2);outline:none;-webkit-appearance:slider-horizontal;cursor:pointer;" oninput="syncAgeSlider(); validateAgeInput('currentAge'); validateDesiredFireAgeField();" title="スライダーで年齢を調整（20〜70歳）" aria-label="年齢スライダー（20〜70歳）">
+                            <input type="number" id="currentAge" value="35" min="20" max="70" placeholder="例: 35" inputmode="numeric" aria-label="現在の年齢（20〜70歳）" title="現在の年齢を20〜70歳で入力してください" style="width:60px;text-align:center;" oninput="syncAgeValue(); validateAgeInput('currentAge'); validateDesiredFireAgeField();" onchange="syncAgeValue(); validateAgeInput('currentAge'); validateDesiredFireAgeField();" onblur="syncAgeValue(); validateAgeInput('currentAge'); validateDesiredFireAgeField();" required>
+                        </div>
                         <div class="error-message"></div>
-                        <small>20〜70歳の範囲で入力してください。今何歳ですか？</small>
+                        <small>📊 スライダーまたは数値入力で年齢を設定。20〜70歳の範囲です</small>
                     </div>
                     <div class="form-group" id="savingsCash-group">
-                        <label for="savingsCash">現金・預金（万円）</label>
-                        <input type="number" id="savingsCash" value="350" min="0" max="100000" placeholder="例: 350（銀行口座の残高）" inputmode="decimal" title="銀行口座やタンス貯金の合計を0〜100,000万円で入力" oninput="updateTotalSavings(); validateNumberInput('savingsCash', 0, 100000, '現金・預金は0〜100,000万円の範囲で入力してください')" onchange="validateNumberInput('savingsCash', 0, 100000, '現金・預金は0〜100,000万円の範囲で入力してください')" onblur="validateNumberInput('savingsCash', 0, 100000, '現金・預金は0〜100,000万円の範囲で入力してください')" aria-label="現金・預金（万円）">
+                        <label for="savingsCash">現金・預金（万円） <span id="savingsCashValue" style="color:#7c3aed;font-weight:bold;">350万</span></label>
+                        <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
+                            <input type="range" id="savingsCashSlider" min="0" max="100000" value="350" step="100" style="flex:1;height:8px;border-radius:4px;background:linear-gradient(to right,#7c3aed,#764ba2);outline:none;cursor:pointer;" oninput="syncInputToSlider('savingsCash', 'savingsCashSlider'); updateTotalSavings();" title="スライダーで現金・預金を調整（0〜100,000万円）" aria-label="現金・預金スライダー">
+                            <input type="number" id="savingsCash" value="350" min="0" max="100000" placeholder="例: 350" inputmode="decimal" title="銀行口座やタンス貯金の合計を0〜100,000万円で入力" style="width:80px;text-align:center;" oninput="syncSliderToInput('savingsCash', 'savingsCashSlider'); updateTotalSavings(); validateNumberInput('savingsCash', 0, 100000, '現金・預金は0〜100,000万円の範囲で入力してください')" onchange="validateNumberInput('savingsCash', 0, 100000, '現金・預金は0〜100,000万円の範囲で入力してください')" onblur="validateNumberInput('savingsCash', 0, 100000, '現金・預金は0〜100,000万円の範囲で入力してください')" aria-label="現金・預金（万円）">
+                        </div>
                         <div class="error-message"></div>
-                        <small>銀行口座やタンス貯金の合計。今すぐ使える金額を入力</small>
+                        <small>💼 銀行口座やタンス貯金の合計。今すぐ使える金額を入力</small>
                     </div>
                     <div class="form-group" id="savingsInvest-group">
-                        <label for="savingsInvest">投資資産（万円）</label>
-                        <input type="number" id="savingsInvest" value="400" min="0" max="100000" placeholder="例: 400（投資信託や株式）" inputmode="decimal" title="投資信託・株式・ETFなどの評価額を0〜100,000万円で入力" oninput="updateTotalSavings(); validateNumberInput('savingsInvest', 0, 100000, '投資資産は0〜100,000万円の範囲で入力してください')" onchange="validateNumberInput('savingsInvest', 0, 100000, '投資資産は0〜100,000万円の範囲で入力してください')" onblur="validateNumberInput('savingsInvest', 0, 100000, '投資資産は0〜100,000万円の範囲で入力してください')" aria-label="投資資産（万円）">
+                        <label for="savingsInvest">投資資産（万円） <span id="savingsInvestValue" style="color:#7c3aed;font-weight:bold;">400万</span></label>
+                        <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
+                            <input type="range" id="savingsInvestSlider" min="0" max="100000" value="400" step="100" style="flex:1;height:8px;border-radius:4px;background:linear-gradient(to right,#7c3aed,#764ba2);outline:none;cursor:pointer;" oninput="syncInputToSlider('savingsInvest', 'savingsInvestSlider'); updateTotalSavings();" title="スライダーで投資資産を調整（0〜100,000万円）" aria-label="投資資産スライダー">
+                            <input type="number" id="savingsInvest" value="400" min="0" max="100000" placeholder="例: 400" inputmode="decimal" title="投資信託・株式・ETFなどの評価額を0〜100,000万円で入力" style="width:80px;text-align:center;" oninput="syncSliderToInput('savingsInvest', 'savingsInvestSlider'); updateTotalSavings(); validateNumberInput('savingsInvest', 0, 100000, '投資資産は0〜100,000万円の範囲で入力してください')" onchange="validateNumberInput('savingsInvest', 0, 100000, '投資資産は0〜100,000万円の範囲で入力してください')" onblur="validateNumberInput('savingsInvest', 0, 100000, '投資資産は0〜100,000万円の範囲で入力してください')" aria-label="投資資産（万円）">
+                        </div>
                         <div class="error-message"></div>
-                        <small>投資信託・株式・ETFなどの評価額。NISA口座の資産も含める</small>
+                        <small>📈 投資信託・株式・ETFなどの評価額。NISA口座の資産も含める</small>
                     </div>
                     <div class="form-group" id="savingsOther-group">
                         <label for="savingsOther">その他資産（万円）</label>
