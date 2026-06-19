@@ -68,7 +68,7 @@
       --bg: #f8faf9;
       --card: #ffffff;
       --text: #1e293b;
-      --muted: #64748b;
+      --muted: #475569;
       --border: #e2e8f0;
       --shadow-sm: 0 1px 3px rgba(13,148,136,.08),0 1px 2px rgba(0,0,0,.04);
       --shadow-md: 0 4px 16px rgba(13,148,136,.10),0 2px 8px rgba(0,0,0,.04);
@@ -112,6 +112,10 @@
     .spinner{width:44px;height:44px;border-radius:50%;border:3px solid var(--primary-light);border-top-color:var(--primary);animation:spin .8s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
     .loading-text{font-size:.875rem;color:var(--muted);font-weight:500}
+    /* [V2] ローディングプログレスバー */
+    .load-progress{width:180px;height:4px;background:rgba(13,148,136,.15);border-radius:2px;overflow:hidden;margin:.375rem 0}
+    .load-progress-bar{height:100%;background:var(--primary);border-radius:2px;width:5%;transition:width .3s ease}
+    @keyframes load-fill{0%{width:5%}70%{width:80%}90%{width:92%}100%{width:96%}}
 
     /* Toast */
     .toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%) translateY(100px);padding:.875rem 1.5rem;border-radius:12px;font-size:.875rem;font-weight:600;box-shadow:var(--shadow-md);z-index:9998;transition:transform .3s ease;display:flex;align-items:center;gap:.5rem;min-width:280px;max-width:90vw;white-space:nowrap}
@@ -126,6 +130,8 @@
 
     /* Header */
     .app-header{position:sticky;top:0;z-index:100;background:rgba(248,250,249,.92);border-bottom:1px solid var(--border)}
+    :root[data-theme="dark"] .hero-desc{color:#94a3b8}
+    @media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .hero-desc{color:#94a3b8}}
     :root[data-theme="dark"] .app-header{background:rgba(15,23,42,.92)}
     .header-inner{max-width:880px;margin:0 auto;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between}
     .logo{display:flex;align-items:center;gap:.625rem;text-decoration:none}
@@ -141,7 +147,8 @@
     .hero-badge{display:inline-flex;align-items:center;gap:.375rem;background:var(--primary-light);color:var(--primary-dark);font-size:.75rem;font-weight:700;padding:.375rem .875rem;border-radius:999px;margin-bottom:1.25rem;letter-spacing:.04em}
     .hero h1{font-size:clamp(1.875rem,5vw,2.875rem);font-weight:800;color:var(--text);letter-spacing:-.04em;line-height:1.15;margin-bottom:1rem}
     .hero h1 span{color:var(--primary)}
-    .hero-desc{font-size:1rem;color:var(--muted);max-width:560px;margin:0 auto 2.5rem}
+    /* [V1] ヒーロー説明テキストのコントラスト強化（#475569→#374151で視認性向上） */
+    .hero-desc{font-size:1rem;color:#374151;max-width:560px;margin:0 auto 2.5rem}
 
     /* Summary cards */
     .summary-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:1rem;max-width:760px;margin:0 auto}
@@ -517,8 +524,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <div class="loading-overlay" id="loading-overlay">
   <div class="spinner"></div>
-  <div class="loading-text">読み込み中...</div>
-<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 18px;margin:20px 0" id="related-blog">
+  <div class="loading-text" id="loading-text">読み込み中...</div>
+  <!-- [V2] ローディングプログレスバー -->
+  <div class="load-progress"><div class="load-progress-bar" id="load-progress-bar"></div></div>
+  <div id="loading-step" style="font-size:.75rem;color:var(--primary);font-weight:600;display:none;margin-top:-.25rem"></div>
+<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 18px;margin:20px 0;position:relative" id="related-blog">
+  <!-- [V3] 閉じるボタンを視覚的に明確化（背景・ボーダー・テキスト追加） -->
+  <button onclick="document.getElementById('loading-overlay').classList.add('hidden')" aria-label="閉じてシミュレーションへ進む" style="position:absolute;top:8px;right:8px;background:#f1f5f9;border:1.5px solid #cbd5e1;border-radius:6px;font-size:.75rem;font-weight:700;cursor:pointer;color:#374151;line-height:1.4;padding:4px 10px;white-space:nowrap;display:flex;align-items:center;gap:3px" title="閉じてシミュレーションへ進む">✕ 閉じる</button>
   <p style="font-weight:800;font-size:.9rem;color:#1e293b;margin:0 0 10px">📚 関連コラム</p>
   <ul style="margin:0;padding-left:0;list-style:none"><li style="margin:0 0 6px"><a href="/blog/nisa-ideco-hikaku/" style="color:#4f46e5;font-size:.88rem;text-decoration:none;">📖 NISAとiDeCoを徹底比較</a></li><li style="margin:0 0 6px"><a href="/blog/rogo-2000man-guide/" style="color:#4f46e5;font-size:.88rem;text-decoration:none;">📖 老後2,000万円問題の解決策</a></li><li style="margin:0 0 6px"><a href="/blog/iryohi-koujo-guide/" style="color:#4f46e5;font-size:.88rem;text-decoration:none;">📖 医療費控除の申請ガイド</a></li></ul>
 </div>
@@ -1359,9 +1371,24 @@ function init() {
 }
 
 // ===== Loading =====
-function showLoad(v) {
+function showLoad(v, msg) {
   try {
-    document.getElementById('loading-overlay').classList.toggle('hidden', !v);
+    const overlay = document.getElementById('loading-overlay');
+    overlay.classList.toggle('hidden', !v);
+    const txt = document.getElementById('loading-text');
+    const step = document.getElementById('loading-step');
+    if (txt && v) txt.textContent = msg || '読み込み中...';
+    if (step) {
+      if (v && msg && msg !== '読み込み中...') {
+        step.style.display = 'block';
+        // ステップアニメーション: 1秒ごとにドットを増やす
+        let dots = 0;
+        step._timer = setInterval(() => { dots = (dots + 1) % 4; step.textContent = '▶ 計算中' + '.'.repeat(dots); }, 500);
+      } else {
+        step.style.display = 'none';
+        if (step._timer) { clearInterval(step._timer); step._timer = null; }
+      }
+    }
   } catch(e) { console.error(e); }
 }
 
@@ -1649,7 +1676,7 @@ function simulate() {
   try {
     readForm(); save();
     if(!validateInputs()) return;
-    showLoad(true);
+    showLoad(true, 'シミュレーション計算中...');
     const {data, evList, fireAge} = calc();
     setTimeout(() => {
       try {
