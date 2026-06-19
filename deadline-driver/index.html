@@ -1235,12 +1235,14 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 // 初回実行
                 updateTotalWorkHints();
 
-                // 総作業量のブラーバリデーション
+                // 総作業量のブラーバリデーション（単位別最小値: 時間=0.5, その他=1）
                 totalWorkInput.addEventListener('blur', () => {
                     const val = totalWorkInput.value;
                     const errEl = document.getElementById('error-total-work');
-                    if (!val || isNaN(val) || parseFloat(val) < 0.5) {
-                        errEl.textContent = '総作業量は0.5以上の数値を入力してください';
+                    const unit = workUnitSelect ? workUnitSelect.value : 'hours';
+                    const minVal = unit === 'hours' ? 0.5 : 1;
+                    if (!val || isNaN(val) || parseFloat(val) < minVal) {
+                        errEl.textContent = `総作業量は${minVal}以上の数値を入力してください`;
                         errEl.classList.remove('hidden');
                         setInputState(totalWorkInput, false);
                     } else {
@@ -1250,10 +1252,12 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     updateDailyPreview();
                 });
 
-                // 総作業量: 有効入力時にエラーをリアルタイムクリア
+                // 総作業量: 有効入力時にエラーをリアルタイムクリア（単位別最小値考慮）
                 totalWorkInput.addEventListener('input', () => {
                     const v = totalWorkInput.value;
-                    if (v && !isNaN(v) && parseFloat(v) >= 0.5) {
+                    const unit = workUnitSelect ? workUnitSelect.value : 'hours';
+                    const minVal = unit === 'hours' ? 0.5 : 1;
+                    if (v && !isNaN(v) && parseFloat(v) >= minVal) {
                         const errEl = document.getElementById('error-total-work');
                         if (errEl) errEl.classList.add('hidden');
                         setInputState(totalWorkInput, true);
@@ -1285,6 +1289,9 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         if (!isNaN(v) && v >= 0) {
                             slider.value = Math.round(v);
                             if (sliderCurrent) sliderCurrent.textContent = Math.round(v);
+                            // 有効値入力中はエラーをリアルタイムクリア
+                            const errEl = document.getElementById('error-completed-work');
+                            if (errEl) errEl.classList.add('hidden');
                         }
                     });
                     // blurでリアルタイムバリデーション
@@ -1410,7 +1417,11 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     const project = this.projects.find(p => p.id === projectId);
                     if (project) {
                         document.getElementById('project-name').value = project.name;
+                        // 編集モードでも締切日の最小値を今日に設定（過去日選択を防止）
+                        document.getElementById('project-deadline').min = new Date().toISOString().split('T')[0];
                         document.getElementById('project-deadline').value = project.deadline;
+                        const pnCounter = document.getElementById('project-name-counter');
+                        if (pnCounter) pnCounter.textContent = `${project.name.length}/50`;
                         document.getElementById('work-unit').value = project.workUnit;
                         document.getElementById('total-work').value = project.totalWork;
                         document.getElementById('project-type').value = project.type;
@@ -1551,8 +1562,10 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
 
                 const totalWork = document.getElementById('total-work').value;
                 const totalWorkError = document.getElementById('error-total-work');
-                if (!totalWork || isNaN(totalWork) || parseFloat(totalWork) < 0.5) {
-                    totalWorkError.textContent = '総作業量は0.5以上の数値を入力してください';
+                const wuEl = document.getElementById('work-unit');
+                const minTw = wuEl && wuEl.value !== 'hours' ? 1 : 0.5;
+                if (!totalWork || isNaN(totalWork) || parseFloat(totalWork) < minTw) {
+                    totalWorkError.textContent = `総作業量は${minTw}以上の数値を入力してください`;
                     totalWorkError.classList.remove('hidden');
                     hasError = true;
                 } else {
