@@ -204,6 +204,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
 <style>
 @media(max-width:480px){button,[class*=btn]{min-height:48px!important;font-size:15px!important;}input,select,textarea{font-size:16px!important;min-height:44px!important;}[class*=card],[class*=max-w]{padding:16px!important;}}
+/* M2: フィールドバリデーション状態 */
+select.field-error,input.field-error{border-color:#dc2626!important;background:#fff1f2!important;box-shadow:0 0 0 2px rgba(220,38,38,.15)!important;}
+select.field-ok,input.field-ok{border-color:#16a34a!important;background:#f0fdf4!important;}
+label .req-mark{color:#dc2626;font-weight:700;margin-left:2px;font-size:.85em;}
+.field-hint{font-size:.75rem;margin-top:3px;padding:0 2px;}
+.field-hint.error{color:#dc2626;}
+.field-hint.ok{color:#16a34a;}
 </style>
 
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"HowTo","name":"保険適正額診断ツール｜生命保険・医療保険の必要額を無料計算の使い方","step":[{"@type":"HowToStep","position":1,"name":"必要な情報を入力する","text":"画面のフォームやフィールドに必要な情報を入力する"},{"@type":"HowToStep","position":2,"name":"実行ボタンを押す","text":"「実行」「計算」または「確認」ボタンを押して処理を開始する"},{"@type":"HowToStep","position":3,"name":"結果を確認する","text":"表示された結果や情報を詳しく確認する"},{"@type":"HowToStep","position":4,"name":"結果を活用・シェアする","text":"取得した結果を日常生活に活用し、必要に応じてSNSでシェアする"},{"@type":"HowToStep","position":5,"name":"定期的に利用する","text":"変化や進捗に応じて定期的に再利用して継続的に活用する"}]}</script>
@@ -241,7 +248,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <div id="panel-input" class="panel active">
     <div class="card">
         <div class="card-title">👤 基本情報</div>
-        <label>性別・年齢</label>
+        <label>性別・年齢<span class="req-mark">*</span></label>
         <div style="display:flex;gap:8px;">
             <select id="gender" style="flex:1;">
                 <option value="male">男性</option>
@@ -258,7 +265,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <button class="fam-btn" onclick="selectFamily('child3',this)"><span class="emoji">👨‍👩‍👧‍👦</span>子3人</button>
             <button class="fam-btn" onclick="selectFamily('parent',this)"><span class="emoji">👴</span>親の扶養</button>
         </div>
-        <label>雇用形態</label>
+        <label>雇用形態<span class="req-mark">*</span></label>
         <select id="employ" required aria-label="雇用形態を選択">
             <option value="">-- 雇用形態を選択 --</option>
             <option value="employee" selected>会社員・公務員</option>
@@ -269,14 +276,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     <div class="card">
         <div class="card-title">💰 収入・資産</div>
-        <label>世帯年収（万円）</label>
+        <label>世帯年収（万円）<span class="req-mark">*</span></label>
         <div style="display:flex;align-items:center;gap:8px;">
             <input type="range" id="income" min="200" max="1500" step="10" value="500" oninput="updateIncome()" style="flex:1;width:auto;" aria-label="年収スライダー（200万円～1500万円）">
             <input type="number" id="income-num" min="200" max="1500" step="10" value="500" oninput="syncIncomeNum()" style="width:90px;padding:8px;border:1px solid #ddd6fe;border-radius:9px;background:#f8f4ff;color:#1e293b;" placeholder="500" aria-label="年収を直接入力（万円・200～1500）" required>
             <span style="font-size:0.8em;color:#94a3b8;white-space:nowrap;">万円</span>
         </div>
         <div class="val-display" id="income-disp">年収 500万円</div>
-        <label>貯蓄・投資残高（万円）</label>
+        <label>貯蓄・投資残高（万円）<span class="req-mark">*</span></label>
         <input type="number" id="savings" placeholder="例: 300（0以上）" min="0" value="200" aria-label="貯蓄・投資残高（万円・0以上）" required>
         <label>配偶者の年収（万円・いない場合は0）</label>
         <input type="number" id="spouse-income" placeholder="例: 300（0～1500）" min="0" max="1500" value="0" aria-label="配偶者の年収（万円・0～1500）">
@@ -284,7 +291,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
     <div class="card">
         <div class="card-title">🏠 住宅・ローン</div>
-        <label>住宅状況</label>
+        <label>住宅状況<span class="req-mark">*</span></label>
         <select id="housing" required aria-label="住宅状況を選択">
             <option value="">-- 住宅状況を選択 --</option>
             <option value="rent">賃貸</option>
@@ -483,6 +490,7 @@ function validateInputs() {
     const age = parseInt(document.getElementById('age').value);
     const savings = parseInt(document.getElementById('savings').value);
     const gender = document.getElementById('gender').value;
+    const employ = document.getElementById('employ').value;
     const loan = parseInt(document.getElementById('loan').value) || 0;
     const housing = document.getElementById('housing').value;
     const spouseIncome = parseInt(document.getElementById('spouse-income').value) || 0;
@@ -490,36 +498,56 @@ function validateInputs() {
     // 性別チェック
     if (!gender) {
         showError('✋ 性別を選択してください');
+        document.getElementById('gender').classList.add('field-error');
         return false;
     }
 
     // 年収チェック
     if (!income || isNaN(income) || income < 200 || income > 1500) {
         showError('💰 年収は200万円～1500万円で入力してください');
+        document.getElementById('income-num').classList.add('field-error');
         return false;
     }
 
     // 年齢チェック
     if (!age || isNaN(age) || age < 18 || age > 80) {
         showError('📅 年齢は18～80歳で入力してください');
+        document.getElementById('age').classList.add('field-error');
+        return false;
+    }
+
+    // 雇用形態チェック
+    if (!employ) {
+        showError('💼 雇用形態を選択してください');
+        document.getElementById('employ').classList.add('field-error');
+        return false;
+    }
+
+    // 住宅状況チェック
+    if (!housing) {
+        showError('🏠 住宅状況を選択してください');
+        document.getElementById('housing').classList.add('field-error');
         return false;
     }
 
     // 貯蓄チェック
     if (isNaN(savings) || savings < 0) {
         showError('🏦 貯蓄は0以上の値を入力してください');
+        document.getElementById('savings').classList.add('field-error');
         return false;
     }
 
     // ローンチェック（持ち家の場合）
     if (housing === 'own' && (isNaN(loan) || loan < 0)) {
         showError('🏠 住宅ローン残債は0以上の値を入力してください');
+        document.getElementById('loan').classList.add('field-error');
         return false;
     }
 
     // 配偶者年収チェック
     if (isNaN(spouseIncome) || spouseIncome < 0 || spouseIncome > 1500) {
         showError('👥 配偶者年収は0～1500万円で入力してください');
+        document.getElementById('spouse-income').classList.add('field-error');
         return false;
     }
 
@@ -527,6 +555,11 @@ function validateInputs() {
 }
 
 function calcAndShow() {
+    // バリデーション前にエラー状態をリセット
+    ['gender','age','employ','savings','spouse-income','housing','loan','income-num'].forEach(function(id){
+        var el = document.getElementById(id);
+        if (el) el.classList.remove('field-error', 'field-ok');
+    });
     if (!validateInputs()) return;
 
     const income = parseInt(document.getElementById('income').value);
@@ -952,6 +985,78 @@ document.addEventListener('DOMContentLoaded', function(){
         if (el) { el.addEventListener('change', saveFormData); el.addEventListener('input', saveFormData); }
     });
     document.getElementById('income').addEventListener('input', saveFormData);
+
+    // M2: リアルタイムblurバリデーション
+    function clearFieldState(el) {
+        if (!el) return;
+        el.classList.remove('field-error', 'field-ok');
+    }
+    function setFieldError(el) {
+        if (!el) return;
+        el.classList.remove('field-ok');
+        el.classList.add('field-error');
+    }
+    function setFieldOk(el) {
+        if (!el) return;
+        el.classList.remove('field-error');
+        el.classList.add('field-ok');
+    }
+
+    var ageEl = document.getElementById('age');
+    if (ageEl) {
+        ageEl.addEventListener('blur', function() {
+            var v = parseInt(this.value);
+            if (!v || isNaN(v) || v < 18 || v > 80) setFieldError(this);
+            else setFieldOk(this);
+        });
+        ageEl.addEventListener('input', function() { clearFieldState(this); });
+    }
+
+    var savingsEl = document.getElementById('savings');
+    if (savingsEl) {
+        savingsEl.addEventListener('blur', function() {
+            var v = parseInt(this.value);
+            if (isNaN(v) || v < 0) setFieldError(this);
+            else setFieldOk(this);
+        });
+        savingsEl.addEventListener('input', function() { clearFieldState(this); });
+    }
+
+    var loanEl = document.getElementById('loan');
+    if (loanEl) {
+        loanEl.addEventListener('blur', function() {
+            var v = parseInt(this.value);
+            if (isNaN(v) || v < 0) setFieldError(this);
+            else setFieldOk(this);
+        });
+        loanEl.addEventListener('input', function() { clearFieldState(this); });
+    }
+
+    var employEl = document.getElementById('employ');
+    if (employEl) {
+        employEl.addEventListener('change', function() {
+            if (!this.value) setFieldError(this);
+            else setFieldOk(this);
+        });
+    }
+
+    var housingEl = document.getElementById('housing');
+    if (housingEl) {
+        housingEl.addEventListener('change', function() {
+            if (!this.value) setFieldError(this);
+            else setFieldOk(this);
+        });
+    }
+
+    var incomeNumEl = document.getElementById('income-num');
+    if (incomeNumEl) {
+        incomeNumEl.addEventListener('blur', function() {
+            var v = parseInt(this.value);
+            if (!v || isNaN(v) || v < 200 || v > 1500) setFieldError(this);
+            else setFieldOk(this);
+        });
+        incomeNumEl.addEventListener('input', function() { clearFieldState(this); });
+    }
     var l = document.getElementById('page-loader');
     if(l){l.style.opacity='0';l.style.transition='opacity 0.3s';setTimeout(function(){l.remove();},350);}
 });
@@ -1061,9 +1166,10 @@ document.addEventListener('DOMContentLoaded', function(){
     <div style="background:#fdf4ff;padding:8px 16px;border-top:1px solid #f0abfc;font-family:'Noto Sans JP',system-ui,sans-serif"><p style="font-size:.72rem;color:#701a75;margin:0;text-align:center">本ツールで適正な保険料の目安を確認したら、次のステップとして無料のFP相談を活用しましょう。プロのFPに相談することで、あなたの家族構成・収入・将来計画に最適化された保障設計が実現します。保険は「入ることが目的」ではなく「リスクに備えること」が目的です。過剰な保険料を払い続けることは、将来の資産形成の機会損失につながります。適正な保障を適正な価格で確保し、浮いたお金をNISA・iDeCoへ回す。これが現代の賢いお金の使い方です。保険見直しで年間10〜30万円の節約ができる方が非常に多くいらっしゃいます。今日からアクションを起こして、家計の最適化を実現しましょう。無料相談は何度でも利用できます。気軽に活用してみてください。</p></div>
     <div style="background:#fff;padding:10px 16px;border-top:1px solid #f0abfc;font-family:'Noto Sans JP',sans-serif"><p style="font-size:.72rem;color:#374151;margin:0">【免責事項】本ツールの診断結果は統計的な目安を提供するものであり、個別の保険設計や投資助言ではありません。保険の加入・見直し・解約は、担当のFP（ファイナンシャルプランナー）・保険代理店・保険会社に相談の上でご判断ください。保険料の目安は年齢・性別・健康状態・保険種類・保障内容によって大きく異なります。本ツールの計算はあくまで参考値であり、実際の保険料とは異なる場合があります。また、保険制度・税制は法改正により変更されることがあります。最新情報は各保険会社・金融庁の公式情報をご確認ください。本サービスの利用により生じた損害について、運営者は一切の責任を負いません。高額療養費制度・傷病手当金・遺族年金など公的保障についても、お住まいの市区町村・社会保険事務所にご確認ください。保険は「万が一の備え」として適切な保障を確保することが重要です。過剰でも過少でもない、あなたに最適な保険設計のご参考にしてください。ご不明な点はお気軽に無料相談窓口をご活用ください。</p></div>
     <!-- size padding --><div style="display:none" aria-hidden="true">保険の見直しは年1回が目安です。ライフイベント（結婚・出産・住宅購入・転職・子どもの独立・定年）のタイミングで必ず確認しましょう。適正な保険料の目安は手取り収入の5〜10%です。生命保険・医療保険・就業不能保険・火災保険を組み合わせて、あなたの状況に最適な保障を設計しましょう。保険見直し本舗やマネードクターなどの無料相談窓口を積極的に活用することで、年間数十万円の節約が実現します。節約した保険料をNISA・iDeCoへ回すことで、将来の資産形成と保障の両立が可能になります。今すぐ保険の見直しを始めましょう。</div>
-    <div id="page-loader" class="loading" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#f8f4ff;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column">
-      <div class="spinner" style="width:40px;height:40px;border:4px solid #ddd6fe;border-top-color:#10b981;border-radius:50%;animation:spin-loader 0.8s linear infinite;"></div>
-      <p class="loading-text" style="margin-top:10px;color:#6b7280;font-size:.82rem">読み込み中...</p>
+    <div id="page-loader" class="loading" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#f8f4ff;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:0">
+      <div class="spinner" style="width:64px;height:64px;border:5px solid #ddd6fe;border-top-color:#7c3aed;border-right-color:#10b981;border-radius:50%;animation:spin-loader 0.8s linear infinite;"></div>
+      <p class="loading-text" style="margin-top:16px;color:#4c1d95;font-size:1rem;font-weight:700">読み込み中...</p>
+      <p style="margin:4px 0 0;color:#7c3aed;font-size:.8rem">保険診断ツールを準備しています</p>
     </div>
     <div class="skeleton" style="display:none;height:3px;position:fixed;top:0;left:0;width:100%;z-index:9998"></div>
     <style>@keyframes spin-loader{to{transform:rotate(360deg)}} .skeleton{background:linear-gradient(90deg,#f0f0f0 25%,#e0e0e0 50%,#f0f0f0 75%);background-size:200% 100%;animation:sk-l 1.5s infinite} @keyframes sk-l{0%{background-position:200% 0}100%{background-position:-200% 0}}</style>
@@ -1291,15 +1397,15 @@ document.addEventListener('DOMContentLoaded', function(){
   </ul>
 </div>
 <!-- r22-footer-nav -->
-<footer style="background:#1f2937;color:#9ca3af;text-align:center;padding:1.5rem 1rem;margin-top:2rem;font-size:.8rem">
+<footer style="background:#1f2937;color:#e2e8f0;text-align:center;padding:1.75rem 1rem;margin-top:2rem;font-size:.88rem">
   <div style="display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;margin-bottom:.75rem">
-    <a href="/" style="color:#9ca3af;text-decoration:none">ホーム</a>
-    <a href="/about.html" style="color:#9ca3af;text-decoration:none">運営者情報</a>
-    <a href="/privacy-policy.html" style="color:#9ca3af;text-decoration:none">プライバシーポリシー</a>
-    <a href="/contact.html" style="color:#9ca3af;text-decoration:none">お問い合わせ</a>
-    <a href="/terms.html" style="color:#9ca3af;text-decoration:none">利用規約</a>
+    <a href="/" style="color:#e2e8f0;text-decoration:none;font-weight:500">ホーム</a>
+    <a href="/about.html" style="color:#e2e8f0;text-decoration:none;font-weight:500">運営者情報</a>
+    <a href="/privacy-policy.html" style="color:#e2e8f0;text-decoration:none;font-weight:500">プライバシーポリシー</a>
+    <a href="/contact.html" style="color:#e2e8f0;text-decoration:none;font-weight:500">お問い合わせ</a>
+    <a href="/terms.html" style="color:#e2e8f0;text-decoration:none;font-weight:500">利用規約</a>
   </div>
-  <p style="margin:0">&copy; 2024-2026 AppADayCreator</p>
+  <p style="margin:0;color:#cbd5e1">&copy; 2024-2026 AppADayCreator</p>
 </footer>
 <!-- r17-mobile-ux -->
 <a href="#top" id="back-to-top" aria-label="ページトップへ戻る" style="display:none;position:fixed;bottom:24px;right:20px;background:#4f46e5;color:#fff;border:none;border-radius:50%;width:48px;height:48px;font-size:1.4rem;line-height:48px;text-align:center;text-decoration:none;box-shadow:0 4px 12px rgba(79,70,229,.4);z-index:9000;cursor:pointer" title="ページトップへ">↑</a>
@@ -1313,9 +1419,9 @@ document.addEventListener('DOMContentLoaded', function(){
 })();
 </script>
 <!-- r31-cookie-banner -->
-<div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
-<div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.25rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.88rem;box-shadow:0 -4px 16px rgba(0,0,0,.4)">
+<div style="flex:1;min-width:200px">当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#93c5fd;text-decoration:underline;font-weight:600">プライバシーポリシー</a>をご確認ください。</div>
+<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1');window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.75rem 1.75rem;border-radius:.5rem;font-size:.95rem;font-weight:700;cursor:pointer;white-space:nowrap;min-height:48px;min-width:140px;flex-shrink:0;box-shadow:0 2px 8px rgba(59,130,246,.5)">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 <!-- r46-org-footer -->
