@@ -325,7 +325,8 @@ function loadAnswers() {
 function renderQ() {
   const q = QUESTIONS[currentQ];
   document.getElementById('qNum').textContent = currentQ + 1;
-  const pct = Math.round(((currentQ + 1) / QUESTIONS.length) * 100);
+  // V2修正: Math.floorで「質問X/8」とパーセント表記を一致させる（1/8=12.5%→12%）
+  const pct = Math.floor(((currentQ + 1) / QUESTIONS.length) * 100);
   document.getElementById('qPct').textContent = pct;
   document.getElementById('progressBar').style.width = pct + '%';
   document.getElementById('backBtn').classList.toggle('hidden', currentQ === 0);
@@ -334,9 +335,14 @@ function renderQ() {
     <div class="space-y-2">
       ${q.opts.map((opt, i) => `
         <button onclick="selectOpt(${i})"
-          class="w-full text-left px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all
-          ${answers[q.id] === i ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 bg-gray-50 hover:border-purple-300 text-gray-700'}">
-          ${opt}
+          aria-pressed="${answers[q.id] === i ? 'true' : 'false'}"
+          class="w-full text-left px-4 py-3 rounded-xl border-2 text-sm font-medium transition-all flex items-center gap-3
+          ${answers[q.id] === i ? 'border-purple-600 bg-purple-100 text-purple-800 shadow-sm' : 'border-gray-200 bg-gray-50 hover:border-purple-300 text-gray-700'}">
+          <span class="flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center text-xs font-bold
+            ${answers[q.id] === i ? 'border-purple-600 bg-purple-600 text-white' : 'border-gray-300 bg-white'}">
+            ${answers[q.id] === i ? '✓' : ''}
+          </span>
+          <span>${opt}</span>
         </button>`).join('')}
     </div>`;
 }
@@ -346,6 +352,11 @@ function selectOpt(i) {
   document.getElementById('errorMsg').classList.add('hidden');
   saveAnswers(); // M3: 入力値を保存
   renderQ();
+  // V1: 選択肢が多い場合に次へボタンが画面外に出るケースに対応
+  setTimeout(() => {
+    const nextBtn = document.querySelector('[onclick="nextQ()"]');
+    if (nextBtn) nextBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 50);
 }
 function prevQ() { if (currentQ > 0) { currentQ--; renderQ(); } }
 function nextQ() {
