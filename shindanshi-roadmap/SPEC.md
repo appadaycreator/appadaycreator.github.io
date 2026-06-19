@@ -266,6 +266,14 @@
 - studyHoursにblurバリデーション（入力フォーカスアウト時に即時エラー表示）追加
 - ヘルパー関数追加: clearFieldError(), updateMemoCounter(), validateStudyHoursField(), showQuickFieldError(), clearQuickFieldError()
 
+### v1.15.0 (2026-06-19) — M2 UX改善フェーズ3（過去問演習フォーム・アクセシビリティ・選択状態フィードバック）
+- quiz.html: チェックボックス・ラジオボタン選択時にカードを青色ハイライト（CSS :has()セレクタ）
+- 科目選択グループに role="group" + aria-labelledby・各チェックボックスに aria-label 追加
+- 問題数・出題モード・学習モードに role="radiogroup" + aria-labelledby 追加
+- 「間違えた問題のみ」モードに「過去の演習履歴が必要」の注釈テキスト追加
+- 制限時間セレクトに aria-label 追加、科目選択グループにヒントテキスト追加（💡）
+- quiz.js: 科目チェックボックス変更時にバリデーションエラーを自動クリア
+
 ### v1.14.0 (2026-06-14) — M2 UX改善フェーズ2（入力フォーム・バリデーション・アクセシビリティ）
 **index.html 改善**:
 - デスクトップ・モバイルヘッダーのlangSelect・fontSizeSelectorに aria-label 追加（言語選択・文字サイズ選択オプション明記）
