@@ -3,11 +3,26 @@
 ## 概要
 
 **サービス名**: Retirement Fund Simulator
-**バージョン**: 1.2.0
-**更新日**: 2026-06-13
+**バージョン**: 1.3.0
+**更新日**: 2026-06-19
 **URL**: https://appadaycreator.com/retirement-fund-simulator/
 
 老後2000万円問題を自分の数字で確認。現在の年齢・貯蓄・年金予想額から65歳以降の生活費・収支を無料でシミュレーション。老後資金の不足額を計算します。
+
+## 更新履歴（v1.3.0）
+
+### P1: FAQPage構造化データ拡充（GSC対応）
+- FAQPage schemaを2問→5問に拡充（老後計算式・ねんきんネット確認方法・不足時の対策・iDeCo vs NISA優先順位）
+- 検索リッチスニペット獲得を目的とした具体的Q&A追加
+
+### P2: クイズボタン視認性改善（V2対応）
+- 全クイズボタン（col-span含む17個）のスタイルを刷新
+- `bg-amber-50 border-amber-200`→`bg-white border-amber-400 shadow-sm font-semibold`
+- ホバー時に `shadow-md border-amber-600` で明確なインタラクション表示
+- 選択済み状態に `ring-2 ring-amber-300` を追加してフォーカスを視覚的に明確化
+
+### バグ修正
+- クッキーバナーの同意ボタンが `localStorage` に保存していなかった不具合を修正（再訪問時に再表示される問題）
 
 ## 更新履歴（v1.2.0）
 
