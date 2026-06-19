@@ -3,8 +3,8 @@
 ## 概要
 
 **サービス名**: Travel Style Finder
-**バージョン**: 1.5.2
-**更新日**: 2026-06-13
+**バージョン**: 1.5.4
+**更新日**: 2026-06-19
 **URL**: https://appadaycreator.com/travel-style-finder/
 
 好みのアクティビティ・予算・人数から最適な国内旅行先を無料診断。一人旅・カップル・家族旅行対応。
@@ -20,6 +20,11 @@
 - HTML5 / CSS3 / Vanilla JavaScript
 - PWA対応（manifest.json / Service Worker）
 - レスポンシブデザイン（モバイルファースト）
+
+## 更新履歴
+
+- v1.5.4 (2026-06-19): M2 入力UX改善（旅行目標カスタム数値入力+placeholder追加・旅行メモtextarea+placeholder追加・saveTravelGoalのカスタム入力対応バリデーション）
+- v1.5.3 (2026-06-19): M2 UX改善（「次へ」ボタン追加・選択ヒント表示・バリデーション改善）、V1 CTAボタンをトップに追加、V2 プライバシーポリシーリンク強調、V3 重複ナビゲーション削除、GSCキーワード追記
 
 ## 使い方
 
