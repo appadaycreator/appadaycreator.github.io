@@ -161,6 +161,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 .text-sm-gray{font-size:0.82rem;color:#374151;}
 .text-xs-gray{font-size:0.75rem;color:#666;}
 .sponsor-btn{display:inline-block;padding:10px 16px;background:#fff;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;color:#334155;text-decoration:none;white-space:nowrap;min-height:40px;line-height:20px;}
+/* M7: 比較シミュレーション */
+.sim-select{width:100%;padding:8px;border:1px solid #c4b5fd;border-radius:8px;font-size:15px;background:#fff;min-height:40px;}
+.sim-table{width:100%;border-collapse:collapse;font-size:0.82rem;margin-top:12px;}
+.sim-table th,.sim-table td{padding:7px 8px;border:1px solid #e5e7eb;text-align:center;}
+.sim-table th{background:#ede9fe;color:#5b21b6;font-weight:bold;font-size:0.8rem;}
+.sim-table td:first-child{text-align:left;}
 </style>
     <!-- Google AdSense -->
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8427583028015858"
@@ -408,6 +414,19 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <div class="bg-gray-50 rounded-xl p-4">
                 <div id="result-sub2" class="skill-card mb-3 flex items-center gap-3 bg-white"></div>
                 <div id="result-sub3" class="skill-card flex items-center gap-3 bg-white"></div>
+            </div>
+        </div>
+
+        <!-- M7: 比較・シミュレーション機能 -->
+        <button class="accordion-header" onclick="openSimulationAccordion()" aria-expanded="false" aria-controls="simulation-content">
+            <span>🔄 もし〜だったら？条件を変えて比較</span>
+            <span class="accordion-icon">▼</span>
+        </button>
+        <div id="simulation-content" class="accordion-content" aria-expanded="false">
+            <div style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:12px;padding:16px;">
+                <p style="font-size:0.85rem;color:#5b21b6;margin:0 0 12px;font-weight:bold;">条件を変えたら診断結果はどう変わる？5つの条件を調整して即時比較できます。</p>
+                <div id="sim-inputs" style="display:flex;flex-direction:column;gap:10px;margin-bottom:4px;"></div>
+                <div id="sim-result"></div>
             </div>
         </div>
 
@@ -937,6 +956,38 @@ function updateSidebarHint(){try{var el=document.getElementById('sidebar-hint');
 // 途中進捗の復元
 function resumeDiagnosis(){try{var s=JSON.parse(localStorage.getItem('ra_progress')||'null');if(s){st=s;render();}var b=document.getElementById('continue-banner');if(b)b.remove();}catch(e){}}
 function dismissContinue(){if(!confirm('前回の進捗を削除して最初から始めますか？')){return;}localStorage.removeItem('ra_progress');var b=document.getElementById('continue-banner');if(b)b.remove();}
+// M7: 比較・シミュレーション機能
+function openSimulationAccordion(){
+    var content=document.getElementById('simulation-content');
+    var wasExpanded=content&&content.getAttribute('aria-expanded')==='true';
+    toggleAccordion('simulation');
+    if(!wasExpanded)buildSimInputs();
+}
+function buildSimInputs(){
+    var cont=document.getElementById('sim-inputs');
+    if(!cont)return;
+    // Q2:目標, Q3:学習時間, Q4:ITレベル, Q7:データ関心, Q10:3年後ビジョン
+    var keyQs=[1,2,3,6,9];
+    cont.innerHTML=keyQs.map(function(qi){
+        var q=Q[qi],cur=st.ans[qi];
+        return '<div><label style="font-size:0.82rem;font-weight:bold;color:#374151;display:block;margin-bottom:5px;">Q'+(qi+1)+': '+q.text+'</label><select class="sim-select" data-qi="'+qi+'" onchange="runSimulation()">'+q.opts.map(function(o,i){return '<option value="'+i+'"'+(cur===i?' selected':'')+'>'+o.text+'</option>';}).join('')+'</select></div>';
+    }).join('');
+    runSimulation();
+}
+function runSimulation(){
+    var cont=document.getElementById('sim-inputs'),resultEl=document.getElementById('sim-result');
+    if(!cont||!resultEl)return;
+    var simAns=st.ans.slice();
+    cont.querySelectorAll('select[data-qi]').forEach(function(sel){simAns[parseInt(sel.dataset.qi)]=parseInt(sel.value);});
+    var simScores={it:0,language:0,data:0,creative:0,business:0};
+    Q.forEach(function(q,qi){var ai=simAns[qi];if(ai===undefined)return;var s=q.opts[ai].s;Object.entries(s).forEach(function(e){if(simScores[e[0]]!==undefined)simScores[e[0]]+=e[1];});});
+    var keys=['it','language','data','creative','business'];
+    var slabels={it:'IT・プログラミング',language:'語学・英語',data:'データ分析',creative:'クリエイティブ',business:'ビジネス'};
+    var curTop=Object.entries(st.scores).sort(function(a,b){return b[1]-a[1];})[0][0];
+    var simTop=Object.entries(simScores).sort(function(a,b){return b[1]-a[1];})[0][0];
+    var changed=curTop!==simTop;
+    resultEl.innerHTML='<div style="padding:10px;border-radius:10px;background:'+(changed?'#fef3c7':'#f0fdf4')+';border:2px solid '+(changed?'#f59e0b':'#059669')+';margin-bottom:10px;"><div style="font-size:0.85rem;font-weight:bold;color:'+(changed?'#92400e':'#065f46')+'">'+(changed?'🔄 条件変更で最適スキルが変わります！':'✅ 最適スキルは変わりません')+'</div><div style="font-size:0.82rem;color:#374151;margin-top:4px;">現在: <strong>'+SKILLS[curTop].emoji+' '+SKILLS[curTop].label+'</strong>'+(changed?' → 変更後: <strong>'+SKILLS[simTop].emoji+' '+SKILLS[simTop].label+'</strong>':'')+'</div></div><table class="sim-table"><tr><th>スキル分野</th><th>現在の診断</th><th>変更後</th><th>差分</th></tr>'+keys.map(function(k){var cur=st.scores[k]||0,sim=simScores[k]||0,diff=sim-cur,isCur=k===curTop,isSim=k===simTop;return '<tr style="'+(isSim?'background:#ede9fe;':isCur?'background:#f0fdf4;':'')+'"><td style="font-weight:'+(isSim||isCur?'bold':'normal')+'">'+SKILLS[k].emoji+' '+slabels[k]+'</td><td style="'+(isCur?'color:#059669;font-weight:bold;':'')+'">'+cur+'pt'+(isCur?' 🏆':'')+'</td><td style="'+(isSim?'color:#7c3aed;font-weight:bold;':'')+'">'+sim+'pt'+(isSim?' 🥇':'')+'</td><td style="color:'+(diff>0?'#059669':diff<0?'#dc2626':'#6b7280')+';font-weight:bold;">'+(diff>0?'+':'')+diff+'</td></tr>';}).join('')+'</table>';
+}
 render();
 </script>
 <div class="affiliate-section" style="margin:20px auto;max-width:800px;"><p class="affiliate-title">💼 リスキリング後の転職をサポート【Groovement Agent】 <span style="font-size:0.75rem;color:#666;">※PR・広告</span></p><p class="affiliate-desc" style="margin-bottom:12px;">コンサル・DX・スタートアップへ。CxO直結の非公開求人で年収を最大化</p><div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;"><a href="https://px.a8.net/svt/ejp?a8mat=4B3UZ4+EMXMN6+4SXU+NUES1" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:12px 24px;background:#3b82f6;color:#fff;border-radius:8px;font-size:14px;font-weight:bold;text-decoration:none;">Groovement Agent →</a><img border="0" width="1" height="1" src="https://www18.a8.net/0.gif?a8mat=4B3UZ4+EMXMN6+4SXU+NUES1" alt="" loading="lazy"><a href="https://px.a8.net/svt/ejp?a8mat=4B3UZ4+EMXMN6+4SXU+NTJWY" rel="nofollow noopener noreferrer" target="_blank" style="display:inline-block;padding:12px 24px;background:#1d4ed8;color:#fff;border-radius:8px;font-size:14px;font-weight:bold;text-decoration:none;">転職相談する →</a><img border="0" width="1" height="1" src="https://www13.a8.net/0.gif?a8mat=4B3UZ4+EMXMN6+4SXU+NTJWY" alt="" loading="lazy"></div></div><section style="margin:20px auto;max-width:800px;padding:20px;background:#f0f9ff;border-radius:12px;"><h2 style="color:#0369a1;font-size:1.1rem;margin-bottom:12px;">📚 リスキリング推奨スキルランキング</h2><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.85rem;"><tr style="background:#e0f2fe;"><th style="padding:6px;border:1px solid #bae6fd;">スキル</th><th style="padding:6px;border:1px solid #bae6fd;">需要</th><th style="padding:6px;border:1px solid #bae6fd;">習得期間</th><th style="padding:6px;border:1px solid #bae6fd;">平均年収上昇</th></tr><tr><td style="padding:5px;border:1px solid #e0f2fe;">AIプロンプトエンジニアリング</td><td style="padding:5px;border:1px solid #e0f2fe;">急上昇</td><td style="padding:5px;border:1px solid #e0f2fe;">1〜3ヶ月</td><td style="padding:5px;border:1px solid #e0f2fe;">+50〜200万</td></tr><tr style="background:#f0f9ff;"><td style="padding:5px;border:1px solid #e0f2fe;">Python・データ分析</td><td style="padding:5px;border:1px solid #e0f2fe;">高</td><td style="padding:5px;border:1px solid #e0f2fe;">3〜6ヶ月</td><td style="padding:5px;border:1px solid #e0f2fe;">+50〜150万</td></tr><tr><td style="padding:5px;border:1px solid #e0f2fe;">クラウド（AWS・Azure）</td><td style="padding:5px;border:1px solid #e0f2fe;">高</td><td style="padding:5px;border:1px solid #e0f2fe;">3〜6ヶ月</td><td style="padding:5px;border:1px solid #e0f2fe;">+50〜100万</td></tr><tr style="background:#f0f9ff;"><td style="padding:5px;border:1px solid #e0f2fe;">DX・IT戦略</td><td style="padding:5px;border:1px solid #e0f2fe;">中〜高</td><td style="padding:5px;border:1px solid #e0f2fe;">6〜12ヶ月</td><td style="padding:5px;border:1px solid #e0f2fe;">+30〜100万</td></tr><tr><td style="padding:5px;border:1px solid #e0f2fe;">Webマーケティング</td><td style="padding:5px;border:1px solid #e0f2fe;">中</td><td style="padding:5px;border:1px solid #e0f2fe;">3〜6ヶ月</td><td style="padding:5px;border:1px solid #e0f2fe;">+20〜80万</td></tr></table></div><p style="margin-top:12px;font-size:0.85rem;"><strong>Q. リスキリングに使える補助金は？</strong><br/>
