@@ -3,11 +3,31 @@
 ## 概要
 
 **サービス名**: Morning Routine Planner
-**バージョン**: 1.2.0
-**更新日**: 2026-06-13
+**バージョン**: 1.5.0
+**更新日**: 2026-06-19
 **URL**: https://appadaycreator.com/morning-routine-planner/
 
-## 最新更新内容（v1.2.0 - Phase 2改善）
+## 最新更新内容（v1.5.0 - M10 印刷・エクスポート機能追加 2026-06-19）
+
+- **M10**: 印刷ボタン追加（window.print()・@media print CSSで印刷時グラフ非表示・テーブル最適化）
+- **M10**: CSV保存ボタン追加（BOM付きUTF-8・起床/出発時刻メタ情報付き・Blob/URL.createObjectURL使用）
+
+## 旧バージョン更新内容（v1.4.0 - UX改善・視覚的問題修正 2026-06-19）
+
+- **V1**: Cookieバナー「同意して閉じる」ボタンを大型化（padding:.75rem 2rem, font-size:1rem, min-height:48px）
+- **V2**: ヘッダーナビ「コラム/ホーム」をfont-size:.9rem・color:#e0e7ffに改善し視認性向上
+- **V3**: Cookieバナー本文をfont-size:.9rem・プライバシーリンクをfont-weight:600・color:#93c5fdに強化
+- **M2**: 残り時間インジケーター（#time-budget）をcalculate()内で動的に更新・過不足をリアルタイム表示
+- **M7**: 3パターン一括シミュレーション比較ボタン追加（compareAllPresets関数）・早起き/通常/遅起きを即時比較
+- **M8**: 確認済み（reading/meditation/journalのtask-hint・aria属性・titleは実装済み）
+
+## 旧バージョン更新内容（v1.3.0 - Phase 2追加改善 2026-06-19）
+
+- **M2**: 残り時間インジケーター追加（#time-budget）・タスク数入力にaria-label/title属性追加・チェックボックス変更時のリアルタイム時間超過警告
+- **M7**: 「⚡ もし〜だったら？」3プリセット一括比較機能追加（compareAllPresets関数）・各パターンの適用ボタン付き
+- **M8**: 起床/出発時刻ラベルに?ツールチップアイコン追加・全タスク入力にaria-label/title属性・タスク別推奨時間ヒントテキスト追加（.task-hint）
+
+## 旧バージョン更新内容（v1.2.0 - Phase 2改善）
 
 - **M2**: 入力UI改善強化（ARIA属性追加・エラーメッセージ絵文字化・最小時間チェック・バリデーション向上）
 - **M4**: スコアゲージ追加（視覚的な評価表示・プログレスバー・リアルタイムスコア反映）

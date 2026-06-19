@@ -93,7 +93,16 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .checkbox-row input[type=checkbox] { width:16px; height:16px; accent-color:#9333EA; cursor:pointer; }
         .checkbox-row label { font-size:14px; color:#444; cursor:pointer; }
         .section-label { font-size:12px; font-weight:700; color:#9333EA; margin:14px 0 4px; text-transform:uppercase; letter-spacing:.05em; }
-    
+        /* M8: タスク入力ヒント・ツールチップ */
+        .task-hint { font-size:11px; color:#7c3aed; margin:4px 0 0 28px; line-height:1.5; }
+        .tip-wrap { position:relative; display:inline-flex; align-items:center; }
+        .tip-icon { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; background:#ede9fe; color:#7c3aed; border-radius:50%; font-size:10px; font-weight:700; cursor:help; border:1px solid #ddd6fe; padding:0; line-height:1; flex-shrink:0; margin-left:4px; vertical-align:middle; }
+        .tip-wrap:hover .tip-popup, .tip-icon:focus ~ .tip-popup { opacity:1; visibility:visible; }
+        .tip-popup { position:absolute; left:50%; transform:translateX(-50%); top:calc(100% + 6px); background:#1e293b; color:#f8fafc; font-size:11px; padding:8px 10px; border-radius:8px; z-index:300; opacity:0; visibility:hidden; transition:opacity .2s; pointer-events:none; width:210px; line-height:1.6; font-weight:400; box-shadow:0 4px 16px rgba(0,0,0,.25); }
+        /* M2: 残り時間インジケーター */
+        #time-budget { font-size:13px; color:#374151; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:8px 14px; margin-top:10px; display:none; }
+        #time-budget.over { background:#fef2f2; border-color:#fca5a5; color:#b91c1c; }
+
 @media print{
   header,footer,nav,button,.no-print,
   [class*="share"],[class*="affiliate"],[id*="share"],
@@ -102,6 +111,12 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
   body{background:#fff!important;color:#000!important;font-size:12pt}
   [id*="result"],[id*="output"],[id*="advice"],[id*="diagnosis"],[class*="result"]{display:block!important}
   a[href]::after{content:none!important}
+  /* M10: 印刷時にタイムテーブルを見やすく表示 */
+  #timetable-wrap,#score-gauge{display:block!important}
+  #chart-wrap{display:none!important}
+  .routine-table{page-break-inside:avoid;width:100%;border-collapse:collapse}
+  .routine-table th,.routine-table td{border:1px solid #ccc!important;padding:6px 8px!important}
+  .card{box-shadow:none!important;border:1px solid #ddd}
 }
 
 /* AdSense unfilled: collapse empty ad slots */
@@ -119,7 +134,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <h1>朝ルーティン最適化ツール</h1>
         <p>起床時間・出発時間から最適な朝ルーティンのタイムテーブルを自動生成。</p>
     </header>
-<div style="background:#4338ca;padding:5px 12px;text-align:right;font-size:.78rem"><a href="/blog/" style="color:#c7d2fe;text-decoration:none;font-weight:600">📖 コラム</a>&nbsp;｜&nbsp;<a href="/" style="color:#c7d2fe;text-decoration:none">ホーム</a></div>
+<div style="background:#4338ca;padding:9px 16px;text-align:right;font-size:.9rem"><a href="/blog/" style="color:#e0e7ff;text-decoration:none;font-weight:700">📖 コラム</a>&nbsp;｜&nbsp;<a href="/" style="color:#e0e7ff;text-decoration:none;font-weight:600">ホーム</a></div>
 <!-- r21-breadcrumb -->
 <nav aria-label="パンくずリスト" style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:5px 16px;font-size:.78rem;color:#6b7280;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">
   <a href="/" style="color:#4f46e5;text-decoration:none">ホーム</a>
@@ -152,46 +167,54 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <button onclick="applyPreset('normal')" style="background:#F3E8FF;color:#9333EA;border:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:opacity .2s;min-height:40px;flex:1;min-width:100px;">⭐ 通常 (6:30-8:30)</button>
             <button onclick="applyPreset('late')" style="background:#FAF5FF;color:#9333EA;border:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:opacity .2s;min-height:40px;flex:1;min-width:100px;">🌤️ 遅起き (7:30-9:00)</button>
           </div>
+          <button onclick="compareAllPresets()" title="早起き・通常・遅起きの3パターンを一度に計算して比較表を表示します" style="background:#ede9fe;color:#6d28d9;border:1.5px dashed #9333EA;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;width:100%;margin-bottom:8px;min-height:40px;">📊 3パターン一括シミュレーション比較</button>
 
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
             <div>
-              <label style="font-size:13px;color:#555;display:block;margin-bottom:4px;font-weight:600;">起床時刻 <span style="color:#dc2626;">*</span></label>
-              <input type="time" id="wake-time" value="06:30" placeholder="06:30" aria-label="起床時刻（例：06:30）" aria-required="true" style="width:100%;padding:8px 10px;border:1.5px solid #d8b4fe;border-radius:8px;font-size:15px;" required>
+              <label style="font-size:13px;color:#555;display:block;margin-bottom:4px;font-weight:600;">起床時刻 <span style="color:#dc2626;">*</span> <span class="tip-wrap"><span class="tip-icon" tabindex="0" role="img" aria-label="ヘルプ">?</span><span class="tip-popup">毎日起きる目標時刻を入力。例：06:30。早起きほど朝活の時間が増えます。</span></span></label>
+              <input type="time" id="wake-time" value="06:30" placeholder="06:30" aria-label="起床時刻（例：06:30）" title="毎日起きる目標時刻（例：06:30）" aria-required="true" aria-describedby="wake-time-error" style="width:100%;padding:8px 10px;border:1.5px solid #d8b4fe;border-radius:8px;font-size:15px;" required>
               <div id="wake-time-error" role="alert" style="color:#dc2626;font-size:12px;margin-top:4px;display:none;"></div>
             </div>
             <div>
-              <label style="font-size:13px;color:#555;display:block;margin-bottom:4px;font-weight:600;">出発時刻 <span style="color:#dc2626;">*</span></label>
-              <input type="time" id="leave-time" value="08:00" placeholder="08:00" aria-label="出発時刻（例：08:00）" aria-required="true" style="width:100%;padding:8px 10px;border:1.5px solid #d8b4fe;border-radius:8px;font-size:15px;" required>
+              <label style="font-size:13px;color:#555;display:block;margin-bottom:4px;font-weight:600;">出発時刻 <span style="color:#dc2626;">*</span> <span class="tip-wrap"><span class="tip-icon" tabindex="0" role="img" aria-label="ヘルプ">?</span><span class="tip-popup">職場・学校など外出する時刻。起床〜出発の間が朝ルーティンに使える時間です。</span></span></label>
+              <input type="time" id="leave-time" value="08:00" placeholder="08:00" aria-label="出発時刻（例：08:00）" title="外出する時刻（例：08:00）" aria-required="true" aria-describedby="leave-time-error" style="width:100%;padding:8px 10px;border:1.5px solid #d8b4fe;border-radius:8px;font-size:15px;" required>
               <div id="leave-time-error" role="alert" style="color:#dc2626;font-size:12px;margin-top:4px;display:none;"></div>
             </div>
           </div>
           <p style="font-size:12px;color:#666;margin-top:8px;">💡 ヒント: 起床時刻から出発時刻までの時間が朝ルーティンに使える時間です</p>
+          <div id="time-budget" role="status" aria-live="polite"></div>
 
           <div class="section-label" style="margin-top:16px;">含めるルーティン（任意）</div>
           <div id="task-checks" style="display:flex;flex-direction:column;gap:16px;">
             <div class="checkbox-row" style="flex-direction:column;align-items:flex-start;border:none;padding:12px;background:#f8fafc;border-radius:8px;">
               <div style="display:flex;align-items:center;gap:10px;width:100%;margin-bottom:6px;"><input type="checkbox" id="ck-exercise" checked style="width:18px;height:18px;"><label for="ck-exercise" style="margin:0;font-weight:600;">🏃 軽い運動・ストレッチ</label></div>
-              <div style="width:100%;display:flex;align-items:center;gap:8px;"><input type="range" id="range-exercise" min="1" max="60" value="10" style="flex:1;cursor:pointer;"><input type="number" id="time-exercise" value="10" min="1" max="60" style="width:50px;padding:6px;font-size:12px;"/><span style="color:#666;font-size:12px;">分</span></div>
+              <div style="width:100%;display:flex;align-items:center;gap:8px;"><input type="range" id="range-exercise" min="1" max="60" value="10" style="flex:1;cursor:pointer;" aria-label="運動時間スライダー" title="1〜60分で調整"><input type="number" id="time-exercise" value="10" min="1" max="60" aria-label="軽い運動・ストレッチの時間（分）" title="推奨：10〜20分" style="width:50px;padding:6px;font-size:12px;"/><span style="color:#666;font-size:12px;">分</span></div>
+              <p class="task-hint">💪 代謝UP・頭のスイッチON / 推奨10〜20分</p>
             </div>
             <div class="checkbox-row" style="flex-direction:column;align-items:flex-start;border:none;padding:12px;background:#f8fafc;border-radius:8px;">
               <div style="display:flex;align-items:center;gap:10px;width:100%;margin-bottom:6px;"><input type="checkbox" id="ck-shower" checked style="width:18px;height:18px;"><label for="ck-shower" style="margin:0;font-weight:600;">🚿 シャワー・洗顔</label></div>
-              <div style="width:100%;display:flex;align-items:center;gap:8px;"><input type="range" id="range-shower" min="1" max="60" value="15" style="flex:1;cursor:pointer;"><input type="number" id="time-shower" value="15" min="1" max="60" style="width:50px;padding:6px;font-size:12px;"/><span style="color:#666;font-size:12px;">分</span></div>
+              <div style="width:100%;display:flex;align-items:center;gap:8px;"><input type="range" id="range-shower" min="1" max="60" value="15" style="flex:1;cursor:pointer;" aria-label="シャワー時間スライダー" title="1〜60分で調整"><input type="number" id="time-shower" value="15" min="1" max="60" aria-label="シャワー・洗顔の時間（分）" title="推奨：10〜15分" style="width:50px;padding:6px;font-size:12px;"/><span style="color:#666;font-size:12px;">分</span></div>
+              <p class="task-hint">🌡️ 体温調整・頭のリフレッシュ / 推奨10〜15分</p>
             </div>
             <div class="checkbox-row" style="flex-direction:column;align-items:flex-start;border:none;padding:12px;background:#f8fafc;border-radius:8px;">
               <div style="display:flex;align-items:center;gap:10px;width:100%;margin-bottom:6px;"><input type="checkbox" id="ck-breakfast" checked style="width:18px;height:18px;"><label for="ck-breakfast" style="margin:0;font-weight:600;">🍳 朝食</label></div>
-              <div style="width:100%;display:flex;align-items:center;gap:8px;"><input type="range" id="range-breakfast" min="1" max="60" value="20" style="flex:1;cursor:pointer;"><input type="number" id="time-breakfast" value="20" min="1" max="60" style="width:50px;padding:6px;font-size:12px;"/><span style="color:#666;font-size:12px;">分</span></div>
+              <div style="width:100%;display:flex;align-items:center;gap:8px;"><input type="range" id="range-breakfast" min="1" max="60" value="20" style="flex:1;cursor:pointer;" aria-label="朝食時間スライダー" title="1〜60分で調整"><input type="number" id="time-breakfast" value="20" min="1" max="60" aria-label="朝食の時間（分）" title="推奨：15〜30分" style="width:50px;padding:6px;font-size:12px;"/><span style="color:#666;font-size:12px;">分</span></div>
+              <p class="task-hint">🧠 集中力の燃料補給 / 推奨15〜30分</p>
             </div>
             <div class="checkbox-row" style="flex-direction:column;align-items:flex-start;border:none;padding:12px;background:#f8fafc;border-radius:8px;">
               <div style="display:flex;align-items:center;gap:10px;width:100%;margin-bottom:6px;"><input type="checkbox" id="ck-reading" style="width:18px;height:18px;"><label for="ck-reading" style="margin:0;font-weight:600;">📖 読書・情報収集</label></div>
-              <div style="width:100%;display:flex;align-items:center;gap:8px;"><input type="range" id="range-reading" min="1" max="60" value="15" style="flex:1;cursor:pointer;"><input type="number" id="time-reading" value="15" min="1" max="60" style="width:50px;padding:6px;font-size:12px;"/><span style="color:#666;font-size:12px;">分</span></div>
+              <div style="width:100%;display:flex;align-items:center;gap:8px;"><input type="range" id="range-reading" min="1" max="60" value="15" style="flex:1;cursor:pointer;" aria-label="読書時間スライダー" title="1〜60分で調整"><input type="number" id="time-reading" value="15" min="1" max="60" aria-label="読書・情報収集の時間（分）" title="推奨：10〜20分" style="width:50px;padding:6px;font-size:12px;"/><span style="color:#666;font-size:12px;">分</span></div>
+              <p class="task-hint">📚 インプット習慣・知識の積み上げ / 推奨10〜20分</p>
             </div>
             <div class="checkbox-row" style="flex-direction:column;align-items:flex-start;border:none;padding:12px;background:#f8fafc;border-radius:8px;">
               <div style="display:flex;align-items:center;gap:10px;width:100%;margin-bottom:6px;"><input type="checkbox" id="ck-meditation" style="width:18px;height:18px;"><label for="ck-meditation" style="margin:0;font-weight:600;">🧘 瞑想・深呼吸</label></div>
-              <div style="width:100%;display:flex;align-items:center;gap:8px;"><input type="range" id="range-meditation" min="1" max="60" value="5" style="flex:1;cursor:pointer;"><input type="number" id="time-meditation" value="5" min="1" max="60" style="width:50px;padding:6px;font-size:12px;"/><span style="color:#666;font-size:12px;">分</span></div>
+              <div style="width:100%;display:flex;align-items:center;gap:8px;"><input type="range" id="range-meditation" min="1" max="60" value="5" style="flex:1;cursor:pointer;" aria-label="瞑想時間スライダー" title="1〜60分で調整"><input type="number" id="time-meditation" value="5" min="1" max="60" aria-label="瞑想・深呼吸の時間（分）" title="推奨：5〜15分" style="width:50px;padding:6px;font-size:12px;"/><span style="color:#666;font-size:12px;">分</span></div>
+              <p class="task-hint">🧘 集中力UP・ストレス軽減 / 推奨5〜15分</p>
             </div>
             <div class="checkbox-row" style="flex-direction:column;align-items:flex-start;border:none;padding:12px;background:#f8fafc;border-radius:8px;">
               <div style="display:flex;align-items:center;gap:10px;width:100%;margin-bottom:6px;"><input type="checkbox" id="ck-journal" style="width:18px;height:18px;"><label for="ck-journal" style="margin:0;font-weight:600;">📝 日記・TODO整理</label></div>
-              <div style="width:100%;display:flex;align-items:center;gap:8px;"><input type="range" id="range-journal" min="1" max="60" value="10" style="flex:1;cursor:pointer;"><input type="number" id="time-journal" value="10" min="1" max="60" style="width:50px;padding:6px;font-size:12px;"/><span style="color:#666;font-size:12px;">分</span></div>
+              <div style="width:100%;display:flex;align-items:center;gap:8px;"><input type="range" id="range-journal" min="1" max="60" value="10" style="flex:1;cursor:pointer;" aria-label="日記時間スライダー" title="1〜60分で調整"><input type="number" id="time-journal" value="10" min="1" max="60" aria-label="日記・TODO整理の時間（分）" title="推奨：5〜15分" style="width:50px;padding:6px;font-size:12px;"/><span style="color:#666;font-size:12px;">分</span></div>
+              <p class="task-hint">✏️ 目標明確化・一日の設計 / 推奨5〜15分</p>
             </div>
           </div>
 
@@ -210,7 +233,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px;">
                 <button onclick="copyResult()" style="background:#9333EA;color:white;border:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:opacity .2s;min-height:40px;">📋 テキストコピー</button>
                 <button onclick="shareUrl()" style="background:#9333EA;color:white;border:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:opacity .2s;min-height:40px;">🔗 URLシェア</button>
+                <button onclick="printResult()" style="background:#9333EA;color:white;border:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:opacity .2s;min-height:40px;">🖨️ 印刷</button>
+                <button onclick="downloadCSV()" style="background:#9333EA;color:white;border:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:opacity .2s;min-height:40px;">📥 CSV保存</button>
                 <button onclick="toggleComparison()" style="background:#7c3aed;color:white;border:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:opacity .2s;min-height:40px;">📊 パターン比較</button>
+                <button onclick="compareAllPresets()" style="background:#5b21b6;color:white;border:none;padding:8px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:opacity .2s;min-height:40px;">⚡ もし〜だったら？</button>
               </div>
             </div>
             <div id="chart-wrap" style="margin-top:16px;display:none;">
@@ -377,6 +403,17 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <dd style="margin-left:16px;color:#374151;">集中力が高い朝は①資格勉強・読書②副業・創作活動③運動・ストレッチ（体温が上がり代謝アップ）が適しています。メール返信・SNSチェックは後回しにし、朝のゴールデンタイムを価値の高い活動に使うことが推奨されます。</dd>
   </dl>
 </section>
+
+<section style="margin:2rem 0;padding:1.5rem;background:#f8fafc;border-radius:.75rem;border:1px solid #e2e8f0">
+<h2 style="font-size:1.05rem;font-weight:700;color:#1e293b;margin:0 0 .75rem">朝のルーティンを整えるための実践ガイド</h2>
+<p style="font-size:.9rem;line-height:1.8;color:#374151;margin:0 0 1rem">朝の過ごし方は一日の生産性・気分・集中力に大きく影響します。自分に合った朝のルーティンを設計することで、毎日をより良いスタートで始めることができます。</p>
+<ul style="font-size:.87rem;line-height:2;color:#374151;padding-left:1.2rem;margin:0 0 1rem">
+<li style="margin-bottom:.4rem">コルチゾール（ストレスホルモン）は起床後30〜60分が最もピークになり・自然な活動促進効果がある</li><li style="margin-bottom:.4rem">朝の習慣が固定化されると「意志力を使わず」に行動できるようになる（認知的負荷の削減）</li><li style="margin-bottom:.4rem">成功者の多くが早起き・朝の習慣を重視しているという調査結果が多い</li>
+</ul>
+<div style="display:grid;gap:.75rem">
+<div style="padding:.75rem;background:#fff;border-radius:.5rem;border:1px solid #e2e8f0"><p style="font-size:.85rem;font-weight:700;color:#1e293b;margin:0 0 .25rem">Q. 朝のルーティンを無理なく続けるにはどうすればよいですか？</p><p style="font-size:.83rem;color:#6b7280;margin:0;line-height:1.75">A. 朝のルーティンを継続するコツとして「最初は1〜2つの小さな習慣から始める：完璧なルーティンを一気に作ろうとすると挫折しやすい」「睡眠時間を確保する：起きる時間を早くするより先に「就寝時間を早める」ことが重要」「前夜の準備を習慣化する：翌朝の服・持ち物・朝食の準備を前日夜にやっておく（朝の判断コストを減らす）」「最初の7日間を乗り越える：新しい習慣は最初の1週間が最も難しい・小さな成功体験を積み重ねる」があります。</p></div><div style="padding:.75rem;background:#fff;border-radius:.5rem;border:1px solid #e2e8f0"><p style="font-size:.85rem;font-weight:700;color:#1e293b;margin:0 0 .25rem">Q. 朝の運動と夜の運動、どちらが効果的ですか？</p><p style="font-size:.83rem;color:#6b7280;margin:0;line-height:1.75">A. 朝と夜の運動の違いと選び方として「朝の運動：目覚めが促進される・代謝が上がる・気分改善効果がある・1日の達成感が生まれる。ただし空腹・体温が低い状態のため、ウォームアップを十分に行う必要がある」「夜の運動：仕事後のストレス発散に向く・筋力トレーニングは夕方〜夜が筋肉のパフォーマンスが高い・就寝直前は交感神経が刺激され眠れない場合がある（就寝2時間前までに終わらせる）」があります。継続できる方が結局最も効果的なため、自分のライフスタイルに合う時間帯を選ぶことが最重要です。</p></div><div style="padding:.75rem;background:#fff;border-radius:.5rem;border:1px solid #e2e8f0"><p style="font-size:.85rem;font-weight:700;color:#1e293b;margin:0 0 .25rem">Q. スマートフォンを朝一番に見る習慣をやめるコツは？</p><p style="font-size:.83rem;color:#6b7280;margin:0;line-height:1.75">A. スマホの朝一番チェックをやめるコツとして「スマートフォンを寝室に持ち込まない：別室に充電する・目覚まし時計は専用の置時計を使う」「「スクリーンタイム」機能で朝7〜9時は通知をオフにする」「起床直後にまずやることを決めておく：水を飲む・ストレッチ・深呼吸等でスマホよりも先に身体を動かす」「最初の30分は「インプットなし」を徹底する：朝の集中力がある時間をSNS・ニュースで消費しない」があります。スマホを見てしまう衝動は強いため「環境を変える（届かない場所に置く）」方法が最も効果的です。</p></div>
+</div>
+</section>
 </main>
 
     
@@ -415,8 +452,12 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         inp.addEventListener('keydown', e => { if (e.key === 'Enter') calculate(); });
       });
 
-      document.getElementById('wake-time').addEventListener('change', () => validate());
-      document.getElementById('leave-time').addEventListener('change', () => validate());
+      document.getElementById('wake-time').addEventListener('change', () => { validate(); updateTimeBudget(); });
+      document.getElementById('leave-time').addEventListener('change', () => { validate(); updateTimeBudget(); });
+      document.querySelectorAll('input[id^="ck-"]').forEach(function(ck) {
+        ck.addEventListener('change', updateTimeBudget);
+      });
+      setTimeout(updateTimeBudget, 150);
     });
 
     let comparisonData = [];
@@ -466,6 +507,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         document.getElementById('wake-time').value = preset.wake;
         document.getElementById('leave-time').value = preset.leave;
         localStorage.setItem('lastPreset', type);
+        updateTimeBudget();
         calculate();
       }
     }
@@ -512,6 +554,19 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
       const usedMin = selected.reduce((s, t) => s + t.min, 0) + prep.min;
       const freeMin = totalMin - usedMin;
+
+      // M2: 残り時間インジケーター更新
+      const timeBudget = document.getElementById('time-budget');
+      if (timeBudget) {
+        timeBudget.style.display = 'block';
+        if (freeMin < 0) {
+          timeBudget.textContent = `⚠️ タスク合計が ${Math.abs(freeMin)} 分オーバーしています！タスクを減らしてください。`;
+          timeBudget.className = 'over';
+        } else {
+          timeBudget.textContent = `✅ 余裕時間: ${freeMin} 分（タスク計 ${usedMin} 分 / 合計 ${totalMin} 分）`;
+          timeBudget.className = '';
+        }
+      }
 
       // タイムテーブル生成
       let cursor = wakeMin;
@@ -755,6 +810,49 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       compWrap.innerHTML = compHtml;
     }
 
+    // M7: 3パターン一括シミュレーション比較
+    function compareAllPresets() {
+      comparisonData = [];
+      const origWake = document.getElementById('wake-time').value;
+      const origLeave = document.getElementById('leave-time').value;
+
+      const presetOrder = [
+        { key: 'early', label: '🌅 早起き (5:30-8:00)' },
+        { key: 'normal', label: '⭐ 通常 (6:30-8:30)' },
+        { key: 'late', label: '🌤️ 遅起き (7:30-9:00)' }
+      ];
+
+      presetOrder.forEach(({ key, label }) => {
+        const preset = PRESETS[key];
+        const wakeMin = timeToMin(preset.wake);
+        const leaveMin = timeToMin(preset.leave);
+        const totalMin = leaveMin - wakeMin;
+        const taskDefs = getTaskDefs();
+        const selected = taskDefs.filter(t => document.getElementById('ck-' + t.id).checked);
+        const prep = { min: 10 };
+        const usedMin = selected.reduce((s, t) => s + t.min, 0) + prep.min;
+        const freeMin = totalMin - usedMin;
+        let scoreText;
+        if (freeMin < 0) scoreText = '⚠️ 時間が足りません！';
+        else if (freeMin <= 5) scoreText = '😅 かなりタイト';
+        else if (freeMin <= 15) scoreText = '👍 無理のない';
+        else scoreText = '😌 余裕あり';
+        comparisonData.push({ timestamp: label, wakeVal: preset.wake, leaveVal: preset.leave, selected: selected.map(s => s.id), totalMin, usedMin, freeMin: Math.max(0, freeMin), scoreText });
+      });
+
+      // 元の入力値を復元
+      document.getElementById('wake-time').value = origWake;
+      document.getElementById('leave-time').value = origLeave;
+
+      // 結果エリアと比較テーブルを表示
+      document.getElementById('result').classList.add('show');
+      document.getElementById('chart-wrap').style.display = 'block';
+      const compWrap = document.getElementById('comparison-wrap');
+      compWrap.style.display = 'block';
+      showComparison();
+      compWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
     function copyResult() {
       if (!window.lastResult) { alert('まず結果を生成してください'); return; }
       const { wakeVal, leaveVal, rows } = window.lastResult;
@@ -787,6 +885,109 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         btn.textContent = '✅ URLコピー！';
         setTimeout(() => { btn.textContent = orig; }, 2000);
       }).catch(() => alert('コピーに失敗しました'));
+    }
+
+    // M2: 残り時間インジケーター更新
+    function updateTimeBudget() {
+      var wakeVal = document.getElementById('wake-time').value;
+      var leaveVal = document.getElementById('leave-time').value;
+      var budget = document.getElementById('time-budget');
+      if (!budget) return;
+      if (!wakeVal || !leaveVal) { budget.style.display = 'none'; return; }
+      var wakeMin = timeToMin(wakeVal);
+      var leaveMin = timeToMin(leaveVal);
+      if (leaveMin <= wakeMin) { budget.style.display = 'none'; return; }
+      var totalMin = leaveMin - wakeMin;
+      var taskDefs = getTaskDefs();
+      var selected = taskDefs.filter(function(t) { return document.getElementById('ck-' + t.id).checked; });
+      var usedMin = selected.reduce(function(s, t) { return s + t.min; }, 0) + 10;
+      var remaining = totalMin - usedMin;
+      budget.style.display = 'block';
+      if (remaining < 0) {
+        budget.className = 'over';
+        budget.textContent = '⚠️ タスク時間が' + Math.abs(remaining) + '分超過しています。タスクを減らすか時間を短縮してください。';
+      } else {
+        budget.className = '';
+        budget.textContent = '⏱ 使用可能: ' + totalMin + '分 ／ タスク計: ' + usedMin + '分 ／ 残り余裕: ' + remaining + '分';
+      }
+    }
+
+    // M7: 3プリセット一括比較シミュレーション（「もし〜だったら？」）
+    function compareAllPresets() {
+      var presetList = [
+        { key: 'early', label: '🌅 早起き', wake: '05:30', leave: '08:00' },
+        { key: 'normal', label: '⭐ 通常', wake: '06:30', leave: '08:30' },
+        { key: 'late', label: '🌤️ 遅起き', wake: '07:30', leave: '09:00' }
+      ];
+      var taskDefs = getTaskDefs();
+      var selected = taskDefs.filter(function(t) { return document.getElementById('ck-' + t.id).checked; });
+      var prepMin = 10;
+      var results = presetList.map(function(p) {
+        var wm = timeToMin(p.wake);
+        var lm = timeToMin(p.leave);
+        var totalMin = lm - wm;
+        var usedMin = selected.reduce(function(s, t) { return s + t.min; }, 0) + prepMin;
+        var freeMin = totalMin - usedMin;
+        var scoreText, scoreColor;
+        if (freeMin < 0) { scoreText = '⚠️ 時間不足'; scoreColor = '#dc2626'; }
+        else if (freeMin <= 5) { scoreText = '😅 かなりタイト'; scoreColor = '#ea580c'; }
+        else if (freeMin <= 15) { scoreText = '👍 無理なし'; scoreColor = '#16a34a'; }
+        else { scoreText = '😌 余裕あり'; scoreColor = '#7c3aed'; }
+        return { key: p.key, label: p.label, wake: p.wake, leave: p.leave, totalMin: totalMin, usedMin: usedMin, freeMin: Math.max(0, freeMin), scoreText: scoreText, scoreColor: scoreColor };
+      });
+      var cards = results.map(function(r) {
+        return '<div style="background:#fff;border:2px solid ' + r.scoreColor + '33;border-radius:10px;padding:12px;text-align:center;">' +
+          '<div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:4px;">' + r.label + '</div>' +
+          '<div style="font-size:11px;color:#888;margin-bottom:8px;">' + r.wake + ' → ' + r.leave + '</div>' +
+          '<div style="font-size:11px;color:#555;line-height:2;">' +
+          '総時間 <strong>' + r.totalMin + '分</strong><br>' +
+          'タスク <strong>' + r.usedMin + '分</strong><br>' +
+          '<span style="color:' + (r.freeMin > 0 ? '#16a34a' : '#dc2626') + ';">余裕 <strong>' + r.freeMin + '分</strong></span>' +
+          '</div>' +
+          '<div style="margin-top:8px;font-size:11px;font-weight:600;color:' + r.scoreColor + ';">' + r.scoreText + '</div>' +
+          '<button onclick="applyPreset(\'' + r.key + '\')" style="margin-top:8px;background:' + r.scoreColor + ';color:white;border:none;padding:6px 10px;border-radius:6px;font-size:11px;cursor:pointer;width:100%;font-weight:600;">このパターンを適用</button>' +
+          '</div>';
+      }).join('');
+      var html = '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-top:12px;">' +
+        '<h3 style="margin:0 0 8px;font-size:14px;font-weight:700;color:#374151;">⚡ もし〜だったら？ 3パターン一括比較</h3>' +
+        '<p style="font-size:12px;color:#666;margin:0 0 12px;">現在のタスク設定で3プリセットを比較します</p>' +
+        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">' + cards + '</div>' +
+        '</div>';
+      var wrap = document.getElementById('preset-compare-wrap');
+      if (!wrap) {
+        wrap = document.createElement('div');
+        wrap.id = 'preset-compare-wrap';
+        var timetable = document.getElementById('timetable-wrap');
+        timetable.parentNode.insertBefore(wrap, timetable.nextSibling);
+      }
+      wrap.innerHTML = html;
+      wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    // M10: 印刷機能
+    function printResult() {
+      if (!window.lastResult) { alert('まず結果を生成してください'); return; }
+      window.print();
+    }
+
+    // M10: CSVダウンロード（BOM付きUTF-8でExcel対応）
+    function downloadCSV() {
+      if (!window.lastResult) { alert('まず結果を生成してください'); return; }
+      const { wakeVal, leaveVal, rows } = window.lastResult;
+      const bom = '﻿';
+      const header = '時刻,タスク,時間（分）\n';
+      const meta = `起床時刻,${wakeVal}\n出発時刻,${leaveVal}\n\n`;
+      const body = rows.map(r => `"${r.time}","${r.task}","${r.dur > 0 ? r.dur : ''}"`).join('\n');
+      const csv = bom + meta + header + body;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `朝ルーティン_${wakeVal.replace(':', '')}-${leaveVal.replace(':', '')}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -822,11 +1023,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <div style="margin:1.5rem auto;max-width:760px;padding:0 1rem">
 <div style="background:white;border-radius:16px;padding:1.5rem;box-shadow:0 4px 20px rgba(0,0,0,.08)">
 <h2 style="font-size:1.05rem;font-weight:700;margin:0 0 1rem;border-left:4px solid #4f46e5;padding-left:10px;color:#1e293b">よくある質問（詳細）</h2>
-
-
-
-
-
+<div style="margin-top:12px;display:flex;flex-direction:column;gap:12px">
+<div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px"><p style="font-weight:600;color:#1e293b;margin:0 0 6px">Q. 効果的な朝のルーティンを作るための手順は？</p><p style="font-size:.875rem;color:#475569;line-height:1.8;margin:0">効果的な朝のルーティンを作るポイントとして「前日夜に翌朝の準備をする（服・荷物・朝食の材料）」「起床時間を一定にする（休日も±1時間以内）」「最初の30分は何をするか決めておく（スマートフォンを見ない・水を飲む・軽い運動等）」「やりたいことリストから朝に向いているもの（読書・学習・運動）を選ぶ」があります。最初から完璧なルーティンを作ろうとせず、1〜2個の習慣から始めて徐々に追加することが継続のコツです。「絶対やること」と「できればやること」を分けて考えると柔軟に対応できます。</p></div>
+<div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px"><p style="font-weight:600;color:#1e293b;margin:0 0 6px">Q. 朝型と夜型、生活リズムを変えることはできますか？</p><p style="font-size:.875rem;color:#475569;line-height:1.8;margin:0">人の睡眠リズム（クロノタイプ）は遺伝的な要素も強く、「完全に変える」のは難しいとされていますが、「少しずつずらす」ことは可能です。朝型にシフトする方法として「就寝時間を15〜30分ずつ早める（急な変更は逆効果）」「朝起きたら太陽光を浴びる（体内時計のリセット）」「夜のブルーライト（スマートフォン・PC）を就寝2時間前から控える」「夜食の習慣を減らす」があります。ただし夜型の人が無理に朝型にしようとするとパフォーマンスが下がる場合もあるため、自分の生活スタイルに合ったリズムを見つけることも大切です。</p></div>
+</div>
 </div>
 </div>
 <!-- r31-tool-notice -->
@@ -911,9 +1111,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 })();
 </script>
 <!-- r31-cookie-banner -->
-<div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
-<div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.9rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
+<div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#93c5fd;text-decoration:underline;font-weight:600;font-size:.9rem">プライバシーポリシー</a>をご確認ください。</div>
+<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.75rem 2rem;border-radius:.5rem;font-size:1rem;font-weight:700;cursor:pointer;white-space:nowrap;min-height:48px">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 <script src="/assets/consent-mode.js"></script>
