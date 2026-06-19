@@ -742,8 +742,27 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
+
+/* V1: ナビゲーション過密化対策 */
+@media (max-width: 540px) {
+  .nav-font-select { display: none; }
+  .nav-menu { gap: 0.3rem; }
+  .nav-menu a { padding: 0.4rem 0.6rem; font-size: 0.875rem; }
+  .nav-menu .form-input { font-size: 0.875rem; padding: 0.4rem 0.5rem; }
+  .theme-toggle-btn { width: 36px; height: 36px; font-size: 1rem; }
+}
+
+/* V3: フィーチャーカード折り返し - 小画面で2列グリッド */
+@media (max-width: 480px) {
+  .welcome-section .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .welcome-section .stat-card {
+    padding: 1rem;
+  }
+}
 </style>
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"本の森 - 読書進捗トラッカー | プレミアムデザイン","url":"https://appadaycreator.com/book-forest/","description":"洗練されたデザインと優れたUXを備えた読書管理アプリ。グラデーション、アニメーション、レスポンシブデザインを駆使した高品質なインターフェース。","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"aggregateRating":{"@type":"AggregateRating","ratingValue":"4.7","reviewCount":"67","bestRating":"5","worstRating":"1"},"applicationCategory":"UtilityApplication"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"本の森 - 読書進捗トラッカー | プレミアムデザイン","url":"https://appadaycreator.com/book-forest/","description":"洗練されたデザインと優れたUXを備えた読書管理アプリ。グラデーション、アニメーション、レスポンシブデザインを駆使した高品質なインターフェース。","operatingSystem":"Any","offers":{"@type":"Offer","price":"0","priceCurrency":"JPY"},"aggregateRating":{"@type":"AggregateRating","ratingValue":"4.7","reviewCount":"67","bestRating":"5","worstRating":"1"},"applicationCategory":"UtilityApplication"}</script>
     <meta name="twitter:image" content="https://appadaycreator.com/book-forest/ogp.png">
 <meta name="twitter:description" content="読んだ本・読みたい本をリスト管理。読書進捗・感想を記録できる無料の読書管理アプリ。登録不要。" />
     <script type="application/ld+json">{"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [{"@type": "ListItem", "position": 1, "name": "ホーム", "item": "https://appadaycreator.com/"}, {"@type": "ListItem", "position": 2, "name": "本の森 - 読書進捗トラッカー | プレミアムデザイン", "item": "https://appadaycreator.com/book-forest/"}]}</script>
@@ -828,7 +847,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                 <option value="en">English</option>
                             </select>
                         </li>
-                        <li>
+                        <li class="nav-font-select">
                             <select v-model="fontSize" @change="changeFontSize" class="form-input" style="width: auto; padding: 0.5rem;">
                                 <option value="xs">極小</option>
                                 <option value="sm">小</option>
@@ -864,8 +883,9 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     <p style="font-size: 1.2rem; color: var(--light-text); margin-bottom: 2rem;">
                         {{ t('welcomeMessage') }}
                     </p>
-                    <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
-                        <button @click="guestLogin" class="btn btn-primary">{{ t('startNow') }}</button>
+                    <!-- V2: CTAボタンのタップ領域拡大 -->
+                    <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin: 1.5rem 0;">
+                        <button @click="guestLogin" class="btn btn-primary" style="padding: 1rem 2.5rem; font-size: 1.125rem; min-width: 240px; min-height: 56px; border-radius: 12px; box-shadow: 0 4px 16px rgba(74,124,46,0.35);">{{ t('startNow') }}</button>
                     </div>
                 </div>
                 
@@ -1409,27 +1429,46 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 <h3 style="color: var(--primary-color); margin-bottom: 1rem;">{{ updateBook.title }}</h3>
                 
                 <form @submit.prevent="saveProgress">
+                    <!-- M2: 進捗更新バリデーションエラー表示 -->
+                    <div v-if="updateBookError" style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px;margin-bottom:12px;color:#dc2626;font-size:0.875rem;">
+                        ⚠️ {{ updateBookError }}
+                    </div>
                     <div class="form-group">
-                        <label class="form-label">{{ t('currentPage') }}</label>
-                        <input type="number" v-model.number="updateBook.currentPage" min="0" :max="updateBook.totalPages" required class="form-input">
-                        <p style="margin-top: 0.5rem; color: var(--light-text);">
-                            {{ t('totalPages') }}: {{ updateBook.totalPages }}
+                        <!-- M2: 必須マーカー・placeholder・進捗リアルタイム表示 -->
+                        <label class="form-label">{{ t('currentPage') }} <span style="color:#ef4444;font-size:0.75rem;">必須</span></label>
+                        <input type="number" v-model.number="updateBook.currentPage" min="0" :max="updateBook.totalPages" required class="form-input"
+                               :placeholder="'0〜' + updateBook.totalPages"
+                               :title="'現在読み終わったページ数（最大 ' + updateBook.totalPages + ' ページ）'"
+                               aria-describedby="upd-page-hint">
+                        <p id="upd-page-hint" style="margin-top:4px;font-size:0.75rem;color:#6b7280;">
+                            <span v-if="updateBook.currentPage > 0 && updateBook.totalPages > 0">
+                                進捗: <strong style="color:var(--primary-color)">{{ Math.round((updateBook.currentPage / updateBook.totalPages) * 100) }}%</strong>（残り {{ updateBook.totalPages - updateBook.currentPage }} ページ）
+                            </span>
+                            <span v-else>全体: {{ updateBook.totalPages }} ページ</span>
                         </p>
                     </div>
-                    
+
                     <div class="form-group">
                         <label class="form-label">{{ t('readingTime') }} ({{ t('minutes') }})</label>
-                        <input type="number" v-model="readingTime" min="1" class="form-input">
+                        <input type="number" v-model="readingTime" min="1" max="480" class="form-input"
+                               placeholder="例：30"
+                               title="今回の読書時間（分）"
+                               aria-describedby="upd-time-hint">
+                        <p id="upd-time-hint" style="font-size:0.75rem;color:#6b7280;margin-top:4px;">今日読んだ時間（分単位）。1回30〜60分が目安です</p>
                     </div>
-                    
+
                     <div class="form-group">
                         <label class="form-label">{{ t('memo') }}</label>
-                        <textarea v-model="readingMemo" rows="3" class="form-input"></textarea>
+                        <textarea v-model="readingMemo" rows="3" class="form-input"
+                                  placeholder="気づきや感想をメモしましょう…"
+                                  title="読書メモ・感想（任意）"></textarea>
                     </div>
-                    
+
                     <div class="form-group">
                         <label class="form-label">{{ t('favoriteQuote') }}</label>
-                        <textarea v-model="favoriteQuote" rows="2" class="form-input"></textarea>
+                        <textarea v-model="favoriteQuote" rows="2" class="form-input"
+                                  placeholder="印象に残ったフレーズや名言…"
+                                  title="お気に入りの引用（任意）"></textarea>
                     </div>
                     
                     <div v-if="updateBook.currentPage == updateBook.totalPages" class="form-group">
@@ -1443,7 +1482,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     
                     <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
                         <button type="submit" class="btn btn-primary">{{ t('save') }}</button>
-                        <button type="button" @click="showUpdateModal = false" class="btn btn-secondary">{{ t('cancel') }}</button>
+                        <button type="button" @click="showUpdateModal = false; updateBookError = ''" class="btn btn-secondary">{{ t('cancel') }}</button>
                     </div>
                 </form>
             </div>
@@ -1711,7 +1750,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     suggestedReadingTime: '30分',
                     challenges: [],
                     earnedBadges: [],
-                    addBookError: ''
+                    addBookError: '',
+                    updateBookError: ''
                 };
             },
             
@@ -2033,8 +2073,18 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 },
                 
                 async saveProgress() {
+                    // M2: バリデーション
+                    this.updateBookError = '';
                     const currentPage = Number(this.updateBook.currentPage);
                     const totalPages = Number(this.updateBook.totalPages);
+                    if (isNaN(currentPage) || currentPage < 0) {
+                        this.updateBookError = '現在のページ数を正しく入力してください';
+                        return;
+                    }
+                    if (currentPage > totalPages) {
+                        this.updateBookError = '現在のページ数が総ページ数（' + totalPages + 'ページ）を超えています';
+                        return;
+                    }
                     const progress = Math.round((currentPage / totalPages) * 100);
                     const updates = {
                         current_page: currentPage,
@@ -2092,6 +2142,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     this.updateBook = null;
                     this.readingMemo = '';
                     this.favoriteQuote = '';
+                    this.updateBookError = '';
                     this.updateStats();
                 },
                 
@@ -2656,8 +2707,6 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
 })();
 </script>
 
-<!-- AF_PLACEHOLDER: Kindle Unlimited (No.110) - リンク未取得 -->
-
 <div style="border-top:1px solid #e5e7eb;padding:14px 16px 18px;background:#fff;">
   <p style="text-align:center;font-size:11px;font-weight:600;color:#94a3b8;margin:0 0 10px;">スポンサーリンク</p>
   <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:700px;margin:0 auto;">
@@ -2717,6 +2766,7 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
             </div>
 <img border="0" width="1" height="1" src="https://www18.a8.net/0.gif?a8mat=4B3WJ6+39Y54A+5F3W+5YJRM" alt="" loading="lazy">
 <p style="text-align:center;font-size:10px;color:#9ca3af;margin-top:4px;">最終更新: 2026年5月 | 本サービスはアフィリエイト広告（A8.net/Amazon）を掲載しています</p>
+<section style="padding:16px;background:#f0f4ff;margin:16px 0;border-radius:8px;"><h2 style="font-size:1.1em;margin-bottom:8px;">関連コンテンツ</h2><p style="margin:0">他の無料ツールも合わせてご活用ください。<a href="https://appadaycreator.com/" style="color:#4f46e5">ツール一覧を見る →</a></p></section>
 </footer>
 </body>
 </html>
