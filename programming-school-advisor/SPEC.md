@@ -3,8 +3,8 @@
 ## 概要
 
 **サービス名**: Programming School Advisor
-**バージョン**: 1.5.1
-**更新日**: 2026-06-19
+**バージョン**: 1.5.2
+**更新日**: 2026-06-20
 **URL**: https://appadaycreator.com/programming-school-advisor/
 
 目的・予算・学習スタイルから最適なプログラミングスクールを無料診断。未経験者・転職希望者対応。
