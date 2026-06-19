@@ -203,9 +203,9 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
       </div>
     </div>
     <div id="questionContainer"></div>
-    <div class="flex gap-3 mt-4">
-      <button id="backBtn" onclick="prevQ()" class="hidden flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-3 rounded-xl transition-colors" aria-label="← 戻る">← 戻る</button>
-      <button onclick="nextQ()" class="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl transition-colors" aria-label="次へ →">次へ →</button>
+    <div class="flex gap-3 mt-8 pt-4 border-t border-gray-200" style="position:sticky;bottom:80px;background:#fff;z-index:1000;padding-bottom:1rem">
+      <button id="backBtn" onclick="prevQ()" class="hidden flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-4 rounded-xl transition-colors shadow-md" aria-label="← 戻る" title="前の質問に戻ります" style="min-height:52px">← 戻る</button>
+      <button onclick="nextQ()" class="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-bold py-4 rounded-xl transition-colors shadow-lg" aria-label="次へ →" title="選択した内容で次へ進みます" style="min-height:52px">次へ →</button>
     </div>
   </div>
 
@@ -326,11 +326,11 @@ window.addEventListener('unhandledrejection',function(e){console.warn('Rejection
         </div>
       </div>
 
-      <div class="flex gap-3">
-        <button onclick="restart()" class="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 rounded-xl transition-colors">
+      <div class="flex gap-3 mt-6 pt-6 border-t border-gray-200" style="position:sticky;bottom:80px;background:#fff;z-index:1000;">
+        <button onclick="restart()" class="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-bold py-4 rounded-xl transition-colors shadow-lg" style="min-height:52px">
           🔄 もう一度診断する
         </button>
-        <button onclick="copyResultURL()" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl transition-colors">
+        <button onclick="copyResultURL()" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 rounded-xl transition-colors shadow-lg" style="min-height:52px">
           🔗 結果をシェア
         </button>
       </div>
@@ -395,26 +395,51 @@ function renderQ() {
   if (q.multi) {
     document.getElementById('questionContainer').innerHTML = `
       <h2 class="text-lg font-bold text-gray-800 mb-4">${q.q}</h2>
-      <p class="text-xs text-gray-500 mb-3">💡 複数選択できます</p>
+      <p class="text-xs text-gray-500 mb-3">💡 複数選択できます（予定されているアクティビティを選んでください）</p>
       <div class="space-y-2">
-        ${q.opts.map((opt, i) => `
+        ${q.opts.map((opt, i) => {
+          const tooltips = {
+            0: '観光地・レストラン・ショッピング中心の旅行',
+            1: '軽いハイキング・山道ウォーキング',
+            2: 'スノーケリング・スキューバダイビング・サーフィン',
+            3: 'スキー・スノーボード',
+            4: 'バンジージャンプ・高所登山（8,000m級）・ロッククライミング等の高リスク活動'
+          };
+          return `
           <label class="flex items-center p-4 rounded-xl border-3 cursor-pointer transition-all min-h-14 select-none
-            ${Array.isArray(answers[q.id]) && answers[q.id].includes(i) ? 'border-sky-600 bg-sky-100 shadow-md' : 'border-gray-300 bg-white hover:border-sky-400'}">
+            ${Array.isArray(answers[q.id]) && answers[q.id].includes(i) ? 'border-sky-600 bg-sky-100 shadow-md' : 'border-gray-300 bg-white hover:border-sky-400'}"
+            title="${tooltips[i] || ''}">
             <input type="checkbox" onchange="selectMulti(${i})" ${Array.isArray(answers[q.id]) && answers[q.id].includes(i) ? 'checked' : ''}
               class="w-6 h-6 rounded border-sky-400 text-sky-700 cursor-pointer flex-shrink-0">
             <span class="ml-4 text-sm font-medium leading-tight ${Array.isArray(answers[q.id]) && answers[q.id].includes(i) ? 'text-sky-800' : 'text-gray-700'}">${opt}</span>
-          </label>`).join('')}
+          </label>`;
+        }).join('')}
       </div>`;
   } else {
     document.getElementById('questionContainer').innerHTML = `
       <h2 class="text-lg font-bold text-gray-800 mb-4">${q.q}</h2>
       <div class="space-y-2">
-        ${q.opts.map((opt, i) => `
+        ${q.opts.map((opt, i) => {
+          const tooltips = {
+            'dest': ['タイ・ベトナム・インドネシアなど医療費が比較的安い地域', 'チェックイン時間・ビザ取得などの手続きが簡単', 'ヨーロッパは医療水準が高く補償額は中程度', 'アメリカは医療費が極めて高い（最優先）', 'オーストラリア・ニュージーランドは医療費が高い', 'スポーツ・冒険が多く、医療費が不測'],
+            'days': ['出張・ハネムーン向け。短期でも医療リスクは同じ', '標準的な海外旅行。補償額は中程度がおすすめ', '長めの旅行。補償額は手厚くしましょう', 'ビジネス駐在や一般向け長期滞在', '留学・就労・長期滞在。専用保険が必要な場合あり'],
+            'purpose': ['旅行保険が最もスタンダード', 'ビジネス特約の確認が重要', 'カテゴリー型長期保険（留学・ワーホリ向け）', '新婚旅行はキャンセル補償が推奨', '一人旅は盗難・置き引きリスクが高い', 'スキー・ダイビング等は特約加入が必須'],
+            'companion': ['盗難・置き引きリスク・言語対応が重要', 'パートナーも同じ補償内容を確認', '子どもの医療費・託児サービス確認が重要', 'グループで連絡体制を作るのがおすすめ'],
+            'cardInsurance': ['付帯保険がない場合は単体保険が必須', '補償額を確認してから判断してください', 'カード会社に問い合わせて確認してください'],
+            'cardAmount': ['非常に低い。単体保険の加入を強く推奨', '海外出張程度。長期旅行には不足', '個別判断が必要。確認してください', 'カード会社に問い合わせて確認'],
+            'preExisting': ['健康な状態。標準的な保険で対応可', '高血圧や糖尿病。別途確認が必要', '重度の持病。既往症対応保険を検討', '妊娠・手術後。専用保険の検討が必須'],
+            'luggage': ['標準的な補償でOK', 'カメラ・ノートPC等の補償確認が重要', 'ブランド品・高額機材。補償額上限確認', '非常に高額。個別加入を検討すべき']
+          };
+          const key = q.id === 'dest' ? 'dest' : q.id === 'days' ? 'days' : q.id === 'purpose' ? 'purpose' : q.id === 'companion' ? 'companion' : q.id === 'cardInsurance' ? 'cardInsurance' : q.id === 'cardAmount' ? 'cardAmount' : q.id === 'preExisting' ? 'preExisting' : q.id === 'luggage' ? 'luggage' : '';
+          const tooltip = tooltips[key] ? tooltips[key][i] || opt : opt;
+          return `
           <button onclick="selectOpt(${i})" data-opt="${i}"
             class="w-full text-left px-4 py-4 rounded-xl border-2 text-sm font-medium transition-all
-            ${answers[q.id] === i ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-gray-200 bg-gray-50 hover:border-sky-300 text-gray-700'}">
+            ${answers[q.id] === i ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-gray-200 bg-gray-50 hover:border-sky-300 text-gray-700'}"
+            title="${tooltip}">
             ${opt}
-          </button>`).join('')}
+          </button>`;
+        }).join('')}
       </div>`;
   }
 }
@@ -906,11 +931,10 @@ if (params.has('result')) {
 <div style="margin:1.5rem auto;max-width:760px;padding:0 1rem">
 <div style="background:white;border-radius:16px;padding:1.5rem;box-shadow:0 4px 20px rgba(0,0,0,.08)">
 <h2 style="font-size:1.05rem;font-weight:700;margin:0 0 1rem;border-left:4px solid #4f46e5;padding-left:10px;color:#1e293b">よくある質問（詳細）</h2>
-
-
-
-
-
+<div style="margin-top:12px;display:flex;flex-direction:column;gap:12px">
+<div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px"><p style="font-weight:600;color:#1e293b;margin:0 0 6px">Q. 旅行保険のキャンセル補償はどのような場合に使えますか？</p><p style="font-size:.875rem;color:#475569;line-height:1.8;margin:0">旅行保険のキャンセル補償（旅行キャンセル費用保険）が適用される主なケースとして「本人・家族の急病・怪我（医師の診断書が必要）」「親族の死亡・危篤」「自然災害による交通機関の運休」「盗難によるパスポート・ビザの紛失」があります。一方で「気が変わった・予定が合わなくなった」などの個人的な都合はカバーされません。補償の対象費用はツアー代金・航空券・ホテルのキャンセル料で、申請には「キャンセル理由の証明書類（診断書・公的書類等）」が必要です。旅行の計画段階からキャンセル補償付きの保険に加入することをおすすめします。</p></div>
+<div style="border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px"><p style="font-weight:600;color:#1e293b;margin:0 0 6px">Q. 旅行保険に加入しなかった場合に起こりうるリスクは？</p><p style="font-size:.875rem;color:#475569;line-height:1.8;margin:0">旅行保険未加入時の主なリスクとして「海外での病気・怪我：アメリカでは入院・手術で数百万〜数千万円の医療費が請求されるケースがある」「旅行中の携行品盗難・破損：スーツケース・カメラ・スマートフォンの被害は全額自己負担になる」「第三者への損害賠償：過失で他人に怪我をさせた・ホテルの設備を壊した等の賠償も保険なしでは全額自己負担」「緊急帰国・搬送費用：急病や肉親の危篤により緊急帰国が必要になった場合に数十万円かかることがある」があります。年間型の旅行保険・クレジットカード付帯保険を活用することで、追加コストを抑えながら補償を得られます。</p></div>
+</div>
 </div>
 </div>
 <!-- r31-tool-notice -->
@@ -1045,9 +1069,12 @@ if (params.has('result')) {
 </div>
 <h2 id="faq-h" style="font-size:1.05rem;font-weight:700;margin-bottom:12px;border-left:4px solid #4f46e5;padding-left:10px;">よくある質問</h2>
   <dl style="line-height:1.8;">
-    
-    
-    
+    <dt style="font-weight:600;color:#1e293b;padding:8px 0 4px">Q. 旅行保険はいつ・どこで申し込むのがベストですか？</dt>
+    <dd style="font-size:.875rem;color:#475569;margin:0 0 12px;padding-left:12px;line-height:1.8">旅行保険の申し込みタイミングとして「出発前日まで（多くの会社でウェブからの申し込みが可能）」「空港でも当日購入できる（価格は割高になることが多い）」「クレジットカード付帯保険は使用条件（旅行費用のカード決済が必要な場合が多い）」を確認する必要があります。申し込み方法として「旅行会社（パッケージツアー時）」「保険会社の直接申し込み（ウェブ・電話）」「コンビニ（短期・国内向け）」「空港カウンター」があります。クレジットカードの付帯保険は「旅費を対象カードで支払った場合のみ有効」「家族の補償範囲」を事前に確認することが重要です。</dd>
+    <dt style="font-weight:600;color:#1e293b;padding:8px 0 4px">Q. 海外旅行での医療費はどれくらいかかりますか？</dt>
+    <dd style="font-size:.875rem;color:#475569;margin:0 0 12px;padding-left:12px;line-height:1.8">海外での医療費の相場として「アメリカ：盲腸手術で200〜500万円・入院1日10〜30万円程度」「ヨーロッパ：保険加入国は安価（EU圏内）・非加入国は高額になることがある」「東南アジア：日本より安いが旅行者向け病院は割高の場合がある」があります。海外旅行保険の緊急医療費補償（疾病・傷害）は最低でも1,000万円以上を推奨します。特に「循環器系疾患・骨折・食中毒」は海外旅行でよくあるトラブルで医療費が高額になりやすいです。保険があれば「キャッシュレス医療（現金立替なしで治療）」できる場合もあり、精神的・経済的な安心につながります。</dd>
+    <dt style="font-weight:600;color:#1e293b;padding:8px 0 4px">Q. 国内旅行の旅行保険は必要ですか？</dt>
+    <dd style="font-size:.875rem;color:#475569;margin:0 0 12px;padding-left:12px;line-height:1.8">国内旅行での保険の必要性について「健康保険が適用される（海外と異なり国内は健康保険で医療費の1〜3割負担）」ため、海外旅行ほど高額な医療費にはなりにくいです。ただし「交通事故・行方不明・山岳遭難の場合の捜索費用（ヘリコプター搬送は高額）」「旅行中の手荷物の盗難・破損」「キャンセル費用」は健康保険でカバーされません。クレジットカードの国内旅行保険付帯・鉄道・航空会社の旅行保険オプションを確認し、登山・スノースポーツ等のリスクが高いアクティビティの場合は専用の保険の検討をおすすめします。</dd>
   </dl>
 </section>
 <div style="background:#eef2ff;border-left:4px solid #4f46e5;border-radius:.5rem;padding:1rem 1.25rem;margin:1.5rem auto;max-width:760px;font-size:.875rem">
@@ -1073,7 +1100,7 @@ if (params.has('result')) {
 <script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
 </div>
 <!-- r31-cookie-banner -->
-<div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
+<div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:100;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
 <button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
