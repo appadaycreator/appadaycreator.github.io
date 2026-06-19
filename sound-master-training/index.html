@@ -107,6 +107,8 @@
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/css/responsive.css">
     <link rel="stylesheet" href="assets/css/theme.css">
+    <!-- M4: Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     
     <!-- PWA Support -->
             <script type="application/ld+json">
@@ -197,6 +199,14 @@ button:active,[class*=btn]:active{opacity:.75;transform:scale(.98);}
 select,input[type=text],input[type=number],input[type=email],textarea{min-height:44px;font-size:16px;}
 [id*=result]:not(style):not(script),[id*=output]:not(style):not(script){border-left:4px solid #6366f1;padding-left:16px;margin-top:16px;}
 @media(max-width:640px){[class*=max-w],[class*=container],[class*=wrapper]{padding:12px 16px!important;}button,[class*=btn]{width:100%;font-size:15px;}}
+@keyframes cta-pulse{0%,100%{box-shadow:0 6px 24px rgba(60,100,177,0.45);}50%{box-shadow:0 10px 36px rgba(60,100,177,0.65),0 0 0 8px rgba(60,100,177,0.08);transform:translateY(-2px);}}
+.hero-buttons{display:flex;flex-direction:column;align-items:center;gap:10px!important;}
+.training-options{display:flex;flex-direction:column;gap:12px!important;}
+.training-controls{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;}
+@media(max-width:640px){.training-controls{flex-direction:column;}.training-controls #playSound{width:100%;}}
+.accuracy-gauge{position:relative;width:96px;height:96px;flex-shrink:0;}
+.accuracy-gauge-val{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:1.1rem;font-weight:800;color:#1e293b;}
+.accuracy-gauge-label{font-size:0.58rem;color:#64748b;font-weight:600;margin-top:1px;}
 </style>
 </head>
 <body><a href="#main" class="sr-only">本文へスキップ</a>
@@ -303,8 +313,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 <h1>音感トレーニング<br><span class="highlight">サウンドマスター</span></h1>
                 <p class="hero-subtitle">あなたの耳を鍛える、音楽家のための聴覚トレーニングゲーム</p>
                 <div class="hero-buttons">
-                    <button id="startTraining" class="btn btn-primary" aria-label="音感トレーニングを始める">トレーニングを始める</button>
-                    <a href="how-to-use.html" class="btn btn-secondary">使い方を見る</a>
+                    <button id="startTraining" class="btn btn-primary" aria-label="音感トレーニングを始める" style="font-size:1.1rem;padding:16px 36px;min-width:220px;animation:cta-pulse 2.5s ease-in-out infinite;">🎵 トレーニングを始める</button>
+                    <a href="how-to-use.html" class="btn btn-secondary" style="font-size:0.85rem;padding:9px 20px;opacity:0.75;">使い方を見る</a>
                 </div>
             </div>
             <div class="hero-image">
@@ -499,8 +509,109 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     <p style="color:#999;font-size:0.9rem">2回以上プレイするとスコア推移グラフが表示されます</p>
                 </div>
             </div>
+            <!-- M4: Chart.js 音ごとの正答率バーチャート -->
+            <div id="noteAccuracyChartJs" style="margin-top:20px;padding:16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
+                <p style="font-size:0.85rem;font-weight:600;color:#374151;margin:0 0 8px">🎵 音ごとの正答率（単音当てモード）</p>
+                <canvas id="noteBarChart" height="180" style="width:100%;max-width:100%"></canvas>
+                <p id="noteBarChartEmpty" style="color:#999;font-size:0.85rem;text-align:center;margin:8px 0">単音当てモードをプレイすると、音ごとの正答率グラフが表示されます</p>
+            </div>
+            <!-- M4: 音ごとの正答率バーチャート（Canvas版・互換用） -->
+            <div id="noteAccuracyChart" style="margin-top:16px;padding:16px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;display:none">
+                <p style="color:#999;font-size:0.85rem;text-align:center;margin:8px 0">単音当てモードをプレイすると、音ごとの正答率グラフが表示されます</p>
+            </div>
             <p class="stats-note">トレーニングを継続して、あなたの音感の成長を記録しましょう。</p>
         </section>
+        <script>
+        /* M4: Chart.js で音ごとの正答率バーチャート初期化 */
+        (function() {
+            var NOTE_ORDER = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+            var NOTE_JA = {'C':'ド','C#':'ド♯','D':'レ','D#':'レ♯','E':'ミ','F':'ファ','F#':'ファ♯','G':'ソ','G#':'ソ♯','A':'ラ','A#':'ラ♯','B':'シ'};
+            var chartInstance = null;
+
+            function getColor(acc) {
+                if (acc >= 80) return 'rgba(34,197,94,0.8)';
+                if (acc >= 60) return 'rgba(245,158,11,0.8)';
+                return 'rgba(239,68,68,0.8)';
+            }
+
+            function initNoteChart(noteStats) {
+                var canvas = document.getElementById('noteBarChart');
+                var empty = document.getElementById('noteBarChartEmpty');
+                if (!canvas) return;
+
+                var active = NOTE_ORDER.filter(function(n) { return noteStats[n] && noteStats[n].attempts > 0; });
+                if (active.length === 0) {
+                    canvas.style.display = 'none';
+                    if (empty) empty.style.display = 'block';
+                    return;
+                }
+                canvas.style.display = 'block';
+                if (empty) empty.style.display = 'none';
+
+                var labels = active.map(function(n) { return NOTE_JA[n] || n; });
+                var accuracies = active.map(function(n) {
+                    var s = noteStats[n];
+                    return Math.round((s.correct / s.attempts) * 100);
+                });
+                var colors = accuracies.map(getColor);
+
+                if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+
+                chartInstance = new Chart(canvas, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '正答率 (%)',
+                            data: accuracies,
+                            backgroundColor: colors,
+                            borderRadius: 4,
+                            borderSkipped: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(ctx) { return ctx.parsed.y + '% 正答'; }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                ticks: { callback: function(v) { return v + '%'; }, stepSize: 25 },
+                                grid: { color: '#e5e7eb' }
+                            },
+                            x: { grid: { display: false } }
+                        }
+                    }
+                });
+            }
+
+            function loadAndRender() {
+                try {
+                    var stats = JSON.parse(localStorage.getItem('soundmaster-stats') || '{}');
+                    initNoteChart(stats.noteStats || {});
+                } catch(e) {
+                    initNoteChart({});
+                }
+            }
+
+            /* training.js が noteStats を更新したら再描画 */
+            window.refreshNoteBarChart = function(noteStats) { initNoteChart(noteStats || {}); };
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', loadAndRender);
+            } else {
+                loadAndRender();
+            }
+        })();
+        </script>
 
         <section class="recommendations-section">
             <h2>おすすめ教材・機材</h2>
@@ -1157,7 +1268,7 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1');window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 <!-- r46-org-footer -->
@@ -1165,5 +1276,77 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
   運営: <a href="https://appadaycreator.com/" style="color:#9ca3af;text-decoration:none;">AppADayCreator</a> | <a href="https://tech-and-brace.co.jp/" rel="noopener" style="color:#9ca3af;text-decoration:none;">株式会社Tech&amp;Brace</a>
 </div>
 <script src="/assets/consent-mode.js"></script>
+<!-- M4: 正答率SVGゲージ + M2: 入力バリデーション -->
+<script>
+(function(){
+    /* M4: 正答率の円形SVGゲージ */
+    function createAccuracyGauge(){
+        var section=document.querySelector('.progress-section');
+        if(!section||document.getElementById('accuracyGaugeWrap'))return;
+        var html='<div style="display:flex;align-items:center;gap:16px;margin-top:16px;padding:14px;background:#fff;border-radius:8px;border:1px solid #e2e8f0">'+
+            '<div class="accuracy-gauge" id="accuracyGaugeWrap">'+
+            '<svg viewBox="0 0 100 100" width="96" height="96">'+
+            '<circle cx="50" cy="50" r="42" fill="none" stroke="#e2e8f0" stroke-width="10"/>'+
+            '<circle id="accuracyGaugeCircle" cx="50" cy="50" r="42" fill="none" stroke="#22c55e" stroke-width="10" stroke-dasharray="264" stroke-dashoffset="264" stroke-linecap="round" transform="rotate(-90 50 50)" style="transition:stroke-dashoffset 0.6s ease,stroke 0.3s"/>'+
+            '</svg>'+
+            '<div class="accuracy-gauge-val"><span id="accuracyGaugeVal">0%</span><span class="accuracy-gauge-label">正答率</span></div>'+
+            '</div>'+
+            '<div style="flex:1"><div style="font-size:0.85rem;font-weight:700;color:#1e293b;margin-bottom:8px">🎯 セッション成績</div>'+
+            '<div id="accuracyAnalysis" style="font-size:0.78rem;color:#64748b;line-height:1.7">トレーニングを開始すると<br>リアルタイムで成績が表示されます</div></div>'+
+            '</div>';
+        section.insertAdjacentHTML('beforeend',html);
+        var sessionAccEl=document.getElementById('sessionAccuracy');
+        if(sessionAccEl){
+            var obs=new MutationObserver(function(){updateGauge(sessionAccEl.textContent||'0%');});
+            obs.observe(sessionAccEl,{childList:true,characterData:true,subtree:true});
+        }
+    }
+    function updateGauge(pctStr){
+        var pct=parseFloat(pctStr)||0;
+        var circle=document.getElementById('accuracyGaugeCircle');
+        var valEl=document.getElementById('accuracyGaugeVal');
+        var analysisEl=document.getElementById('accuracyAnalysis');
+        if(!circle||!valEl)return;
+        circle.style.strokeDashoffset=264-(pct/100)*264;
+        circle.style.stroke=pct>=80?'#22c55e':pct>=60?'#f59e0b':'#ef4444';
+        valEl.textContent=Math.round(pct)+'%';
+        if(analysisEl&&pct>0)analysisEl.textContent=pct>=80?'素晴らしい！高い正答率です ✨':pct>=60?'いい調子！継続で上達します 📈':'練習を続けましょう 💪';
+    }
+    /* M2: デフォルト値設定・バリデーション */
+    function initValidation(){
+        var mSel=document.getElementById('trainingMode');
+        var dSel=document.getElementById('difficultyLevel');
+        if(mSel&&!mSel.value)mSel.value='single-note';
+        if(dSel&&!dSel.value)dSel.value='beginner';
+        var playBtn=document.getElementById('playSound');
+        if(playBtn){
+            playBtn.addEventListener('click',function(e){
+                var mOk=mSel&&mSel.value;
+                var dOk=dSel&&dSel.value;
+                if(!mOk||!dOk){
+                    e.stopImmediatePropagation();e.preventDefault();
+                    if(!mOk&&mSel){mSel.style.borderColor='#ef4444';var e1=document.getElementById('trainingModeError');if(e1)e1.style.display='block';}
+                    if(!dOk&&dSel){dSel.style.borderColor='#ef4444';var e2=document.getElementById('difficultyLevelError');if(e2)e2.style.display='block';}
+                    if(typeof showError==='function')showError('トレーニングモードと難易度を選択してください');
+                    return false;
+                }
+            },true);
+        }
+        [mSel,dSel].forEach(function(sel,i){
+            if(!sel)return;
+            sel.addEventListener('change',function(){
+                this.style.borderColor='';
+                var el=document.getElementById(i===0?'trainingModeError':'difficultyLevelError');
+                if(el)el.style.display='none';
+            });
+        });
+    }
+    if(document.readyState==='loading'){
+        document.addEventListener('DOMContentLoaded',function(){createAccuracyGauge();initValidation();});
+    }else{
+        createAccuracyGauge();initValidation();
+    }
+})();
+</script>
 </body>
 </html>
