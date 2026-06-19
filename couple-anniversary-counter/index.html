@@ -865,9 +865,23 @@ input[type=text].border-red-500,input[type=date].border-red-500,input[type=time]
 input[type=text]:invalid:not(:placeholder-shown),input[type=date]:invalid:not(:placeholder-shown){border-color:#ef4444 !important;}
 /* Character counter styling */
 [id*=Count]{font-weight:600;color:#ec4899;}
-/* Error message styling */
-[id*=Err]:not(.hidden){color:#dc2626;font-weight:500;}
+/* Error message styling - V1: lowercase err IDs (err1/err2/errDate) もカバー */
+[id*=Err]:not(.hidden),[id^=err]:not(.hidden){color:#b91c1c;font-weight:600;font-size:0.875rem;}
 [id*=result]:not(style):not(script),[id*=output]:not(style):not(script){border-left:4px solid #7c3aed;padding-left:16px;margin-top:16px;}
+/* V1: ヒントボックスのコントラスト強化（#6d28d9→#3b0764で読みやすく） */
+.modal-content p[id$=Tip],.modal-content p[id*=Tip]{font-size:0.875rem !important;color:#3b0764 !important;font-weight:600;background:#ede9fe !important;border:1.5px solid #7c3aed !important;border-radius:8px !important;padding:8px 12px !important;}
+.modal-content p[id$=Tip] strong,.modal-content p[id*=Tip] strong{color:#2e1065 !important;font-weight:700 !important;}
+/* V2: モバイルでCTAボタンをスティッキー表示・背景で下コンテンツを隠す */
+@media (max-width: 640px) {
+  .modal-content form > button[type="submit"],.modal-content form > #anniversarySubmitBtn,.modal-content form > #memorySubmitBtn,.modal-content form > #photoSubmitBtn {
+    position:sticky; bottom:0; z-index:10;
+    box-shadow:0 -4px 16px rgba(139,92,246,0.2);
+    margin-left:-1rem; margin-right:-1rem;
+    border-radius:0 0 12px 12px;
+    padding-top:1rem; padding-bottom:calc(1rem + env(safe-area-inset-bottom, 0px));
+    background:linear-gradient(135deg,#ec4899 0%,#8b5cf6 100%) !important;
+  }
+}
 /* V3: モーダルクローズボタンの視認性向上 */
 .modal-content button.absolute{background:#fdf4ff;border:1.5px solid #e879f9;box-shadow:0 1px 4px rgba(190,24,93,.2);min-height:40px!important;}
 .modal-content button.absolute:hover{background:#fce7f3;border-color:#ec4899;}
@@ -1246,7 +1260,7 @@ body{padding-bottom:80px !important;}
         <!-- ヒーロセクション -->
         <section class="text-center mb-12 animate-slide-in">
             <h2 id="heroTitle" class="text-4xl font-bold cute-font text-purple-800 mb-4">
-                付き合って何日目？<br class="md:hidden">交際日数を毎日自動計算
+                付き合って何日目？<br class="md:hidden">記念日管理・交際日数を毎日自動計算
             </h2>
             <p id="heroSubtitle" class="text-lg text-purple-600 mb-8 max-w-2xl mx-auto">
                 カップル記念日カウンター｜交際開始日から何日目か毎日自動計算。100日・1周年・5周年・結婚記念日など大切な節目を見逃さない。思い出の写真や日記も保存でき、完全無料で登録不要。
@@ -1822,12 +1836,10 @@ body{padding-bottom:80px !important;}
                     <p id="startDateHelp" class="text-xs text-purple-500 mb-2">お付き合いを開始した日付を選択してください。この日から毎日カウントを開始します。</p>
                     <div class="relative">
                       <input type="date" id="startDateInput" class="w-full px-4 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 transition-all" required aria-describedby="startDateHelp startDateTip errDate startDatePreview" title="交際開始日を選択（初デートの日、交際開始日、プロポーズの日など記念となる日を選んでください）" onchange="validateStartDate(); updateStartDatePreview();" onblur="validateStartDate(); updateStartDatePreview();">
-                      <p id="startDateTip" class="text-xs text-purple-600 mt-1" style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:8px;padding:8px 12px;">📅 <strong class="text-purple-800">カレンダーアイコンをタップして日付を選択</strong>（例：2022年6月15日を選ぶと「○日目」を自動計算）</p>
+                      <p id="startDateTip" class="mt-2">📅 <strong>カレンダーアイコンをタップして日付を選択</strong>（例：2022年6月15日 → 今日で○○日目と自動計算）</p>
                       <span id="errDate" class="text-xs text-red-500 hidden mt-1 block" role="alert"></span>
                       <div id="startDatePreview" class="hidden text-sm text-purple-700 font-semibold mt-2 bg-pink-50 rounded-lg px-3 py-2 text-center" aria-live="polite"></div>
                     </div>
-                    <p class="text-xs text-purple-400 mt-2">💡 ヒント：初デートの日、交際を始めることになった日、プロポーズの日、結婚式の日など、二人にとって記念となる日を選んでください。</p>
-                    <p class="text-xs text-purple-500 mt-1">📅 例：2023年6月15日を選ぶと、毎日「○日目」と自動更新されます</p>
                 </div>
                 <button type="submit" class="btn-cute w-full">
                     <span class="mr-2">💾</span>設定を保存
@@ -1860,20 +1872,18 @@ body{padding-bottom:80px !important;}
                 </div>
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-purple-700 mb-2">記念日名<span class="text-red-500">*</span> <span class="ml-1 inline-block text-pink-500 cursor-help" title="記念日の名前を入力（例：初デート、プロポーズ、結婚記念日など。1～30文字）">?</span></label>
-                    <p class="text-xs text-purple-500 mb-2">どんな記念日か分かりやすく入力してください。例：初デート、プロポーズ、結婚記念日</p>
                     <div class="relative">
                       <input type="text" id="anniversaryName" placeholder="初デート記念日" class="w-full px-4 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 transition-all" required aria-label="記念日の名前" title="記念日の名前を入力（例：初デート、プロポーズ、結婚記念日、初キス、初旅行など。1～30文字）" maxlength="30" pattern="^[ぁ-ん一-龯a-zA-Z0-9\s\-\._・（）()　]*$" aria-describedby="annNameHelp annNameErr annNameInputHelp" oninput="document.getElementById('annNameCount').textContent=this.value.length+'/30'; document.getElementById('annNameErr').classList.add('hidden'); validateAnniversaryName(this);" onblur="validateAnniversaryName(this);">
                       <span class="absolute right-3 top-2 text-xs text-purple-400" id="annNameCount">0/30</span>
                     </div>
                     <span id="annNameInputHelp" class="text-xs text-purple-400 mt-1 block">📝 わかりやすい名前（30文字以内）</span>
                     <span id="annNameErr" class="text-xs text-red-500 hidden mt-1 block"></span>
-                    <p id="annNameHelp" class="text-xs text-purple-400 mt-1">💡 分かりやすい名前を付けると、思い出を振り返りやすくなります</p>
                 </div>
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-purple-700 mb-2">日付<span class="text-red-500">*</span> <span class="text-xs font-normal text-purple-400">（年 / 月 / 日）</span></label>
                     <input type="date" id="anniversaryDate" class="w-full px-4 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 transition-all" required aria-describedby="annDateTip annDateErr" title="記念日の日付を選択（毎年繰り返す記念日の場合、毎年その日がカウントされます）" onchange="validateAnniversaryDate();" onblur="validateAnniversaryDate();">
                     <span id="annDateErr" class="text-xs text-red-500 hidden mt-1 block"></span>
-                    <p id="annDateTip" class="text-xs text-purple-600 mt-2" style="background:#fdf4ff;border:1px solid #e9d5ff;border-radius:8px;padding:8px 12px;">📅 <strong class="text-purple-800">カレンダーアイコンをタップして選択</strong>（例：2022年3月14日）｜誕生日・結婚記念日は「毎年繰り返す」もオンに</p>
+                    <p id="annDateTip" class="mt-2">📅 <strong>カレンダーアイコンをタップして選択</strong>（例：2022年3月14日）｜誕生日・結婚記念日は「毎年繰り返す」もオンに</p>
                 </div>
                 <div class="mb-6 flex items-center gap-3 p-3 bg-pink-50 rounded-lg">
                     <input type="checkbox" id="anniversaryRecurring" class="w-4 h-4 accent-pink-500" aria-label="毎年繰り返す">
@@ -1902,14 +1912,12 @@ body{padding-bottom:80px !important;}
             <form id="memoryForm">
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-purple-700 mb-2">タイトル<span class="text-red-500">*</span> <span class="ml-1 inline-block text-pink-500 cursor-help" title="思い出のタイトルを入力。見返した時に思い出しやすい名前がおすすめです。1～50文字">?</span></label>
-                    <p class="text-xs text-purple-500 mb-2">思い出の内容を簡潔に表すタイトルを入力してください。20～30字程度が目安です。</p>
                     <div class="relative">
                       <input type="text" id="memoryTitle" placeholder="初めての旅行" class="w-full px-4 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 transition-all" required aria-label="思い出のタイトル" title="思い出のタイトルを入力（例：初めての旅行、記念日デート、プロポーズ、初キス、喧嘩して仲直りした日など。1～50文字）" maxlength="50" pattern="^[ぁ-ん一-龯a-zA-Z0-9\s\-\._・（）()　／/]*$" aria-describedby="memTitleHelp memTitleErr memTitleInputHelp" oninput="document.getElementById('memTitleCount').textContent=this.value.length+'/50'; document.getElementById('memTitleErr').classList.add('hidden'); validateMemoryTitle(this);" onblur="validateMemoryTitle(this);">
                       <span class="absolute right-3 top-2 text-xs text-purple-400" id="memTitleCount">0/50</span>
                     </div>
                     <span id="memTitleInputHelp" class="text-xs text-purple-400 mt-1 block">✨ 見返した時に思い出しやすいタイトル（50文字以内）</span>
                     <span id="memTitleErr" class="text-xs text-red-500 hidden mt-1 block"></span>
-                    <p id="memTitleHelp" class="text-xs text-purple-400 mt-1">💡 見返した時に思い出しやすいタイトルが良いです</p>
                 </div>
                 <div class="mb-4">
                     <label class="block text-sm font-medium text-purple-700 mb-2">日付<span class="text-red-500">*</span> <span class="ml-1 inline-block text-pink-500 cursor-help" title="思い出が起きた日付を選択。古い思い出も遡って追加できます。この日付順でタイムラインに表示されます">?</span></label>
@@ -1938,9 +1946,8 @@ body{padding-bottom:80px !important;}
                 </div>
                 <div class="mb-6">
                     <label class="block text-sm font-medium text-purple-700 mb-2">詳細（オプション）<span class="ml-1 inline-block text-pink-500 cursor-help" title="思い出の詳細を自由に記入。何をしたか、どう感じたか、どんな会話があったかなど（最大500文字）">?</span></label>
-                    <p class="text-xs text-purple-500 mb-2">何をしたか、どう感じたか、特別だった理由など、思い出を詳しく記録</p>
                     <div class="relative">
-                      <textarea id="memoryDescription" placeholder="例：初めてのデート。〇〇カフェで出会ったカップルが…（最大500文字）" class="w-full px-4 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 h-24 resize-none" aria-label="思い出の詳細" title="思い出の詳細を記入。何をしたか、どう感じたか、どんな会話があったかなど。最大500文字" maxlength="500" aria-describedby="memDescHelp"></textarea>
+                      <textarea id="memoryDescription" placeholder="例：初めてのデート。〇〇カフェで出会ったカップルが…（最大500文字）" class="w-full px-4 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 h-24 resize-none" aria-label="思い出の詳細" title="思い出の詳細を記入。何をしたか、どう感じたか、どんな会話があったかなど。最大500文字" maxlength="500" aria-describedby="memDescHelp" oninput="document.getElementById('memDescCount').textContent=this.value.length+'/500';"></textarea>
                       <span class="absolute right-3 bottom-2 text-xs text-purple-400" id="memDescCount">0/500</span>
                     </div>
                     <p id="memDescHelp" class="text-xs text-purple-400 mt-1">💡 詳しく書くほど、後で読み返した時により鮮明に思い出されます</p>
@@ -2032,7 +2039,6 @@ body{padding-bottom:80px !important;}
                       <input type="text" id="photoTitle" placeholder="初デートの思い出" class="w-full px-4 py-2 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500 transition-all" aria-label="写真のタイトル" title="写真の説明や撮影場所を記入（例：初デートの思い出、〇〇公園、プロポーズの時など。1～40文字）" maxlength="40" pattern="^[ぁ-ん一-龯a-zA-Z0-9\s\-\._・（）()　／/]*$" aria-describedby="photoTitleHelp photoTitleInputHelp" oninput="document.getElementById('photoTitleCount').textContent=this.value.length+'/40';">
                       <span class="absolute right-3 top-2 text-xs text-purple-400" id="photoTitleCount">0/40</span>
                     </div>
-                    <p id="photoTitleHelp" class="text-xs text-purple-400 mt-1">💡 何をしている写真か簡潔に書くと、後で探しやすくなります</p>
                     <p id="photoTitleInputHelp" class="text-xs text-purple-400 mt-1">📸 撮影場所や内容を記入（40文字以内）</p>
                 </div>
                 <div class="mb-6">
