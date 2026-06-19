@@ -1,5 +1,24 @@
 # FlashCard Master 仕様書
 
+## v1.9 (2026-06-19) - M2【満足】コア機能のUX改善 追加修正
+**実装内容**:
+1. **エラー表示バグ修正**（編集モーダル4フィールド）：
+   - edit-card-question / edit-card-answer / edit-deck-name / edit-deck-description の error div に `<span>❌</span><span></span>` 追加
+   - setupRealtimeValidation の `span:last-child` 参照が実際に機能するよう修正
+
+2. **編集フォームUI統一**：
+   - edit-card / edit-deck フォームの枠線を `border-2 border-gray-300`、フォーカス時に `ring-2 ring-indigo-200` へ統一
+   - 文字数表示に「文字」単位を追加（「0/500」→「0/500 文字」）
+
+3. **文字数カウント色変化**：
+   - 80%以上 → `#f59e0b`（黄色警告）、100%超 → `#ef4444`（赤エラー）
+
+4. **入力有効状態フィードバック**：
+   - blur 時に有効入力（1文字以上・上限以内）なら `border-green-500 ring-green-200` を適用
+
+5. **Enter キーでデッキ作成**：
+   - deck-name-input フィールドで Enter キーを押すと createDeck() を実行
+
 ## v1.8 (2026-06-13) - M2【満足】コア機能のUX改善（入力UI・バリデーション）
 **実装内容**:
 1. **入力フォームUI改善**（4フィールド対応）：
@@ -9,22 +28,10 @@
 
 2. **入力ガイド・ヒント追加**：
    - 各フォーム下に💡アイコン付きのヒントテキストを表示
-   - 問題：「具体的で分かりやすい問題を入力してください」
-   - 答え：「分かりやすく、簡潔に答えを入力してください」
-   - デッキ名：「分かりやすい名前をつけましょう」
-   - 説明：「学習の目的や内容を簡潔に説明すると後で分かりやすい」
 
 3. **エラーメッセージ改善**：
-   - ❌ アイコン + エラーメッセージテキスト（2段構成 from 従来の1段）
+   - ❌ アイコン + エラーメッセージテキスト（2段構成）
    - setupRealtimeValidation 関数をUX改善版に更新
-   - エラー表示時：border-red-500・ring-red-200（更に視認性向上）
-   - 文字数表示：「0/500」→「0/500 文字」（単位を明記）
-
-4. **リアルタイムバリデーション関数の改善**：
-   - エラー要素の span:last-child に直接テキストを設定
-   - CSS クラス（border-gray-300 → border-red-500）で状態管理
-   - focus 時に border-indigo-500・ring-indigo-200 を適用
-   - blur 時に必須項目の空チェック実行
 
 **対応フォーム（8フィールド）**:
 - deck-name-input / deck-description-input（デッキ作成時）
