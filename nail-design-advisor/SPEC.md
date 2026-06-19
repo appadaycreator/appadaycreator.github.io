@@ -3,10 +3,23 @@
 ## 概要
 
 **サービス名**: Nail Design Advisor
-**バージョン**: 1.1.0
-**更新日**: 2026-05-29
+**バージョン**: 1.3.4
+**更新日**: 2026-06-19
 
 ## 変更履歴
+
+### v1.3.4 (2026-06-19)
+- **V1 UI修正**: quiz-optにmin-width:0追加・opt-textにword-break:break-wordでテキスト切れ解消
+- **V2 UI修正**: モバイルでのquiz-section/quiz-boxパディング・余白削減（480pxでcols-3→1カラム化含む）
+- **V3 UI修正**: Cookieバナーのパディング・フォントサイズ縮小でコンパクト化
+- **M7 比較・シミュレーション機能**: 診断結果下に「条件変更→即時再計算」パネル追加（React SimulatorSection）
+
+### v1.3.3 (2026-06-19)
+- **M15 SEO改善**: meta description・OGタグ最適化
+  - `<meta name="description">` タグを追加（検索エンジンプレビュー最適化）
+  - OG タグ（og:title / og:description / og:type / og:url）を確認・統一
+  - Twitter Card タグ（twitter:card）を確認・設置
+  - ソーシャルメディアおよび検索エンジン結果での表示品質向上
 
 ### v1.3.2 (2026-06-14)
 - **M1 機能強化**: 診断結果表示後の文脈CTAボタン配置
