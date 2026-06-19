@@ -163,15 +163,18 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="bg-white rounded-2xl shadow p-6 mb-4">
       <div class="flex justify-between items-center mb-4">
         <span class="text-sm text-amber-700 font-semibold" id="step-label">質問 1 / 7</span>
-        <div class="w-32 bg-gray-200 rounded-full h-2">
-          <div id="progress-bar" class="bg-amber-500 h-2 rounded-full transition-all duration-300" style="width:14%"></div>
+        <div class="w-40 bg-amber-200 rounded-full h-5 shadow-md" style="box-shadow: 0 2px 4px rgba(217, 119, 6, 0.2);">
+          <div id="progress-bar" class="bg-gradient-to-r from-amber-400 to-amber-600 h-5 rounded-full transition-all duration-300 font-bold text-xs text-white flex items-center justify-center" style="width:14%; font-weight: 700; font-size: 10px; box-shadow: 0 2px 6px rgba(217, 119, 6, 0.4);">14%</div>
         </div>
       </div>
       <div id="question-area"></div>
     </div>
     <div class="flex gap-3">
       <button id="prev-btn" onclick="prevStep()" class="hidden flex-1 py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition" aria-label="戻る">戻る</button>
-      <button id="next-btn" onclick="nextStep()" class="flex-1 py-3 bg-amber-500 text-white rounded-xl font-semibold hover:bg-amber-600 transition" aria-label="次へ">次へ</button>
+      <button id="next-btn" onclick="nextStep()" class="flex-1 py-4 bg-amber-500 text-white rounded-xl font-bold text-lg hover:bg-amber-600 transition shadow-lg" aria-label="次へ" style="box-shadow: 0 6px 20px rgba(217, 119, 6, 0.5); position: relative; z-index: 100;">次へ</button>
+    </div>
+    <div id="final-cta-hint" style="text-align:center; margin-top:12px; font-size:13px; color:#4b5563; display:none;">
+      <p style="margin:0;">7問完了後に「診断する」で結果が表示されます</p>
     </div>
   </div>
 
@@ -408,16 +411,54 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 
   function renderQuestion() {
     const q = questions[currentStep];
+    const progressPct = Math.round(((currentStep + 1) / questions.length) * 100);
     document.getElementById('step-label').textContent = `質問 ${currentStep + 1} / ${questions.length}`;
-    document.getElementById('progress-bar').style.width = `${((currentStep + 1) / questions.length) * 100}%`;
+    const progressBar = document.getElementById('progress-bar');
+    progressBar.style.width = `${progressPct}%`;
+    progressBar.textContent = `${progressPct}%`;
     document.getElementById('prev-btn').classList.toggle('hidden', currentStep === 0);
     document.getElementById('next-btn').textContent = currentStep === questions.length - 1 ? '診断する' : '次へ';
 
-    let html = `<p class="font-semibold text-gray-800 mb-4">${q.text}</p><div class="space-y-2">`;
+    // V2: ペットアイコン割り当てマップ
+    const petIcons = {
+      '犬（小型犬・5kg未満）': '🐕',
+      '犬（中型犬・5〜25kg）': '🐕',
+      '犬（大型犬・25kg以上）': '🐩',
+      '猫（室内飼い）': '🐱',
+      '猫（室内外）': '😺',
+      '小動物（うさぎ・ハムスター等）': '🐰',
+      '鳥類・爬虫類等': '🦜',
+      'ブリーダー・ペットショップ（純血種）': '✅',
+      'ペットショップ（混血・一般）': '✅',
+      '保護猫・保護犬の譲渡': '❤️',
+      '知人・SNSからの譲渡（無料）': '🤝',
+      '一戸建て（ペット可）': '🏡',
+      'ペット可のマンション・アパート': '🏢',
+      '現在ペット不可（引越し予定）': '🚚',
+      '市販の一般フード（コスパ重視）': '💰',
+      '国産・無添加フード（中〜高価格帯）': '🌿',
+      'プレミアムフード・手作り食': '👑',
+      '獣医師推奨の療法食': '💊',
+      '自宅でセルフケアのみ': '🧴',
+      '年2〜4回サロンを利用': '✨',
+      '月1〜2回定期的にサロン利用': '💅',
+      '必要ないペット（短毛猫等）': '-',
+      'ペット保険に加入予定': '🛡️',
+      'まだ検討中': '❓',
+      '保険には加入しない（自費で対応）': '💸',
+      '既に加入している': '✓',
+      '年1回の健康診断のみ': '📋',
+      '年2〜3回（ワクチン・定期検診）': '💉',
+      '月1回程度（既往症あり・高齢ペット）': '🏥',
+      'できるだけ費用を抑えたい': '💰'
+    };
+
+    let html = `<p class="font-semibold text-gray-800 mb-4">${q.text}</p><div class="option-btn-group">`;
     q.options.forEach(opt => {
       const checked = answers[q.id] === opt ? 'checked' : '';
-      html += `<label class="flex items-center gap-3 p-3 border border-gray-200 rounded-xl cursor-pointer hover:border-amber-400 transition has-[:checked]:border-amber-500 has-[:checked]:bg-amber-50">
-        <input type="radio" name="${q.id}" value="${opt}" ${checked} class="accent-amber-500" onchange="autoAdvance()" aria-label="入力フォーム"> <span class="text-sm">${opt}</span>
+      const icon = petIcons[opt] || '•';
+      html += `<label class="flex items-center gap-2 p-3 border-2 border-gray-300 rounded-xl cursor-pointer hover:border-amber-400 hover:bg-amber-100 transition has-[:checked]:border-amber-500 has-[:checked]:bg-amber-50 has-[:checked]:shadow-md" style="min-height:56px; background: white;">
+        <input type="radio" name="${q.id}" value="${opt}" ${checked} class="accent-amber-500 w-4 h-4" onchange="autoAdvance()" aria-label="入力フォーム"> <span class="text-xl">${icon}</span> <span class="text-sm font-medium">${opt}</span>
       </label>`;
     });
     html += '</div>';
