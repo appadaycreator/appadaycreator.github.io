@@ -1326,9 +1326,15 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             document.getElementById('nq-tutorial-step1').style.display = currentTutorialStep === 1 ? 'block' : 'none';
             document.getElementById('nq-tutorial-step2').style.display = currentTutorialStep === 2 ? 'block' : 'none';
             document.getElementById('nq-tutorial-step3').style.display = currentTutorialStep === 3 ? 'block' : 'none';
-            document.getElementById('nq-tutorial-prev').style.display = currentTutorialStep > 1 ? 'inline-block' : 'none';
-            document.getElementById('nq-tutorial-next').style.display = currentTutorialStep < 3 ? 'inline-block' : 'none';
-            document.getElementById('nq-tutorial-finish').style.display = currentTutorialStep === 3 ? 'inline-block' : 'none';
+            // V1修正: 前へは縦並びの末尾に配置済み。表示制御は inline-block→block
+            document.getElementById('nq-tutorial-prev').style.display = currentTutorialStep > 1 ? 'block' : 'none';
+            document.getElementById('nq-tutorial-next').style.display = currentTutorialStep < 3 ? 'block' : 'none';
+            document.getElementById('nq-tutorial-finish').style.display = currentTutorialStep === 3 ? 'block' : 'none';
+            // ステップインジケーターを更新
+            for (let i = 1; i <= 3; i++) {
+                const ind = document.getElementById('nq-ind-' + i);
+                if (ind) ind.style.background = i === currentTutorialStep ? '#7c3aed' : 'rgba(255,255,255,0.2)';
+            }
         }
 
         // Initialize game
@@ -2799,48 +2805,63 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
     </script>
 
     <!-- チュートリアルモーダル（初回プレイ時） -->
-    <div id="nq-tutorial-modal" role="dialog" aria-modal="true" aria-labelledby="nq-tutorial-title" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:9998;align-items:center;justify-content:center;padding:16px;">
+    <!-- V3修正: オーバーレイをrgba(0,0,0,0.92)に強化し背景干渉を排除 -->
+    <div id="nq-tutorial-modal" role="dialog" aria-modal="true" aria-labelledby="nq-tutorial-title" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9998;align-items:center;justify-content:center;padding:16px;">
       <div style="background:linear-gradient(135deg,#1e1b4b,#2d2654);border:2px solid #7c3aed;border-radius:20px;padding:24px;max-width:420px;width:100%;max-height:80vh;overflow-y:auto;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
           <h2 id="nq-tutorial-title" style="font-size:1.3rem;font-weight:800;color:#fbbf24;margin:0;">⚔️ ナンプレクエストへようこそ！</h2>
           <button onclick="skipTutorial()" style="background:none;border:none;color:#9ca3af;font-size:1.2rem;cursor:pointer;padding:0;" aria-label="チュートリアルをスキップ">✕</button>
         </div>
 
+        <!-- ステップインジケーター -->
+        <div id="nq-tutorial-indicators" style="display:flex;justify-content:center;gap:8px;margin-bottom:20px;">
+          <span id="nq-ind-1" style="width:10px;height:10px;border-radius:50%;background:#7c3aed;display:inline-block;transition:background 0.3s;"></span>
+          <span id="nq-ind-2" style="width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,0.2);display:inline-block;transition:background 0.3s;"></span>
+          <span id="nq-ind-3" style="width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,0.2);display:inline-block;transition:background 0.3s;"></span>
+        </div>
+
+        <!-- V2修正: ステップ内容をアイコン付き箇条書きに簡略化 -->
         <!-- ステップ 1: 操作ガイド -->
         <div id="nq-tutorial-step1" style="display:block;">
-          <h3 style="color:#fcd34d;font-size:1rem;margin-bottom:12px;">📋 ステップ 1 - 操作方法</h3>
-          <div style="background:rgba(255,255,255,0.05);border-radius:12px;padding:12px;margin-bottom:12px;">
-            <p style="color:#e0e7ff;font-size:0.9rem;margin:8px 0;"><strong>9×9 のマスをタップ</strong><br>数字を入力するマスを選択します</p>
-            <p style="color:#e0e7ff;font-size:0.9rem;margin:8px 0;"><strong>数字パッドで入力</strong><br>1〜9 のボタンから数字を選びます</p>
-            <p style="color:#e0e7ff;font-size:0.9rem;margin:8px 0;"><strong>「提出」ボタンで確認</strong><br>すべてのマスが埋まったら提出！</p>
+          <h3 style="color:#fcd34d;font-size:1rem;margin-bottom:14px;text-align:center;">📋 ステップ 1 / 3 — 操作方法</h3>
+          <div style="background:rgba(255,255,255,0.05);border-radius:12px;padding:16px;margin-bottom:16px;">
+            <div style="color:#e0e7ff;font-size:0.95rem;line-height:1.8;">
+              <div style="margin-bottom:10px;">👆 <strong>マスをタップ</strong> して選択</div>
+              <div style="margin-bottom:10px;">🔢 <strong>数字パッド（1〜9）</strong> で入力</div>
+              <div>✅ 全マス埋まったら <strong>「提出」</strong> ボタン</div>
+            </div>
           </div>
         </div>
 
         <!-- ステップ 2: ルール説明 -->
         <div id="nq-tutorial-step2" style="display:none;">
-          <h3 style="color:#fcd34d;font-size:1rem;margin-bottom:12px;">🎮 ステップ 2 - 数独のルール</h3>
-          <div style="background:rgba(255,255,255,0.05);border-radius:12px;padding:12px;margin-bottom:12px;">
-            <p style="color:#e0e7ff;font-size:0.9rem;margin:8px 0;"><strong>各行に 1〜9 を 1 つずつ</strong><br>横 1 行にすべての数字が 1 回ずつ必要</p>
-            <p style="color:#e0e7ff;font-size:0.9rem;margin:8px 0;"><strong>各列に 1〜9 を 1 つずつ</strong><br>縦 1 列にもすべての数字が 1 回ずつ必要</p>
-            <p style="color:#e0e7ff;font-size:0.9rem;margin:8px 0;"><strong>各 3×3 ブロックに 1〜9 を 1 つずつ</strong><br>太い枠で囲まれた 3×3 ブロック内に重複なし</p>
+          <h3 style="color:#fcd34d;font-size:1rem;margin-bottom:14px;text-align:center;">🎮 ステップ 2 / 3 — 数独のルール</h3>
+          <div style="background:rgba(255,255,255,0.05);border-radius:12px;padding:16px;margin-bottom:16px;">
+            <div style="color:#e0e7ff;font-size:0.95rem;line-height:1.8;">
+              <div style="margin-bottom:10px;">↔️ <strong>横 1 行</strong> に 1〜9 を 1 回ずつ</div>
+              <div style="margin-bottom:10px;">↕️ <strong>縦 1 列</strong> に 1〜9 を 1 回ずつ</div>
+              <div>⬛ <strong>3×3 ブロック</strong> 内にも重複なし</div>
+            </div>
           </div>
         </div>
 
         <!-- ステップ 3: RPG要素 -->
         <div id="nq-tutorial-step3" style="display:none;">
-          <h3 style="color:#fcd34d;font-size:1rem;margin-bottom:12px;">⚡ ステップ 3 - RPG 要素</h3>
-          <div style="background:rgba(255,255,255,0.05);border-radius:12px;padding:12px;margin-bottom:12px;">
-            <p style="color:#e0e7ff;font-size:0.9rem;margin:8px 0;"><strong>敵を倒してダメージを与える</strong><br>パズルを正解すると敵に攻撃！</p>
-            <p style="color:#e0e7ff;font-size:0.9rem;margin:8px 0;"><strong>レベルアップして成長</strong><br>敵を倒して経験値を獲得し、ステータスが上昇</p>
-            <p style="color:#e0e7ff;font-size:0.9rem;margin:8px 0;"><strong>難易度を選んで挑戦</strong><br>初心者から超難問まで 5 段階の難易度！</p>
+          <h3 style="color:#fcd34d;font-size:1rem;margin-bottom:14px;text-align:center;">⚡ ステップ 3 / 3 — RPG バトル</h3>
+          <div style="background:rgba(255,255,255,0.05);border-radius:12px;padding:16px;margin-bottom:16px;">
+            <div style="color:#e0e7ff;font-size:0.95rem;line-height:1.8;">
+              <div style="margin-bottom:10px;">⚔️ <strong>正解</strong> → 敵にダメージ！</div>
+              <div style="margin-bottom:10px;">⬆️ <strong>敵を倒す</strong> → 経験値獲得・レベルアップ</div>
+              <div>🎯 <strong>5 段階の難易度</strong> で腕試し</div>
+            </div>
           </div>
         </div>
 
-        <!-- ナビゲーション -->
-        <div style="display:flex;gap:8px;justify-content:space-between;margin-top:16px;">
-          <button id="nq-tutorial-prev" onclick="prevTutorialStep()" style="background:rgba(99,102,241,0.3);border:1px solid #818cf8;color:#c7d2fe;padding:8px 14px;border-radius:8px;font-size:0.9rem;cursor:pointer;display:none;">← 前へ</button>
-          <button id="nq-tutorial-next" onclick="nextTutorialStep()" style="background:linear-gradient(135deg,#7c3aed,#fbbf24);border:none;color:#fff;padding:8px 16px;border-radius:8px;font-weight:bold;font-size:0.9rem;cursor:pointer;">次へ →</button>
-          <button id="nq-tutorial-finish" onclick="skipTutorial()" style="background:linear-gradient(135deg,#10b981,#34d399);border:none;color:#fff;padding:8px 16px;border-radius:8px;font-weight:bold;font-size:0.9rem;cursor:pointer;display:none;">開始する！</button>
+        <!-- V1修正: ナビゲーションボタンを大型化（44px以上タッチターゲット） -->
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">
+          <button id="nq-tutorial-next" onclick="nextTutorialStep()" style="background:linear-gradient(135deg,#7c3aed,#fbbf24);border:none;color:#fff;padding:15px 24px;border-radius:12px;font-weight:bold;font-size:1.1rem;cursor:pointer;width:100%;letter-spacing:0.03em;box-shadow:0 4px 12px rgba(124,58,237,0.4);">次へ →</button>
+          <button id="nq-tutorial-finish" onclick="skipTutorial()" style="background:linear-gradient(135deg,#10b981,#34d399);border:none;color:#fff;padding:15px 24px;border-radius:12px;font-weight:bold;font-size:1.1rem;cursor:pointer;width:100%;display:none;letter-spacing:0.03em;box-shadow:0 4px 12px rgba(16,185,129,0.4);">⚔️ 冒険を始める！</button>
+          <button id="nq-tutorial-prev" onclick="prevTutorialStep()" style="background:rgba(99,102,241,0.2);border:1px solid #818cf8;color:#c7d2fe;padding:11px 24px;border-radius:10px;font-size:0.95rem;cursor:pointer;display:none;width:100%;">← 前のステップへ</button>
         </div>
       </div>
     </div>
