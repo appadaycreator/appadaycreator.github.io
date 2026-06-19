@@ -3,11 +3,15 @@
 ## 概要
 
 **サービス名**: Pet Vaccination Tracker
-**バージョン**: 1.7.3
-**更新日**: 2026-06-13
+**バージョン**: 1.7.4
+**更新日**: 2026-06-19
 **URL**: https://appadaycreator.com/pet-vaccination-tracker/
 
 ワクチン接種日・フィラリア予防・健診日程を記録して次回接種のリマインダー管理。登録不要・完全無料でご利用いただけます。
+
+## 更新履歴
+
+- v1.7.4 (2026-06-19): M2/M8実装 - addEntry()内の重複const宣言バグ修正（スクリプト全体が動作不能になっていた致命的バグ）・maxlength属性修正・aria-required/aria-describedby追加・h1/h2キーワード最適化（GSC平均順位11.0対応）
 
 ## データ管理
 
