@@ -153,7 +153,7 @@
   .cmp-track{height:9px;border-radius:5px;background:#eef3f1;overflow:hidden}
   .cmp-track.ideal{height:7px;opacity:.9}
   .cmp-fill{height:100%;border-radius:5px}
-  .cmp-val{font-size:11.5px;font-weight:800;text-align:right}
+  .cmp-val{font-size:13px;font-weight:800;text-align:right}
   .cmp-val.ideal{color:var(--muted);font-weight:700}
   .cmp-legend{display:flex;gap:16px;margin-top:12px;font-size:11.5px;color:var(--muted);font-weight:600}
   .cmp-legend span{display:inline-flex;align-items:center;gap:6px}
@@ -198,6 +198,8 @@
   .aff-name{font-weight:800;font-size:13.5px}
   .aff-desc{font-size:11.5px;color:var(--muted);font-weight:500}
   .aff-go{font-size:11px;font-weight:800;color:var(--green)}
+  .adv-cta{display:inline-flex;align-items:center;background:#e9f4ee;color:#0f6b58;font-weight:800;font-size:12px;padding:5px 10px;border-radius:6px;border:1px solid rgba(15,107,88,.18);margin-top:6px}
+  .adv-cta:hover{background:#d4eddf}
 
   .info-card{display:flex;gap:12px;align-items:center;padding:14px;border:1px solid var(--line);border-radius:12px;background:#fbfdfc;transition:.15s}
   .info-card:hover{transform:translateY(-2px);box-shadow:var(--card-shadow)}
@@ -971,7 +973,7 @@ function renderBudgetChart(analysis){
   document.getElementById('budgetCenter').innerHTML =
     `<div style="font-size:11px;color:#7b8b86;font-weight:600">支出合計</div><div style="font-size:19px;font-weight:900;color:#1f3a34">${yen(analysis.rows.reduce((a,r)=>a+r.amount,0))}</div>`;
   const leg = document.getElementById('budgetLegend');
-  leg.innerHTML = analysis.rows.map(r=>`<div class="lg"><span class="dot" style="background:${r.color}"></span><span class="ln">${r.label}</span><span class="lv">${pct(r.actualPct)}</span></div>`).join('');
+  leg.innerHTML = analysis.rows.filter(r=>r.amount>0).map(r=>`<div class="lg"><span class="dot" style="background:${r.color}"></span><span class="ln">${r.label}</span><span class="lv">${pct(r.actualPct)}</span></div>`).join('');
 }
 
 function renderComparisonChart(analysis){
@@ -988,17 +990,27 @@ function renderComparisonChart(analysis){
   }).join('');
 }
 
+const AFF_MAP = {
+  communication: { name:'格安回線で通信費を今すぐ見直す', url:'https://px.a8.net/svt/ejp?a8mat=4B3WJ9+21AMQY+3HKU+1ZG8B6' },
+  utilities:     { name:'太陽光発電で光熱費を削減する', url:'https://px.a8.net/svt/ejp?a8mat=4B3YV7+54199M+2AG2+61JSH' },
+  insurance:     { name:'保険を見直して支出を最適化する', url:'https://px.a8.net/svt/ejp?a8mat=4B3TF4+76EIFU+5QSG+5Z6WX' },
+};
+
 function renderRecommendations(recos, analysis){
   const wrap = document.getElementById('adviceList');
-  wrap.innerHTML = recos.map(r=>`
-    <div class="adv">
+  wrap.innerHTML = recos.map(r=>{
+    const aff = r.level==='high' ? AFF_MAP[r.key] : null;
+    const ctaHtml = aff ? `<a class="adv-cta" href="${aff.url}" rel="nofollow sponsored" target="_blank">${aff.name} →</a>` : '';
+    return `<div class="adv">
       <div class="adv-ic"><img src="/lp/household-budget-analyzer/assets/icon-${r.icon}.png" alt=""></div>
       <div class="adv-body">
         <div class="adv-top"><span class="adv-cat">${r.label}</span><span class="badge ${r.badgeClass}">${r.badge}</span></div>
         <div class="adv-txt">${r.advice}</div>
+        ${ctaHtml}
       </div>
       <div class="adv-amt">${r.annualSaving>0?yen(r.annualSaving):'¥0'}</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 const HKEY = 'kakei_history_v1';
