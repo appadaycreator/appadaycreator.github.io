@@ -434,18 +434,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     <div class="card">
         <div class="card-title">🎯 目標設定（オプション）</div>
         <label>🏆 目標月収</label>
-        <div style="font-size:0.75em;color:#64748b;margin-bottom:6px;">毎月の副業売上の目標値（例: 5万円〜30万円）</div>
+        <span class="hint-text" id="goal-monthly-hint">目標とする月の副業売上（任意・0〜1,000万円）。現在の月収と比較して達成率を表示します</span>
         <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
-            <input type="number" id="goal-monthly-income" min="0" max="10000000" step="10000" value="0" oninput="updateCalc()" aria-label="目標月収入力" placeholder="例: 100000" style="flex:1;padding:10px 12px;border:1px solid #bbf7d0;border-radius:9px;font-size:0.88em;background:#f0fdf4;color:#1e293b;">
+            <input type="number" id="goal-monthly-income" min="0" max="10000000" step="10000" value="0" oninput="validateGoalMonthly()" aria-label="目標月収入力" aria-describedby="goal-monthly-hint goal-monthly-error" inputmode="numeric" placeholder="100000" title="0〜10,000,000円を入力（任意）" style="flex:1;padding:10px 12px;border:1px solid #bbf7d0;border-radius:9px;font-size:0.88em;background:#f0fdf4;color:#1e293b;">
             <span style="font-size:0.85em;color:#475569;font-weight:700;">円</span>
         </div>
+        <div id="goal-monthly-error" class="error-message" style="display:none;"></div>
         <div id="goal-monthly-progress" style="margin-top:8px;"></div>
         <label style="margin-top:12px;">💰 目標手取り額（年）</label>
-        <div style="font-size:0.75em;color:#64748b;margin-bottom:6px;">税引き後で手元に残すお金の年間目標（例: 60万円）</div>
+        <span class="hint-text" id="goal-annual-hint">税引き後で手元に残すお金の年間目標（任意・0〜1億円）。計算後の手取り額と比較して達成率を表示します</span>
         <div style="display:flex;gap:8px;align-items:center;margin-top:4px;">
-            <input type="number" id="goal-annual-takehome" min="0" max="100000000" step="100000" value="0" oninput="updateCalc()" aria-label="目標手取り入力" placeholder="例: 1000000" style="flex:1;padding:10px 12px;border:1px solid #bbf7d0;border-radius:9px;font-size:0.88em;background:#f0fdf4;color:#1e293b;">
+            <input type="number" id="goal-annual-takehome" min="0" max="100000000" step="100000" value="0" oninput="validateGoalAnnual()" aria-label="目標手取り入力" aria-describedby="goal-annual-hint goal-annual-error" inputmode="numeric" placeholder="1000000" title="0〜100,000,000円を入力（任意）" style="flex:1;padding:10px 12px;border:1px solid #bbf7d0;border-radius:9px;font-size:0.88em;background:#f0fdf4;color:#1e293b;">
             <span style="font-size:0.85em;color:#475569;font-weight:700;">円</span>
         </div>
+        <div id="goal-annual-error" class="error-message" style="display:none;"></div>
         <div id="goal-annual-progress" style="margin-top:8px;"></div>
     </div>
     <div class="card">
@@ -887,6 +889,38 @@ function validateAndSyncFurusato(from) {
     }
     showError('furusato-error', error);
     syncFurusato(from);
+}
+
+function validateGoalMonthly() {
+    const input = document.getElementById('goal-monthly-income');
+    const val = parseInt(input.value) || 0;
+    const el = document.getElementById('goal-monthly-error');
+    if (val > 10000000) {
+        input.value = 10000000;
+        if (el) { el.textContent = '❌ 最大値は1,000万円です。1,000万円に自動調整されました'; el.style.display = 'block'; }
+    } else if (val < 0) {
+        input.value = 0;
+        if (el) { el.textContent = '❌ 0円以上を入力してください'; el.style.display = 'block'; }
+    } else {
+        if (el) el.style.display = 'none';
+    }
+    updateCalc();
+}
+
+function validateGoalAnnual() {
+    const input = document.getElementById('goal-annual-takehome');
+    const val = parseInt(input.value) || 0;
+    const el = document.getElementById('goal-annual-error');
+    if (val > 100000000) {
+        input.value = 100000000;
+        if (el) { el.textContent = '❌ 最大値は1億円です。1億円に自動調整されました'; el.style.display = 'block'; }
+    } else if (val < 0) {
+        input.value = 0;
+        if (el) { el.textContent = '❌ 0円以上を入力してください'; el.style.display = 'block'; }
+    } else {
+        if (el) el.style.display = 'none';
+    }
+    updateCalc();
 }
 
 function syncIncome(from) {
@@ -1771,14 +1805,24 @@ document.addEventListener('DOMContentLoaded', function(){
     buildTypeGrid();
     updateCalc();
     var l = document.getElementById('page-loader');
-    if (l){l.style.opacity='0';l.style.transition='opacity 0.3s';setTimeout(function(){l.remove();},350);}
+    if (l){l.style.opacity='0';l.style.transition='opacity 0.3s';setTimeout(function(){if(l.parentNode)l.remove();},350);}
+    if (window._loaderTimeouts) window._loaderTimeouts.forEach(clearTimeout);
 });
 </script>
 
-<div id="page-loader" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#fafff5;z-index:9999;display:flex;align-items:center;justify-content:center;">
+<div id="page-loader" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#fafff5;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;">
     <div style="width:40px;height:40px;border:4px solid #bbf7d0;border-top-color:#16a34a;border-radius:50%;animation:spin-loader 0.8s linear infinite;"></div>
+    <p style="color:#16a34a;font-size:0.9rem;font-weight:700;margin:0;">💰 副業収入・税金シミュレーター</p>
+    <p id="page-loader-msg" style="color:#64748b;font-size:0.75rem;margin:0;display:none;">読み込みに時間がかかっています...</p>
 </div>
 <style>@keyframes spin-loader{to{transform:rotate(360deg)}}</style>
+<script>
+(function(){
+    var t1=setTimeout(function(){var m=document.getElementById('page-loader-msg');if(m)m.style.display='block';},5000);
+    var t2=setTimeout(function(){var l=document.getElementById('page-loader');if(l&&l.parentNode){l.style.opacity='0';l.style.transition='opacity 0.3s';setTimeout(function(){if(l.parentNode)l.remove();},350);}clearTimeout(t1);},10000);
+    window._loaderTimeouts=[t1,t2];
+})();
+</script>
 
 <div style="margin:20px auto;max-width:800px;padding:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;">
 <p style="font-size:0.85rem;font-weight:bold;color:#166534;margin-bottom:10px;">💰 副業・税金・FP通信講座</p>
@@ -1996,7 +2040,7 @@ document.addEventListener('DOMContentLoaded', function(){
 </div>
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
-<div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
+<div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#fff;font-weight:700;text-decoration:underline;text-underline-offset:2px;">プライバシーポリシー</a>をご確認ください。</div>
 <button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
