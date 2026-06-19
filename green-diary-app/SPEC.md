@@ -4,6 +4,7 @@
 
 | バージョン | 日付 | 主な変更内容 |
 |-----------|------|------------|
+| v11.0.12 | 2026-06-20 | /improve_auto深層品質レビュー・P1: ヒーローh2キーワード最適化（「植物の記録とケアを...」→「観葉植物の水やり・ケア記録を...管理。」GSC平均順位10.3位改善狙い）・P2: A8セクションアフィリエイトCTAボタン文言強化（「Amazon関連書籍を見る」→「今すぐAmazonで確認する」「おすすめ商品を見る」→「観葉植物の本を今すぐ探す」収益導線強化）・A8.netアフィリエイトリンク2件保持確認✅ |
 | v11.0.11 | 2026-06-16 | /improve_phase2_only M20再確認完了・アクセシビリティ全項目確認済み✅（img全件alt属性対応・button要素テキスト/aria-label対応・canvas role="img"+aria-label・iframe title+aria-hidden・A8.netアフィリエイトリンク全件保持）・WCAG 2.1 AA准拠確認完了✅ |
 | v11.0.10 | 2026-06-16 | /improve_phase2_only実行・M20: アクセシビリティ対応確認完了・全img要素alt属性実装完了（装飾画像alt=""、情報画像に適切なテキスト）✅・全button要素aria-label/テキスト実装完了✅・role="button"要素のaria-label実装完了✅・canvas role="img"+aria-label実装完了✅・iframe title属性実装完了✅・WCAG 2.1 AA準拠確認✅ |
 | v11.0.9 | 2026-06-14 | /improve_phase2_only M20最終確認・img要素alt属性全数確認完了（トラッキングピクセルalt=""✅、A8.netリンク説明文✅）・button要素aria-label確認完了（FAQ role="button"✅、シェアボタン✅、ナビゲーション✅）・canvas要素role="img"+aria-label確認✅・視覚的アイコンaria-hidden="true"確認✅・iframe title属性確認✅・WCAG 2.1 AA準拠確認完了✅ |
