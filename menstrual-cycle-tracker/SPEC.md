@@ -3,8 +3,27 @@
 ## 概要
 
 **サービス名**: Menstrual Cycle Tracker
-**バージョン**: 3.9.0
-**更新日**: 2026-06-19
+**バージョン**: 4.0.0
+**更新日**: 2026-06-20
+
+## v4.0.0 改善内容（2026-06-20）
+
+### V1: CTAボタン視覚強化（広告エリアとの区別）
+- ナビ「✨ 詳細はこちら」を白地×ピンク文字→グラデーション背景（#E11D48→#BE123C）+白文字+box-shadowに変更。広告・通常リンクと明確に区別可能
+- フォーム下部の計算CTAボタンを `font-size:17px; font-weight:800; padding:16px; box-shadow` で強調。ラベルを「排卵日・次の生理日を計算する」に変更して目的を明確化
+
+### V2: フォームセクション視覚区切り強化
+- 日付・周期・生理期間の3入力グループをそれぞれ `.form-group` div でラップ。`background:#f9fafb; border-radius:12px; border:1.5px solid #f0f0f5` で視覚的に分離
+- 各グループに `STEP 1・2・3` セクションラベルを追加（`.form-group-label`）。入力手順がひと目で把握可能
+
+### V3: WCAGコントラスト改善
+- `.step-item.active` を `background:#E11D4820; color:#E11D48` → `background:#FECDD3; color:#9F1239; border:1.5px solid #FECACA` に変更（コントラスト比 6.4:1 → AAA相当）
+- `.step-item.done` を `background:#F0FDF4; color:#059669` → `background:#D1FAE5; color:#065F46; border:1.5px solid #A7F3D0`（より高コントラスト）
+- スライダー数値表示（`cycle-val`・`period-val`）を `#E11D48` → `#9F1239` に変更
+
+### M2: フォームUX補完
+- 各入力グループのSTEPラベルで入力順序を明示。ユーザーが何をすべきかわかる形式に
+- 必須マーク `*` の色を `#E11D48` → `#9F1239` に統一（コントラスト改善）
 
 ## v3.9.0 改善内容（2026-06-19）
 
