@@ -3,8 +3,8 @@
 ## 概要
 
 **サービス名**: Book Forest
-**バージョン**: 1.2.0
-**更新日**: 2026-06-10
+**バージョン**: 1.3.0
+**更新日**: 2026-06-19
 **URL**: https://appadaycreator.com/book-forest/
 
 読んだ本・読みたい本をリスト管理。読書進捗・感想を記録できる無料の読書管理アプリ。登録不要。
@@ -20,6 +20,10 @@
 - HTML5 / CSS3 / Vanilla JavaScript
 - PWA対応（manifest.json / Service Worker）
 - レスポンシブデザイン（モバイルファースト）
+
+## 改善履歴
+
+- v1.3.0 (2026-06-19): M2 入力フォームUX改善（placeholder・必須マーカー・リアルタイム進捗表示・バリデーション）、M8 ツールチップ・ヘルプテキスト充実、M10 CSV/クリップボード/印刷エクスポート機能追加
 
 ## 使い方
 
@@ -57,19 +61,6 @@
 - [睡眠の質チェッカー](https://appadaycreator.com/sleep-quality-checker/)
 - [BMI・体重管理](https://appadaycreator.com/bmi-body-tracker/)
 - [家計簿診断](https://appadaycreator.com/household-budget-analyzer/)
-
-## 変更履歴
-
-### v1.2.1 (2026-06-13)
-- **M10** 印刷・結果エクスポート機能: `copyStatsToClipboard()` を修正し、`getMonthlyData()` を使用して月別統計を正確に取得
-
-### v1.1.0 (2026-06-06)
-- **P1** 統計タブのグラフ非表示バグ修正: `currentView` watchを追加し、statsタブ切り替え時にグラフを即時描画
-- **P1** ダークモードでモーダルが白背景のまま: `background: var(--card-bg)` にCSS変数化
-- **P1** ダークモードトグルボタンが未動作のバグ修正: `toggleTheme()` メソッド追加
-- **P1** 本棚ビューに「本を追加」ボタンを追加（ダッシュボードに戻らず追加可能）
-- **P2** モバイルヘッダーのナビ崩れ改善: ☰ハンバーガーメニュー追加、言語/フォントselectをモバイル非表示化
-- **P2** 本棚の並び替え機能追加: 追加日・タイトル・進捗率でソート可能
 
 ## テスト
 
