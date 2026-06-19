@@ -201,8 +201,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
               <div>
                 <label style="font-size:12px;color:#666;">ペットの名前 <span style="color:#dc2626;" aria-hidden="true">*</span> <span title="ペットの愛称や呼び名を入力してください（例：ポチ、太郎、花子）。複数ペットの場合は同じ名前で自動的にまとめられます。半角・全角混合、スペースも使用可能です。最大20文字。" style="cursor:help;color:#0ea5e9;font-weight:bold;">?</span></label>
                 <p id="hint-pet-name" style="font-size:11px;color:#6b7280;margin:2px 0 4px;line-height:1.4;">💡 例：ポチ、花子、太郎。複数ペットを管理する場合、同じ名前でまとめて記録できます。既存のペット名から選択することもできます。</p>
-                <input id="pet-name" type="text" placeholder="例）ポチ、太郎、花子（最大20文字）" list="pet-name-list" autocomplete="off" maxlength="20" aria-required="true" aria-describedby="hint-pet-name" title="ペット名を入力（例：ポチ、花子）。既存のペット名が候補として出ます。最大20文字まで。" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;">
+                <input id="pet-name" type="text" placeholder="例）ポチ、太郎、花子（最大20文字）" list="pet-name-list" autocomplete="off" maxlength="20" aria-required="true" aria-describedby="hint-pet-name" title="ペット名を入力（例：ポチ、花子）。既存のペット名が候補として出ます。最大20文字まで。" style="width:100%;padding:10px;border:2px solid #e5e7eb;border-radius:8px;font-size:14px;" oninput="updatePetNameCount()">
                 <datalist id="pet-name-list"></datalist>
+                <div id="pet-name-count" style="text-align:right;font-size:11px;color:#94a3b8;margin-top:2px;" aria-live="polite">0/20文字</div>
               </div>
               <div>
                 <label style="font-size:12px;color:#666;">種別（犬/猫など）<span style="color:#dc2626;" aria-hidden="true"> *</span> <span title="ペットの種別を選ぶと、推奨されるワクチン・予防の種類が自動的に表示されます。犬：狂犬病（法定）・混合ワクチン必須。猫：3種混合ワクチン推奨。ウサギ・その他は種別に応じた予防が表示されます。" style="cursor:help;color:#0ea5e9;font-weight:bold;">?</span></label>
@@ -290,37 +291,41 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           </div>
           <div id="form-error" role="alert" aria-live="assertive"></div>
 
-          <!-- 目標設定セクション（M6実装） -->
-          <div style="margin-top:16px;padding:12px;background:#f0f9ff;border:1px solid #bfdbfe;border-radius:8px;">
-            <div style="display:flex;align-items:center;gap:4px;margin-bottom:8px;">
-              <h3 style="font-size:12px;font-weight:700;color:#0c4a6e;margin:0;">🎯 接種管理の目標</h3>
-              <span title="ペットごとの年間接種目標を設定します。達成度を可視化することで、計画的な健康管理をサポートします。" style="cursor:help;color:#0ea5e9;font-weight:bold;">?</span>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-              <div>
-                <label style="font-size:11px;color:#0c4a6e;font-weight:600;">年間目標接種回数</label>
-                <input id="goal-target-count" type="number" placeholder="3" min="1" max="12" value="3" title="ペットの年間接種目標回数を設定してください（1〜12回）。" style="width:100%;padding:8px;border:1.5px solid #bfdbfe;border-radius:6px;font-size:12px;margin-top:2px;background:white;">
-              </div>
-              <div>
-                <button type="button" id="set-goal-btn" onclick="setTargetGoal()" title="目標回数を保存します。" style="width:100%;padding:8px;background:#0284c7;color:white;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;margin-top:20px;min-height:auto;">目標を保存</button>
-              </div>
-            </div>
-            <!-- 達成度表示（M6） -->
-            <div style="background:white;border-radius:6px;padding:10px;border:1px solid #bfdbfe;">
-              <div style="font-size:11px;color:#0c4a6e;font-weight:600;margin-bottom:6px;">📈 達成度</div>
-              <div style="display:flex;align-items:center;gap:8px;">
-                <div style="flex:1;background:#e0e7ff;border-radius:4px;height:20px;overflow:hidden;">
-                  <div id="goal-progress-bar" style="height:100%;background:linear-gradient(90deg,#0284c7,#06b6d4);width:0%;transition:width 0.3s ease;display:flex;align-items:center;justify-content:center;font-size:10px;color:white;font-weight:600;"></div>
-                </div>
-                <span id="goal-progress-text" style="font-weight:700;color:#0c4a6e;min-width:50px;text-align:right;font-size:12px;">0/3</span>
-              </div>
-            </div>
-          </div>
-
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;">
-            <button class="btn" id="submit-btn" onclick="addEntry()" aria-label="ペットワクチン・健康記録を追加する">記録を追加 ＋</button>
+          <!-- 記録追加CTAボタン（フォーム直下・最優先表示） -->
+          <div id="submit-area" style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">
+            <button class="btn" id="submit-btn" onclick="addEntry()" aria-label="ペットワクチン・健康記録を追加する" style="font-size:16px;padding:16px 24px;font-weight:700;">💉 記録を追加 ＋</button>
             <button class="btn" id="cancel-btn" onclick="cancelEdit()" style="background:#999;display:none;">キャンセル</button>
           </div>
+
+          <!-- 目標設定（折りたたみ・ボタン下に移動） -->
+          <details style="margin-top:12px;">
+            <summary style="padding:10px 14px;background:#f0f9ff;border:1px solid #bfdbfe;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;color:#0c4a6e;user-select:none;list-style:none;">
+              <span style="display:flex;align-items:center;justify-content:space-between;">
+                <span>🎯 接種管理の目標・達成度</span>
+                <span id="goal-summary-text" style="font-size:11px;color:#0284c7;font-weight:700;">0/3</span>
+              </span>
+            </summary>
+            <div style="padding:12px;background:#f0f9ff;border:1px solid #bfdbfe;border-top:none;border-radius:0 0 8px 8px;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+                <div>
+                  <label style="font-size:11px;color:#0c4a6e;font-weight:600;">年間目標接種回数</label>
+                  <input id="goal-target-count" type="number" placeholder="3" min="1" max="12" value="3" title="ペットの年間接種目標回数を設定してください（1〜12回）。" style="width:100%;padding:8px;border:1.5px solid #bfdbfe;border-radius:6px;font-size:12px;margin-top:2px;background:white;">
+                </div>
+                <div>
+                  <button type="button" id="set-goal-btn" onclick="setTargetGoal()" title="目標回数を保存します。" style="width:100%;padding:8px;background:#0284c7;color:white;border:none;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;margin-top:20px;min-height:auto;">目標を保存</button>
+                </div>
+              </div>
+              <div style="background:white;border-radius:6px;padding:10px;border:1px solid #bfdbfe;">
+                <div style="font-size:11px;color:#0c4a6e;font-weight:600;margin-bottom:6px;">📈 達成度</div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <div style="flex:1;background:#e0e7ff;border-radius:4px;height:20px;overflow:hidden;">
+                    <div id="goal-progress-bar" style="height:100%;background:linear-gradient(90deg,#0284c7,#06b6d4);width:0%;transition:width 0.3s ease;display:flex;align-items:center;justify-content:center;font-size:10px;color:white;font-weight:600;"></div>
+                  </div>
+                  <span id="goal-progress-text" style="font-weight:700;color:#0c4a6e;min-width:50px;text-align:right;font-size:12px;">0/3</span>
+                </div>
+              </div>
+            </div>
+          </details>
         </div>
         <div id="result" class="result">
           <div id="list-area"></div>
@@ -668,6 +673,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       icon.textContent='タップで展開';
       syncWeightInput();
       syncFeeDisplay();
+      updatePetNameCount();
       updateGoalProgress();
       document.getElementById('pet-name').focus();
     }
@@ -695,6 +701,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       if(entry.hospital||entry.doctor||entry.fee||entry.notes) openOptional();
       syncWeightInput();
       syncFeeDisplay();
+      updatePetNameCount();
       window.scrollTo(0,0);
     }
     function cancelEdit(){
@@ -735,17 +742,27 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         display.textContent='-';
       }
     }
+    // M2: ペット名文字数カウンター
+    function updatePetNameCount(){
+      const v=document.getElementById('pet-name').value;
+      const el=document.getElementById('pet-name-count');
+      if(!el) return;
+      el.textContent=v.length+'/20文字';
+      el.style.color=v.length>=18?'#dc2626':v.length>=15?'#f59e0b':'#94a3b8';
+    }
     // M6: 目標達成度更新関数
     function updateGoalProgress(){
       const achievement=calculateAchievementRate();
       const progressBar=document.getElementById('goal-progress-bar');
       const progressText=document.getElementById('goal-progress-text');
+      const summaryText=document.getElementById('goal-summary-text');
       if(progressBar&&progressText){
         const percent=Math.min(achievement.rate,100);
         progressBar.style.width=percent+'%';
         progressBar.textContent=percent+'%';
         progressText.textContent=achievement.completed+'/'+achievement.target;
       }
+      if(summaryText) summaryText.textContent=achievement.completed+'/'+achievement.target;
     }
     function deleteEntry(id){
       if(!confirm('この記録を削除しますか？')){ return; }
