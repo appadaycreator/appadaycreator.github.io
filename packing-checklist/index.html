@@ -2302,15 +2302,17 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
             
             title.textContent = 'アイテムを追加';
             content.innerHTML = `
-                <form id="add-item-form">
+                <form id="add-item-form" novalidate>
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">アイテム名</label>
-                            <input type="text" id="item-name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                            <label for="item-name" class="block text-sm font-medium text-gray-700 mb-1">アイテム名 <span class="text-red-500">*</span></label>
+                            <input type="text" id="item-name" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="例：パスポート、充電器、常備薬..." aria-label="追加するアイテム名を入力（例：パスポート）" aria-describedby="item-name-error" required>
+                            <span id="item-name-error" class="text-red-500 text-xs mt-1 hidden" role="alert">アイテム名を入力してください（1文字以上）</span>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">カテゴリ</label>
-                            <select id="item-category" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <label for="item-category" class="block text-sm font-medium text-gray-700 mb-1">カテゴリ</label>
+                            <select id="item-category" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" aria-label="アイテムのカテゴリを選択">
+                                <option value="">-- カテゴリを選択 --</option>
                                 <option value="clothes">衣類</option>
                                 <option value="toiletries">洗面用品</option>
                                 <option value="electronics">電子機器</option>
@@ -2319,47 +2321,84 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
                             </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">数量</label>
-                            <input type="number" id="item-quantity" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" min="1" value="1">
+                            <label for="item-quantity" class="block text-sm font-medium text-gray-700 mb-1">数量 <span class="text-gray-500 text-xs">(1～99)</span></label>
+                            <div class="flex items-center gap-3">
+                                <input type="number" id="item-quantity" class="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" min="1" max="99" value="1" aria-label="アイテムの数量を入力（1～99）">
+                                <input type="range" id="item-quantity-slider" class="flex-1" min="1" max="20" value="1" aria-label="アイテムの数量をスライダーで選択">
+                                <span id="item-quantity-display" class="text-sm font-medium text-indigo-600 w-8 text-center">1</span>
+                            </div>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">メモ</label>
-                            <textarea id="item-memo" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" rows="3"></textarea>
+                            <label for="item-memo" class="block text-sm font-medium text-gray-700 mb-1">メモ <span class="text-gray-500 text-xs">(任意)</span></label>
+                            <textarea id="item-memo" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" rows="2" placeholder="例：ブランド名・サイズ・注意事項など" aria-label="アイテムへのメモを入力（任意）"></textarea>
                         </div>
                         <div class="flex items-center">
-                            <input type="checkbox" id="item-required" class="mr-2">
+                            <input type="checkbox" id="item-required" class="mr-2" aria-label="必須アイテムとしてマーク">
                             <label for="item-required" class="text-sm text-gray-700">必須アイテム</label>
                         </div>
                     </div>
                 </form>
             `;
+            // 数量スライダーの連動
+            const qtyInput = document.getElementById('item-quantity');
+            const qtySlider = document.getElementById('item-quantity-slider');
+            const qtyDisplay = document.getElementById('item-quantity-display');
+            qtySlider.addEventListener('input', function() {
+                qtyInput.value = this.value;
+                qtyDisplay.textContent = this.value;
+            });
+            qtyInput.addEventListener('input', function() {
+                const v = Math.min(Math.max(parseInt(this.value)||1, 1), 99);
+                qtySlider.value = Math.min(v, 20);
+                qtyDisplay.textContent = v;
+            });
+            // アイテム名リアルタイムバリデーション
+            document.getElementById('item-name').addEventListener('blur', function() {
+                const err = document.getElementById('item-name-error');
+                if (!this.value.trim()) {
+                    this.classList.add('border-red-500');
+                    err.classList.remove('hidden');
+                } else {
+                    this.classList.remove('border-red-500');
+                    err.classList.add('hidden');
+                }
+            });
             
             modal.classList.remove('hidden');
             
             // 確認ボタンのイベント
             document.getElementById('modal-confirm').onclick = function() {
-                const name = document.getElementById('item-name').value;
-                const category = document.getElementById('item-category').value;
-                const quantity = parseInt(document.getElementById('item-quantity').value);
+                const nameEl = document.getElementById('item-name');
+                const name = nameEl.value;
+                const err = document.getElementById('item-name-error');
+                // バリデーション：アイテム名必須チェック
+                if (!name.trim()) {
+                    nameEl.classList.add('border-red-500');
+                    err.classList.remove('hidden');
+                    nameEl.focus();
+                    return;
+                }
+                nameEl.classList.remove('border-red-500');
+                err.classList.add('hidden');
+                const category = document.getElementById('item-category').value || 'other';
+                const quantity = Math.max(1, parseInt(document.getElementById('item-quantity').value) || 1);
                 const memo = document.getElementById('item-memo').value;
                 const required = document.getElementById('item-required').checked;
-                
-                if (name.trim()) {
-                    const newItem = {
-                        id: generateId(),
-                        name: name.trim(),
-                        category,
-                        quantity,
-                        memo,
-                        required,
-                        checked: false
-                    };
-                    
-                    currentChecklist.items.push(newItem);
-                    updateChecklistView();
-                    closeModal();
-                    showNotification('アイテムを追加しました', 'success');
-                }
+
+                const newItem = {
+                    id: generateId(),
+                    name: name.trim(),
+                    category,
+                    quantity,
+                    memo,
+                    required,
+                    checked: false
+                };
+
+                currentChecklist.items.push(newItem);
+                updateChecklistView();
+                closeModal();
+                showNotification('アイテムを追加しました', 'success');
             };
         }
 
