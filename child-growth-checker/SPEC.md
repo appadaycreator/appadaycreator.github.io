@@ -3,8 +3,14 @@
 ## 概要
 
 **サービス名**: Child Growth Checker
-**バージョン**: 2.14.0
+**バージョン**: 2.15.0
 **更新日**: 2026-06-20
+
+## v2.15.0 更新内容（2026-06-20）
+**M2: UX改善・視覚的UI問題バグ修正（V1/V2/V3 第2回対応）:**
+- **V1 エラー常時表示バグ修正**: CSS `small[id*="Error"]{display:block!important}` が `style="display:none"` を上書きしエラーが常時表示されていたバグを修正。`display:block!important` を除去しJSによる表示制御を復元
+- **V2 クッキー同意ボタン強化**: ボタンのpaddingを `.5rem 1.25rem`→`1rem 2rem`、font-size `.85rem`→`1rem`、min-width 180pxに拡大。テキストを「同意して閉じる」→「同意して始める」に変更し操作フローを明確化
+- **V3 モバイルグラフ overflow修正**: `#chart canvas{max-width:100%!important;height:auto!important}` と `.chart-panel{overflow:hidden}` を追加しスマートフォンでグラフが見切れる問題を修正
 
 ## v2.14.0 更新内容（2026-06-20）
 **M2: UX改善・視覚的UI問題修正（V1/V2/V3対応）:**
