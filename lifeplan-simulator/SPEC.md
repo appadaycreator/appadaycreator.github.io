@@ -3,8 +3,22 @@
 ## 概要
 
 **サービス名**: Lifeplan Simulator
-**バージョン**: 2.0.9
-**更新日**: 2026-06-14
+**バージョン**: 2.1.0
+**更新日**: 2026-06-19
+
+## v2.1.0 改善（2026-06-19・M2【UX改善】aria-invalid管理・aria-describedbyエラー連携）
+
+**目的**: M2【満足】コア機能のUX改善 – アクセシビリティ強化（WCAG 2.1 AA 準拠）
+
+**実装内容**:
+- **P1: `aria-invalid` 属性の動的管理**: `validateField()` と `validateInputs()` でエラー時に `aria-invalid="true"`、クリア時に `aria-invalid="false"` をセット。スクリーンリーダーが無効入力を即座に通知。
+- **P2: エラーメッセージと入力フィールドの `aria-describedby` 連携**: エラーdivに `id="${fieldId}-error"` を付与し、入力要素の `aria-describedby` を動的に更新。スクリーンリーダーがエラー内容を自動読み上げ。
+- **P3: `age-hint` IDの修正**: `<span class="field-hint" id="age-hint">` を追加し、`aria-describedby="age-hint"` の参照切れを解消。
+
+**改善効果**:
+- WCAG 2.1 AA 準拠度向上: aria-invalid による無効フィールド識別が実装済みに
+- スクリーンリーダー対応完全化: エラーメッセージが対応フィールドと紐付けられ、視覚障害者のフォーム操作が改善
+- バリデーションクリア時のリセット: `[aria-invalid="true"]` の一括クリアで状態管理の整合性確保
 
 ## v2.0.9 改善（2026-06-14・M2【満足】バリデーション関数統合・重複除去）
 
