@@ -183,6 +183,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 .tooltip-icon:hover::before{content:'';position:absolute;bottom:115%;left:50%;transform:translateX(-50%);width:0;height:0;border:5px solid transparent;border-top-color:#1f2937;z-index:1000;}
 /* M2: 入力バリッド状態（正しく入力されたフィールドの視覚フィードバック） */
 .input-valid{border-color:#16a34a!important;background:#f0fdf4!important;box-shadow:0 0 0 3px rgba(22,163,74,0.15)!important;transition:border-color .2s,box-shadow .2s;}
+/* M2: エラー状態の視覚フィードバック（フィールド自体を赤くして即座に気づける） */
+.input-error{border-color:#dc2626!important;background:#fef9f9!important;box-shadow:0 0 0 3px rgba(220,38,38,0.15)!important;transition:border-color .2s,box-shadow .2s;}
 .input-valid::after{content:'✓';position:absolute;right:12px;color:#16a34a;font-weight:700;font-size:1.1em;top:50%;transform:translateY(-50%);pointer-events:none;}
 /* M2: ラベルの必須マーク */
 label[required]::after,label:has(+ input[required])::after{content:' *';color:#dc2626;font-weight:700;font-size:0.9em;}
@@ -373,6 +375,12 @@ input[type="range"]::-moz-range-track-upper{background:transparent;}
         <label>🏌️ 同伴者<span class="tooltip-icon" data-tooltip="複数人は「、」で区切る">?</span><span style="color:#94a3b8;">（任意・記憶に役立つ）</span></label>
         <div style="font-size:0.75em;color:#94a3b8;margin-bottom:4px;">一緒にプレーした人の名前を記録します（任意）。複数人は「、」で区切ってください。誰と回ったかが思い出しやすくなります。</div>
         <input type="text" id="inp-partner" placeholder="例：田中、山田、佐藤" maxlength="60" aria-label="同伴者の名前を入力 - 複数人の場合は「、」で区切ってください（任意）" title="一緒にプレーした人の名前">
+        <!-- M2: 必須フィールド完了バッジ（3つすべて緑で記録準備完了） -->
+        <div id="req-progress" style="display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 4px;" aria-live="polite" aria-label="必須項目の入力状況">
+          <span id="req-date-badge" style="padding:3px 10px;border-radius:12px;font-size:0.75em;font-weight:700;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;transition:all .2s;">📅 日付</span>
+          <span id="req-course-badge" style="padding:3px 10px;border-radius:12px;font-size:0.75em;font-weight:700;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;transition:all .2s;">🏌️ コース名</span>
+          <span id="req-type-badge" style="padding:3px 10px;border-radius:12px;font-size:0.75em;font-weight:700;background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;transition:all .2s;">🎯 コースタイプ</span>
+        </div>
         <button id="save-btn" class="btn-primary" onclick="saveRound()" aria-label="💾 このラウンドを記録する">💾 このラウンドを記録する</button>
         <div id="save-success-banner" style="display:none;margin-top:10px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:10px 14px;align-items:center;justify-content:space-between;">
             <span style="font-size:0.85em;font-weight:700;color:#166534;">✅ 記録しました！</span>
@@ -741,6 +749,8 @@ function toggleMode() {
     document.getElementById('hole-inputs-wrap').style.display = simple ? 'none' : 'block';
     document.getElementById('simple-input-wrap').style.display = simple ? 'block' : 'none';
     updateSimpleScoreRange();
+    // 合計モード切替時にスライダー現在値ラベルを初期化（空白防止）
+    if (simple) { const sl = document.getElementById('inp-simple-score-slider'); if (sl) syncScoreFromSlider(sl.value); }
 }
 
 function updateSimpleScoreRange() {
@@ -763,6 +773,11 @@ function updateSimpleScoreRange() {
         if (sliderEl) { sliderEl.min = '40'; sliderEl.max = '200'; }
         if (minLbl) minLbl.textContent = '40打';
         if (maxLbl) maxLbl.textContent = '200打';
+    }
+    // コースタイプ変更時にスコアレベルラベルを更新（入力値は変えない）
+    if (sliderEl && document.getElementById('simple-mode')?.checked) {
+        const lbl = document.getElementById('score-slider-current');
+        if (lbl && sliderEl.value) lbl.textContent = sliderEl.value + '打（' + getScoreLevel(sliderEl.value, typeEl?.value || '18H') + '）';
     }
 }
 
@@ -814,7 +829,7 @@ function clearErrors() {
     ['error-inp-date','error-inp-course','error-inp-type','error-inp-weather','error-inp-simple-score','error-inp-putts','error-hole-incomplete']
         .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
     ['inp-date','inp-course','inp-type','inp-simple-score','inp-putts']
-        .forEach(id => { const el = document.getElementById(id); if (el) el.classList.remove('input-valid'); });
+        .forEach(id => { const el = document.getElementById(id); if (el) { el.classList.remove('input-valid'); el.classList.remove('input-error'); } });
 }
 
 function setError(fieldId, message) {
@@ -823,12 +838,29 @@ function setError(fieldId, message) {
         errorEl.textContent = message;
         errorEl.style.display = 'block';
     }
-    // エラーフィールドへスムーズスクロール＋フォーカス移動（モバイルで特に有効）
     const inputEl = document.getElementById(fieldId);
     if (inputEl) {
+        inputEl.classList.add('input-error');
+        inputEl.classList.remove('input-valid');
         inputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
         inputEl.focus({ preventScroll: true });
     }
+}
+
+// M2: 必須フィールド完了バッジ更新（入力するたびに赤→緑に変わる）
+function updateReqProgress() {
+    const date = document.getElementById('inp-date')?.value;
+    const course = (document.getElementById('inp-course')?.value || '').trim();
+    const type = document.getElementById('inp-type')?.value;
+    const setBadge = (id, ok) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (ok) { el.style.background = '#dcfce7'; el.style.color = '#166534'; el.style.borderColor = '#86efac'; }
+        else { el.style.background = '#fee2e2'; el.style.color = '#dc2626'; el.style.borderColor = '#fca5a5'; }
+    };
+    setBadge('req-date-badge', !!date);
+    setBadge('req-course-badge', course.length >= 2);
+    setBadge('req-type-badge', !!type);
 }
 
 // ===== 記録 =====
@@ -937,6 +969,7 @@ function saveRound() {
     renderQuickStats();
     renderWeeklySummary();
     renderTargetGoal();
+    updateReqProgress(); // フォームリセット後にバッジを更新（コース名がクリアされるため）
 }
 
 // ===== クイック統計 =====
@@ -1053,6 +1086,7 @@ function editRound(id) {
     }
     const btn = document.getElementById('save-btn');
     if (btn) btn.textContent = '✏️ この内容に更新する';
+    updateReqProgress(); // 編集時はフォームが全て埋まるのでバッジが全緑になる
     switchTab('record', document.querySelectorAll('.tab')[0]);
     window.scrollTo({top: 0, behavior: 'smooth'});
 }
@@ -1612,12 +1646,23 @@ function validateDateField() {
     const field = document.getElementById('inp-date');
     if (!field) return;
     const errorEl = document.getElementById('error-inp-date');
-    if (field.value) {
-        if (errorEl) errorEl.style.display = 'none';
-        field.classList.add('input-valid');
-    } else {
+    if (!field.value) {
         field.classList.remove('input-valid');
+        field.classList.remove('input-error');
+        return;
     }
+    // 未来日付チェック（テキスト入力で回避されるケースに対応）
+    const dateVal = new Date(field.value + 'T00:00:00');
+    const today = new Date(); today.setHours(23, 59, 59, 999);
+    if (dateVal > today) {
+        if (errorEl) { errorEl.textContent = '⚠️ 未来の日付は選択できません'; errorEl.style.display = 'block'; }
+        field.classList.remove('input-valid');
+        field.classList.add('input-error');
+        return;
+    }
+    if (errorEl) errorEl.style.display = 'none';
+    field.classList.remove('input-error');
+    field.classList.add('input-valid');
 }
 function validateCourseField() {
     const field = document.getElementById('inp-course');
@@ -1704,74 +1749,12 @@ document.addEventListener('DOMContentLoaded', function() {
     renderTargetGoal();
     updateSimpleScoreRange();
 
-    // M2: blur時バリデーション＋バリッド状態（即時フィードバック）
-    const dateField = document.getElementById('inp-date');
-    if (dateField) dateField.addEventListener('blur', function() {
-        const errorEl = document.getElementById('error-inp-date');
-        if (this.value) {
-            if (errorEl) errorEl.style.display = 'none';
-            this.classList.add('input-valid');
-        } else {
-            this.classList.remove('input-valid');
-        }
-    });
-    const courseField = document.getElementById('inp-course');
-    if (courseField) courseField.addEventListener('blur', function() {
-        if (this.value.trim() === '') {
-            setError('inp-course', '⚠️ コース名を入力してください');
-            this.classList.remove('input-valid');
-        } else {
-            const errorEl = document.getElementById('error-inp-course');
-            if (errorEl) errorEl.style.display = 'none';
-            this.classList.add('input-valid');
-        }
-    });
-    const scoreField = document.getElementById('inp-simple-score');
-    if (scoreField) scoreField.addEventListener('blur', function() {
-        const typeEl = document.getElementById('inp-type');
-        const type = typeEl ? typeEl.value : '18H';
-        const minS = type === '9H' ? 27 : 40, maxS = type === '9H' ? 100 : 200;
-        const val = parseInt(this.value);
-        if (this.value && (isNaN(val) || val < minS || val > maxS)) {
-            setError('inp-simple-score', `⚠️ スコアを正しく入力してください（${minS}〜${maxS}）`);
-            this.classList.remove('input-valid');
-        } else if (this.value && !isNaN(val) && val >= minS && val <= maxS) {
-            const errorEl = document.getElementById('error-inp-simple-score');
-            if (errorEl) errorEl.style.display = 'none';
-            this.classList.add('input-valid');
-        } else {
-            const errorEl = document.getElementById('error-inp-simple-score');
-            if (errorEl) errorEl.style.display = 'none';
-            this.classList.remove('input-valid');
-        }
-    });
-    const puttsField = document.getElementById('inp-putts');
-    if (puttsField) puttsField.addEventListener('blur', function() {
-        const val = parseInt(this.value);
-        if (this.value && (isNaN(val) || val < 18 || val > 72)) {
-            setError('inp-putts', '⚠️ パット数は18〜72の範囲で入力してください');
-            this.classList.remove('input-valid');
-        } else if (this.value && !isNaN(val) && val >= 18 && val <= 72) {
-            const errorEl = document.getElementById('error-inp-putts');
-            if (errorEl) errorEl.style.display = 'none';
-            this.classList.add('input-valid');
-        } else {
-            const errorEl = document.getElementById('error-inp-putts');
-            if (errorEl) errorEl.style.display = 'none';
-            this.classList.remove('input-valid');
-        }
-    });
-    const typeField = document.getElementById('inp-type');
-    if (typeField) typeField.addEventListener('blur', function() {
-        if (!this.value) {
-            setError('inp-type', '⚠️ コースタイプを選択してください');
-            this.classList.remove('input-valid');
-        } else {
-            const errorEl = document.getElementById('error-inp-type');
-            if (errorEl) errorEl.style.display = 'none';
-            this.classList.add('input-valid');
-        }
-    });
+    // M2: 必須フィールド完了バッジのリアルタイム更新（blur/change/inputで緑→赤に即切替）
+    // ※ blur時バリデーション自体はHTMLのonblur属性（validateXxxField）で処理済み
+    document.getElementById('inp-date')?.addEventListener('change', updateReqProgress);
+    document.getElementById('inp-course')?.addEventListener('input', updateReqProgress);
+    document.getElementById('inp-type')?.addEventListener('change', updateReqProgress);
+    updateReqProgress(); // ページロード時の初期状態（日付は自動設定済み）
 
     // PWA案内表示（初回のみ）
     if (!localStorage.getItem('gst_pwa_banner_dismissed') && navigator.userAgent.indexOf('Safari') > -1) {
