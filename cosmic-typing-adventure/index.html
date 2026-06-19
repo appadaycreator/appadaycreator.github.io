@@ -137,6 +137,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);overflow-x:h
 .hero h1{font-size:1.95rem;font-weight:900;line-height:1.2;color:var(--white);margin-bottom:14px}
 .hero h1 .hl{color:var(--accent)}
 .hero-sub{font-size:.88rem;color:var(--text-dim);line-height:1.75;margin-bottom:24px}
+/* V3: ヒーローセクションの説明文コントラスト改善 */
+.hero .hero-sub{color:rgba(226,224,240,.88)}
 .hero-cta-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
 .btn-primary{background:linear-gradient(135deg,var(--primary),var(--accent));color:#fff;border:none;padding:15px 32px;border-radius:10px;font-size:1rem;font-weight:900;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:8px;transition:transform .15s,box-shadow .15s;font-family:var(--font);box-shadow:0 4px 20px rgba(139,92,246,.45)}
 .btn-primary:hover{transform:translateY(-2px);box-shadow:0 6px 28px rgba(139,92,246,.6)}
@@ -309,7 +311,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);overflow-x:h
   .hero-panel{display:none}
 }
 @media(max-width:768px){
-  .hero-inner{grid-template-columns:1fr;padding:56px 16px 40px}
+  /* V1/V2: モバイルでCTAをファーストビューに収める・スクロール量削減 */
+  .hero{min-height:auto;align-items:flex-start}
+  .hero-inner{grid-template-columns:1fr;padding:32px 16px 32px}
   .hero-panel{display:none}
   .hero h1{font-size:1.5rem}
   .ai-inner,.mobile-kb-inner{grid-template-columns:1fr}
@@ -663,19 +667,21 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);overflow-x:h
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:24px">
         <div>
           <label style="font-size:.75rem;color:var(--text-dim);font-weight:700;display:block;margin-bottom:4px" for="simCur">現在のWPM（スライダーで調整）</label>
-          <p class="sim-help">WPM＝1分間に入力できる英単語数。事務職平均：50〜65WPM</p>
-          <input type="range" id="simCur" min="20" max="150" value="50" aria-label="現在のWPM（20〜150の範囲）" title="スライダーで現在のWPMを設定（範囲: 20〜150 WPM）" style="width:100%;accent-color:#EF4444;margin-bottom:2px" oninput="runSim()">
+          <p class="sim-help" id="simCurHint">WPM＝1分間に入力できる英単語数。事務職平均：50〜65WPM</p>
+          <input type="range" id="simCur" min="20" max="150" value="50" aria-label="現在のWPM（20〜150の範囲）" aria-describedby="simCurHint" title="スライダーで現在のWPMを設定（範囲: 20〜150 WPM）" style="width:100%;accent-color:#EF4444;margin-bottom:2px" oninput="runSim()">
           <div class="range-hint"><span>20 WPM（入門）</span><span>150 WPM（超上級）</span></div>
           <div style="text-align:center;font-size:1.5rem;font-weight:900;color:var(--white)" id="simCurVal">50 <small style="font-size:.65rem;color:#EF4444">WPM</small></div>
         </div>
         <div>
           <label style="font-size:.75rem;color:var(--text-dim);font-weight:700;display:block;margin-bottom:4px" for="simTgt">目標WPM（スライダーで調整）</label>
-          <p class="sim-help">上級：70〜100WPM、プロ級：100WPM以上が目安</p>
-          <input type="range" id="simTgt" min="30" max="200" value="80" aria-label="目標WPM（30〜200の範囲）" title="スライダーで目標のWPMを設定（範囲: 30〜200 WPM）" style="width:100%;accent-color:#10B981;margin-bottom:2px" oninput="runSim()">
+          <p class="sim-help" id="simTgtHint">上級：70〜100WPM、プロ級：100WPM以上が目安</p>
+          <input type="range" id="simTgt" min="30" max="200" value="80" aria-label="目標WPM（30〜200の範囲）" aria-describedby="simTgtHint" title="スライダーで目標のWPMを設定（範囲: 30〜200 WPM）" style="width:100%;accent-color:#10B981;margin-bottom:2px" oninput="runSim()">
           <div class="range-hint"><span>30 WPM（初歩）</span><span>200 WPM（世界トップ）</span></div>
           <div style="text-align:center;font-size:1.5rem;font-weight:900;color:var(--accent)" id="simTgtVal">80 <small style="font-size:.65rem;color:#10B981">WPM</small></div>
         </div>
       </div>
+      <!-- M2: WPMバリデーションエラー表示 -->
+      <div id="simError" role="alert" aria-live="polite" style="display:none;padding:10px 14px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);border-radius:8px;color:#EF4444;font-size:.78rem;font-weight:700;margin-bottom:12px"></div>
       <div id="simTable" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px"></div>
       <div id="simSummary" style="margin-top:16px;padding:12px;background:rgba(6,182,212,.08);border-radius:8px;text-align:center;font-size:.82rem;color:var(--text-dim)"></div>
     </div>
@@ -1003,12 +1009,25 @@ function tick(){}
   });
 })();
 
-// M7: WPMシミュレーター
+// M7: WPMシミュレーター / M2: バリデーション追加
 function runSim() {
   var cur = parseInt(document.getElementById('simCur').value);
   var tgt = parseInt(document.getElementById('simTgt').value);
   document.getElementById('simCurVal').innerHTML = cur + ' <small style="font-size:.65rem;color:#EF4444">WPM</small>';
   document.getElementById('simTgtVal').innerHTML = tgt + ' <small style="font-size:.65rem;color:#10B981">WPM</small>';
+  // M2: 目標WPMバリデーション
+  var errEl = document.getElementById('simError');
+  var simTgtEl = document.getElementById('simTgt');
+  if (tgt <= cur) {
+    errEl.style.display = 'block';
+    errEl.textContent = '⚠️ 目標WPM（' + tgt + '）は現在のWPM（' + cur + '）より大きい値を設定してください';
+    simTgtEl.setAttribute('aria-invalid', 'true');
+    document.getElementById('simTable').innerHTML = '';
+    document.getElementById('simSummary').innerHTML = '';
+    return;
+  }
+  errEl.style.display = 'none';
+  simTgtEl.removeAttribute('aria-invalid');
   var tasks = [
     {n:'ビジネスメール',w:120},
     {n:'A4レポート1枚',w:600},
