@@ -3,8 +3,8 @@
 ## 概要
 
 **サービス名**: Medical Deduction Calculator
-**バージョン**: 3.0.0
-**更新日**: 2026-06-11
+**バージョン**: 3.1.0
+**更新日**: 2026-06-20
 **URL**: https://appadaycreator.com/medical-deduction-calculator/
 **LP URL**: https://appadaycreator.com/medical-deduction-calculator/lp/
 
@@ -138,6 +138,12 @@
 - [フリーランス・個人事業主 税金診断](https://appadaycreator.com/freelance-tax-advisor/)
 - [確定申告 必要書類チェッカー](https://appadaycreator.com/tax-return-checker/)
 - [所得税率・税額計算ツール](https://appadaycreator.com/tax-bracket-calculator/)
+
+## 変更履歴
+
+### v3.1.0 (2026-06-20)
+- **バグ修正**: `getRankDisplay()` 関数が未定義だったため、計算実行時に ReferenceError が発生し書籍推薦A8 CTA・グラフ・計算明細・ボタン再活性化がスキップされていた問題を修正（還付額に応じたS/A/B/Cランク表示機能として追加）
+- **コンテンツ修正**: 免責事項の「医学的診断ではありません」「厚生労働省」リンクを、税金計算ツールとして適切な「税務判断」「国税庁（医療費控除）」に修正
 
 ## テスト
 
