@@ -73,14 +73,16 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .tab{flex:1;padding:11px 4px;font-size:0.76em;font-weight:700;color:rgba(255,255,255,0.75);cursor:pointer;border:none;background:none;transition:all .2s;}
         .tab.active{background:#fff;color:#1d4ed8;border-radius:8px 8px 0 0;}
         .main{max-width:540px;margin:0 auto;padding:0 12px 60px;}
-        .panel{display:none;padding-top:14px;}
+        /* V3: ナビゲーション下との視覚的分離を強化 */
+        .panel{display:none;padding-top:22px;}
         .panel.active{display:block;}
         .card{background:#fff;border-radius:14px;box-shadow:0 2px 8px rgba(0,0,0,0.07);padding:18px;margin-bottom:14px;}
         .card-title{font-size:0.9rem;font-weight:700;color:#1d4ed8;margin-bottom:12px;display:flex;align-items:center;gap:6px;}
         /* フォーム */
         label{display:block;font-size:0.8rem;font-weight:600;color:#475569;margin-bottom:4px;margin-top:12px;}
-        select,input[type=number]{width:100%;padding:10px 12px;border:1px solid #bfdbfe;border-radius:9px;font-size:0.88em;background:#f8faff;color:#1e293b;outline:none;}
-        select:focus,input[type=number]:focus{border-color:#1d4ed8;background:#fff;}
+        /* V1: コントラスト改善（1px #bfdbfe → 2px #94a3b8） */
+        select,input[type=number]{width:100%;padding:10px 12px;border:2px solid #94a3b8;border-radius:9px;font-size:0.88em;background:#f8faff;color:#1e293b;outline:none;}
+        select:focus,input[type=number]:focus{border-color:#1d4ed8;background:#fff;box-shadow:0 0 0 3px rgba(29,78,216,0.12);}
         input[type=range]{width:100%;accent-color:#1d4ed8;cursor:pointer;}
         .val-display{font-size:1.3rem;font-weight:800;color:#1d4ed8;text-align:center;margin:4px 0;}
         .btn-primary{width:100%;background:linear-gradient(135deg,#1d4ed8,#7c3aed);color:#fff;border:none;border-radius:10px;padding:13px;font-size:0.95rem;font-weight:700;cursor:pointer;margin-top:14px;}
@@ -950,6 +952,31 @@ window.onerror = function(msg,src,line){try{console.error('[AppError]',msg,'at',
 window.addEventListener('unhandledrejection',function(e){console.error('[PromiseError]',e.reason);});
 
 document.addEventListener('DOMContentLoaded', function(){
+    // M2: blurイベントでのフィールド離脱時バリデーション
+    var fieldDefs = [
+        {id:'current-job',  errId:'current-job-error',  msg:'👔 職業を選択してください'},
+        {id:'it-level',     errId:'it-level-error',     msg:'💻 スキルレベルを選択してください'},
+        {id:'target-role',  errId:'target-role-error',  msg:'🎓 職種を選択してください'}
+    ];
+    fieldDefs.forEach(function(f) {
+        var el  = document.getElementById(f.id);
+        var err = document.getElementById(f.errId);
+        if (!el || !err) return;
+        function validateField() {
+            if (!el.value) {
+                el.style.borderColor = '#ef4444';
+                el.setAttribute('aria-invalid', 'true');
+                err.textContent = f.msg;
+                err.style.display = 'block';
+            } else {
+                el.style.borderColor = '#10b981';
+                el.setAttribute('aria-invalid', 'false');
+                err.style.display = 'none';
+            }
+        }
+        el.addEventListener('blur',   validateField);
+        el.addEventListener('change', validateField);
+    });
     updateSalary();
     // 前回の診断設定を復元
     var saved = typeof ecSafeGet === 'function' ? ecSafeGet('ecr_state', null) : null;
@@ -1340,5 +1367,36 @@ window.ecSave=function(d){try{var h=JSON.parse(localStorage.getItem("ec_hist")||
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 <script src="/assets/consent-mode.js"></script>
+
+<!-- V2: モバイル用スティッキーCTA（診断パネルでフォームボタンが画面外の時に表示） -->
+<div id="sticky-gen-btn" style="display:none;position:fixed;bottom:64px;left:0;right:0;z-index:7998;padding:0 16px;pointer-events:none;">
+  <button onclick="generateRoadmap()" style="width:100%;max-width:540px;margin:0 auto;display:block;background:linear-gradient(135deg,#1d4ed8,#7c3aed);color:#fff;border:none;border-radius:12px;padding:14px 20px;font-size:0.95rem;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(29,78,216,0.45);pointer-events:all;" aria-label="ロードマップを生成する">🗺️ ロードマップを生成する</button>
+</div>
+<script>
+(function(){
+  var stickyBtn = document.getElementById('sticky-gen-btn');
+  if (!stickyBtn) return;
+  var mainBtn = document.querySelector('.btn-primary');
+  function updateStickyVisibility() {
+    var panel = document.getElementById('panel-diagnose');
+    if (!panel || !panel.classList.contains('active')) {
+      stickyBtn.style.display = 'none';
+      return;
+    }
+    if (!mainBtn) return;
+    var rect = mainBtn.getBoundingClientRect();
+    var inView = rect.bottom > 0 && rect.top < window.innerHeight;
+    stickyBtn.style.display = (window.innerWidth <= 640 && !inView) ? 'block' : 'none';
+  }
+  window.addEventListener('scroll', updateStickyVisibility, {passive: true});
+  window.addEventListener('resize', updateStickyVisibility, {passive: true});
+  // タブ切り替え後にも更新
+  var origSwitch = window.switchTab;
+  if (typeof origSwitch === 'function') {
+    window.switchTab = function(name, el) { origSwitch(name, el); setTimeout(updateStickyVisibility, 80); };
+  }
+  setTimeout(updateStickyVisibility, 300);
+})();
+</script>
 </body>
 </html>
