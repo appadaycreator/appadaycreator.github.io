@@ -171,11 +171,16 @@ label:has(.quiz-radio:checked){border-color:#ec4899!important;background:#fdf2f8
 
   <div id="quiz-section">
     <div class="bg-white rounded-2xl shadow p-6 mb-4">
-      <div class="flex justify-between items-center mb-4">
-        <span class="text-sm text-pink-700 font-semibold" id="step-label">質問 1 / 7</span>
-        <div class="flex-1 ml-3 bg-gray-200 rounded-full h-4">
-          <div id="progress-bar" class="bg-pink-500 h-4 rounded-full transition-all duration-300" style="width:14%"></div>
+      <!-- V3: 進捗表示を大きく目立つように改善 -->
+      <div class="mb-4">
+        <div class="flex justify-between items-center mb-2">
+          <span class="text-base text-pink-700 font-bold" id="step-label">質問 1 / 7</span>
+          <span id="progress-pct" class="text-sm font-bold text-pink-600 bg-pink-50 px-2 py-1 rounded-full">14%</span>
         </div>
+        <div class="bg-gray-200 rounded-full" style="height:12px">
+          <div id="progress-bar" class="bg-pink-500 rounded-full transition-all duration-300" style="width:14%;height:12px"></div>
+        </div>
+        <p class="text-xs text-gray-400 mt-1 text-right">全7問・回答後に結果を表示</p>
       </div>
       <div id="question-area"></div>
     </div>
@@ -584,21 +589,46 @@ ${Object.entries(scores).map(([k, v]) => `• ${k}: ${v}点`).join('\n')}
     setTimeout(() => toast.remove(), 2000);
   }
 
+  // M8: 質問ごとのガイダンステキスト（ユーザーの迷いを解消）
+  const questionHints = {
+    age: '入園希望月の時点でのお子さまの年齢をお選びください',
+    work: 'ご両親（保護者全員）の就労状況をお選びください',
+    hours: '自宅から保育園の送迎を含めた、1日に必要な預け時間の目安です',
+    priority: '最も優先したい条件をひとつお選びください',
+    education: '子どもを育てたい環境・教育方針のイメージをお選びください',
+    income: '世帯全体（両親合算）の年収の目安です（保育料算定の参考のみ・外部送信なし）',
+    concerns: '入園前の主な不安・懸念点をお選びください'
+  };
+
   function renderQuestion() {
     const q = questions[currentStep];
+    const pct = Math.round(((currentStep + 1) / questions.length) * 100);
     document.getElementById('step-label').textContent = `質問 ${currentStep + 1} / ${questions.length}`;
-    document.getElementById('progress-bar').style.width = `${((currentStep + 1) / questions.length) * 100}%`;
+    document.getElementById('progress-bar').style.width = `${pct}%`;
+    // V3: パーセント表示を更新
+    const pctEl = document.getElementById('progress-pct');
+    if (pctEl) pctEl.textContent = `${pct}%`;
     document.getElementById('prev-btn').classList.toggle('hidden', currentStep === 0);
     document.getElementById('next-btn').textContent = currentStep === questions.length - 1 ? '診断する' : '次へ';
 
-    let html = `<p class="font-semibold text-gray-800 mb-2">${q.text}</p><p class="text-xs text-gray-400 mb-3" aria-hidden="true">以下の選択肢からお選びください</p><div class="space-y-2" role="radiogroup" aria-label="${q.text}">`;
+    const hint = questionHints[q.id] || '';
+    let html = `<p class="font-semibold text-gray-800 mb-1" style="font-size:1rem">${q.text}</p>`;
+    // M8: ヒントテキスト表示
+    if (hint) {
+      html += `<p style="font-size:0.78rem;color:#2563eb;background:#eff6ff;border-radius:6px;padding:6px 10px;margin-bottom:12px;display:flex;align-items:flex-start;gap:5px"><span aria-hidden="true">ℹ️</span><span>${hint}</span></p>`;
+    } else {
+      html += `<p class="text-xs text-gray-400 mb-3" aria-hidden="true">以下の選択肢からお選びください</p>`;
+    }
+    html += `<div class="space-y-2" role="radiogroup" aria-label="${q.text}">`;
     q.options.forEach(opt => {
       const checked = answers[q.id] === opt ? 'checked' : '';
-      html += `<label class="flex items-center gap-3 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-pink-400 transition">
-        <input type="radio" name="${q.id}" value="${opt}" ${checked} class="quiz-radio" aria-label="${q.text}: ${opt}"> <span class="text-sm font-medium">${opt}</span>
+      // V1: label全体をタッチ可能に（モバイルでのクリック判定を拡大）
+      html += `<label class="flex items-center gap-3 p-3 border-2 border-gray-200 rounded-xl cursor-pointer hover:border-pink-400 transition" style="width:100%;touch-action:manipulation;user-select:none;box-sizing:border-box">
+        <input type="radio" name="${q.id}" value="${opt}" ${checked} class="quiz-radio" aria-label="${q.text}: ${opt}"> <span class="text-sm font-medium" style="flex:1">${opt}</span>
       </label>`;
     });
-    html += '</div><div id="error-msg" style="display:none;color:#ef4444;font-size:13px;margin-top:10px;padding:8px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;">⚠️ 選択肢を選んでから「次へ」を押してください</div>';
+    // M2: バリデーションエラー（aria-live で読み上げ対応）
+    html += '</div><div id="error-msg" role="alert" aria-live="polite" style="display:none;color:#ef4444;font-size:13px;margin-top:10px;padding:8px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;">⚠️ 選択肢を選んでから「次へ」を押してください</div>';
     document.getElementById('question-area').innerHTML = html;
   }
 
@@ -1012,9 +1042,15 @@ ${Object.entries(scores).map(([k, v]) => `• ${k}: ${v}点`).join('\n')}
 <script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
 </div>
 <!-- r31-cookie-banner -->
+<!-- V2: 同意の意思確認チェックボックスを追加 -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
-<div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button id="cookie-consent-btn" onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1');window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.75rem 2rem;border-radius:.5rem;font-size:1rem;font-weight:700;cursor:pointer;min-height:52px;flex-shrink:0;white-space:nowrap">✓ 同意して閉じる</button>
+<div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。
+  <label style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer;font-size:.82rem;color:#cbd5e1">
+    <input type="checkbox" id="cookie-check" onchange="var b=document.getElementById('cookie-consent-btn');b.disabled=!this.checked;b.style.opacity=this.checked?'1':'0.5';b.style.cursor=this.checked?'pointer':'not-allowed'" style="width:18px;height:18px;cursor:pointer;accent-color:#3b82f6;flex-shrink:0">
+    プライバシーポリシーを確認しました
+  </label>
+</div>
+<button id="cookie-consent-btn" onclick="if(!document.getElementById('cookie-check').checked)return;document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1');window.grantConsent && window.grantConsent()" disabled style="background:#3b82f6;color:#fff;border:none;padding:.75rem 2rem;border-radius:.5rem;font-size:1rem;font-weight:700;cursor:not-allowed;min-height:52px;flex-shrink:0;white-space:nowrap;opacity:0.5">✓ 同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 <!-- r46-org-footer -->
