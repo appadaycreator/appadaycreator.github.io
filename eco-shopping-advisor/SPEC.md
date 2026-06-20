@@ -3,8 +3,8 @@
 ## 概要
 
 **サービス名**: Eco Shopping Advisor
-**バージョン**: 1.2.0
-**更新日**: 2026-06-13
+**バージョン**: 1.3.0
+**更新日**: 2026-06-20
 **URL**: https://appadaycreator.com/eco-shopping-advisor/
 
 購入を検討している商品のエコ度・サステナビリティスコアを診断。代替品も提案。登録不要・完全無料でご利用いただけます。
@@ -73,6 +73,12 @@ GitHub Pages（mainブランチ push → 自動デプロイ）
 MIT License
 
 ## 更新履歴
+
+### v1.3.0 (2026-06-20)
+- **V1: CTA ボタンの視認性向上**: .cta-pill に amber glow box-shadow・border opacity 強化・scale(1.05)・font-weight:900 で埋もれ改善
+- **V2: 狭い画面対応強化**: 900px以下での sidecard margin・card margin 調整・520px以下で scan-row を flex-direction:column・scan-btn を width:100%・quiz-opt/btn padding 最適化
+- **V3: ページ下部の視覚的境界明確化**: sponsor section に green gradient 背景・border-top 3px 化・bottom border 追加・link styling 強化（hover effect・shadow・title 属性）
+- **M8: ツールチップ＆入力ガイダンス充実**: 商品名入力欄に info icon（ℹ️）追加・quiz-start 説明文を amber box で強調・goal-score に badge・title・aria-label 追加・各ボタン（スキャン・設定・結果処理）に title・aria-label・font-weight 強化付与
 
 ### v1.2.0 (2026-06-13)
 - **M4: グラフ・スコア・ゲージで結果を可視化**: Canvasを用いたスコアゲージ描画・色付け表示・達成度プログレスバー

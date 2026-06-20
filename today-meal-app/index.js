@@ -82,7 +82,7 @@ window.addEventListener('error', (event) => {
        event.error.message.includes('supabase.co'))) {
     if (!supabaseConnectionError) {
       supabaseConnectionError = true;
-//       console.warn('Supabase接続エラーが検出されました。Supabase機能は無効化されます。');
+      console.warn('Supabase接続エラーが検出されました。Supabase機能は無効化されます。');
       supabase = null; // Supabaseクライアントを無効化
     }
     event.preventDefault(); // エラーを抑制
@@ -104,7 +104,7 @@ window.addEventListener('unhandledrejection', (event) => {
       event.reason.name === 'AuthRetryableFetchError')) {
     if (!supabaseConnectionError) {
       supabaseConnectionError = true;
-//       console.warn('Supabase接続エラーが検出されました。Supabase機能は無効化されます。');
+      console.warn('Supabase接続エラーが検出されました。Supabase機能は無効化されます。');
       supabase = null; // Supabaseクライアントを無効化
     }
     event.preventDefault(); // エラーを抑制
@@ -151,27 +151,6 @@ function measurePerformance(name, fn) {
 //   }
 // }
 
-// 食事時間帯のヘルパー関数
-function getMealTimeEmoji(mealTime) {
-  const emojis = {
-    'breakfast': '🌅',
-    'lunch': '🌞',
-    'dinner': '🌙',
-    'snack': '🍪'
-  };
-  return emojis[mealTime] || '';
-}
-
-function getMealTimeName(mealTime) {
-  const names = {
-    'breakfast': '朝食',
-    'lunch': '昼食',
-    'dinner': '夕食',
-    'snack': '間食'
-  };
-  return names[mealTime] || '';
-}
-
 // キーボードナビゲーション
 function setupKeyboardNavigation() {
   try {
@@ -202,7 +181,7 @@ function setupKeyboardNavigation() {
     
     debugLog('キーボードナビゲーション設定完了');
   } catch (error) {
-    // console.error('キーボードナビゲーション設定エラー:', error);
+    console.error('キーボードナビゲーション設定エラー:', error);
   }
 }
 
@@ -219,7 +198,7 @@ function toggleDebugMode() {
       window.location.reload();
     }, 1000);
   } catch (error) {
-    // console.error('デバッグモード切り替えエラー:', error);
+    console.error('デバッグモード切り替えエラー:', error);
   }
 }
 
@@ -249,14 +228,14 @@ function runTests() {
           failed++;
         }
       } catch (error) {
-        // console.error(`テスト ${index + 1} 失敗:`, error);
+        console.error(`テスト ${index + 1} 失敗:`, error);
         failed++;
       }
     });
     
     showToast(`テスト完了: ${passed}件成功, ${failed}件失敗`, failed === 0 ? 'success' : 'warning');
   } catch (error) {
-    // console.error('テスト実行エラー:', error);
+    console.error('テスト実行エラー:', error);
     showToast('テスト実行に失敗しました', 'danger');
   }
 }
@@ -299,7 +278,7 @@ async function initializeApp() {
     
     debugLog('アプリケーション初期化完了');
   } catch (error) {
-    // console.error('アプリケーション初期化エラー:', error);
+    console.error('アプリケーション初期化エラー:', error);
     showToast('アプリケーションの初期化に失敗しました', 'danger');
   }
 }
@@ -318,7 +297,7 @@ function initializeUI() {
     
     debugLog('UI初期化完了');
   } catch (error) {
-    // console.error('UI初期化エラー:', error);
+    console.error('UI初期化エラー:', error);
   }
 }
 
@@ -431,7 +410,7 @@ function setupEventListeners() {
     
     debugLog('イベントリスナー設定完了');
   } catch (error) {
-    // console.error('イベントリスナー設定エラー:', error);
+    console.error('イベントリスナー設定エラー:', error);
   }
 }
 
@@ -630,7 +609,7 @@ function syncLocalFavorites() {
     
     debugLog('お気に入り同期完了');
   } catch (error) {
-    // console.error('お気に入り同期エラー:', error);
+    console.error('お気に入り同期エラー:', error);
   }
 }
 
@@ -663,7 +642,7 @@ function renderMealList() {
     
     debugLog('料理一覧描画完了', { count: filteredMeals.length });
   } catch (error) {
-    // console.error('料理一覧描画エラー:', error);
+    console.error('料理一覧描画エラー:', error);
   }
 }
 
@@ -693,7 +672,6 @@ function createMealCard(meal) {
           <p class="card-text text-muted small mb-2">
             <i class="bi bi-calendar3"></i> ${meal.capturedate}
             ${meal.category ? `<span class="ms-2"><i class="bi bi-tag"></i> ${escapeHtml(meal.category)}</span>` : ''}
-            ${meal.meal_time ? `<span class="ms-2">${getMealTimeEmoji(meal.meal_time)} ${getMealTimeName(meal.meal_time)}</span>` : ''}
           </p>
           ${meal.ingredients && meal.ingredients.length > 0 ? `
             <div class="ingredients mb-2">
@@ -732,7 +710,7 @@ function createMealCard(meal) {
 
     return card;
   } catch (error) {
-    // console.error('料理カード作成エラー:', error);
+    console.error('料理カード作成エラー:', error);
     return document.createElement('div');
   }
 }
@@ -781,7 +759,7 @@ async function toggleFavorite(mealId) {
     
     debugLog('お気に入り切り替え完了', { mealId, favorite: newFavoriteStatus });
   } catch (error) {
-    // console.error('お気に入り切り替えエラー:', error);
+    console.error('お気に入り切り替えエラー:', error);
     showToast('お気に入りの切り替えに失敗しました', 'danger');
   }
 }
@@ -819,7 +797,7 @@ function handleSearch(event) {
     currentFilters.search = event.target.value.toLowerCase();
     applyFilters();
   } catch (error) {
-    // console.error('検索処理エラー:', error);
+    console.error('検索処理エラー:', error);
   }
 }
 
@@ -829,7 +807,7 @@ function handleCategoryFilter(event) {
     currentFilters.category = event.target.value;
     applyFilters();
   } catch (error) {
-    // console.error('カテゴリフィルタ処理エラー:', error);
+    console.error('カテゴリフィルタ処理エラー:', error);
   }
 }
 
@@ -839,7 +817,7 @@ function handleFavoriteFilter(event) {
     currentFilters.favorite = event.target.value;
     applyFilters();
   } catch (error) {
-    // console.error('お気に入りフィルタ処理エラー:', error);
+    console.error('お気に入りフィルタ処理エラー:', error);
   }
 }
 
@@ -849,7 +827,7 @@ function handleSort(event) {
     currentFilters.sort = event.target.value;
     applyFilters();
   } catch (error) {
-    // console.error('ソート処理エラー:', error);
+    console.error('ソート処理エラー:', error);
   }
 }
 
@@ -891,7 +869,7 @@ function applyFilters() {
       filters: currentFilters 
     });
   } catch (error) {
-    // console.error('フィルタ適用エラー:', error);
+    console.error('フィルタ適用エラー:', error);
   }
 }
 
@@ -916,7 +894,7 @@ function sortMeals() {
         break;
     }
   } catch (error) {
-    // console.error('ソート処理エラー:', error);
+    console.error('ソート処理エラー:', error);
   }
 }
 
@@ -948,7 +926,7 @@ function clearFilters() {
     
     showToast('フィルタをクリアしました', 'info');
   } catch (error) {
-    // console.error('フィルタクリアエラー:', error);
+    console.error('フィルタクリアエラー:', error);
   }
 }
 
@@ -1082,7 +1060,7 @@ function updateSearchResultsCounter() {
       counter.textContent = `${filteredMeals.length}件の料理`;
     }
   } catch (error) {
-    // console.error('検索結果カウンター更新エラー:', error);
+    console.error('検索結果カウンター更新エラー:', error);
   }
 }
 
@@ -1103,7 +1081,7 @@ function updateCategoryOptions() {
     
     debugLog('カテゴリオプション更新完了', { count: categories.length });
   } catch (error) {
-    // console.error('カテゴリオプション更新エラー:', error);
+    console.error('カテゴリオプション更新エラー:', error);
   }
 }
 
@@ -1113,7 +1091,7 @@ function updateIngredientOptions() {
     // 食材の自動補完機能は実装済み
     debugLog('食材オプション更新完了', { count: ingredients.length });
   } catch (error) {
-    // console.error('食材オプション更新エラー:', error);
+    console.error('食材オプション更新エラー:', error);
   }
 }
 
@@ -1133,7 +1111,7 @@ function resetForm() {
     
     debugLog('フォームリセット完了');
   } catch (error) {
-    // console.error('フォームリセットエラー:', error);
+    console.error('フォームリセットエラー:', error);
   }
 }
 
@@ -1146,8 +1124,7 @@ async function handleMealSubmit(event) {
     const mealData = {
       name: formData.get('meal-name').trim(),
       category: formData.get('meal-category') || null,
-      meal_time: formData.get('meal-time') || null,
-      ingredients: formData.get('meal-ingredients') ?
+      ingredients: formData.get('meal-ingredients') ? 
         formData.get('meal-ingredients').split(',').map(i => i.trim()).filter(i => i) : [],
       capturedate: formData.get('meal-date') || new Date().toISOString().split('T')[0],
       calories: formData.get('meal-calories') ? parseInt(formData.get('meal-calories')) : null,
@@ -1415,7 +1392,7 @@ function showAuthModal(mode = 'login') {
     
     debugLog(`認証モーダル表示: ${mode}`);
   } catch (error) {
-    // console.error('認証モーダル表示エラー:', error);
+    console.error('認証モーダル表示エラー:', error);
     showToast('認証モーダルの表示に失敗しました', 'danger');
   }
 }
@@ -1509,7 +1486,7 @@ async function handleAuthSubmit(event) {
     
     debugLog('認証成功:', authMode);
   } catch (error) {
-    // console.error('認証処理エラー:', error);
+    console.error('認証処理エラー:', error);
     showToast('認証処理中にエラーが発生しました', 'danger');
     const submitBtn = document.getElementById('auth-submit-btn');
     if (submitBtn) {
@@ -1548,7 +1525,7 @@ async function handleLogout() {
     
     debugLog('ログアウト成功');
   } catch (error) {
-    // console.error('ログアウト処理エラー:', error);
+    console.error('ログアウト処理エラー:', error);
     showToast('ログアウト処理中にエラーが発生しました', 'danger');
   }
 }
@@ -1594,7 +1571,7 @@ async function updateAuthUI() {
     
     debugLog('認証UI更新完了');
   } catch (error) {
-    // console.error('認証UI更新エラー:', error);
+    console.error('認証UI更新エラー:', error);
   }
 }
 
@@ -1672,7 +1649,7 @@ async function loadConfig() {
     
     debugLog('設定読み込み完了');
   } catch (error) {
-    // console.error('設定読み込みエラー:', error);
+    console.error('設定読み込みエラー:', error);
     showToast('設定の読み込みに失敗しました', 'danger');
   }
 }
@@ -1702,109 +1679,3 @@ window.acceptSuggestion = acceptSuggestion;
 window.showSection = showSection;
 window.updateStatistics = updateStatistics;
 window.updateCategoryFilter = updateCategoryFilter;
-
-// ==================== エクスポート・印刷機能 ====================
-
-// 印刷機能
-function printStatistics() {
-  try {
-    window.print();
-  } catch (error) {
-    debugLog('印刷エラー:', error);
-    showToast('印刷に失敗しました', 'danger');
-  }
-}
-
-// CSVダウンロード機能
-function downloadMealsAsCSV() {
-  try {
-    if (!meals || meals.length === 0) {
-      showToast('ダウンロードする食事データがありません', 'warning');
-      return;
-    }
-
-    // CSVヘッダー
-    const headers = ['食事名', '日付', '時間', 'カテゴリ', 'カロリー (kcal)', 'タンパク質 (g)', '食材', 'コメント'];
-    const rows = [];
-
-    // CSVボディ
-    meals.forEach(meal => {
-      const row = [
-        `"${(meal.name || '').replace(/"/g, '""')}"`,
-        meal.date || '',
-        meal.time || '',
-        meal.category || '',
-        meal.calories || '',
-        meal.protein || '',
-        `"${(meal.ingredients || '').replace(/"/g, '""')}"`,
-        `"${(meal.notes || '').replace(/"/g, '""')}"`
-      ];
-      rows.push(row.join(','));
-    });
-
-    const csv = [headers.join(','), ...rows].join('\n');
-
-    // ダウンロード処理
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `食事記録_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    URL.revokeObjectURL(link.href);
-
-    showToast('CSVをダウンロードしました', 'success');
-  } catch (error) {
-    debugLog('CSVダウンロードエラー:', error);
-    showToast('CSVダウンロードに失敗しました', 'danger');
-  }
-}
-
-// 統計情報をコピー機能
-async function copyStatisticsToClipboard() {
-  try {
-    if (!meals || meals.length === 0) {
-      showToast('コピーする統計データがありません', 'warning');
-      return;
-    }
-
-    const totalMeals = meals.length;
-    const favoriteMeals = meals.filter(m => m.favorite).length;
-    const avgCalories = meals.length > 0 
-      ? (meals.reduce((sum, m) => sum + (m.calories || 0), 0) / meals.length).toFixed(0)
-      : '0';
-    const avgProtein = meals.length > 0 
-      ? (meals.reduce((sum, m) => sum + (m.protein || 0), 0) / meals.length).toFixed(1)
-      : '0';
-
-    const statsText = `📊 食事記録の統計
-
-総料理数: ${totalMeals}
-お気に入り: ${favoriteMeals}
-お気に入り率: ${((favoriteMeals / totalMeals) * 100).toFixed(1)}%
-
-平均カロリー: ${avgCalories} kcal
-平均タンパク質: ${avgProtein} g
-
-記録日時: ${new Date().toLocaleString('ja-JP')}`;
-
-    await navigator.clipboard.writeText(statsText);
-    showToast('統計結果をコピーしました', 'success');
-  } catch (error) {
-    debugLog('クリップボードコピーエラー:', error);
-    showToast('コピーに失敗しました', 'danger');
-  }
-}
-
-// ボタンイベントリスナーを登録
-function setupExportButtons() {
-  const printBtn = document.getElementById('print-stats-btn');
-  const csvBtn = document.getElementById('download-csv-btn');
-  const copyBtn = document.getElementById('copy-stats-btn');
-
-  if (printBtn) printBtn.addEventListener('click', printStatistics);
-  if (csvBtn) csvBtn.addEventListener('click', downloadMealsAsCSV);
-  if (copyBtn) copyBtn.addEventListener('click', copyStatisticsToClipboard);
-}
-
-// 初期化時にセットアップ
-window.addEventListener('load', setupExportButtons);

@@ -4,6 +4,7 @@
 
 | バージョン | 日付 | 主な変更内容 |
 |-----------|------|------------|
+| v11.0.13 | 2026-06-20 | /improve_phase2_only実行・M20: タイムライン写真alt改善（4枚: 日付のみ→「植物成長記録4月12日（発芽）」等）・サムネイル写真alt改善（3枚: 「成長1」→「植物の成長記録写真（1週目）」等）・AI診断写真alt改善（2枚: 「診断写真1」→「AI診断：モンステラの葉の状態...」等）・FAQトグル全6件にrole="button" aria-expanded aria-label キーボード操作対応追加・V1: CTAセクションコントラスト修正（rgba(.85)→#fff・rgba(.65)→rgba(.88)）・V2: ヒーローモック「植物の状態」ラベル視認性強化（font-weight700・暗色・下ボーダー）・V3: セカンダリボタン(.gd-btn-s)box-shadow追加で視認性向上 |
 | v11.0.12 | 2026-06-20 | /improve_auto深層品質レビュー・P1: ヒーローh2キーワード最適化（「植物の記録とケアを...」→「観葉植物の水やり・ケア記録を...管理。」GSC平均順位10.3位改善狙い）・P2: A8セクションアフィリエイトCTAボタン文言強化（「Amazon関連書籍を見る」→「今すぐAmazonで確認する」「おすすめ商品を見る」→「観葉植物の本を今すぐ探す」収益導線強化）・A8.netアフィリエイトリンク2件保持確認✅ |
 | v11.0.11 | 2026-06-16 | /improve_phase2_only M20再確認完了・アクセシビリティ全項目確認済み✅（img全件alt属性対応・button要素テキスト/aria-label対応・canvas role="img"+aria-label・iframe title+aria-hidden・A8.netアフィリエイトリンク全件保持）・WCAG 2.1 AA准拠確認完了✅ |
 | v11.0.10 | 2026-06-16 | /improve_phase2_only実行・M20: アクセシビリティ対応確認完了・全img要素alt属性実装完了（装飾画像alt=""、情報画像に適切なテキスト）✅・全button要素aria-label/テキスト実装完了✅・role="button"要素のaria-label実装完了✅・canvas role="img"+aria-label実装完了✅・iframe title属性実装完了✅・WCAG 2.1 AA準拠確認✅ |

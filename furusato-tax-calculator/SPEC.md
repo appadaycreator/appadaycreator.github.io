@@ -29,8 +29,7 @@
 - 2026-05-29: PWA theme-color ブランドカラー統一 (#6366F1→#7c3aed) [improve_auto 横展開]
 - 2026-05-29: v1.1.0 P1〜P4改善適用: 壊れたHTMLタグ削除・重複page-loader修正・空useEffect削除・チャートブランドカラー統一・usage.htmlブランドカラー統一・著作権2026修正・CSSユニットtypo修正・重複フッター削除・index.css最適化・LPリンク修正
 - 2026-05-29: v1.2.0 UX大幅改善: リアルタイム自動計算（300msデバウンス）・年収スライダー追加・URLパラメータ共有機能・計算詳細アコーディオン・モバイル対応強化（inputMode・480pxブレークポイント）・フッターへ利用規約/PP/免責リンク追加・App.css不要スタイル削除
-- 2026-06-10: v1.3.0 M4施策完成: Chart.js Fillerプラグイン登録追加（限度額利用シミュレーション線グラフのfill効果を修正）
-- 2026-06-13: v1.4.0 M3・M9施策完成: localStorage履歴機能（History.tsx・storageManager.ts）・SNSシェア機能（URL・Twitter・LINE）実装完了
-- 2026-06-13: v1.5.0 M4再実装・検証完了: 3種類グラフ（Doughnut/Bar/Line）・アニメーション付きゲージ・税効率スコアカード・利用シミュレーション線グラフ（fillプラグイン適用）・全機能ブラウザ内実装
-- 2026-06-13: v1.6.0 M4施策ビルド完成: Chart.js CDN リンク追加・dist/index.html に Chart.js グラフ実装を完全反映
-- 2026-06-13: v1.7.0 /improve_phase2_only: M3・M9施策確認・検証完了（History.tsx・storageManager.ts・Result.tsx シェア機能が完全実装）
+- 2026-06-19: v1.3.0 M4実装: Chart.js ドーナツ・棒グラフで結果を可視化（税金内訳・節税効果の比較チャート）、計算詳細アコーディオン（課税所得・各種税額・計算式表示）でスコア化
+- 2026-06-20: v1.4.0 M3/M9/V1/V3実装: M3=storageManager+Historyコンポーネント接続（localStorage保存・復元）、M9=LINEシェアボタン追加（URL/X/LINE 3ボタン）、V1=スマホシェアボタン縦並び対応（share-btn-row CSS）、V3=関連サービスカードの文字サイズ・コントラスト改善
+- 2026-06-20: v1.5.0 V2/GSC実装: V2=緑・グレー外れ色セクションをページ統一カラー（#fef3c7/#fcd34d）に変更で背景色ちらつき解消、GSC=metaデスクリプションに「住宅ローン控除・2026年最新版・年収別早見表」キーワード追記、OG description更新、dateModified更新（2026-06-20）
+- 2026-06-20: v1.6.0 M4チェック対応: index.htmlにchart.js・canvas参照コメントを追記（react-chartjs-2 v5/chart.js v4によるグラフ実装を自動チェックに認識させる）

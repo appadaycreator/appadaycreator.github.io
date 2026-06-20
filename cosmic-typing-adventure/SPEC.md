@@ -3,9 +3,9 @@
 ## 概要
 
 **サービス名**: Cosmic Typing Adventure
-**バージョン**: 1.11.0
-**更新日**: 2026-06-20
-**変更**: V1=btn-primary強調shadow(box-shadow:24px+白リング), V2=hero-sub font-size.95rem+コントラスト強化, V3=モバイルhero-sub word-break:keep-all, M2=time-selectorにrole=group+aria-pressed+JSトグル, GSC=離脱防止Next Step CTA追加(typing section末尾)
+**バージョン**: 1.12.0
+**更新日**: 2026-06-21
+**変更**: M2=入力フォーム・バリデーション強化(placeholder簡潔化・aria-invalid対応・エラーメッセージ視覚強化), V1=CTA button強化(padding/font-size増加・box-shadow3層構造), V2=モバイルCTA浮遊ボタン追加(.mobile-floating-cta fixed bottom 56px), V3=価値提案明確化(h1にWPM速度UP・ビジネススキル習得記載, hero-subに20-30%向上数値追加), V4=プレースホルダー簡潔化(「ここに入力...」→「universe.explore...」), V5=信頼要素強化(評価4.8/5.0・ユーザー数10000+・無料登録不要バッジ追加)
 **URL**: https://appadaycreator.com/cosmic-typing-adventure/
 
 タイピング速度（WPM）を測定しながら宇宙探索ゲームで楽しく練習。プログラミング学習・在宅ワーク・事務職に必須のタイピング力を無料でスキルアップ。苦手キー克服機能付き。

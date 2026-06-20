@@ -3,11 +3,47 @@
 ## 概要
 
 **サービス名**: Fashion Style Advisor
-**バージョン**: 1.9.0
+**バージョン**: 2.0.0
 **更新日**: 2026-06-20
 **URL**: https://appadaycreator.com/fashion-style-advisor/
 
 体型・好み・ライフスタイルからパーソナルスタイルを無料診断。骨格・顔タイプ別コーデ提案。
+
+## v2.0.0 更新内容（2026-06-20）
+
+### 🔴 V1-V3: 視覚的UI問題の最優先修正（Phase2改善）
+- [V1] **Cookie同意通知の大型化・明確化**
+  - 背景をグラデーション化（#1e293b→#334155）
+  - font-size: .75rem → .9rem（33%大型化）
+  - padding: .3rem .75rem → 1rem 1.25rem（3.5倍拡大）
+  - ボタンを「同意」「拒否」の2つに分離し、「✅ 同意する」「✖ 拒否する」と明確化
+  - flex-wrap: nowrap → wrap でモバイル対応、改行許可
+  - ホバーエフェクト追加で操作感改善
+
+- [V2] **ユースケースカードのレスポンシブ対応**
+  - グリッド: repeat(auto-fill,minmax(200px,1fr)) → repeat(auto-fit,minmax(160px,1fr))
+  - @media クエリ追加: max-width 768px で 1列、max-width 480px で 1列+ギャップ縮小
+  - スマートフォンでの視認性・タップ可能性を大幅向上
+
+- [V3] **ナビゲーション（コラム・ホーム）の視認性向上**
+  - padding: 5px 12px → 12px 16px（2.4倍クリック領域拡大）
+  - font-size: .78rem → .95rem（22%大型化）
+  - リンクに display:inline-block + padding:4px 8px でタップ領域を明確化
+  - emoji アイコン追加（📖・🏠）で視認性向上
+  - flex-wrap: wrap でモバイル対応
+
+### M2: コア機能のUX改善（入力UI・アクセシビリティ強化）
+- **目標設定フォームのセマンティック化**
+  - radiogroup を `<fieldset>` で囲み、`<legend>` でラベル追加
+  - aria-labelledby で見出しと関連付け
+  - アクセシビリティ（WCAG 2.1）向上
+
+- **目標メモ入力フィールドのバリデーション強化**
+  - border: border-purple-200 → border-2 border-purple-200（視認性向上）
+  - focus:ring-1 → focus:ring-2（フォーカス状態を強調）
+  - placeholder 改善、aria-live="polite" で文字数カウント更新を即座に通知
+  - 入力状態表示「✅ 入力済み」を別途表示（display:flex で文字数と並配置）
+  - maxlength バリデーション（50文字）のキープ
 
 ## v1.9.0 更新内容（2026-06-20）
 

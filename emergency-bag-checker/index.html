@@ -71,9 +71,11 @@
     .p-high { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
     .p-medium { background: #fefce8; color: #a16207; border: 1px solid #fde68a; }
     .item-note { font-size: 0.75rem; color: #6b7280; margin-top: 0.1rem; }
-    .family-filter { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
-    .family-btn { background: #f1f5f9; border: 1px solid #d1d5db; color: #374151; font-size: 0.82rem; padding: 0.35rem 0.8rem; border-radius: 20px; cursor: pointer; font-family: inherit; transition: all 0.2s; }
-    .family-btn.active { background: #fff7ed; border-color: #f97316; color: #c2410c; font-weight: 700; }
+    .family-filter { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0; }
+    .family-btn { background: #f1f5f9; border: 2px solid #d1d5db; color: #374151; font-size: 0.82rem; padding: 0.4rem 0.8rem; border-radius: 20px; cursor: pointer; font-family: inherit; transition: all 0.2s; font-weight: 500; min-height: 36px; display: flex; align-items: center; }
+    .family-btn:hover { border-color: #9ca3af; background: #e5e7eb; }
+    .family-btn:focus-visible { outline: 3px solid #4f46e5; outline-offset: 2px; }
+    .family-btn.active { background: #fff7ed; border-color: #ea580c; color: #c2410c; font-weight: 700; box-shadow: 0 2px 8px rgba(234, 88, 12, 0.15); }
     .btn { display: block; width: 100%; padding: 0.85rem; background: linear-gradient(90deg, #e65100, #ff9800); color: #fff; font-size: 1rem; font-weight: 700; border: none; border-radius: 10px; cursor: pointer; margin-top: 1rem; font-family: inherit; }
     .btn:hover { opacity: 0.9; }
     .btn:focus-visible, input:focus-visible, button:focus-visible { outline: 3px solid #e65100; outline-offset: 2px; }
@@ -224,42 +226,50 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   <section class="card">
     <h2>📊 防災準備スコア</h2>
     <div class="score-display">
-      <div class="score-num" id="scoreNum">0</div>
-      <div class="score-label" id="scoreLabel">チェックリストを確認してください</div>
+      <div class="score-num" id="scoreNum">-</div>
+      <div class="score-label" id="scoreLabel"><div style="font-size:1.1rem;color:#1e293b;margin-bottom:0.3rem;font-weight:700;">準備状況チェック</div><div style="font-size:0.9rem;color:#64748b;line-height:1.6;">👇 下の「家族構成を選択」から始めます。<br>チェックリストに✓を入れると進捗が自動で更新されます</div></div>
       <div class="score-bar" style="max-width:300px;margin:0.8rem auto 0;">
         <div class="score-bar-bg">
-          <div class="score-bar-fill low" id="scoreBar" style="width:0%"></div>
+          <div class="score-bar-fill low" id="scoreBar" style="width:0%;background:linear-gradient(90deg,#d1d5db,#e5e7eb)!important;"></div>
         </div>
       </div>
     </div>
     <!-- M4: Charts for visualization -->
-    <div class="charts-grid" id="chartsContainer" style="margin-bottom: 1.5rem; display: none;">
-      <div class="chart-wrapper">
+    <div class="charts-grid" id="chartsContainer" style="margin-bottom: 1.5rem; display: none; overflow: auto; max-height: 450px;">
+      <div class="chart-wrapper" style="overflow: visible;">
         <h3>📊 カテゴリ別完成度</h3>
-        <div class="chart-container" style="position: relative; height: 280px;">
+        <div class="chart-container" style="position: relative; height: 300px; overflow: visible;">
           <canvas id="categoryChart"></canvas>
         </div>
       </div>
     </div>
 
     <div style="margin-bottom:1rem;">
-      <label for="searchInput" style="display:block;font-size:0.85rem;font-weight:600;color:#374151;margin-bottom:0.4rem;">🔍 アイテム検索</label>
+      <label for="searchInput" style="display:block;font-size:0.85rem;font-weight:600;color:#374151;margin-bottom:0.5rem;">🔍 アイテム検索</label>
+      <p style="font-size:0.8rem;color:#64748b;margin:0 0 0.5rem;">キーワードを入力してチェックリストをフィルタリング。最大50文字まで入力できます</p>
       <div style="display:flex;gap:0.5rem;align-items:flex-start;">
-        <input type="text" id="searchInput" placeholder="例：水、薬、懐中電灯" maxlength="50"
-               onkeyup="validateSearch(this.value)" onchange="filterSearch(this.value)"
-               style="flex:1;padding:0.6rem 0.8rem;background:#f1f5f9;border:2px solid #d1d5db;border-radius:8px;color:#374151;font-family:inherit;font-size:0.9rem;transition:border-color 0.2s;"
-               aria-label="チェックリスト項目を検索します。キーワードを入力すると自動的にフィルタされます">
-        <button onclick="clearSearch()" style="margin-top:0;font-size:0.8rem;padding:0.6rem 1rem;background:#f1f5f9;border:1px solid #d1d5db;color:#374151;border-radius:6px;cursor:pointer;white-space:nowrap;min-height:40px;transition:all 0.2s;" aria-label="検索をクリア" title="検索をクリア">クリア</button>
+        <div style="flex:1;position:relative;">
+          <input type="text" id="searchInput" placeholder="例：水、薬、懐中電灯" maxlength="50"
+                 onkeyup="validateSearch(this.value)" onchange="filterSearch(this.value)" onfocus="this.style.borderColor='#4f46e5'" onblur="validateSearch(this.value)"
+                 style="width:100%;padding:0.6rem 0.8rem;background:#fff;border:2px solid #d1d5db;border-radius:8px;color:#374151;font-family:inherit;font-size:0.9rem;transition:border-color 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.05);"
+                 aria-label="チェックリスト項目を検索します。キーワードを入力すると自動的にフィルタされます" aria-describedby="searchHelper" aria-invalid="false">
+          <span id="charCount" style="position:absolute;right:8px;top:8px;font-size:0.7rem;color:#94a3b8;">0/50</span>
+        </div>
+        <button onclick="clearSearch()" style="margin-top:0;font-size:0.8rem;padding:0.6rem 1rem;background:#e5e7eb;border:1px solid #d1d5db;color:#374151;border-radius:6px;cursor:pointer;white-space:nowrap;min-height:44px;transition:all 0.2s;font-weight:600;" aria-label="検索をクリア" title="検索をクリア">クリア</button>
       </div>
-      <div id="searchError" style="display:none;margin-top:0.4rem;font-size:0.8rem;color:#c62828;background:#fee2e2;padding:0.4rem 0.6rem;border-radius:4px;" role="alert"></div>
+      <div id="searchError" style="display:none;margin-top:0.4rem;font-size:0.8rem;color:#c62828;background:#fee2e2;padding:0.6rem 0.8rem;border-radius:4px;border-left:3px solid #c62828;" role="alert"></div>
+      <div id="searchHelper" style="display:none;margin-top:0.3rem;font-size:0.75rem;color:#059669;background:#ecfdf5;padding:0.4rem 0.6rem;border-radius:4px;border-left:3px solid #059669;" role="status"></div>
     </div>
-    <div class="family-filter">
-      <span style="font-size:0.85rem;color:#64748b;align-self:center;">家族構成：</span>
-      <button class="family-btn active" onclick="filterFamily(this,'all')" aria-label="全員共通">全員共通</button>
-      <button class="family-btn" onclick="filterFamily(this,'baby')" aria-label="＋乳幼児">＋乳幼児</button>
-      <button class="family-btn" onclick="filterFamily(this,'elderly')">＋高齢者</button>
-      <button class="family-btn" onclick="filterFamily(this,'pet')">＋ペット</button>
-      <button class="family-btn" onclick="filterFamily(this,'medical')">＋持病あり</button>
+    <div style="margin-bottom:1rem;">
+      <label style="display:block;font-size:0.85rem;font-weight:600;color:#374151;margin-bottom:0.5rem;">👨‍👩‍👧‍👦 家族構成を選択</label>
+      <p style="font-size:0.8rem;color:#64748b;margin:0 0 0.5rem;">チェックリストは選択した家族構成に応じたアイテムを表示します</p>
+      <div class="family-filter" style="margin-bottom:0;">
+        <button class="family-btn active" onclick="filterFamily(this,'all')" aria-label="全員共通のアイテムを表示" aria-pressed="true" title="基本的な防災グッズ">基本セット</button>
+        <button class="family-btn" onclick="filterFamily(this,'baby')" aria-label="乳幼児がいる場合のアイテムも表示" aria-pressed="false" title="赤ちゃん向けグッズを追加">＋赤ちゃん</button>
+        <button class="family-btn" onclick="filterFamily(this,'elderly')" aria-label="高齢者がいる場合のアイテムも表示" aria-pressed="false" title="高齢者向けグッズを追加">＋高齢者</button>
+        <button class="family-btn" onclick="filterFamily(this,'pet')" aria-label="ペットがいる場合のアイテムも表示" aria-pressed="false" title="ペット用グッズを追加">＋ペット</button>
+        <button class="family-btn" onclick="filterFamily(this,'medical')" aria-label="持病・常用薬がある場合のアイテムも表示" aria-pressed="false" title="医療用品を追加">＋持病</button>
+      </div>
     </div>
     <button class="btn" onclick="resetAll()">チェックをすべてリセット</button>
     <button class="btn" onclick="exportChecklist()" style="background:linear-gradient(90deg,#1e7e34,#2d9d4a);margin-top:0.7rem;">📥 チェックリストをエクスポート</button>
@@ -325,20 +335,25 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       </div>
       <div id="simulationModalBody" style="font-size:0.9rem;">
         <p style="color:#374151;margin-bottom:1rem;">家族構成を選択して、必要なアイテム数をシミュレーション：</p>
-        <div style="margin-bottom:1.5rem;">
-          <label style="display:flex;gap:0.5rem;align-items:center;padding:0.5rem;cursor:pointer;">
-            <input type="checkbox" id="sim-baby" onchange="updateSimulation()"> 乳幼児がいる
+        <fieldset style="border:none;padding:0;margin-bottom:1.5rem;">
+          <legend style="font-weight:700;color:#374151;margin-bottom:0.8rem;">家族構成を選択</legend>
+          <label style="display:flex;gap:0.6rem;align-items:center;padding:0.6rem 0.8rem;background:#f8fafc;border-radius:6px;margin-bottom:0.5rem;cursor:pointer;border:1px solid #e2e8f0;transition:all 0.2s;">
+            <input type="checkbox" id="sim-baby" onchange="updateSimulation()" style="width:18px;height:18px;cursor:pointer;accent-color:#e65100;">
+            <span style="flex:1;">乳幼児がいる</span>
           </label>
-          <label style="display:flex;gap:0.5rem;align-items:center;padding:0.5rem;cursor:pointer;">
-            <input type="checkbox" id="sim-elderly" onchange="updateSimulation()"> 高齢者がいる
+          <label style="display:flex;gap:0.6rem;align-items:center;padding:0.6rem 0.8rem;background:#f8fafc;border-radius:6px;margin-bottom:0.5rem;cursor:pointer;border:1px solid #e2e8f0;transition:all 0.2s;">
+            <input type="checkbox" id="sim-elderly" onchange="updateSimulation()" style="width:18px;height:18px;cursor:pointer;accent-color:#e65100;">
+            <span style="flex:1;">高齢者がいる</span>
           </label>
-          <label style="display:flex;gap:0.5rem;align-items:center;padding:0.5rem;cursor:pointer;">
-            <input type="checkbox" id="sim-pet" onchange="updateSimulation()"> ペットがいる
+          <label style="display:flex;gap:0.6rem;align-items:center;padding:0.6rem 0.8rem;background:#f8fafc;border-radius:6px;margin-bottom:0.5rem;cursor:pointer;border:1px solid #e2e8f0;transition:all 0.2s;">
+            <input type="checkbox" id="sim-pet" onchange="updateSimulation()" style="width:18px;height:18px;cursor:pointer;accent-color:#e65100;">
+            <span style="flex:1;">ペットがいる</span>
           </label>
-          <label style="display:flex;gap:0.5rem;align-items:center;padding:0.5rem;cursor:pointer;">
-            <input type="checkbox" id="sim-medical" onchange="updateSimulation()"> 持病・常用薬がある
+          <label style="display:flex;gap:0.6rem;align-items:center;padding:0.6rem 0.8rem;background:#f8fafc;border-radius:6px;margin-bottom:0;cursor:pointer;border:1px solid #e2e8f0;transition:all 0.2s;">
+            <input type="checkbox" id="sim-medical" onchange="updateSimulation()" style="width:18px;height:18px;cursor:pointer;accent-color:#e65100;">
+            <span style="flex:1;">持病・常用薬がある</span>
           </label>
-        </div>
+        </fieldset>
         <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:1rem;margin-bottom:1rem;">
           <h4 style="font-size:0.85rem;font-weight:700;color:#1e293b;margin:0 0 0.8rem;">📌 シミュレーション結果</h4>
           <p style="margin:0.3rem 0;"><strong>アイテム数:</strong> <span id="simItemCount" style="color:#e65100;font-weight:700;">計算中...</span></p>
@@ -613,27 +628,51 @@ let activeFamily = 'all';
 let searchQuery = '';
 
 function filterFamily(btn, family) {
-  document.querySelectorAll('.family-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.family-btn').forEach(b => {
+    b.classList.remove('active');
+    b.setAttribute('aria-pressed', 'false');
+  });
   btn.classList.add('active');
+  btn.setAttribute('aria-pressed', 'true');
   activeFamily = family;
   renderChecklist();
 }
 
 function validateSearch(value) {
   const errorEl = document.getElementById('searchError');
+  const helperEl = document.getElementById('searchHelper');
+  const charCountEl = document.getElementById('charCount');
   const input = document.getElementById('searchInput');
+
+  // 文字数カウント表示を常に更新
+  if (charCountEl) {
+    charCountEl.textContent = `${value.length}/50`;
+    charCountEl.style.color = value.length > 40 ? '#f59e0b' : value.length > 45 ? '#dc2626' : '#94a3b8';
+  }
 
   // 入力値を検証：長さチェック
   if (value.length > 50) {
-    errorEl.textContent = '⚠️ 50文字以内で入力してください';
+    errorEl.textContent = '⚠️ 入力は50文字以内でお願いします';
     errorEl.style.display = 'block';
     input.style.borderColor = '#c62828';
+    input.setAttribute('aria-invalid', 'true');
+    helperEl.style.display = 'none';
     return false;
   }
 
   // エラー表示をクリア
   errorEl.style.display = 'none';
-  input.style.borderColor = value ? '#4f46e5' : '#d1d5db';
+  input.setAttribute('aria-invalid', 'false');
+
+  // 検索入力時にキーワード例を表示
+  if (value.length > 0 && value.length <= 50) {
+    input.style.borderColor = '#4f46e5';
+    helperEl.textContent = `✓ "${value}" で検索中（${CHECKLIST.flatMap(c => c.items).filter(i => isVisible(i) && i.text.toLowerCase().includes(value.toLowerCase())).length}件一致）`;
+    helperEl.style.display = 'block';
+  } else {
+    input.style.borderColor = '#d1d5db';
+    helperEl.style.display = 'none';
+  }
   return true;
 }
 
@@ -646,12 +685,17 @@ function filterSearch(query) {
 
 function clearSearch() {
   const input = document.getElementById('searchInput');
+  const helperEl = document.getElementById('searchHelper');
   input.value = '';
   input.style.borderColor = '#d1d5db';
   document.getElementById('searchError').style.display = 'none';
+  helperEl.style.display = 'none';
   searchQuery = '';
   renderChecklist();
   input.focus();
+  // 短い間隔のフィードバック
+  input.style.background = '#f0f7ff';
+  setTimeout(() => { input.style.background = '#fff'; }, 150);
 }
 
 function toggleCategory(catName) {
@@ -1103,9 +1147,9 @@ document.getElementById('simulationModal')?.addEventListener('click', e => {
 <script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
 </div>
 <!-- r31-cookie-banner -->
-<div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1.25rem 1.5rem;display:flex;align-items:stretch;justify-content:space-between;flex-wrap:wrap;gap:1rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
-<div style="flex:1;min-width:200px;display:flex;align-items:center">当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline;margin-left:0.3rem">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1');window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.6rem 1.5rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;height:100%;min-height:44px;touch-action:manipulation">同意して閉じる</button>
+<div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1.2rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3);">
+<div style="flex:1;min-width:250px;display:flex;align-items:center;line-height:1.6;">当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline;margin-left:0.4rem;font-weight:600;">プライバシーポリシー</a>をご確認ください。</div>
+<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1');window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.7rem 1.5rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0;min-height:44px;touch-action:manipulation;transition:background 0.2s;" aria-label="Cookie設定に同意する" title="同意して閉じる">了解</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 <!-- r46-org-footer -->

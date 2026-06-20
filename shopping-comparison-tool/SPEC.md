@@ -3,18 +3,19 @@
 ## 概要
 
 **サービス名**: Shopping Comparison Tool
-**バージョン**: 2.2.2（V1-V3 視覚的UI改善・CTA誘導性向上版）
+**バージョン**: 2.2.3（V1-V3 ファーストビューCTA・横幅活用・チップス視認性強化版）
 **更新日**: 2026-06-20
 **URL**: https://appadaycreator.com/shopping-comparison-tool/
 
 Amazon・楽天・Yahoo等の価格とポイント還元を比較して実質最安値を計算。登録不要・完全無料でご利用いただけます。
 
-## v2.2.2 の改善内容（2026-06-20）
+## v2.2.3 の改善内容（2026-06-20）
 
-### 視覚的UI問題修正（スクリーンショット解析対応）
-- **V1 CTA誘導性改善**: 関連サービスセクションのCTAボタン（「使ってみる →」「詳しく見る →」）に背景色#dbeafeを追加。下部背景をlinear-gradientで画像との視覚的分離を強調。画像領域奥に埋もれていた問題を解決。
-- **V2 モバイルチップ最適化**: hero-band内の.chips要素をモバイル時に`flex-direction:column`に変更。「完全無料」「登録不要」「プライバシーファースト」「スマホ対応」が縦並びになり、スクロール不要に。フォントサイズ12pxに圧縮。
-- **V3 ナビゲーション下余白削減**: hero-band-inのpadding-bottomを54px → 32px に削減。ファーストビューでのコンテンツ表示範囲を拡大。サービス価値提案が初期表示で見えるように改善。
+### 視覚的UI問題修正（Phase 2 実装）
+- **V1 ファーストビューCTA強化**: hero-band内の「無料で今すぐ比較する」ボタンをサイズアップ（padding: 18px 40px、font-size: 18px、min-width: 240px）。min-height: 56px で大型タッチターゲット化。訪問初期に明確な次のアクション（CTA）を視認させる。
+- **V2 デスクトップ横幅活用**: hero-band-in padding-bottomを40px → 32pxに削減、.container max-width 800px → 1000pxに拡張（padding 16px → 20px）。関連サービスグリッドを固定3列から`repeat(auto-fit,minmax(280px,1fr))`のレスポンシブ対応に変更。ページレイアウトが冗長に見える問題を解決。
+- **V3 チップス視認性強化**: hero-band内の.chips要素（完全無料・登録不要・プライバシーファースト・スマホ対応）をスタイル強化。border 2px solid #bfdbfe、box-shadow追加、hover時にtransform: translateY(-2px)で選択状態を可視化。タブ的UIとしての役割を強調。
+- **M8 ツールチップデザイン改善**: `[style*="cursor:help"]` 要素を強化。border 1.5px、box-shadow 0 2px 8px追加、hover時に scale(1.1) & box-shadow拡大。各入力欄の「?」ツールチップを目立つUIに変更。説明テキストは既にv2.2.1で充実済み。
 
 ## v2.2.1 の改善内容（2026-06-14）
 

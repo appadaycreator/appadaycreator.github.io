@@ -23,6 +23,17 @@
 
 ## 改善履歴
 
+### Phase2: M2 コア機能UX改善 + 視覚的問題修正（2026-06-20）
+- **V1 Cookie バナー改善**: z-index調整・min-height設定・padding-bottom 120px に増加してコンテンツ覆い隠し解消
+- **V2 質問フォーム表示確保**: fieldset に inline-style display:block 追加・legend display:block・options-container に role="group" と aria-labelledby 追加で form 要素の可視性向上
+- **V3 クロスセル最終項目表示**: grid に auto-rows-fr 追加・overflow:visible 設定・mb-8 追加でスクロール可能範囲確保
+- **M2 入力フォームUX強化**:
+  - フォーム要素の display:flex; align-items:flex-start; inline-style で確実なレイアウト
+  - エラーメッセージに role="alert" + aria-live="polite" で即座に読み上げ
+  - バリデーションエラー表示を 3秒自動消去に改善
+  - nextStep() で smooth scroll 機能を追加（次ページへ自動スクロール）
+  - ラジオボタン・チェックボックスに margin-top:0.375rem; cursor:pointer; のインラインスタイル追加
+
 ### V1/V2/V3・M2 UX改善（2026-06-20）
 - **V1** Cookie同意バナーを#0f172a背景+白テキスト+青リンクに変更しコントラスト比改善
 - **V2** body padding-bottom:80pxで固定バナーによる診断カード隠れを解消

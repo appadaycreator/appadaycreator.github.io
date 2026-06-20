@@ -70,6 +70,24 @@ GitHub Pages（mainブランチ push → 自動デプロイ）
 
 ## バージョン履歴
 
+### v1.6.1 (2026-06-20)
+**Phase 2 実装（M2 UX改善）**:
+- 【M2】コア機能のUX改善（入力UI・バリデーション）
+  - ingredient チェックボックスセクションをカテゴリ分け（スピリッツ・リキュール ／ ミキサー・シロップ）して見やすさを向上
+  - 全チェックボックスに aria-label を追加してスクリーンリーダー対応・アクセシビリティ強化
+  - input/select/textarea に disabled・aria-invalid 状態時の視覚的フィードバック改善（背景色・透明度・ボーダー色）
+  - input:focus 時に background-color を #22303f に変更して focus state を明確化
+  - .form-helper・.form-error CSS クラス追加で validation メッセージ表示準備
+  - .quiz-opt に aria-selected="true" 状態のスタイル追加で選択状態を視覚的に強調
+- 【V1-V3】統計情報・CTA・モバイルレイアウト改善
+  - .hero-stats の font-size を 23px → 32px に拡大（より目立つ）、gap を 26px → 28px に調整
+  - hero-stats div を flex-direction:column で縦並び、align-items:flex-start で整列改善
+  - .hero-stats b のマージンを追加（margin-bottom: 6px）で数字と説明文の間隔を明確化
+  - .hero-stats span を新規スタイル化：font-size 11px、font-weight 600、text-transform:uppercase で説明文をより明確に
+  - モバイル（640px以下）時の統計情報サイズを最適化：font-size 32px → 24px、gap 28px → 18px
+  - .btn に box-shadow 追加で CTA ボタンをより視覚的に強調（ホバー時の効果も向上）
+  - .quiz-opt に box-shadow・focus-visible 改善で form interaction フィードバック向上
+
 ### v1.6.0 (2026-06-20)
 **Phase 2 実装**:
 - 【M2】コア機能のUX改善（入力UI・バリデーション）

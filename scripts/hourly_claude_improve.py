@@ -50,10 +50,10 @@ LOCK_FILE = Path("/tmp/hourly_claude_improve.lock")
 BOT_TOKEN = "8851812089:AAHo7TYkOvmepfgwgN7hmE9t3nqBm3HoHqk"  # @tokunaga_dev_bot（使用量・improve通知専用）
 CHAT_ID = "8512824182"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-N_WORKERS = 10       # 並列ワーカー数の上限（動的調整の最大値）
+N_WORKERS = 30       # 並列ワーカー数の上限（動的調整の最大値）
 TOP_N = 3
 TIMEOUT_SEC = 900    # フォールバック上限（Sonnet/フェーズ1実施時）。実際は max-turns に連動して 300/600/900s に動的設定
-COOLDOWN_SUCCESS_HOURS = 3   # 改善成功後のクールダウン
+COOLDOWN_SUCCESS_HOURS = 24  # 改善成功後のクールダウン（24h: 1サービス1日1回）
 COOLDOWN_FAIL_HOURS   = 24  # 改善対象なし・エラー後のクールダウン
 INDEXNOW_KEY  = "060b5be77e884ff19fd16c1dcd467960"
 INDEXNOW_HOST = "appadaycreator.com"
@@ -149,6 +149,7 @@ def safe_int(v) -> int:
 
 _cooldown_lock = None  # threading.Lock() は main() で初期化
 _git_lock     = None  # ㉘ git commit+push の直列化ロック（並列ワーカー競合防止）
+_visual_lock  = None  # Playwright並列実行防止（1並列のみ許可）
 _in_progress: set = set()  # 実行中リポジトリ（並列重複防止用）
 _fail_counts: dict = {}    # ㉚ repo → 連続失敗回数（指数バックオフ用）
 _m_fail_counts: dict = {}  # ㊺ "{repo}:{M}" → 連続失敗回数（施策単位）
@@ -163,12 +164,14 @@ CD_FMT = "%Y/%m/%d %H:%M"
 
 def claim_service(candidates: list) -> dict | None:
     """スレッド安全にサービスを1件クレームして返す。
-    cd_expiry（R列から読んだクールダウン期限）で判定し、_in_progress で重複防止。"""
+    cd_expiry（R列から読んだクールダウン期限）で判定し、_in_progress で重複防止。
+    IGNORE_COOLDOWN=1 環境変数でクールダウンを無視（最大ワーカー稼働用）。"""
+    _ignore_cd = os.environ.get("IGNORE_COOLDOWN") == "1"
     with _cooldown_lock:
         now = datetime.now()
         available = [
             s for s in candidates
-            if (s.get("cd_expiry") is None or now >= s["cd_expiry"])
+            if (_ignore_cd or s.get("cd_expiry") is None or now >= s["cd_expiry"])
             and s["repo"] not in _in_progress
         ]
         if not available:
@@ -455,7 +458,23 @@ def get_top_services(sheets) -> list[dict]:
             "cd_expiry": cd_expiry,
         })
 
-    _sorted = sorted(services, key=lambda x: -x["combined"])
+    # PSIスコアをキャッシュから読み込み、優先度ブーストを付加（APIは呼ばない）
+    try:
+        import importlib.util as _ilu
+        _psi_spec = _ilu.spec_from_file_location("psi_checker", Path(__file__).parent / "psi_checker.py")
+        _psi_mod  = _ilu.module_from_spec(_psi_spec)
+        _psi_spec.loader.exec_module(_psi_mod)
+        for _svc in services:
+            _psi = _psi_mod.get_score_cached(_svc["repo"])
+            _svc["psi_score"] = _psi
+            _svc["psi_boost"] = _psi_mod.get_psi_boost(_psi)
+    except Exception as _psi_err:
+        log(f"[PSI] キャッシュ読み込みスキップ: {_psi_err}")
+        for _svc in services:
+            _svc.setdefault("psi_score", None)
+            _svc.setdefault("psi_boost", 0)
+
+    _sorted = sorted(services, key=lambda x: -(x["combined"] + x.get("psi_boost", 0)))
     _TOP_SVC_CACHE.update({"ts": time.time(), "data": _sorted})
     return _sorted
 
@@ -864,46 +883,362 @@ def update_spreadsheet(sheets, row: int, s_val: int, asset_value: int,
         ).execute()
 
 
+def _get_diff_summary(repo: str) -> dict:
+    """直前のgit commit差分から変更内容を構造的に把握する。
+    並列コミット競合に強い: HEAD~1ではなく対象ファイルの最新コミットSHAを使う。
+    Returns: {has_changes, stats, added, removed, descriptions}
+      descriptions: 自然言語の変更概要リスト（最大4件）
+    """
+    import re as _re_d
+    result = {"has_changes": False, "stats": "", "added": 0, "removed": 0, "descriptions": []}
+    try:
+        # 対象ファイルに触れた最新コミットSHAを取得（並列コミット競合を回避）
+        # フォーマット: "<SHA> <unix_timestamp>"
+        log_r = subprocess.run(
+            ["git", "log", "-1", "--pretty=format:%H %ct", "--", f"{repo}/index.html"],
+            cwd=str(WORKSPACE), capture_output=True, text=True, timeout=10
+        )
+        if log_r.returncode != 0 or not log_r.stdout.strip():
+            return result
+        _parts = log_r.stdout.strip().split()
+        last_sha = _parts[0]
+        # 10分以上前のコミットは「今回の改善」ではないのでスキップ
+        import time as _time
+        _commit_age = _time.time() - int(_parts[1]) if len(_parts) > 1 else 9999
+        if _commit_age > 600:
+            return result
+
+        stat_r = subprocess.run(
+            ["git", "diff", f"{last_sha}^", last_sha, "--numstat", "--", f"{repo}/index.html"],
+            cwd=str(WORKSPACE), capture_output=True, text=True, timeout=10
+        )
+        if stat_r.returncode == 0 and stat_r.stdout.strip():
+            parts = stat_r.stdout.strip().split()
+            result["added"] = int(parts[0]) if len(parts) > 0 and parts[0].isdigit() else 0
+            result["removed"] = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
+            result["has_changes"] = result["added"] > 0 or result["removed"] > 0
+            result["stats"] = f"+{result['added']}行/-{result['removed']}行"
+
+        if not result["has_changes"]:
+            return result
+
+        # 旧版・新版を取得して構造比較
+        old_r = subprocess.run(
+            ["git", "show", f"{last_sha}^:{repo}/index.html"],
+            cwd=str(WORKSPACE), capture_output=True, text=True, timeout=15
+        )
+        new_r = subprocess.run(
+            ["git", "show", f"{last_sha}:{repo}/index.html"],
+            cwd=str(WORKSPACE), capture_output=True, text=True, timeout=15
+        )
+        if old_r.returncode != 0 or new_r.returncode != 0:
+            return result
+
+        old, new = old_r.stdout, new_r.stdout
+        # desc: list of (change_text, effect_text) tuples
+        desc = []
+
+        # h1 変更
+        _old_h1 = _re_d.search(r'<h1[^>]*>\s*([^<]{4,}?)\s*</h1>', old)
+        _new_h1 = _re_d.search(r'<h1[^>]*>\s*([^<]{4,}?)\s*</h1>', new)
+        if _old_h1 and _new_h1 and _old_h1.group(1).strip() != _new_h1.group(1).strip():
+            desc.append((
+                f"h1改善: 「{_new_h1.group(1).strip()[:35]}」",
+                "検索キーワード一致度・クリック率改善"
+            ))
+
+        # meta description 変更
+        _old_md = _re_d.search(r'<meta\s+name="description"\s+content="([^"]{15,})"', old)
+        _new_md = _re_d.search(r'<meta\s+name="description"\s+content="([^"]{15,})"', new)
+        if _old_md and _new_md and _old_md.group(1) != _new_md.group(1):
+            desc.append((
+                f"meta説明文更新: 「{_new_md.group(1)[:35]}…」",
+                "検索スニペット改善・流入率向上"
+            ))
+
+        # FAQアイテム数
+        _old_faq = len(_re_d.findall(r'<dt[\s>]|class=["\']faq-(?:q|question)|itemtype="[^"]*FAQPage', old, _re_d.I))
+        _new_faq = len(_re_d.findall(r'<dt[\s>]|class=["\']faq-(?:q|question)|itemtype="[^"]*FAQPage', new, _re_d.I))
+        if _new_faq > _old_faq and _new_faq > 0:
+            desc.append((
+                f"FAQ拡充: {_old_faq}問→{_new_faq}問",
+                "ユーザーの疑問解消・滞在時間・回遊改善"
+            ))
+
+        # CTA/ボタン追加（日本語テキストのみ）
+        _old_btns = set(_re_d.findall(
+            r'(?:class="[^"]*(?:cta|btn)[^"]*"[^>]*>|<button[^>]*>)\s*([ぁ-んァ-ン一-龯a-zA-Z0-9・\-「」（）]{4,30})',
+            old, _re_d.I))
+        _new_btns = set(_re_d.findall(
+            r'(?:class="[^"]*(?:cta|btn)[^"]*"[^>]*>|<button[^>]*>)\s*([ぁ-んァ-ン一-龯a-zA-Z0-9・\-「」（）]{4,30})',
+            new, _re_d.I))
+        _added_btns = [b.strip() for b in (_new_btns - _old_btns) if _re_d.search(r'[ぁ-んァ-ン一-龯]', b)]
+        if _added_btns:
+            desc.append((
+                f"CTAボタン追加: 「{'」「'.join(_added_btns[:3])}」",
+                "収益化クリック機会を増やしCVR改善"
+            ))
+
+        # Consent Mode v2
+        if 'Consent Mode v2' not in old and 'Consent Mode v2' in new:
+            desc.append((
+                "Consent Mode v2実装",
+                "Google広告・Analytics同意管理対応→AdSense安定化"
+            ))
+        elif 'cookie-consent' not in old and 'cookie-consent' in new:
+            desc.append((
+                "クッキー同意バナー追加",
+                "GDPR/個人情報保護法対応・広告表示安定化"
+            ))
+
+        # HowToスキーマ
+        if '"HowTo"' not in old and '"HowTo"' in new:
+            desc.append((
+                "HowToスキーマ追加",
+                "Googleリッチリザルト表示機会増加→CTR向上"
+            ))
+
+        # アフィリエイトリンク追加
+        _old_af = len(_re_d.findall(r'px\.a8\.net', old))
+        _new_af = len(_re_d.findall(r'px\.a8\.net', new))
+        if _new_af > _old_af:
+            desc.append((
+                f"A8アフィリエイトリンク+{_new_af - _old_af}件",
+                f"収益導線を{_new_af - _old_af}箇所追加・収益化機会拡大"
+            ))
+
+        # 構造的変更が検出できなかった場合: 差分から日本語行を抽出（フォールバック）
+        if not desc:
+            diff_r = subprocess.run(
+                ["git", "diff", f"{last_sha}^", last_sha, "--", f"{repo}/index.html"],
+                cwd=str(WORKSPACE), capture_output=True, text=True, timeout=10
+            )
+            _skip_kw = {"appadaycreator.com", "px.a8.net", "schema.org", "google", "gtm",
+                        "analytics", "@context", "@type", "acceptedAnswer", "HowToStep"}
+            for line in diff_r.stdout.splitlines():
+                if not line.startswith("+") or line.startswith("+++"):
+                    continue
+                text = _re_d.sub(r'<[^>]+>', '', line[1:]).strip()
+                text = _re_d.sub(r'\s+', ' ', text).strip()
+                if (5 <= len(text) <= 80 and _re_d.search(r'[ぁ-んァ-ン一-龯]', text)
+                        and not any(kw in line for kw in _skip_kw)):
+                    desc.append((text, "コンテンツ品質・ユーザー体験改善"))
+                    if len(desc) >= 3:
+                        break
+
+        result["descriptions"] = desc[:4]
+    except Exception as e:
+        log(f"  diff取得エラー: {e}")
+    return result
+
+
+def _take_screenshot_sync(repo: str) -> str | None:
+    """index.htmlのローカルスクショをPlaywrightで撮る（Telegramファイル添付用）。"""
+    idx = WORKSPACE / repo / "index.html"
+    if not idx.exists():
+        return None
+    shot_path = f"/tmp/improve_shot_{repo}.png"
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
+            page = browser.new_page(viewport={"width": 1280, "height": 800})
+            page.goto(f"file://{idx}", wait_until="domcontentloaded", timeout=15000)
+            page.wait_for_timeout(2000)
+            page.screenshot(path=shot_path, full_page=False)
+            browser.close()
+        return shot_path
+    except Exception as e:
+        log(f"  スクショ失敗: {e}")
+        return None
+
+
+def _visual_scan(repo: str) -> list[str]:
+    """スクショをClaude Haikuで分析し視覚的UI問題を[V1][V2][V3]形式で返す（最大3件）。"""
+    import time as _vt
+    _t0 = _vt.time()
+    shot_path = _take_screenshot_sync(repo)
+    if not shot_path:
+        log(f"  [visual_scan] スクショ取得失敗 → スキップ")
+        return []
+    log(f"  [visual_scan] スクショ取得完了: {shot_path}")
+    try:
+        import re as _re_v
+        prompt = (
+            f"画像ファイル {shot_path} を読んで、このWebサービスのUIの視覚的問題点を\n"
+            "[V1] 問題の説明\n[V2] 問題の説明\n[V3] 問題の説明\n"
+            "という形式で最大3件、日本語で出力してください。\n"
+            "コードや解決策は不要。問題の説明のみ。\n"
+            "対象: CTAボタンの視認性・レイアウト崩れ・コントラスト・スマホ対応・広告配置など\n"
+            "例: [V1] CTAボタンが画面下部に埋もれており目立たない"
+        )
+        log(f"  [visual_scan] Claude Haiku 分析開始...")
+        r = subprocess.run(
+            [str(CLAUDE_BIN), "-p", "--model", "haiku", "--allowedTools", "Read"],
+            input=prompt,
+            capture_output=True,
+            text=True,
+            timeout=90,
+        )
+        elapsed_v = _vt.time() - _t0
+        raw_out = r.stdout.strip()
+        log(f"  [visual_scan] Haiku応答 ({elapsed_v:.1f}s): {raw_out[:300]}")
+        if r.returncode != 0:
+            log(f"  [visual_scan] Haiku終了コード={r.returncode}, stderr={r.stderr[:200]}")
+        issues = []
+        for line in raw_out.splitlines():
+            m = _re_v.search(r'\[(V\d+)\]\s*(.+)', line.strip())
+            if m:
+                issues.append(f"[{m.group(1)}] {m.group(2).strip()}")
+        issues = issues[:3]
+        log(f"  [visual_scan] 抽出結果 {len(issues)}件: {issues}")
+        return issues
+    except Exception as e:
+        log(f"  [visual_scan] 失敗: {e}")
+        return []
+
+
+def _send_telegram_photo(caption: str, photo_path: str) -> None:
+    """写真+キャプションをTelegramに送信する。"""
+    try:
+        import requests as _req
+        with open(photo_path, "rb") as f:
+            _req.post(
+                f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
+                data={"chat_id": CHAT_ID, "caption": caption[:1024]},
+                files={"photo": f},
+                timeout=30,
+            )
+    except Exception as e:
+        log(f"  Telegram写真送信失敗: {e}")
+        send_telegram(caption)
+
+
 def _send_improve_notify(svc: dict, stdout: str, worker_id: int,
-                         verify_detail: str = "", marker_results: str = ""):
-    """改善完了通知を @tokunaga_dev_bot へ送信する。"""
-    # stdoutから📋〜の通知ブロックを抽出（improve_auto.md が出力している場合）
-    notify_text = ""
-    if "📋 実装内容" in stdout:
-        start = stdout.find("✅")
-        if start == -1:
-            start = stdout.find("📋")
-        end = stdout.rfind("(≈$")
-        if end != -1:
-            end = stdout.find("\n", end) + 1
-        if start != -1:
-            notify_text = stdout[start:end].strip() if end > start else stdout[start:start+2000].strip()
+                         verify_detail: str = "", marker_results: str = "",
+                         pre_issues: list | None = None, elapsed: int = 0,
+                         s_delta: int = 1, asset_value: int = 0,
+                         v_issues: list | None = None):
+    """改善完了通知 - git diff で実変更を確認し、変更あり時はスクショ付きで送信する。
 
-    # 抽出できなかった場合は _extract_log_parts で内容を組み立てる
-    if not notify_text:
-        proposal, impl, cross_targets, cross_content, _ = _extract_log_parts(stdout)
-        lines = [f"✅ /improve_auto {svc['name']} 完了"]
-        if proposal:
-            lines += ["", "📋 改善提案:", proposal[:400]]
-        if impl:
-            lines += ["", "🔧 実装内容:", impl[:400]]
-        if cross_targets:
-            lines += ["", f"🔁 横展開: {cross_targets}"]
-        notify_text = "\n".join(lines)
+    テンプレート（変更あり）:
+        ✅ No.155 国内旅行費用シミュレーター
+        ━━━━━━━━━━━━━━━━━━━━━━
+        🔍 深層レビュー｜⏱8分12秒｜S=36｜¥12,000
+        📊 +115行/-5行
+          • じゃらん・一休.com・Yahoo!トラベル CTAボタン追加
+          • HowToスキーマ（5ステップ）追加
+          • h1テキスト「計算シミュレーター」に改善
+        ✔️ マーカーOK
+        🔗 appadaycreator.com/domestic-travel-planner/
 
-    # 末尾にURLを追加（未含の場合のみ）
-    url = f"https://appadaycreator.com/{svc['repo']}/"
-    if url not in notify_text:
-        notify_text += f"\n\n🔗 {url}"
+    テンプレート（変更なし）:
+        ℹ️ No.155 国内旅行費用シミュレーター
+        🔍 深層レビュー｜⏱1分37秒 - 改善点なし
+    """
+    import re as _re_n
+    pre_issues = pre_issues or []
+    v_issues = v_issues or []
+    deep_review = not pre_issues
 
-    # URL確認 + 改善マーカー確認結果を追記
-    if verify_detail:
-        notify_text += f"\n🌐 {verify_detail}"
-    if marker_results:
-        notify_text += f"\n{marker_results}"
+    # ── モード行 ──
+    if deep_review:
+        mode = "🔍 深層レビュー"
+    else:
+        m_ids = sorted({_re_n.search(r'M\d+', i).group()
+                        for i in pre_issues if _re_n.search(r'M\d+', i)})
+        mode = f"🔧 {'/'.join(m_ids[:4])} 修正"
+    if v_issues:
+        mode += f" + 👁V{len(v_issues)}"
 
-    send_telegram(notify_text)
-    log(f"[W{worker_id}]   通知送信完了")
+    # ── メトリクス ──
+    elapsed_str = f"{elapsed // 60}分{elapsed % 60:02d}秒" if elapsed >= 60 else f"{elapsed}秒"
+    new_s = svc.get("s_val", 0) + s_delta
+    am_str = f"¥{asset_value:,}" if asset_value else "¥-"
+
+    # ── git diff で実変更確認 ──
+    diff = _get_diff_summary(svc["repo"])
+
+    if not diff["has_changes"]:
+        # 変更なし: 簡素な通知のみ（スクショ・S値更新なし）
+        msg = (
+            f"ℹ️ No.{svc['no']} {svc['name']}\n"
+            f"{mode}｜⏱{elapsed_str} — 改善点なし\n"
+            f"🔗 appadaycreator.com/{svc['repo']}/"
+        )
+        send_telegram(msg)
+        log(f"[W{worker_id}]   通知送信完了（変更なし）")
+        return
+
+    # ── 変更あり: 詳細通知 ──
+    # マーカー確認
+    if marker_results and any(c in marker_results for c in ("✅", "✓", "OK", "通過")):
+        marker_line = f"✔️ {marker_results[:60]}"
+    elif marker_results:
+        marker_line = f"⚠️ {marker_results[:60]}"
+    else:
+        marker_line = "✔️ 確認済み"
+
+    # 変更内容＋効果のブロック（change/effect タプルリスト対応）
+    change_block = ""
+    if diff["descriptions"]:
+        lines = []
+        for item in diff["descriptions"][:3]:
+            if isinstance(item, tuple):
+                chg, eff = item
+                lines.append(f"▶ {chg}\n   → {eff}")
+            else:
+                lines.append(f"▶ {item}")
+        change_block = "\n".join(lines)
+
+    n_changes = len(diff["descriptions"])
+    stats_line = f"📊 {diff['stats']}  {n_changes}件の改善" if n_changes else f"📊 {diff['stats']}"
+
+    msg = (
+        f"✅ No.{svc['no']} {svc['name']}\n"
+        f"{'━' * 22}\n"
+        f"{mode}｜⏱{elapsed_str}｜S={new_s}｜{am_str}\n"
+        f"{stats_line}\n"
+    )
+    if change_block:
+        msg += "\n" + change_block + "\n"
+
+    # ── ビジュアルスキャン結果 ──
+    if v_issues:
+        msg += "\n👁 スクショ解析:\n"
+        for vi in v_issues:
+            msg += f"  {vi}\n"
+
+    # ── コードスキャン結果 ──
+    if pre_issues:
+        m_issues = [i for i in pre_issues if _re_n.search(r'M\d+', i)]
+        if m_issues:
+            msg += "\n🔎 コードスキャン:\n"
+            for mi in m_issues[:3]:
+                msg += f"  {mi}\n"
+
+    # ── PSIスコア ──
+    _psi = svc.get("psi_score")
+    if _psi is not None:
+        if _psi < 50:
+            _psi_str = f"🔴 PSI {_psi}"
+        elif _psi < 90:
+            _psi_str = f"🟡 PSI {_psi}"
+        else:
+            _psi_str = f"🟢 PSI {_psi}"
+        msg += f"\n{_psi_str}\n"
+
+    msg += f"\n{marker_line}\n"
+    msg += f"🔗 appadaycreator.com/{svc['repo']}/"
+
+    # スクショ撮影・送信（改善後の最新スクショを添付）
+    shot = _take_screenshot_sync(svc["repo"])
+    if shot:
+        _send_telegram_photo(msg, shot)
+        log(f"[W{worker_id}]   通知送信完了（{diff['stats']}・スクショ付き・V{len(v_issues)}件）")
+    else:
+        send_telegram(msg)
+        log(f"[W{worker_id}]   通知送信完了（{diff['stats']}・V{len(v_issues)}件）")
 
 
 _PRIORITY_GUIDE = """\
@@ -1063,6 +1398,38 @@ def _build_gsc_hint(svc: dict) -> str:
         "【GSCデータに基づく優先改善指示（最優先で対応すること）】\n"
         + "\n".join(hints)
         + f"\n（参考: 直近7日 表示:{impr} / クリック:{clicks} / 平均順位:{rank:.1f} / CTR:{ctr:.1f}%）"
+    )
+
+
+def _build_psi_hint(svc: dict) -> str:
+    """PSIスコアに基づくパフォーマンス改善指示を返す。スコアが良好な場合は空文字。"""
+    score = svc.get("psi_score")
+    if score is None or score >= 90:
+        return ""
+
+    hints = []
+    if score < 50:
+        hints.append(
+            f"・PageSpeedスコアが{score}点（Poor）です。"
+            "画像をWebP化・lazy-load追加、不要なインラインスクリプト削除、"
+            "CSSのinline化でCLS/LCP/FCPを改善してください。"
+        )
+    elif score < 70:
+        hints.append(
+            f"・PageSpeedスコアが{score}点（要改善）です。"
+            "画像にwidth/height属性追加、スクリプトにdefer付与、"
+            "重いライブラリのCDN化でスコアを70点以上に改善してください。"
+        )
+    else:
+        hints.append(
+            f"・PageSpeedスコアが{score}点です。"
+            "画像にloading=\"lazy\"追加、不要CSSの削除など軽微な最適化でGood（90+）を目指してください。"
+        )
+
+    return (
+        "【PageSpeedパフォーマンス改善（SEOランキングに直結）】\n"
+        + "\n".join(hints)
+        + f"\n（参考: PSIモバイルスコア={score}/100）"
     )
 
 
@@ -1629,21 +1996,34 @@ def _git_commit_and_push(repo: str, s_delta: int) -> bool:
                         send_telegram(msg)
                         return False
 
-            # ㉜ 安全ゲート③: A8リンク削除・ファイル削除を検出したらpush中止
+            # ㉜ 安全ゲート③: A8リンクの純損失を検出したらpush中止
+            # 注意: diff行の "-" 行チェックではなく、ファイル実在で判定する
+            # （_restore_missing_a8_pairs でリンクが末尾移動された場合の誤検知を防ぐ）
             diff_content_r = subprocess.run(
                 ["git", "diff", "--cached"],
                 cwd=str(WORKSPACE), capture_output=True, text=True, timeout=30
             )
             diff_content = diff_content_r.stdout
-            removed_a8 = [l for l in diff_content.splitlines()
-                          if l.startswith("-") and "px.a8.net" in l and not l.startswith("---")]
-            if removed_a8:
-                subprocess.run(["git", "restore", "--staged"] + [str(_f) for _f in _safe_files if _f.exists()],
-                                cwd=str(WORKSPACE), capture_output=True, timeout=30)
-                msg = f"⚠️ ㉜ git push中止: A8リンク削除検出 ({repo})\n{removed_a8[0][:120]}"
-                log(f"  {msg}")
-                send_telegram(msg)
-                return False
+            _head_a8_r = subprocess.run(
+                ["git", "show", f"HEAD:{repo}/index.html"],
+                cwd=str(WORKSPACE), capture_output=True, text=True, timeout=15
+            )
+            _cur_idx = service_dir / "index.html"
+            if _head_a8_r.returncode == 0 and _cur_idx.exists():
+                import re as _re_a8g
+                _head_mats = set(_re_a8g.findall(r'a8mat=([A-Z0-9+]+)', _head_a8_r.stdout))
+                _cur_mats  = set(_re_a8g.findall(r'a8mat=([A-Z0-9+]+)', _cur_idx.read_text(encoding="utf-8", errors="ignore")))
+                _lost_mats = _head_mats - _cur_mats
+                if _lost_mats:
+                    subprocess.run(["git", "restore", "--staged"] + [str(_f) for _f in _safe_files if _f.exists()],
+                                    cwd=str(WORKSPACE), capture_output=True, timeout=30)
+                    # ローカルファイルもHEADに戻す（汚染防止）
+                    subprocess.run(["git", "restore", f"{repo}/index.html"],
+                                    cwd=str(WORKSPACE), capture_output=True, timeout=30)
+                    msg = f"⚠️ ㉜ git push中止: A8リンク純損失検出 ({repo}) 消滅mat={list(_lost_mats)[:2]}"
+                    log(f"  {msg}")
+                    send_telegram(msg)
+                    return False
 
             deleted_r = subprocess.run(
                 ["git", "diff", "--cached", "--diff-filter=D", "--name-only"],
@@ -1684,23 +2064,37 @@ def _git_commit_and_push(repo: str, s_delta: int) -> bool:
                 log(f"  ㉘ git commit失敗: {commit_r.stderr.strip()[:100]}")
                 return False
 
-            # push（競合時はrebase後1回リトライ）
-            push_r = subprocess.run(
-                ["git", "push", "origin", "main"],
-                cwd=str(WORKSPACE), capture_output=True, text=True, timeout=60
-            )
-            if push_r.returncode != 0:
-                subprocess.run(
-                    ["git", "pull", "--rebase", "origin", "main"],
-                    cwd=str(WORKSPACE), capture_output=True, text=True, timeout=60
-                )
-                push_r2 = subprocess.run(
+            # push（競合時はrebase後最大3回リトライ）
+            push_ok = False
+            for _attempt in range(4):
+                push_r = subprocess.run(
                     ["git", "push", "origin", "main"],
                     cwd=str(WORKSPACE), capture_output=True, text=True, timeout=60
                 )
-                if push_r2.returncode != 0:
-                    log(f"  ㉘ git push失敗: {push_r2.stderr.strip()[:100]}")
-                    return False
+                if push_r.returncode == 0:
+                    push_ok = True
+                    break
+                if _attempt < 3:
+                    import time as _time
+                    _time.sleep(2 ** _attempt)  # 1s, 2s, 4s
+                    # unstaged変更をstashして rebase、その後pop
+                    stash_r = subprocess.run(
+                        ["git", "stash", "--include-untracked"],
+                        cwd=str(WORKSPACE), capture_output=True, text=True, timeout=30
+                    )
+                    stashed = stash_r.returncode == 0 and "No local changes" not in stash_r.stdout
+                    subprocess.run(
+                        ["git", "pull", "--rebase", "origin", "main"],
+                        cwd=str(WORKSPACE), capture_output=True, text=True, timeout=60
+                    )
+                    if stashed:
+                        subprocess.run(
+                            ["git", "stash", "pop"],
+                            cwd=str(WORKSPACE), capture_output=True, text=True, timeout=30
+                        )
+            if not push_ok:
+                log(f"  ㉘ git push失敗(3回試行): {push_r.stderr.strip()[:100]}")
+                return False
 
             log(f"  ㉘㉜ git commit+push完了: {repo} (+{s_delta}施策改善)")
             return True
@@ -1748,7 +2142,7 @@ def _select_model_and_turns(pending_ids: set, skip_phase1: bool) -> tuple[str, i
 
 
 
-def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> tuple[bool, str]:
+def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "", v_issues: list[str] | None = None) -> tuple[bool, str]:
     """指定サービスに /improve_auto を実行。(成功フラグ, stdout) を返す。"""
     no = service["no"]
     repo = service["repo"]
@@ -1795,6 +2189,8 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
     # フェーズ1スキップ判定: quick_scanで未実施施策が検出済みならPhase1を省略して直接Phase2へ
     # ㉑ skip時は /improve_phase2_only を使用（Phase1説明文を丸ごと省いて~600トークン節約）
     _skip_phase1 = bool(pre_issues)
+    # 深層レビューモード: quick_scanで何も検出されなかった = 定型施策済み → 品質・訴求力を独自視点で改善
+    _deep_review_mode = not pre_issues
     # ㉙ Haiku単純施策ランか判定（guide/sectionHintを省略してさらにトークン節約）
     _is_simple_only = _skip_phase1 and bool(pending_ids) and not (pending_ids & _COMPLEX_M)
 
@@ -1832,7 +2228,7 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
         ("M20", "アクセシビリティ（alt属性・aria属性）"),
     ]
     if _skip_phase1:
-        # フェーズ1スキップ時: 未実施施策のみ表示（✅行を省いてプロンプト削減）
+        # フェーズ2直接実装モード: 未実施施策のみ表示（✅行を省いてプロンプト削減）
         checklist_lines = [
             f"  {mid}: {desc} … ⬜ 未実施（実装してください）"
             for mid, desc in _ALL_MEASURES if mid in pending_ids
@@ -1840,8 +2236,38 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
         cmd += "\n\n【フェーズ2直接実装対象（未実施施策のみ・M番号順）】\n"
         cmd += "\n".join(checklist_lines)
         cmd += "\n\n↑ ⬜未実施の施策を上位3件のみ実装してください（残りは次回の自動改善で対応）。"
+    elif _deep_review_mode:
+        # 深層品質レビューモード: 定型施策は全て実装済み → 品質・訴求力・新収益機会を独自視点で改善
+        cmd += """
+
+【深層品質レビューモード】
+定型チェックリスト（M1〜M20）は全て実装済みです。
+このサービスのindex.htmlを実際に読み込み、以下の観点で改善点を1〜2件発見・即実装してください。
+改善点が見つからない場合は「改善点なし」と述べて終了（ファイル変更不要）。
+
+【優先度順の改善観点】
+
+① 収益導線の訴求力（最優先）
+  - CTAボタン文言が弱い → 強化（「こちら」→「無料で試す」「今すぐ確認する」等の行動語）
+  - A8アフィリエイトCTAが見えにくい位置・小さいサイズ → 改善
+  - CTAが1箇所のみ → コンテンツ中盤〜末尾にも自然な形で追加
+  - CTAボタンの色・コントラストが低い → 改善
+
+② コンテンツ深度・品質
+  - FAQが3問以下 → このサービス固有の具体的な質問・回答を追加（汎用文禁止）
+  - 解説セクションが薄い（数値・比較・具体例が少ない）→ 充実化
+  - HowToのステップが曖昧 → 具体的な数値・手順に改善
+  - 見出し(h2/h3)がサービス内容を正確に表現していない → 改善
+
+③ ユーザー体験の細部
+  - 入力フォームの例示・ヒントテキストが不足 → 追加
+  - 結果表示が分かりにくい（数値の意味・単位が不明）→ 説明追加
+  - エラー時のフィードバックがない → 追加
+
+⚠️ 見た目の微調整（テーマカラー変更等）は対象外。機能・コンテンツ品質の改善のみ。
+⚠️ px.a8.net アフィリエイトリンク・ビーコンimgは絶対に削除・変更しないこと。"""
     else:
-        # フェーズ1実施時: 全施策チェックリスト表示
+        # フェーズ1実施モード: 全施策チェックリスト表示（初期整備）
         checklist_lines = []
         for mid, desc in _ALL_MEASURES:
             status = "⬜ 未実施（実装してください）" if mid in pending_ids else "✅ 実装済み/該当なし"
@@ -1855,6 +2281,10 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
         gsc_hint = _build_gsc_hint(service)
         if gsc_hint:
             cmd += f"\n\n{gsc_hint}"
+
+        psi_hint = _build_psi_hint(service)
+        if psi_hint:
+            cmd += f"\n\n{psi_hint}"
 
         section_hint = _build_section_hint(pre_issues)
         if section_hint:
@@ -1876,6 +2306,12 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
         _snippets = _build_code_snippets(pending_ids, service["name"], repo)
         if _snippets:
             cmd += _snippets
+
+    if v_issues:
+        cmd += "\n\n【🔴最優先: スクリーンショット解析による視覚的UI問題】\n"
+        for vi in v_issues:
+            cmd += f"  {vi}\n"
+        cmd += "↑ 上記の視覚的問題を最優先で修正してください。ユーザーが実際に目にする問題のため必ず実装すること。"
 
     if retry_hint:
         cmd += f"\n\n【リトライ指示】前回の改善後チェックで以下が未反映でした。これらを最優先で実装してください:\n{retry_hint}"
@@ -1946,8 +2382,8 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "") -> t
     return False, ""
 
 
-SLEEP_BETWEEN = 300   # 改善完了後の次サービスまでの待機秒数（5分）
-SLEEP_COOLDOWN = 300  # 全サービスクールダウン中の待機秒数（5分）
+SLEEP_BETWEEN = 60    # 改善完了後の次サービスまでの待機秒数（1分）
+SLEEP_COOLDOWN = 3600 # 全サービスクールダウン中の待機秒数（1時間）
 
 
 def _compute_optimal_workers() -> int:
@@ -1957,6 +2393,9 @@ def _compute_optimal_workers() -> int:
     （週次リセット直前など、ユーザーが意図的に並列上限を上げたい場合の緊急用）
     """
     _force = os.environ.get("FORCE_WORKERS")
+    if not _force:
+        # 環境変数未設定時（LaunchAgent以外で起動した場合など）はN_WORKERSを使用
+        _force = str(N_WORKERS)
     if _force:
         try:
             return max(1, min(int(_force), N_WORKERS))
@@ -2231,18 +2670,27 @@ def _worker(worker_id: int, stop_event, sheets_factory):
             pre_issues = _filtered
             log(f"[W{worker_id}]   事前スキャン: {pre_issues if pre_issues else '検出なし'}")
 
+            # ビジュアルスキャン: スクショ→Claude Haikuで視覚的UI問題を検出
+            # _visual_lock で直列化（Playwright競合防止）
+            _v_issues: list[str] = []
+            with _visual_lock:
+                _v_issues = _visual_scan(svc["repo"])
+            if _v_issues:
+                log(f"[W{worker_id}]   ビジュアルスキャン: {_v_issues}")
+            else:
+                log(f"[W{worker_id}]   ビジュアルスキャン: 問題なし or スキップ")
+
             # A) トラフィックゼロは改善しても効果薄→24hクールダウン
             zero_traffic = svc["combined"] == 0
             if zero_traffic:
                 log(f"[W{worker_id}]   トラフィックゼロ: クールダウン24h")
 
-            # ⑯ 全施策実装済み＆トラフィックあり → Claudeをスキップして即successクールダウン
-            _all_done = not pre_issues and not zero_traffic
+            # トラフィックゼロでもV問題あり → Claudeで修正（スクショ優先）
+            # トラフィックゼロかつV問題なし → スキップ
             _bak_bytes: bytes | None = None
             _bak_size: int = 0
-            if _all_done:
-                log(f"[W{worker_id}]   ⑯ 全施策実装済み → Claudeスキップ (successクールダウン設定)")
-                ok, stdout, elapsed = True, "[skip: 全施策実装済み]", 0
+            if zero_traffic and not _v_issues:
+                ok, stdout, elapsed = True, "[skip: トラフィックゼロ・V問題なし]", 0
             else:
                 # ⑪ 改善前バックアップ（破損時自動ロールバック用）
                 _bak_idx = WORKSPACE / svc["repo"] / "index.html"
@@ -2251,7 +2699,7 @@ def _worker(worker_id: int, stop_event, sheets_factory):
                     _bak_size = len(_bak_bytes)
 
                 t_start = time.time()
-                ok, stdout = run_improve(svc, pre_issues)
+                ok, stdout = run_improve(svc, pre_issues, v_issues=_v_issues)
                 elapsed = int(time.time() - t_start)
 
                 # ⑪ 破損検知: ファイルサイズが60%未満またはHTMLタグ消失 → 自動ロールバック
@@ -2342,7 +2790,7 @@ def _worker(worker_id: int, stop_event, sheets_factory):
                     log(f"[W{worker_id}]   ⚠️ index.html未存在: マーカー確認スキップ")
 
                 # ㉞ AdSenseポリシー違反テンプレ検出（ok=Trueかつ実改善のみ）
-                if ok and not _all_done and idx_path.exists():
+                if ok and not zero_traffic and idx_path.exists():
                     _pol_ok, _pol_msg = _check_adsense_policy(idx_path, _bak_bytes)
                     if not _pol_ok:
                         log(f"[W{worker_id}]   ❌ ㉞ {_pol_msg}")
@@ -2372,7 +2820,7 @@ def _worker(worker_id: int, stop_event, sheets_factory):
                 cd_hours = _get_fail_cooldown(svc["repo"])  # 指数バックオフ
                 log(f"[W{worker_id}]   ㉚ 連続失敗{_fail_counts[svc['repo']]}回: クールダウン{cd_hours:.0f}h")
                 # ㊺ 失敗時: リトライ後も未反映だった施策のカウントを加算
-                _final_failed_issues = _v_final_failed if not _all_done else []
+                _final_failed_issues = _v_final_failed if not zero_traffic else []
                 for _pi in _final_failed_issues:
                     _mm2 = _re_mk.match(r'\[(M\d+)\]', _pi)
                     if _mm2:
@@ -2387,28 +2835,35 @@ def _worker(worker_id: int, stop_event, sheets_factory):
             if ok:
                 # ⑳/㉟ S列delta算出: quick_scan再実行廃止→マーカー検査結果（_v_final_failed）から算出
                 _s_delta = 1  # デフォルト
-                if not _all_done and pre_issues:
+                if pre_issues:
                     _passed_count = len(pre_issues) - len(_v_final_failed)
                     _s_delta = max(1, _passed_count)
                     log(f"[W{worker_id}]   改善delta: {len(pre_issues)}件中{_passed_count}件通過 (S+{_s_delta})")
 
                 asset_value = calc_ultra_strict_asset(svc["name"], svc["clicks7d"], svc.get("affil", ""))
+                # トラフィックゼロのスキップ: S列増分なし・cooldownのみ設定
+                _is_traffic_skip = zero_traffic and stdout.startswith("[skip:")
                 try:
-                    if _all_done:
-                        # ⑯ skipケース: S列増分なし（改善なし）・cooldownのみ設定
+                    if _is_traffic_skip:
                         update_spreadsheet(sheets, svc["row"], svc["s_val"], asset_value, cooldown_expiry, update_progress=False)
-                        log(f"[W{worker_id}]   シート更新(skip): CD={cooldown_expiry.strftime(CD_FMT)}")
+                        log(f"[W{worker_id}]   シート更新(skip-zero): CD={cooldown_expiry.strftime(CD_FMT)}")
                     else:
                         update_spreadsheet(sheets, svc["row"], svc["s_val"], asset_value, cooldown_expiry, s_delta=_s_delta)
                         log(f"[W{worker_id}]   シート更新: S={svc['s_val']+_s_delta}, T={datetime.now().strftime(CD_FMT)}, AM={asset_value:,}円, CD={cooldown_expiry.strftime(CD_FMT)}")
                 except Exception as e:
                     log(f"[W{worker_id}]   シート更新失敗: {e}")
-                if not _all_done:
+                if not _is_traffic_skip:
                     write_update_log(sheets, svc, pre_issues, stdout, elapsed, _s_delta)
                     notify_indexnow(svc["repo"])
                     # ㉘ 改善後に自動git commit+push（GitHubPages自動デプロイ）
                     _git_commit_and_push(svc["repo"], _s_delta)
-                    _send_improve_notify(svc, stdout, worker_id, verify_detail=v_detail, marker_results=v_markers)
+                    _send_improve_notify(
+                        svc, stdout, worker_id,
+                        verify_detail=v_detail, marker_results=v_markers,
+                        pre_issues=pre_issues, elapsed=elapsed,
+                        s_delta=_s_delta, asset_value=asset_value,
+                        v_issues=_v_issues,
+                    )
             else:
                 try:
                     update_spreadsheet(sheets, svc["row"], svc["s_val"], 0, cooldown_expiry, update_progress=False)
@@ -2430,6 +2885,17 @@ def _worker(worker_id: int, stop_event, sheets_factory):
                                 _git_commit_and_push(svc["repo"], 1)
 
             _in_progress.discard(svc["repo"])
+
+            # ㊻ キャッシュ内のcd_expiryを即時更新（重複処理防止）
+            # update_spreadsheet後もTTLキャッシュが古い値を保持するため
+            # 同一サービスを複数ワーカーが連続して処理してしまう問題を修正
+            if "cooldown_expiry" in locals():
+                with _cooldown_lock:
+                    if _TOP_SVC_CACHE["data"] is not None:
+                        for _c in _TOP_SVC_CACHE["data"]:
+                            if _c["repo"] == svc["repo"]:
+                                _c["cd_expiry"] = cooldown_expiry
+                                break
 
             sleep_sec = _compute_sleep_between()
             if sleep_sec != SLEEP_BETWEEN:
@@ -2474,15 +2940,16 @@ def _get_total_asset_value() -> int:
 
 
 def _send_hourly_status(stop_event):
-    """毎時N:00に稼働状況をTelegramへ送信するスレッド。"""
+    """1時間ごと（毎:00）に稼働状況をTelegramへ送信するスレッド。"""
     from datetime import timezone, timedelta
     time.sleep(5)  # 起動直後の初期化を待つ
 
     while not stop_event.is_set():
         # 次の :00 まで待機
         now = datetime.now()
-        next_hour = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-        wait_sec = (next_hour - now).total_seconds()
+        minutes_to_add = 60 - (now.minute % 60)
+        next_tick = (now + timedelta(minutes=minutes_to_add)).replace(second=0, microsecond=0)
+        wait_sec = (next_tick - now).total_seconds()
         # 30秒刻みでstop_eventを確認しながら待機
         elapsed = 0.0
         while elapsed < wait_sec and not stop_event.is_set():
@@ -2540,42 +3007,34 @@ def _send_hourly_status(stop_event):
             def fmt_yen(v):
                 return f"¥{v:,}円 (≈{v//10000}万円)" if abs(v) >= 10000 else f"¥{v:,}円"
 
-            lines = [f"🤖 hourly_claude_improve 稼働状況 {now_jst} JST\n"]
-            svc_names_str = ", ".join(completed_services) if completed_services else "なし"
-            lines.append(f"📦 直近1時間処理件数: {completed_1h}件\n   {svc_names_str}")
-            if current_total >= 0:
-                lines.append(f"💰 総資産価値: {fmt_yen(current_total)}")
-            if asset_change is not None:
-                sign = "+" if asset_change >= 0 else ""
-                emoji = "📈" if asset_change >= 0 else "📉"
-                lines.append(f"{emoji} 直近1時間変化: {sign}{fmt_yen(asset_change)}")
-            lines.append("")
+            svc_names_str = "\n   ".join(completed_services) if completed_services else "なし"
+            # 実効並列数を計算
             min_w = N_WORKERS
-            for key, label, rate in [
-                ("five_hour",        "セッション(5h)",   _SESSION_RATE_PER_W),
-                ("seven_day",        "全モデル週次",     _WEEKLY_ALL_RATE_PER_W),
-                ("seven_day_sonnet", "Sonnet週次",      _WEEKLY_SNT_RATE_PER_W),
+            for key, rate in [
+                ("five_hour",        _SESSION_RATE_PER_W),
+                ("seven_day",        _WEEKLY_ALL_RATE_PER_W),
+                ("seven_day_sonnet", _WEEKLY_SNT_RATE_PER_W),
             ]:
                 m = data.get(key)
                 if not m or m.get("utilization") is None:
-                    lines.append(f"・{label}: データなし")
                     continue
                 pct = float(m["utilization"])
                 resets_str = m.get("resets_at") or ""
                 if not resets_str:
-                    lines.append(f"・{label}: {pct:.0f}% (リセット時刻不明)")
                     continue
                 resets_at = datetime.fromisoformat(resets_str.replace("Z", "+00:00"))
                 hours_left = max((resets_at - now_utc).total_seconds() / 3600, 0.1)
                 safe_rate = max(95.0 - pct, 0.0) / hours_left
-                # _compute_optimal_workers と同じ: max(1, ...) で最低1を保証
                 w = min(N_WORKERS, max(1, int(safe_rate / rate + 1e-9)))
                 min_w = min(min_w, w)
-                lines.append(f"・{label}: {pct:.0f}% 残{hours_left:.1f}h → {safe_rate:.2f}%/h → 最大{w}並列")
-
             optimal = max(1, min(min_w, N_WORKERS))
-            lines.append(f"\n⚡ 実効並列数: {optimal}/{N_WORKERS}")
-            send_telegram("\n".join(lines))
+
+            msg = (
+                f"🤖 hourly_claude_improve 稼働状況 {now_jst} JST\n\n"
+                f"📦 直近1時間処理件数: {completed_1h}件\n   {svc_names_str}\n\n"
+                f"⚡ 実効並列数: {optimal}/{N_WORKERS}"
+            )
+            send_telegram(msg)
         except Exception as e:
             log(f"稼働状況通知エラー: {e}")
 
@@ -2583,9 +3042,10 @@ def _send_hourly_status(stop_event):
 def main():
     import os, signal, threading
 
-    global _cooldown_lock, _git_lock
+    global _cooldown_lock, _git_lock, _visual_lock
     _cooldown_lock = threading.Lock()
     _git_lock      = threading.Lock()  # ㉘ git操作の直列化ロック
+    _visual_lock   = threading.Lock()  # Playwright並列実行防止
 
     # 二重起動防止: PID存在確認付きロックファイルで排他制御
     if LOCK_FILE.exists():
@@ -2632,9 +3092,9 @@ def main():
             return
         setup_log_headers(sheets_init)
 
-        # 15分報スレッド（15分ごとに稼働状況をTelegram通知）
-        status_thread = threading.Thread(target=_send_hourly_status, args=(stop_event,), daemon=True)
-        status_thread.start()
+        # 稼働状況通知はclaude-usage-monitorに統合済み → スレッド無効
+        # status_thread = threading.Thread(target=_send_hourly_status, args=(stop_event,), daemon=True)
+        # status_thread.start()
 
         threads = [
             threading.Thread(target=_worker, args=(i, stop_event, sheets_factory), daemon=True)

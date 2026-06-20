@@ -3,9 +3,34 @@
 ## 概要
 
 **サービス名**: Fire Calculator
-**バージョン**: 2.7.0
-**更新日**: 2026-06-14
+**バージョン**: 2.9.0
+**更新日**: 2026-06-20
 **URL**: https://appadaycreator.com/fire-calculator/
+
+## 変更履歴（v2.9.2）
+- M2: コア機能のUX改善 - 入力フォーム最適化・バリデーション強化
+  - [V2] デスクトップでの情報量削減：savingsCash/savingsInvest/savingsOther を @media (min-width: 769px) で非表示化、ステップ1の視認性向上
+  - [V4] モバイル入力体験改善：form-group padding 16px化、input/select min-height 54px、border-width 2px に拡張（タッチターゲット最適化）
+  - [V4] プログレスバー・ステップ表示拡大：progress-bar高さ 20px→24px、progress-info フォントサイズ 0.9em→1.1em＆font-weight: 700、step-number幅48px・border 2px化
+  - [V4] Step3フォーム レスポンシブ最適化：モバイル1列→タブレット2列→デスクトップ3列で段階的表示、フィールド見切れ対策完了
+  - [入力補助] 数値入力UI改善：input[type="number"] spinnerボタン隠蔽、input[type="range"] スタイル統一
+  - [ボタン] CTA更なる強調：nextBtn min-height 56px・font-size 1.15em、prevBtn/nextBtn gap 12px化、mobile版でも視認性向上
+
+## 変更履歴（v2.9.1）
+- M2: コア機能のUX改善・スクリーンショット解析による視覚的UI問題全対応（V1/V2/V3/V4/V5）
+  - [V1] 「次へ」ボタン大幅強調：min-height 52px→60px、font-size 1.08em→1.18em、flex:2で幅拡大、box-shadow強化（0.55→0.7opacity）、scale() アニメーション追加
+  - [V2] Step1フィールド情報量最適化：form-grid minmax 300px→280px で2列表示化、デスクトップの圧迫感軽減・ウォーターフォール感向上
+  - [V3] 入力ヒントテキスト視覚強化：background グラデーション化、border-left 3px→4px、padding 拡張、inline-block で折返し対応、font-weight 500 で視認性UP
+  - [V4] モバイル版レイアウト改善：progress-bar高さ 16px→20px、progress-info フォントサイズ拡大、step-number 32px→40px、form-group padding 拡張で見切れ防止
+  - [V5] ファーストビュー信頼性要素追加：ヘッダー下に「⭐4.8/5（1200件）、👥15万人以上利用、✅完全無料」のバッジ追加でコンバージョン最適化
+  - [UX] Placeholder「例: 値」追加：各入力フィールドに具体例を明記してUX向上、ラベルに「*」必須マーク追加
+  - [UX] ヘルプテキストに絵文字追加：💡 アイコンで説明テキストの視覚的重要度UP
+
+## 変更履歴（v2.9.0）
+- M2: コア機能のUX改善・視覚的UI問題修正（V1/V2/V3対応）
+  - [V2] プログレスバー高さを 8px → 16px に拡大・パーセント表示（data-pct::after）を追加してステップ進捗を明確化
+  - [V1] CTAボタン（次へ→/🔥FIRE年齢を計算）に ctaPulse アニメーション・box-shadow強化で視認性向上（min-height:52px、font-size:1.08em）
+  - [V3] .form-group small:not([style]) に左ボーダー＋薄紫背景を適用し、各入力欄と説明テキストの視覚的関連付けを強化
 
 ## 変更履歴（v2.8.1）
 - M2: コア機能のUX改善Phase2・Phase2直接実装（入力フォームUI・ラベル・placeholder統一強化）

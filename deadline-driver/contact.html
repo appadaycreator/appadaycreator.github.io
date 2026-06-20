@@ -63,15 +63,18 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             <input type="hidden" name="_language" value="ja">
             <div class="form-group">
                 <label for="name">お名前 <span style="color:#ef4444">*</span></label>
-                <input type="text" id="name" name="name" required placeholder="山田 太郎">
+                <input type="text" id="name" name="name" required placeholder="山田 太郎" aria-required="true" aria-describedby="error-name">
+                <span id="error-name" class="text-red-500 text-xs hidden" role="alert"></span>
             </div>
             <div class="form-group">
                 <label for="email">メールアドレス <span style="color:#ef4444">*</span></label>
-                <input type="email" id="email" name="email" required placeholder="example@email.com">
+                <input type="email" id="email" name="email" required placeholder="example@email.com" aria-required="true" aria-describedby="error-email">
+                <span id="error-email" class="text-red-500 text-xs hidden" role="alert"></span>
             </div>
             <div class="form-group">
                 <label for="category">お問い合わせ種別</label>
-                <select id="category" name="category">
+                <select id="category" name="category" aria-label="お問い合わせ種別を選択">
+                    <option value="">--選択してください--</option>
                     <option value="bug">不具合・エラー報告</option>
                     <option value="feature">機能改善のご要望</option>
                     <option value="question">使い方のご質問</option>
@@ -80,16 +83,121 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             </div>
             <div class="form-group">
                 <label for="message">内容 <span style="color:#ef4444">*</span></label>
-                <textarea id="message" name="message" required placeholder="具体的な内容をご記入ください（使用デバイス、ブラウザ、発生状況等）"></textarea>
+                <textarea id="message" name="message" required placeholder="具体的な内容をご記入ください（使用デバイス、ブラウザ、発生状況等）" aria-required="true" aria-describedby="error-message"></textarea>
+                <span id="error-message" class="text-red-500 text-xs hidden" role="alert"></span>
+                <span class="text-gray-400 text-xs mt-1 block">バグ報告の場合: 使用デバイス、ブラウザ、発生状況を記載ください</span>
             </div>
             <button type="submit" class="btn">送信する</button>
             <p class="note">※個人情報は返答のためのみ使用し、第三者に提供しません。<br>
             直接メール: <a href="#" id="ml107" data-ml="YXBwYWRheWNyZWF0b3JAZ21haWwuY29t" >...</a><script>(function(){var a=document.getElementById("ml107");var e=atob(a.dataset.ml);a.href="mailto:"+e;a.textContent=e;})()</script></p>
         </form>
 
+        <style>
+        .text-red-500 { color: #ef4444; }
+        .text-xs { font-size: 0.75rem; }
+        .mt-1 { margin-top: 0.25rem; }
+        .block { display: block; }
+        .hidden { display: none; }
+        input.input-error, select.input-error, textarea.input-error {
+            border-color: #dc2626 !important;
+            box-shadow: 0 0 0 1px #dc2626 !important;
+        }
+        </style>
         <script>
+        // バリデーション関数
+        function validateContactForm() {
+            let hasError = false;
+            const name = document.getElementById('name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const message = document.getElementById('message').value.trim();
+
+            // 名前のバリデーション
+            const nameError = document.getElementById('error-name');
+            if (!name) {
+                nameError.textContent = 'お名前を入力してください';
+                nameError.classList.remove('hidden');
+                document.getElementById('name').classList.add('input-error');
+                hasError = true;
+            } else {
+                nameError.classList.add('hidden');
+                document.getElementById('name').classList.remove('input-error');
+            }
+
+            // メールアドレスのバリデーション
+            const emailError = document.getElementById('error-email');
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!email) {
+                emailError.textContent = 'メールアドレスを入力してください';
+                emailError.classList.remove('hidden');
+                document.getElementById('email').classList.add('input-error');
+                hasError = true;
+            } else if (!emailRegex.test(email)) {
+                emailError.textContent = 'メールアドレスの形式が正しくありません';
+                emailError.classList.remove('hidden');
+                document.getElementById('email').classList.add('input-error');
+                hasError = true;
+            } else {
+                emailError.classList.add('hidden');
+                document.getElementById('email').classList.remove('input-error');
+            }
+
+            // メッセージのバリデーション
+            const messageError = document.getElementById('error-message');
+            if (!message) {
+                messageError.textContent = '内容を入力してください';
+                messageError.classList.remove('hidden');
+                document.getElementById('message').classList.add('input-error');
+                hasError = true;
+            } else if (message.length < 10) {
+                messageError.textContent = '内容は10文字以上で入力してください';
+                messageError.classList.remove('hidden');
+                document.getElementById('message').classList.add('input-error');
+                hasError = true;
+            } else {
+                messageError.classList.add('hidden');
+                document.getElementById('message').classList.remove('input-error');
+            }
+
+            return !hasError;
+        }
+
+        // blur時のバリデーション
+        document.getElementById('name').addEventListener('blur', () => {
+            const val = document.getElementById('name').value.trim();
+            const errEl = document.getElementById('error-name');
+            if (!val) {
+                errEl.textContent = 'お名前を入力してください';
+                errEl.classList.remove('hidden');
+                document.getElementById('name').classList.add('input-error');
+            } else {
+                errEl.classList.add('hidden');
+                document.getElementById('name').classList.remove('input-error');
+            }
+        });
+
+        document.getElementById('email').addEventListener('blur', () => {
+            const val = document.getElementById('email').value.trim();
+            const errEl = document.getElementById('error-email');
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!val) {
+                errEl.textContent = 'メールアドレスを入力してください';
+                errEl.classList.remove('hidden');
+                document.getElementById('email').classList.add('input-error');
+            } else if (!emailRegex.test(val)) {
+                errEl.textContent = 'メールアドレスの形式が正しくありません';
+                errEl.classList.remove('hidden');
+                document.getElementById('email').classList.add('input-error');
+            } else {
+                errEl.classList.add('hidden');
+                document.getElementById('email').classList.remove('input-error');
+            }
+        });
+
         document.getElementById('contactForm').addEventListener('submit', async function(e) {
             e.preventDefault();
+            if (!validateContactForm()) {
+                return;
+            }
             const btn = this.querySelector('button');
             btn.textContent = '送信中...';
             btn.disabled = true;

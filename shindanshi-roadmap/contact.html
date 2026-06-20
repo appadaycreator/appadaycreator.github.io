@@ -60,30 +60,42 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
             <strong>ご注意:</strong> データはブラウザのローカルストレージに保存されているため、学習データに関するサポートは限定的です。ブラウザの設定やデータ消去に関する問題はブラウザのヘルプをご参照ください。
         </div>
 
-        <form id="contactForm">
+        <form id="contactForm" novalidate>
             <div>
-                <label for="category">お問い合わせの種類</label>
-                <select id="category" name="category">
-                    <option value="">選択してください</option>
+                <label for="category">お問い合わせの種類（任意）</label>
+                <select id="category" name="category" aria-describedby="categoryHint" aria-label="お問い合わせの種類を選択してください">
+                    <option value="">─ 選択してください（任意） ─</option>
                     <option value="bug">不具合・バグの報告</option>
                     <option value="feature">機能の要望</option>
                     <option value="question">使い方について</option>
                     <option value="other">その他</option>
                 </select>
+                <p id="categoryHint" style="font-size:0.85rem;color:#64748b;margin:4px 0 0">💡 カテゴリを選択するとサポート対応がスムーズになります</p>
             </div>
 
             <div>
                 <label for="email">メールアドレス（返信が必要な場合）</label>
-                <input type="email" id="email" name="email" placeholder="example@example.com">
+                <input type="email" id="email" name="email" placeholder="your-email@example.com" aria-describedby="emailHint emailError" aria-label="メールアドレスを入力（返信が必要な場合のみ）" oninput="validateEmailField()">
+                <p id="emailHint" style="font-size:0.85rem;color:#64748b;margin:4px 0 0">💡 返信が必要な場合のみご入力ください</p>
+                <div id="emailError" style="display:none;color:#dc2626;font-size:0.85rem;margin:8px 0 0;padding:8px;background:#fee2e2;border-radius:4px;border-left:3px solid #dc2626;">
+                    <span id="emailErrorMsg"></span>
+                </div>
             </div>
 
             <div>
                 <label for="message">お問い合わせ内容 <span style="color:#ef4444">*</span></label>
-                <textarea id="message" name="message" placeholder="ご質問・ご意見をご記入ください" required></textarea>
+                <textarea id="message" name="message" placeholder="具体的な内容をご記入ください（例：○○機能が動作しません）" required aria-required="true" aria-describedby="messageHint messageError messageCount" maxlength="1000" oninput="updateMessageCounter()"></textarea>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin:8px 0 0">
+                    <p id="messageHint" style="font-size:0.85rem;color:#64748b;margin:0">💡 お困りの内容を具体的にご記入いただくと対応がスムーズです</p>
+                    <span id="messageCount" style="font-size:0.85rem;color:#94a3b8;font-weight:600">0/1000</span>
+                </div>
+                <div id="messageError" style="display:none;color:#dc2626;font-size:0.85rem;margin:8px 0 0;padding:8px;background:#fee2e2;border-radius:4px;border-left:3px solid #dc2626;">
+                    <span id="messageErrorMsg"></span>
+                </div>
             </div>
 
             <div id="successMsg" class="success">
-                <strong>送信完了</strong><br>
+                <strong>✅ 送信完了</strong><br>
                 お問い合わせありがとうございます。内容を確認次第、ご連絡いたします。
             </div>
 
@@ -106,16 +118,99 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
 <script>
     document.getElementById('contactForm').addEventListener('submit', function(e) {
         e.preventDefault();
-        var message = document.getElementById('message').value.trim();
-        if (!message) {
-            alert('お問い合わせ内容を入力してください。');
-            return;
+        var messageEl = document.getElementById('message');
+        var emailEl = document.getElementById('email');
+        var message = messageEl.value.trim();
+        var email = emailEl.value.trim();
+        var isValid = true;
+
+        // メッセージフィールドのバリデーション
+        var messageErrorDiv = document.getElementById('messageError');
+        var messageErrorMsg = document.getElementById('messageErrorMsg');
+        if (!message || message.length < 10) {
+            messageErrorDiv.style.display = 'block';
+            messageErrorMsg.textContent = 'お問い合わせ内容は10文字以上入力してください。';
+            messageEl.focus();
+            isValid = false;
+        } else {
+            messageErrorDiv.style.display = 'none';
         }
+
+        // メールアドレスのバリデーション（入力されている場合）
+        var emailErrorDiv = document.getElementById('emailError');
+        var emailErrorMsg = document.getElementById('emailErrorMsg');
+        if (email && !isValidEmail(email)) {
+            emailErrorDiv.style.display = 'block';
+            emailErrorMsg.textContent = '正しいメールアドレスの形式で入力してください（例：example@example.com）';
+            emailEl.focus();
+            isValid = false;
+        } else {
+            emailErrorDiv.style.display = 'none';
+        }
+
+        if (!isValid) return;
+
         document.getElementById('successMsg').style.display = 'block';
         var btn = this.querySelector('.btn');
         btn.disabled = true;
         btn.textContent = '送信完了';
+        this.reset();
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    // メールアドレス形式のバリデーション
+    function isValidEmail(email) {
+        var re = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+        return re.test(email);
+    }
+
+    // メッセージ文字数カウンター
+    function updateMessageCounter() {
+        var messageEl = document.getElementById('message');
+        var countEl = document.getElementById('messageCount');
+        var count = messageEl.value.length;
+        countEl.textContent = count + '/1000';
+        // 残り文字が100以下の場合は色を変える
+        if (count > 900) {
+            countEl.style.color = '#ef4444';
+        } else if (count > 750) {
+            countEl.style.color = '#f59e0b';
+        } else {
+            countEl.style.color = '#94a3b8';
+        }
+    }
+
+    // メールアドレスリアルタイムバリデーション
+    function validateEmailField() {
+        var emailEl = document.getElementById('email');
+        var email = emailEl.value.trim();
+        var errorDiv = document.getElementById('emailError');
+        var errorMsg = document.getElementById('emailErrorMsg');
+
+        if (!email) {
+            errorDiv.style.display = 'none';
+            return;
+        }
+
+        if (!isValidEmail(email)) {
+            errorDiv.style.display = 'block';
+            errorMsg.textContent = '正しいメールアドレスの形式で入力してください（例：your-email@example.com）';
+        } else {
+            errorDiv.style.display = 'none';
+        }
+    }
+
+    // リアルタイムバリデーション
+    document.getElementById('email').addEventListener('blur', function() {
+        var email = this.value.trim();
+        var errorDiv = document.getElementById('emailError');
+        var errorMsg = document.getElementById('emailErrorMsg');
+        if (email && !isValidEmail(email)) {
+            errorDiv.style.display = 'block';
+            errorMsg.textContent = '正しいメールアドレスの形式で入力してください。';
+        } else {
+            errorDiv.style.display = 'none';
+        }
     });
 </script>
 </body>

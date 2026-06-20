@@ -741,3 +741,9 @@ This specification documents the current state before refactoring begins.
 - **対象フィールド**: Step 1（身長140-200cm/体重40-120kg/年齢）→ Step 2（HCP 0-54）→ Step 3（HS 20-70m/s）→ Steps 4-8（クイズオプション）
 - **テスト完了**: HTML/JSコード分析による完全性検証（23個の関連関数定義、103個のaria/validation属性確認）
 - **結論**: M2施策は仕様書の全要件を実装。追加改善・修正は不要。本施策は完了状態。
+
+- **2026-06-20 V1/V2/V3+M2追加改善**: ヒーローセクションのモバイル最適化・M2バリデーション強化
+  - [V1] #hero-feature-badges を非表示（mobile≤640px）→ CTAボタンがファーストビューに収まる
+  - [V2] h1 line-height:1.2→1.35・フォントサイズ調整→テキスト密度改善・階層明確化
+  - [V3] CTAボタン全幅・ヒーロー背景画像object-positionモバイル調整・横スクロール防止
+  - [M2] age-error インラインエラーdiv追加・バリデーション失敗時にエラーサマリーへsmoothスクロール

@@ -139,10 +139,11 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
 
-/* V2: クイズボタンのコントラスト改善（白背景・青枠でページ背景と明確に区別） */
-.quiz-btn{background-color:#ffffff!important;border-color:#60a5fa!important;}
-.quiz-btn:hover{background-color:#eff6ff!important;border-color:#2563eb!important;}
-.quiz-btn.quiz-selected{background-color:#dbeafe!important;border-color:#1d4ed8!important;font-weight:700;}
+/* V2: クイズボタンの選択状態を明確化（チェックマーク・色変更・シャドウ） */
+.quiz-btn{background-color:#ffffff!important;border:2px solid #d1d5db!important;color:#374151!important;font-weight:500!important;transition:all 0.2s ease!important;}
+.quiz-btn:hover{background-color:#f0f9ff!important;border-color:#3b82f6!important;transform:translateY(-2px)!important;box-shadow:0 4px 12px rgba(59,130,246,0.2)!important;}
+.quiz-btn.quiz-selected{background:linear-gradient(135deg,#0284c7,#0369a1)!important;color:#fff!important;border-color:#0166aa!important;font-weight:700!important;box-shadow:0 0 0 4px rgba(2,132,199,0.25),0 4px 16px rgba(2,132,199,0.35)!important;position:relative!important;transform:scale(1.02)!important}
+.quiz-btn.quiz-selected::after{content:'✓';position:absolute;right:14px;top:50%;transform:translateY(-50%);color:#fff;font-weight:bold;font-size:20px;}
 </style>
 
 <style>
@@ -183,10 +184,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       <div class="bg-white rounded-2xl shadow-md p-6 mb-6">
         <p class="text-blue-600 font-semibold text-sm mb-2">8つの質問で最適な英語教育がわかる</p>
         <h2 class="text-xl font-bold text-gray-800 mb-4">お子さんの英語教育を診断</h2>
-        <div class="w-full bg-gray-200 rounded-full h-2 mb-2">
-          <div id="progress-bar" class="bg-blue-500 h-2 rounded-full transition-all duration-500" style="width:12.5%"></div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <div style="flex:1;background:#e5e7eb;border-radius:12px;height:28px;overflow:hidden;box-shadow:0 2px 4px rgba(0,0,0,0.1)">
+            <div id="progress-bar" style="background:linear-gradient(90deg,#3b82f6,#2563eb);height:100%;border-radius:12px;transition:width 0.5s ease;width:12.5%;display:flex;align-items:center;justify-content:flex-end;padding-right:8px">
+              <span style="color:#fff;font-weight:bold;font-size:13px;white-space:nowrap">12.5%</span>
+            </div>
+          </div>
         </div>
-        <p id="progress-text" class="text-xs text-gray-500 mb-2">質問 1 / 8</p>
+        <p id="progress-text" style="text-align:center;font-weight:bold;color:#1e40af;font-size:18px;margin:12px 0;letter-spacing:0.5px">質問 <span id="current-q">1</span> / 8</p>
         <button id="back-btn" class="hidden mb-4 text-sm text-blue-500 hover:text-blue-700 flex items-center gap-1" style="background:none;border:none;cursor:pointer;padding:4px 0;min-height:36px;" onclick="goBack()">← 前の質問へ</button>
 
         <div id="q1" class="question-block">
@@ -269,6 +274,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <button class="quiz-btn bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4 hover:border-yellow-500 hover:bg-yellow-100 transition" data-q="8" data-v="result">成果・スコアアップ</button>
           </div>
         </div>
+
+        <div id="next-button-container" style="display:none;margin-top:20px;padding:16px;background:#f0f9ff;border:2px dashed #0284c7;border-radius:12px;text-align:center">
+          <button onclick="saveToHistory();showResult();window.scrollTo(0,0)" style="background:linear-gradient(135deg,#0284c7,#0369a1);color:#fff;border:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:bold;cursor:pointer;width:100%;min-height:48px;transition:all 0.2s;box-shadow:0 4px 12px rgba(2,132,199,0.3)">
+            ✓ 診断結果を見る
+          </button>
+          <p style="font-size:12px;color:#0369a1;margin-top:8px;font-weight:600">← 選択を確認したら上のボタンをタップしてください</p>
+        </div>
       </div>
     </div>
 
@@ -279,12 +291,67 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <button onclick="clearHistory()" style="width:100%;background:#fee2e2;color:#7f1d1d;border:1px solid #fca5a5;padding:8px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;min-height:36px;">履歴をクリア</button>
       </div>
 
-      <div class="bg-white rounded-2xl shadow-md p-6 mb-6">
-        <h2 class="text-2xl font-bold text-center mb-6 text-blue-700">あなたへのおすすめ英語教育</h2>
-        <div id="result-content"></div>
-        <div style="display:flex;gap:8px;margin-top:16px;">
-          <button onclick="window.print()" style="flex:1;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;border-radius:8px;padding:10px;font-size:0.85rem;font-weight:600;cursor:pointer;min-height:44px;">🖨 印刷する</button>
-          <button onclick="(function(){var el=document.getElementById('result-content');var txt='【子ども英語教育診断 結果】\n'+(el?el.innerText:'')+'\nhttps://appadaycreator.com/kids-english-advisor/';try{var b=event.currentTarget;var o=b.textContent;navigator.clipboard.writeText(txt).then(function(){b.textContent='✅ コピー済み！';setTimeout(function(){b.textContent=o;},2000);});}catch(e){};})()" style="flex:1;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;border-radius:8px;padding:10px;font-size:0.85rem;font-weight:600;cursor:pointer;min-height:44px;">📋 結果をコピー</button>
+      <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:2px solid #e5e7eb">
+        <button onclick="showResultTab('current')" id="tab-current" style="flex:1;padding:12px;background:#dbeafe;color:#0284c7;border:none;border-bottom:3px solid #0284c7;font-weight:bold;cursor:pointer;border-radius:0;font-size:14px">📊 現在の診断</button>
+        <button onclick="showResultTab('compare')" id="tab-compare" style="flex:1;padding:12px;background:#f3f4f6;color:#6b7280;border:none;border-bottom:3px solid transparent;font-weight:bold;cursor:pointer;border-radius:0;font-size:14px;transition:all 0.2s">🔄 複数比較</button>
+        <button onclick="showResultTab('simulate')" id="tab-simulate" style="flex:1;padding:12px;background:#f3f4f6;color:#6b7280;border:none;border-bottom:3px solid transparent;font-weight:bold;cursor:pointer;border-radius:0;font-size:14px;transition:all 0.2s">🎯 シミュレーション</button>
+      </div>
+
+      <div id="result-tab-current" class="result-tab-content">
+        <div class="bg-white rounded-2xl shadow-md p-6 mb-6">
+          <h2 class="text-2xl font-bold text-center mb-6 text-blue-700">あなたへのおすすめ英語教育</h2>
+          <div id="result-content"></div>
+          <div style="display:flex;gap:8px;margin-top:16px;">
+            <button onclick="window.print()" style="flex:1;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;border-radius:8px;padding:10px;font-size:0.85rem;font-weight:600;cursor:pointer;min-height:44px;">🖨 印刷する</button>
+            <button onclick="(function(){var el=document.getElementById('result-content');var txt='【子ども英語教育診断 結果】\n'+(el?el.innerText:'')+'\nhttps://appadaycreator.com/kids-english-advisor/';try{var b=event.currentTarget;var o=b.textContent;navigator.clipboard.writeText(txt).then(function(){b.textContent='✅ コピー済み！';setTimeout(function(){b.textContent=o;},2000);});}catch(e){};})()" style="flex:1;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;border-radius:8px;padding:10px;font-size:0.85rem;font-weight:600;cursor:pointer;min-height:44px;">📋 結果をコピー</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="result-tab-compare" class="result-tab-content hidden" style="display:none">
+        <div class="bg-white rounded-2xl shadow-md p-6 mb-6">
+          <h2 class="text-xl font-bold mb-4 text-blue-700">複数パターン比較</h2>
+          <div id="compare-content" style="overflow-x:auto"></div>
+        </div>
+      </div>
+
+      <div id="result-tab-simulate" class="result-tab-content hidden" style="display:none">
+        <div class="bg-white rounded-2xl shadow-md p-6 mb-6">
+          <h2 class="text-xl font-bold mb-4 text-blue-700">「もし〜だったら」シミュレーション</h2>
+          <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:16px;margin-bottom:16px">
+            <p style="margin:0 0 12px;font-weight:bold;color:#0369a1">条件を変更して結果を確認</p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+              <div>
+                <label style="display:block;font-size:13px;font-weight:600;color:#1e293b;margin-bottom:6px">年齢を変更:</label>
+                <select id="sim-age" onchange="runSimulation()" style="width:100%;padding:8px;border:1px solid #bae6fd;border-radius:6px;font-size:13px">
+                  <option value="baby">0〜2歳</option>
+                  <option value="preschool">3〜5歳</option>
+                  <option value="elem-low">6〜9歳</option>
+                  <option value="elem-high">10〜12歳</option>
+                  <option value="junior">中学生以上</option>
+                </select>
+              </div>
+              <div>
+                <label style="display:block;font-size:13px;font-weight:600;color:#1e293b;margin-bottom:6px">予算を変更:</label>
+                <select id="sim-budget" onchange="runSimulation()" style="width:100%;padding:8px;border:1px solid #bae6fd;border-radius:6px;font-size:13px">
+                  <option value="low">〜5千円</option>
+                  <option value="mid">5千〜1.5万円</option>
+                  <option value="high">1.5〜3万円</option>
+                  <option value="premium">3万円以上</option>
+                </select>
+              </div>
+              <div>
+                <label style="display:block;font-size:13px;font-weight:600;color:#1e293b;margin-bottom:6px">学習時間を変更:</label>
+                <select id="sim-time" onchange="runSimulation()" style="width:100%;padding:8px;border:1px solid #bae6fd;border-radius:6px;font-size:13px">
+                  <option value="short">30分以内</option>
+                  <option value="mid">30分〜2時間</option>
+                  <option value="long">2〜5時間</option>
+                  <option value="intensive">5時間以上</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div id="simulate-result" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px"></div>
         </div>
       </div>
 
@@ -521,10 +588,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function goBack() {
       if (currentQ <= 1) return;
       document.getElementById(`q${currentQ}`).classList.add('hidden');
+      document.getElementById('next-button-container').style.display = 'none';
       currentQ--;
       document.getElementById(`q${currentQ}`).classList.remove('hidden');
-      document.getElementById('progress-bar').style.width = (currentQ / totalQ * 100) + '%';
-      document.getElementById('progress-text').textContent = `質問 ${currentQ} / ${totalQ}`;
+      const percent = (currentQ / totalQ * 100);
+      document.getElementById('progress-bar').style.width = percent + '%';
+      document.querySelector('#progress-bar span').textContent = Math.round(percent) + '%';
+      document.getElementById('current-q').textContent = currentQ;
       document.getElementById('back-btn').classList.toggle('hidden', currentQ === 1);
     }
 
@@ -534,17 +604,25 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         const v = this.dataset.v;
         answers[q] = v;
         saveCurrentAnswers();
-        document.querySelectorAll(`[data-q="${q}"]`).forEach(b => b.classList.remove('border-yellow-500','bg-yellow-100'));
-        this.classList.add('border-yellow-500','bg-yellow-100');
+        document.querySelectorAll(`[data-q="${q}"]`).forEach(b => b.classList.remove('quiz-selected'));
+        this.classList.add('quiz-selected');
         setTimeout(() => {
           if (q < totalQ) {
             document.getElementById(`q${q}`).classList.add('hidden');
             currentQ = q + 1;
             document.getElementById(`q${currentQ}`).classList.remove('hidden');
-            document.getElementById('progress-bar').style.width = (q / totalQ * 100) + '%';
-            document.getElementById('progress-text').textContent = `質問 ${currentQ} / ${totalQ}`;
+            const percent = (currentQ / totalQ * 100);
+            document.getElementById('progress-bar').style.width = percent + '%';
+            document.querySelector('#progress-bar span').textContent = Math.round(percent) + '%';
+            document.getElementById('current-q').textContent = currentQ;
             document.getElementById('back-btn').classList.remove('hidden');
-          } else { saveToHistory(); showResult(); }
+            document.getElementById('next-button-container').style.display = 'none';
+          } else {
+            document.getElementById('next-button-container').style.display = 'block';
+            document.getElementById('progress-bar').style.width = '100%';
+            document.querySelector('#progress-bar span').textContent = '100%';
+            document.getElementById('current-q').textContent = '8';
+          }
         }, 300);
       });
     });
@@ -552,6 +630,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     function showResult() {
       // プログレスバーを100%に
       document.getElementById('progress-bar').style.width = '100%';
+      document.querySelector('#progress-bar span').textContent = '100%';
+      document.getElementById('current-q').textContent = '8';
       document.getElementById('quiz-section').classList.add('hidden');
       document.getElementById('result-section').classList.remove('hidden');
 
@@ -736,6 +816,110 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
           });
         }
       }, 100);
+    }
+
+    // タブ切り替え
+    function showResultTab(tab) {
+      document.querySelectorAll('.result-tab-content').forEach(el => el.classList.add('hidden'));
+      document.getElementById('result-tab-' + tab).classList.remove('hidden');
+      document.querySelectorAll('[id^="tab-"]').forEach(btn => {
+        btn.style.background = '#f3f4f6';
+        btn.style.color = '#6b7280';
+        btn.style.borderBottom = '3px solid transparent';
+      });
+      const activeTab = document.getElementById('tab-' + tab);
+      activeTab.style.background = '#dbeafe';
+      activeTab.style.color = '#0284c7';
+      activeTab.style.borderBottom = '3px solid #0284c7';
+      if (tab === 'compare') loadCompareTab();
+      if (tab === 'simulate') loadSimulateTab();
+    }
+
+    // 複数比較タブ
+    function loadCompareTab() {
+      const history = getHistory();
+      if (history.length === 0) {
+        document.getElementById('compare-content').innerHTML = '<p style="color:#64748b;text-align:center;padding:20px">比較データがありません。複数回診断して履歴を作成してください。</p>';
+        return;
+      }
+      const ageLabels = {baby:'0〜2歳',preschool:'3〜5歳','elem-low':'6〜9歳','elem-high':'10〜12歳',junior:'中学生以上'};
+      const budgetLabels = {low:'〜5千円',mid:'5千〜1.5万円',high:'1.5〜3万円',premium:'3万円以上'};
+      let html = '<table style="width:100%;border-collapse:collapse;font-size:12px;min-width:400px"><thead><tr style="background:#f3f4f6;border-bottom:2px solid #e5e7eb"><th style="padding:8px;text-align:left;border-right:1px solid #e5e7eb">項目</th>';
+      history.slice(0,3).forEach((h,i) => {
+        html += `<th style="padding:8px;text-align:center;border-right:1px solid #e5e7eb">診断${i+1}</th>`;
+      });
+      html += '</tr></thead><tbody>';
+      const keys = [
+        ['年齢', '1', ageLabels],
+        ['目的', '2', {fun:'楽しく遊ぶ',exam:'学校・受験対策',global:'グローバル人材',speak:'英会話重視'}],
+        ['予算', '4', budgetLabels],
+        ['形式', '5', {school:'通学型教室',online:'オンライン',material:'教材・アプリ',mix:'組み合わせ'}],
+      ];
+      keys.forEach(([label,qNum,labelMap]) => {
+        html += `<tr style="border-bottom:1px solid #f1f5f9"><td style="padding:8px;font-weight:600;background:#f8fafc;border-right:1px solid #e5e7eb">${label}</td>`;
+        history.slice(0,3).forEach(h => {
+          const val = h[qNum];
+          const displayVal = labelMap[val] || val;
+          html += `<td style="padding:8px;text-align:center;border-right:1px solid #e5e7eb">${displayVal}</td>`;
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+      document.getElementById('compare-content').innerHTML = html;
+    }
+
+    // シミュレーションタブ
+    function loadSimulateTab() {
+      document.getElementById('sim-age').value = answers[1] || 'preschool';
+      document.getElementById('sim-budget').value = answers[4] || 'mid';
+      document.getElementById('sim-time').value = answers[6] || 'mid';
+      runSimulation();
+    }
+
+    function runSimulation() {
+      const simAge = document.getElementById('sim-age').value;
+      const simBudget = document.getElementById('sim-budget').value;
+      const simTime = document.getElementById('sim-time').value;
+
+      let score = 50;
+      if (simAge === 'baby' || simAge === 'preschool') score += 10;
+      if (simBudget === 'high' || simBudget === 'premium') score += 10;
+      if (simTime === 'long' || simTime === 'intensive') score += 10;
+
+      const ageAdvices = {
+        baby: '0〜2歳は英語の音に慣れさせる「耳育て」が最重要。英語動画・歌・絵本の読み聞かせから始めましょう。',
+        preschool: '3〜5歳は「楽しい！」と感じる遊び中心の英語体験が効果的。プリスクールや英語リトミックも◎',
+        'elem-low': '6〜9歳は発音を自然に習得できる最適期。英会話教室・オンライン英会話のスタートに最適。',
+        'elem-high': '10〜12歳は語彙・文法を意識した学習も効果的。英検・TOEFL Primaryなど試験活用も視野に。',
+        junior: '中学生以上は学校英語との連携が重要。英検・TOEIC対策を明確な目標にすると継続しやすい。'
+      };
+
+      let result = `
+        <div style="background:linear-gradient(135deg,#dbeafe,#e0e7ff);border-radius:8px;padding:16px;margin-bottom:16px">
+          <p style="margin:0;font-size:12px;color:#0369a1;font-weight:bold">シミュレーション結果</p>
+          <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+            <div style="font-size:32px;font-weight:bold;color:#0284c7">${score}</div>
+            <div>
+              <p style="margin:0;color:#0369a1;font-size:13px">英語教育準備度スコア</p>
+              <div style="width:120px;height:8px;background:#bae6fd;border-radius:4px;margin-top:4px">
+                <div style="width:${score}%;height:100%;background:#0284c7;border-radius:4px"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="background:#f0f9ff;border-left:4px solid #0284c7;padding:12px;border-radius:4px;margin-bottom:12px">
+          <p style="margin:0;font-size:13px;color:#0369a1"><strong>📌 年齢別アドバイス</strong></p>
+          <p style="margin:6px 0 0;font-size:12px;color:#1e40af;line-height:1.6">${ageAdvices[simAge]}</p>
+        </div>
+        <div style="background:#dcfce7;border-left:4px solid #22c55e;padding:12px;border-radius:4px">
+          <p style="margin:0;font-size:13px;color:#166534"><strong>💡 シミュレーション結論</strong></p>
+          <p style="margin:6px 0 0;font-size:12px;color:#15803d;line-height:1.6">
+            年齢${document.getElementById('sim-age').options[document.getElementById('sim-age').selectedIndex].text}・予算${document.getElementById('sim-budget').options[document.getElementById('sim-budget').selectedIndex].text}・学習時間${document.getElementById('sim-time').options[document.getElementById('sim-time').selectedIndex].text}の場合、スコア${score}の準備度です。<br>
+            ${score >= 70 ? '条件が整っており、英語教育開始に最適な環境です！' : score >= 50 ? '基本的な準備は整っています。更なる充実で効果が期待できます。' : '現在の条件では準備が不十分です。予算・時間確保の工夫が必要です。'}
+          </p>
+        </div>
+      `;
+      document.getElementById('simulate-result').innerHTML = result;
     }
 
     // 初期化：前回のデータを復元
