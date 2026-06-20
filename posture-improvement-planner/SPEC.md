@@ -103,6 +103,31 @@ GitHub Pages（mainブランチ push → 自動デプロイ）
 
 ## 改善履歴
 
+### v1.4.4（2026-06-20）
+**M2: 入力UI・バリデーション改善（placeholder・アクセシビリティ対応）**
+- 4つのselectボックス（workHours, postureType, exerciseHabit, lifestyleMode）に aria-placeholder属性 追加・初期option style="color:#999" で視覚的プレースホルダー実装
+- 5つのcheckbox（痛みの部位）に aria-label属性 追加・各labelに title属性 追加でホバー時に詳細説明表示
+
+### v1.4.3（2026-06-20）
+**M2: 入力UI・バリデーション改善＆視覚的問題完全対応**
+- V1対応：計算ボタン（#calcButton）パディング拡大（20px 32px）・min-height 64px・シャドウ強化（0 8px 28px）・letter-spacing拡大
+- V2対応：チェックボックスグリッド拡大（minmax(160px,1fr) → minmax(180px,1fr)）・gap12px → 14px・パディング14px → 16px・チェックボックスサイズ20px → 22px・ホバー時枠線追加
+- V3対応：スコアボードモバイル改善（margin-bottom 20px → 24px・margin-top 16px追加・768pxでpadding調整）
+- input/select パディング拡大（12px 16px → 14px 18px）・min-height: 48px → 52px
+- ボタン（.btn）全体改善：padding 16px 24px → 18px 28px・min-height 56px → 60px・シャドウ強化（0 6px 20px → 0 8px 28px）
+- ラベルフォント強化：14px 600 #333 → 15px 700 #1f2937・margin-bottom 6px → 8px
+- ヘルプテキスト全件強化：背景 #f0f9ff → #e0f2fe・パディング 8px → 12px・枠線 3px → 4px・color #4b5563 → #0c4a6e・font-weight追加
+
+### v1.4.2（2026-06-20）
+**M2: 入力UI・バリデーション改善（視覚的問題対応）**
+- V1対応：計算ボタン（#calcButton）サイズ拡大・フォント18pxに、マージン24px・シャドウエフェクト追加
+- V2対応：チェックボックスグリッド拡大（minmax(130px,1fr) → minmax(160px,1fr)）・gap12px・パディング14px・チェックボックスサイズ20px化
+- V3対応：モバイルレスポンシブ改善（.form-score-grid breakpoint: 900px → 1024px、.score-preview-card をモバイルでposition:relative化）
+- 全input/select パディング拡大（10px14px → 12px16px）・min-height: 44px → 48px
+- ボタン（.btn）に視覚的フォーカスエフェクト追加（hover時にtranslateY・シャドウ強化）
+- ラベルフォント改善（13px → 14px）・マージン調整・色濃度強化（#555 → #333）
+- ヘルプテキスト全件の視覚的改善（背景色・枠線・パディング追加）
+
 ### v1.4.1（2026-06-14）
 **M2: 入力フォームのplaceholder・UX強化**
 - 5つのチェックボックス（痛みの部位）に title属性を追加（ホバー時に詳細なヘルプを表示）
