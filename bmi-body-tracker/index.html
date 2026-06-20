@@ -73,7 +73,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         .header p{font-size:0.82rem;opacity:0.9;margin-bottom:16px;}
         .tabs{display:flex;background:rgba(0,0,0,0.2);border-radius:12px 12px 0 0;max-width:520px;margin:0 auto;}
         .tab{flex:1;padding:11px 4px;font-size:0.78em;font-weight:700;color:rgba(255,255,255,0.75);cursor:pointer;border:none;background:none;transition:all .2s;}
-        .tab.active{background:#fff;color:#ea580c;border-radius:8px 8px 0 0;}
+        .tab.active{background:#fff;color:#ea580c;border-radius:8px 8px 0 0;font-weight:800;border-bottom:3px solid #ea580c;}
         .main{max-width:520px;margin:0 auto;padding:0 12px 60px;}
         .panel{display:none;padding-top:14px;}
         .panel.active{display:block;}
@@ -86,7 +86,13 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         input[type=number]:invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1);}
         input[type=date]:invalid{border-color:#dc2626;background:#fff1f2;}
         input[type=date]:invalid:focus{box-shadow:0 0 0 3px rgba(220,38,38,0.1);}
-        input[type=range]{width:100%;accent-color:#ea580c;cursor:pointer;}
+        input[type=range]{width:100%;accent-color:#ea580c;cursor:pointer;touch-action:manipulation;}
+        /* V1: スライダーthumb タッチターゲット改善（モバイル44px相当） */
+        input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:#ea580c;cursor:pointer;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.2);}
+        input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;background:#ea580c;cursor:pointer;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.2);}
+        /* V2: CTA パルスアニメーション */
+        @keyframes pulse-cta{0%,100%{box-shadow:0 2px 8px rgba(234,88,12,0.15);}55%{box-shadow:0 0 0 12px rgba(234,88,12,0);}}
+        .btn-cta-pulse{animation:pulse-cta 2.2s infinite;}
         .val-display{font-size:1.4rem;font-weight:800;color:#ea580c;text-align:center;margin:4px 0;}
         .btn-primary{width:100%;background:linear-gradient(135deg,#ea580c,#f97316);color:#fff;border:none;border-radius:10px;padding:13px;font-size:0.95rem;font-weight:700;cursor:pointer;margin-top:12px;}
         .btn-primary:hover{opacity:0.92;}
@@ -248,12 +254,14 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
             <input type="range" id="height" aria-label="身長（cm）。140cm～200cm" aria-required="true" min="140" max="200" step="1" value="170" oninput="syncHeight(this.value)" style="flex:1;" data-clarity-mask="True">
             <input type="number" id="height-num" aria-label="身長（cm）数値入力" aria-required="true" min="140" max="200" step="1" value="170" placeholder="170" oninput="syncHeight(this.value)" style="width:72px;padding:6px 8px;border:1px solid #fed7aa;border-radius:8px;font-size:0.88em;background:#fff7f0;text-align:center;" data-clarity-mask="True">
         </div>
+        <div id="height-num-error" style="display:none;font-size:0.75em;color:#dc2626;margin-top:2px;" role="alert"></div>
         <div class="val-display" id="height-disp">170 cm</div>
         <label for="weight">現在の体重 (kg) <span style="font-size:0.75em;color:#dc2626;font-weight:700;">* 必須</span><span style="font-size:0.75em;color:#94a3b8;"> / 35～150kg / スライダーまたは数値入力</span></label>
         <div style="display:flex;align-items:center;gap:8px;">
             <input type="range" id="weight" aria-label="現在の体重（kg）。35kg～150kg" aria-required="true" min="35" max="150" step="0.5" value="65" oninput="syncWeight(this.value)" style="flex:1;" data-clarity-mask="True">
             <input type="number" id="weight-num" aria-label="現在の体重（kg）数値入力" aria-required="true" min="35" max="150" step="0.1" value="65" placeholder="65" oninput="syncWeight(this.value)" style="width:72px;padding:6px 8px;border:1px solid #fed7aa;border-radius:8px;font-size:0.88em;background:#fff7f0;text-align:center;" data-clarity-mask="True">
         </div>
+        <div id="weight-num-error" style="display:none;font-size:0.75em;color:#dc2626;margin-top:2px;" role="alert"></div>
         <div class="val-display" id="weight-disp">65.0 kg</div>
         <label for="age">年齢 <span style="font-size:0.75em;color:#dc2626;font-weight:700;">* 必須</span><span style="font-size:0.75em;color:#94a3b8;"> / 基礎代謝・TDEE推定に使用</span></label>
         <select id="age" aria-label="年齢グループを選択。BMI計算と基礎代謝推定に使用" aria-required="true" onchange="updateCalc()" data-clarity-mask="True">
@@ -418,15 +426,45 @@ function estimateBodyFat(bmi, age, isMale) {
 }
 
 function syncHeight(val) {
-    const v = Math.max(140, Math.min(200, parseInt(val) || 170));
-    document.getElementById('height').value = v;
-    document.getElementById('height-num').value = v;
+    const raw = parseInt(val);
+    const errEl = document.getElementById('height-num-error');
+    const numEl = document.getElementById('height-num');
+    if (!val || isNaN(raw) || raw < 140 || raw > 200) {
+        if (errEl) {
+            errEl.textContent = isNaN(raw) || !val ? '140～200cmの数値を入力してください' : (raw < 140 ? '140cm以上で入力してください' : '200cm以下で入力してください');
+            errEl.style.display = 'block';
+        }
+        if (numEl) numEl.style.borderColor = '#dc2626';
+        const calcV = isNaN(raw) ? 170 : Math.max(140, Math.min(200, raw));
+        document.getElementById('height').value = calcV;
+        updateCalc();
+        return;
+    }
+    if (errEl) errEl.style.display = 'none';
+    if (numEl) numEl.style.borderColor = '#fed7aa';
+    document.getElementById('height').value = raw;
+    document.getElementById('height-num').value = raw;
     updateCalc();
 }
 function syncWeight(val) {
-    const v = Math.max(35, Math.min(150, parseFloat(val) || 65));
-    document.getElementById('weight').value = v;
-    document.getElementById('weight-num').value = v;
+    const raw = parseFloat(val);
+    const errEl = document.getElementById('weight-num-error');
+    const numEl = document.getElementById('weight-num');
+    if (!val || isNaN(raw) || raw < 35 || raw > 150) {
+        if (errEl) {
+            errEl.textContent = isNaN(raw) || !val ? '35～150kgの数値を入力してください' : (raw < 35 ? '35kg以上で入力してください' : '150kg以下で入力してください');
+            errEl.style.display = 'block';
+        }
+        if (numEl) numEl.style.borderColor = '#dc2626';
+        const calcV = isNaN(raw) ? 65 : Math.max(35, Math.min(150, raw));
+        document.getElementById('weight').value = calcV;
+        updateCalc();
+        return;
+    }
+    if (errEl) errEl.style.display = 'none';
+    if (numEl) numEl.style.borderColor = '#fed7aa';
+    document.getElementById('weight').value = raw;
+    document.getElementById('weight-num').value = raw;
     updateCalc();
 }
 
@@ -496,7 +534,7 @@ function updateCalc() {
             <div class="result-box blue" data-clarity-mask="True"><div class="val">${idealWeight}kg</div><div class="lbl">理想体重（BMI21）</div></div>
             <div class="result-box ${bodyFat > (gender==='male' ? 25 : 35) ? 'red' : 'green'}" data-clarity-mask="True"><div class="val">${bodyFat}%</div><div class="lbl">体脂肪率（推定）</div></div>
         </div>
-        <button onclick="goToRecord(${w})" style="width:100%;background:linear-gradient(135deg,#ea580c,#f97316);color:#fff;border:none;border-radius:10px;padding:12px;font-size:0.9rem;font-weight:700;cursor:pointer;margin-bottom:14px;">📝 今日の体重 ${w}kg を記録する →</button>`;
+        <button onclick="goToRecord(${w})" class="btn-cta-pulse" style="width:100%;background:linear-gradient(135deg,#ea580c,#f97316);color:#fff;border:none;border-radius:10px;padding:13px;font-size:0.95rem;font-weight:700;cursor:pointer;margin-bottom:14px;">📝 今日の体重 ${w}kg を記録する →</button>`;
 
     // 目標体重
     const goalWeight = Math.round(hm * hm * goalBmi * 10) / 10;

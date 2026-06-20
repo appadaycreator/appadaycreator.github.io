@@ -3,8 +3,22 @@
 ## 概要
 
 **サービス名**: Lifeplan Simulator
-**バージョン**: 2.1.0
-**更新日**: 2026-06-19
+**バージョン**: 2.2.0
+**更新日**: 2026-06-20
+
+## v2.2.0 改善（2026-06-20・M2【UX改善】ローディング進捗アニメーション・aria-describedby強化・NISA/iDeCo比較表）
+
+**目的**: M2【満足】コア機能のUX改善 – V2ローディング完成・アクセシビリティ強化・SEOコンテンツ追加
+
+**実装内容**:
+- **P1: V2ローディングプログレスバーアニメーション完成**: `showLoad()` 関数にプログレスバー制御を追加。ロード開始時に `load-fill` CSS アニメーション（2.5秒）を適用、完了時に100%→リセット。CSSの `@keyframes load-fill` が実際に動作するように
+- **P2: M2 aria-describedby強化（3フィールド）**: `income`（aria-describedby="income-hint"）、`savings`（hint span に id追加＋aria-describedby）、`expenses`（hint span に id追加＋aria-describedby）にヒントIDを紐付け。スクリーンリーダーがヒントテキストを自動読み上げ
+- **P3: SEO比較表追加（GSC順位70.6位改善目的）**: FAQ直後に「老後資産形成の方法比較」テーブルを追加。現金貯蓄・新NISA・iDeCo・NISA+iDeCo併用の4パターンを30年後試算・税制メリット・特徴で比較。検索ユーザーが求めるコンテンツを強化
+
+**改善効果**:
+- V2視覚的フィードバック完成: ローディング中にプログレスバーが実際に動くようになり、処理中の状態が視覚的に明確に
+- アクセシビリティ向上: income/savings/expenses フィールドで aria-describedby がヒントテキストと連携
+- SEO強化: NISA vs iDeCo 比較表により検索ユーザーの情報ニーズに応えるコンテンツを追加、GSC掲載順位改善を期待
 
 ## v2.1.0 改善（2026-06-19・M2【UX改善】aria-invalid管理・aria-describedbyエラー連携）
 

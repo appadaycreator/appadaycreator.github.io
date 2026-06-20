@@ -3,7 +3,7 @@
 ## 概要
 
 **サービス名**: Pension Forecast Calculator
-**バージョン**: 2.5.0
+**バージョン**: 2.7.0
 **更新日**: 2026-06-20
 **URL**: https://appadaycreator.com/pension-forecast-calculator/
 
@@ -11,6 +11,7 @@
 
 ## 実装履歴
 
+- v2.7.0 (2026-06-20): M2 STEPバッジ追加（STEP 1-4 各フォームラベルに番号＋バリデーション完了時に緑✓へリアルタイム更新）・V2 pension-row を560px以下で縦積みに変更（モバイル2カラム解消）
 - v2.5.0 (2026-06-20): M2/V1/V2/V3 UX最終改善（使用方法をdetails折りたたみ化で初心者負担軽減・スティッキー試算CTAボタン追加〈IntersectionObserver〉・Cookieバナー重なり問題修正〈MutationObserver連動・offsetHeight動的取得〉・バックトップボタンのバナー高さ連動ポジション調整）
 - v2.4.0 (2026-06-19): M2 追加UX強化（正常入力の緑ボーダー視覚フィードバック追加・inputmode="numeric/decimal"でモバイルキーボード最適化・aria-live="polite"スクリーンリーダー計算結果アナウンス追加）
 - v2.3.1 (2026-06-15): M2 完全実装＆確認（バリデーション失敗時に自動スクロール + フォーカス移動で UX 強化・全入力フィールドのプレースホルダー・ラベル・ヒント・エラーメッセージが完全実装・スライダー同期・localStorage自動保存機能確認）

@@ -3,13 +3,14 @@
 ## 概要
 
 **サービス名**: Sound Master Training
-**バージョン**: 1.8.0
-**更新日**: 2026-06-19
+**バージョン**: 2.1.0
+**更新日**: 2026-06-20
 **URL**: https://appadaycreator.com/sound-master-training/
 
 音を聞いて音名を当てる音感トレーニングアプリ。絶対音感・相対音感を楽しく鍛えられる無料の音楽学習ツール。
 
 ## 更新履歴
+- v2.1.0 (2026-06-20): V1: セカンダリボタン（使い方を見る）のサイズ修正（min-height:44px / font-size:0.95rem）でヒエラルキー明確化。V2: ヒーローCTAのスクロール誘導追加（スクロールヒント表示 + startTraining クリックでtrainingAppへスムーズスクロール）。V3: Cookieバナーのモバイルレイアウト修正（@media flex-direction:column / button width:100%）。M2: モード選択時にインタラクティブ説明パネル表示（MODE_DESC マップ）。
 - v2.0.0 (2026-06-20): M4(リトライ): Chart.js@4.4.0を追加し音ごとの正答率バーチャートをChart.jsで実装（noteBarChart canvas / new Chart）。training.jsでnoteStats更新時にrefreshNoteBarChartを呼び出してリアルタイム更新。
 - v1.9.0 (2026-06-20): V1: メインCTAボタンのpulse animation強調・副CTAを縮小で視線誘導改善。V2: .training-options/.training-controlsのモバイル縦積みCSS追加。V3: Cookieバナーの同意をlocalStorage保存（毎回表示バグ修正）。M2: playSound押下時のバリデーション（未選択でエラートースト表示）＋デフォルト値auto-select。M4: 正答率SVGドーナツゲージをprogress-sectionに追加（MutationObserverでリアルタイム更新）
 - v1.8.0 (2026-06-19): M2: 初期選択UIのデフォルト値反映・バリデーションのトースト通知対応。M4: 音ごとの正答率バーチャート（noteAccuracyChart）をstats-sectionに追加

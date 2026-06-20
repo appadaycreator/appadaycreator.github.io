@@ -235,6 +235,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         transition: border-color .2s, box-shadow .2s;
       }
       select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0,82,204,.15); }
+      select.input-error { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,.12); background-color: #fff5f5; }
       .btn-diagnose {
         background: linear-gradient(135deg, var(--primary) 0%, #1e6fff 100%);
         color: var(--white);
@@ -580,7 +581,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
       <div class="header-right">
         <a href="lp/#features" class="hidden-sp">特徴</a>
         <a href="lp/#flow" class="hidden-sp">使い方</a>
-        <a href="lp/" class="btn-header-sm">LPページ</a>
+        <a href="#form-card" onclick="event.preventDefault();document.getElementById('form-card').scrollIntoView({behavior:'smooth'})" class="btn-header-sm">今すぐ無料診断 →</a>
       </div>
     </header>
 
@@ -710,6 +711,7 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
           <input type="number" id="goalTarget" placeholder="目標値（例：5回の再診断で決定）" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; display: none; font-family: inherit;" min="1" max="99">
         </div>
 
+        <div id="diagnose-error" role="alert" style="display:none;background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#dc2626;font-weight:600;"></div>
         <button class="btn-diagnose" onclick="diagnose()">診断する →</button>
       </div>
 
@@ -1149,7 +1151,19 @@ function diagnose() {
         form=document.getElementById('form').value,
         priority=document.getElementById('priority').value,
         pain=document.getElementById('pain').value;
-  if(!scene||!budget||!form||!priority||!pain){alert('すべて選択してください');return;}
+  const errEl = document.getElementById('diagnose-error');
+  // 未選択selectにエラーハイライトを付与
+  ['scene','budget','form','priority','pain'].forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.toggle('input-error', !el.value);
+  });
+  if(!scene||!budget||!form||!priority||!pain){
+    errEl.textContent = '⚠️ すべての質問に回答してください（未選択の項目が赤くなっています）';
+    errEl.style.display = 'block';
+    errEl.scrollIntoView({behavior:'smooth', block:'center'});
+    return;
+  }
+  errEl.style.display = 'none';
 
   const scores = getScores(scene, budget, form, priority, pain);
   let type='',rec='',models='';

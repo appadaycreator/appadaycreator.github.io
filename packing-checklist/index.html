@@ -522,6 +522,10 @@ input[type=range]{cursor:pointer;height:6px;border-radius:3px;}
 input[type=range]::-webkit-slider-thumb{width:20px;height:20px;border-radius:50%;background:#4f46e5;cursor:pointer;border:2px solid #fff;box-shadow:0 2px 4px rgba(0,0,0,0.2);}
 input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:#4f46e5;cursor:pointer;border:2px solid #fff;box-shadow:0 2px 4px rgba(0,0,0,0.2);}
 @media(max-width:640px){[class*=max-w],[class*=container],[class*=wrapper]{padding:12px 16px!important;}button,[class*=btn]{width:100%;font-size:15px;}}
+/* V1: ヘッダーモバイルオーバーフロー防止 */
+@media(max-width:480px){#lang-toggle,#font-size-toggle{display:none!important;}}
+/* M2: スライダー値表示 */
+.slider-value-display{display:inline-block;min-width:2.5rem;text-align:center;font-size:.85rem;font-weight:600;color:#4f46e5;background:#eef2ff;border-radius:.375rem;padding:2px 6px;}
 </style>
 </head>
 <body class=" font-sans text-gray-900" style="background:#f8fafc;"><a href="#main" class="sr-only">本文へスキップ</a>
@@ -768,6 +772,7 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
                                 <div class="flex items-center gap-3">
                                     <input type="number" id="trip-days" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" min="1" max="30" value="1" aria-label="旅行の日数を入力（1～30日）">
                                     <input type="range" id="trip-days-slider" class="flex-1" min="1" max="30" value="1" aria-label="旅行の日数をスライダーで選択">
+                                    <span id="trip-days-display" class="slider-value-display">1日</span>
                                 </div>
                             </div>
                             <div>
@@ -775,6 +780,7 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
                                 <div class="flex items-center gap-3">
                                     <input type="number" id="participant-count" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" min="1" max="20" value="1" aria-label="参加人数を入力（1～20人）">
                                     <input type="range" id="participant-slider" class="flex-1" min="1" max="20" value="1" aria-label="参加人数をスライダーで選択">
+                                    <span id="participant-display" class="slider-value-display">1人</span>
                                 </div>
                             </div>
                         </div>
@@ -1596,44 +1602,54 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
                 setLanguage(e.target.value);
             });
 
-            // M2: スライダーと数値入力の同期化
+            // M2: スライダーと数値入力の同期化（値ラベル付き）
             const tripDaysInput = document.getElementById('trip-days');
             const tripDaysSlider = document.getElementById('trip-days-slider');
+            const tripDaysDisplay = document.getElementById('trip-days-display');
             const participantInput = document.getElementById('participant-count');
             const participantSlider = document.getElementById('participant-slider');
+            const participantDisplay = document.getElementById('participant-display');
 
             if (tripDaysInput && tripDaysSlider) {
                 tripDaysInput.addEventListener('input', (e) => {
-                    tripDaysSlider.value = e.target.value;
+                    const v = Math.min(Math.max(parseInt(e.target.value)||1, 1), 30);
+                    tripDaysSlider.value = v;
+                    if (tripDaysDisplay) tripDaysDisplay.textContent = v + '日';
                 });
                 tripDaysSlider.addEventListener('input', (e) => {
                     tripDaysInput.value = e.target.value;
+                    if (tripDaysDisplay) tripDaysDisplay.textContent = e.target.value + '日';
                 });
             }
 
             if (participantInput && participantSlider) {
                 participantInput.addEventListener('input', (e) => {
-                    participantSlider.value = e.target.value;
+                    const v = Math.min(Math.max(parseInt(e.target.value)||1, 1), 20);
+                    participantSlider.value = v;
+                    if (participantDisplay) participantDisplay.textContent = v + '人';
                 });
                 participantSlider.addEventListener('input', (e) => {
                     participantInput.value = e.target.value;
+                    if (participantDisplay) participantDisplay.textContent = e.target.value + '人';
                 });
             }
 
-            // M2: チェックリスト名バリデーション
+            // M2: 数値範囲クランプ
             if (tripDaysInput) {
                 tripDaysInput.addEventListener('change', (e) => {
-                    const val = parseInt(e.target.value) || 1;
-                    if (val < 1) e.target.value = 1;
-                    if (val > 30) e.target.value = 30;
+                    const val = Math.min(Math.max(parseInt(e.target.value)||1, 1), 30);
+                    e.target.value = val;
+                    if (tripDaysSlider) tripDaysSlider.value = val;
+                    if (tripDaysDisplay) tripDaysDisplay.textContent = val + '日';
                 });
             }
 
             if (participantInput) {
                 participantInput.addEventListener('change', (e) => {
-                    const val = parseInt(e.target.value) || 1;
-                    if (val < 1) e.target.value = 1;
-                    if (val > 20) e.target.value = 20;
+                    const val = Math.min(Math.max(parseInt(e.target.value)||1, 1), 20);
+                    e.target.value = val;
+                    if (participantSlider) participantSlider.value = val;
+                    if (participantDisplay) participantDisplay.textContent = val + '人';
                 });
             }
 
@@ -2003,6 +2019,15 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
             document.getElementById('departure-date').value = currentChecklist.departureDate;
             document.getElementById('trip-days').value = currentChecklist.days;
             document.getElementById('participant-count').value = currentChecklist.participants;
+            // M2: スライダーと値ラベルを同期
+            const tdSlider = document.getElementById('trip-days-slider');
+            const tdDisplay = document.getElementById('trip-days-display');
+            const pcSlider = document.getElementById('participant-slider');
+            const pcDisplay = document.getElementById('participant-display');
+            if (tdSlider) tdSlider.value = currentChecklist.days || 1;
+            if (tdDisplay) tdDisplay.textContent = (currentChecklist.days || 1) + '日';
+            if (pcSlider) pcSlider.value = currentChecklist.participants || 1;
+            if (pcDisplay) pcDisplay.textContent = (currentChecklist.participants || 1) + '人';
             
             // アイテムリストの更新
             updateItemsList();
@@ -2457,9 +2482,22 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
         // チェックリストの保存
         function saveChecklist() {
             if (!currentChecklist) return;
-            
+
+            // M2: チェックリスト名必須バリデーション
+            const nameEl = document.getElementById('checklist-name');
+            const nameError = document.getElementById('checklist-name-error');
+            const name = nameEl ? nameEl.value.trim() : '';
+            if (!name) {
+                if (nameEl) { nameEl.classList.add('border-red-500'); nameEl.focus(); }
+                if (nameError) nameError.classList.remove('hidden');
+                showNotification('チェックリスト名を入力してください', 'error');
+                return;
+            }
+            if (nameEl) nameEl.classList.remove('border-red-500');
+            if (nameError) nameError.classList.add('hidden');
+
             // 基本情報の更新
-            currentChecklist.name = document.getElementById('checklist-name').value;
+            currentChecklist.name = name;
             currentChecklist.departureDate = document.getElementById('departure-date').value;
             currentChecklist.days = parseInt(document.getElementById('trip-days').value);
             currentChecklist.participants = parseInt(document.getElementById('participant-count').value);
@@ -3297,7 +3335,7 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
 </script>
 <!-- r31-cookie-banner V2/V3改善: ボタン視認性・テキスト可読性向上 -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#0f172a;color:#f1f5f9;padding:1.25rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;z-index:9999;box-shadow:0 -4px 16px rgba(0,0,0,.5)">
-<div style="flex:1;min-width:200px;font-size:.9rem;line-height:1.7;color:#e2e8f0">🍪 当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#93c5fd;text-decoration:underline;font-weight:700">プライバシーポリシー</a>をご確認ください。</div>
+<div style="flex:1;min-width:200px;font-size:.9rem;line-height:1.7;color:#fff;font-weight:500">🍪 当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#bfdbfe;text-decoration:underline;font-weight:700">プライバシーポリシー</a>をご確認ください。</div>
 <button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1');window.grantConsent && window.grantConsent()" style="background:#2563eb;color:#fff;border:2px solid #60a5fa;padding:.75rem 1.75rem;border-radius:.5rem;font-size:1rem;font-weight:700;cursor:pointer;white-space:nowrap;min-height:48px;min-width:140px;box-shadow:0 2px 8px rgba(37,99,235,.5);flex-shrink:0">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>

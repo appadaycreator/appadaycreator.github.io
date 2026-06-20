@@ -3,7 +3,7 @@
 ## 概要
 
 **サービス名**: Couple Anniversary Counter
-**バージョン**: 2.3.5
+**バージョン**: 2.3.6
 **更新日**: 2026-06-20
 **URL**: https://appadaycreator.com/couple-anniversary-counter/
 
@@ -69,6 +69,16 @@
 GitHub Pages（mainブランチ push → 自動デプロイ）
 
 ## 変更履歴
+
+### v2.3.7 (2026-06-20)
+- M2-pass2(UX): 名前入力パターンにカタカナ範囲（ァ-ヶ）を追加 — 「サクラ」「ケン」等カタカナニックネームが入力可能に・エラーメッセージも「ひらがな・カタカナ・漢字」と明記
+- M2-pass2(UX): 文字数バッジ警告色追加 — updateCountBadge()ヘルパーで80%以上でオレンジ（warn）・上限でレッド（danger）クラスを付与しユーザーに文字数超過を直感的に伝達
+- M2-pass2(UX): validateMemoryTitle にborder-green-500/border-red-500 対応追加 — 他のバリデーターと同様に成功時緑・エラー時赤ボーダーを表示し一貫性を確保
+
+### v2.3.6 (2026-06-20)
+- M2+V1(UX): モーダル内補助テキストのコントラスト修正 — design-v2で薄ピンク化した `.text-purple-400/.text-purple-500` をモーダル内で `#9D174D/#7C2D12` に上書き（WCAG AA対応）
+- M2+V2(UX): 名前入力セクションの構成簡略化 — 絶対位置カウンターを削除しラベル右にインラインバッジ配置、重複ヘルプテキストを統合、個別ラベルに `font-semibold text-pink-700` 適用で視認性向上
+- M2+V3(UX): モーダルセクション間隔拡大 — `#startForm/.#anniversaryForm/#memoryForm .mb-4` を `1.75rem` に、デスクトップ時のモーダル padding を `2.25rem 2.5rem` に拡大
 
 ### v2.3.3 (2026-06-19)
 - V3(UX): モーダルclose buttonの視認性向上 — サイズを text-xl→text-2xl・色をpurple-400→purple-600・幅40px円形ホバー背景追加（全6モーダル共通）

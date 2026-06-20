@@ -3,7 +3,7 @@
 ## 概要
 
 **サービス名**: Engineer Career Roadmap
-**バージョン**: 1.4.0
+**バージョン**: 1.6.0
 **更新日**: 2026-06-20
 **URL**: https://appadaycreator.com/engineer-career-roadmap/
 
@@ -24,6 +24,7 @@
 
 ## 改善履歴
 
+- v1.6.0 (2026-06-20): M2 ラベルfor属性追加（全入力フィールドとlabelを関連付け・アクセシビリティ改善）、aria-describedby IDミスマッチ修正、年収タブ空状態UX追加（職種未選択時の誘導メッセージ）、GSC対応meta description強化・WebApplicationスキーマにfeatureList/keywords追加
 - v1.4.0 (2026-06-20): M2 フォームUX強化（blur/changeイベントでリアルタイムバリデーション追加）、V1 セレクト/インプット枠線コントラスト改善（2px #94a3b8）、V2 モバイル用スティッキーCTAボタン追加、V3 パネル上余白拡大でナビとフォームの視覚的分離を改善
 - v1.3.0 (2026-06-19): M4 Chart.js互換ミニ実装（new Chart() API・外部CDN不要）で年収棒グラフ再実装、M10 印刷(window.print)/クリップボードコピー/CSVダウンロード機能追加
 - v1.2.0 (2026-06-19): M2 フォームUX改善（tooltip/help-text/aria属性）、M4 Canvas棒グラフ年収可視化、M8 ツールチップ充実、V1-V3 視覚的問題修正

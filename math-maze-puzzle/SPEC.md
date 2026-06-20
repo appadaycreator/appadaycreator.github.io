@@ -3,11 +3,22 @@
 ## 概要
 
 **サービス名**: Math Maze Puzzle
-**バージョン**: 1.3.6
+**バージョン**: 1.3.7
 **更新日**: 2026-06-20
 **URL**: https://appadaycreator.com/math-maze-puzzle/
 
 迷路をたどりながら計算問題を解くパズルゲーム。子供から大人まで楽しめる無料の暗算力・計算力アップゲーム。
+
+## 最新の更新内容（v1.3.7 - Phase2直接実装）
+
+### M2: バリデーションをcaptureフェーズ化（実機能化）
+- `addEventListener('click', fn, { capture: true })` + `stopImmediatePropagation()` でgame.js startGame()より先に実行しゲーム開始を実際にブロック可能に
+
+### M2 + GSC: 空FAQセクション（dl）にコンテンツ追加
+- 「よくある質問」の`<dl>`タグが空白だった箇所に4件のQ&Aを追加し、FAQPage構造化データとの一致を確保
+
+### GSC: 旧ゲーム名「計算の迷宮」→「計算チャレンジ」に統一
+- og:title、パンくずリスト、Twitter/LINEシェアリンク（計5箇所）の旧名称を現行名に修正し、ブランド一貫性を確保
 
 ## 最新の更新内容（v1.3.6 - Phase2直接実装）
 

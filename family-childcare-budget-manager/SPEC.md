@@ -460,3 +460,16 @@ MITライセンス
 
 最終更新日: 2026年6月10日
 リリース対象: family-childcare-budget-manager v1.4.1
+
+### v1.4.2 (2026-06-20)
+#### モバイルUX改善・FAQ充実（深層品質レビュー）
+- [x] V1対応：全モーダル（口座追加・編集・入金記録・支出追加）にmax-height:90vh;overflow-y:auto追加
+  - スマートフォンでモーダル内容が画面外に切れる問題を解消
+  - `addAccountModal`, `editAccountModal`, `depositModal`, `addExpenseModal` 4モーダルに適用
+- [x] FAQ充実：r31-extended-faqセクション（空だった）に6問のサービス固有FAQ追加
+  - 子ども複数管理の方法、スマホ機種変時のデータ引き継ぎ、月間目標額の目安
+  - 夫婦の役割分担ベストプラクティス、支出修正・削除方法、節約のコツ
+  - アコーディオン形式（details/summary）で可読性を確保
+
+最終更新日: 2026年6月20日
+リリース対象: family-childcare-budget-manager v1.4.2

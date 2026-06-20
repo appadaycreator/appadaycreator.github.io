@@ -196,6 +196,11 @@
         <script>try{(adsbygoogle = window.adsbygoogle || []).push({});}catch(e){}</script>
 
         <div class="card" id="quiz-start">
+          <h2 style="font-size:18px;font-weight:700;margin-bottom:12px;">💪 筋肉痛・部位別ケアアドバイザー</h2>
+          <p style="color:#666;font-size:14px;margin-bottom:8px;">痛む部位・運動強度・経過時間から筋肉痛かどうかを判断し、回復を早めるケア方法をアドバイスします。</p>
+          <ul style="font-size:13px;color:#94a3b8;margin:0 0 16px 16px;"><li>質問数：5問</li><li>所要時間：約1分</li></ul>
+          <button class="btn btn-green" onclick="startQuiz()" aria-label="診断スタート →" style="margin-bottom:20px;">診断スタート →</button>
+          <hr style="border:none;border-top:1px solid var(--border);margin:0 0 16px;">
           <div class="tool-intro-box">
             <p style="color:#374151;margin:0 0 .75rem;line-height:1.75;font-size:.92rem">筋肉痛・部位別ケアアドバイザーは、AppADayCreatorが提供する完全無料の診断・アドバイスツールです。登録・ログイン不要で、すぐにご利用いただけます。</p>
           </div>
@@ -232,10 +237,6 @@
             <p style="font-weight:700;color:#374151;margin:0 0 .5rem">⚠️ 計算結果の活用にあたって</p>
             <ul style="margin:0;padding-left:1.25rem;color:#4b5563;line-height:1.9"><li><a href="https://www.caa.go.jp/" target="_blank" rel="noopener noreferrer" style="color:var(--primary);font-size:.85rem">消費者庁「くらしの安心ガイド」</a></li></ul>
           </div>
-          <h2 style="font-size:18px;font-weight:700;margin-bottom:12px;">💪 筋肉痛・部位別ケアアドバイザー</h2>
-          <p style="color:#666;font-size:14px;margin-bottom:8px;">痛む部位・運動強度・経過時間から筋肉痛かどうかを判断し、回復を早めるケア方法をアドバイスします。</p>
-          <ul style="font-size:13px;color:#94a3b8;margin:0 0 16px 16px;"><li>質問数：5問</li><li>所要時間：約1分</li></ul>
-          <button class="btn btn-green" onclick="startQuiz()" aria-label="診断スタート →">診断スタート →</button>
         </div>
 
         <div id="quiz-area" style="display:none;">
@@ -344,6 +345,16 @@
                 <p style="font-size:12px;color:#6b7280;margin:0 0 6px;">シミュレーション結果:</p>
                 <p id="sim-result-title" style="font-size:13px;font-weight:700;color:var(--primary);margin:0;"></p>
               </div>
+            </div>
+
+            <!-- M6: 目標設定・達成度トラッキング -->
+            <div id="m6-goal-section" style="margin:16px 0;padding:16px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;">
+              <p style="font-size:13px;font-weight:700;color:#9a3412;margin-bottom:10px;">🎯 回復目標を設定</p>
+              <div id="m6-prev-comparison" style="display:none;margin-bottom:12px;padding:10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:12px;"></div>
+              <label style="font-size:12px;font-weight:600;color:#555;display:block;margin-bottom:4px;" for="m6-goal-date">運動再開の目標日</label>
+              <input type="date" id="m6-goal-date" style="width:100%;padding:8px 12px;border:1.5px solid #fed7aa;border-radius:8px;font-size:14px;margin-bottom:10px;min-height:44px;font-family:inherit;">
+              <button class="btn" onclick="saveGoalM6()" style="background:#ea580c;font-size:13px;min-height:40px;padding:10px 16px;">📅 目標を保存する</button>
+              <p id="m6-save-msg" style="font-size:12px;color:#15803d;margin-top:8px;display:none;">✅ 目標を保存しました！次回の診断時に比較が表示されます。</p>
             </div>
 
             <!-- もう一度試すボタン -->
@@ -643,6 +654,14 @@
       document.getElementById('result').classList.add('show');
       drawCharts(r);
       saveHistory(r);
+      showGoalComparison();
+      // M6: 重症度別の回復日数を初期値としてセット
+      const goalInput = document.getElementById('m6-goal-date');
+      if (goalInput) {
+        const recDays = [2, 3, 3, 7];
+        const d = new Date(); d.setDate(d.getDate() + (recDays[r.resultType] || 3));
+        goalInput.value = d.toISOString().split('T')[0];
+      }
     }
     function printResult(){
       const title = document.getElementById('r-title').textContent;
@@ -707,6 +726,67 @@
       link.href = URL.createObjectURL(blob);
       link.download = `muscle-pain-checker_${new Date().toISOString().split('T')[0]}.csv`;
       link.click();
+    }
+
+    // M6: 目標設定・達成度トラッキング
+    const SEV_LABELS = ['軽症', '中症', '中症', '重症'];
+    const SEV_ORDER = { '軽症': 0, '中症': 1, '重症': 2 };
+
+    function saveGoalM6() {
+      const goalDate = document.getElementById('m6-goal-date').value;
+      if (!goalDate) { alert('目標日を入力してください'); return; }
+      const r = getResult(ans);
+      const newData = {
+        diagDate: new Date().toLocaleDateString('ja-JP'),
+        severity: SEV_LABELS[r.resultType] || '中症',
+        score: r.totalScore,
+        goalDate: goalDate
+      };
+      const prev = localStorage.getItem('m6GoalData');
+      if (prev) {
+        try {
+          const prevArr = JSON.parse(localStorage.getItem('m6GoalHistory') || '[]');
+          prevArr.unshift(JSON.parse(prev));
+          if (prevArr.length > 5) prevArr.pop();
+          localStorage.setItem('m6GoalHistory', JSON.stringify(prevArr));
+        } catch(e) {}
+      }
+      localStorage.setItem('m6GoalData', JSON.stringify(newData));
+      const msg = document.getElementById('m6-save-msg');
+      if (msg) { msg.style.display = 'block'; setTimeout(function(){ msg.style.display = 'none'; }, 3000); }
+    }
+
+    function showGoalComparison() {
+      try {
+        const prev = localStorage.getItem('m6GoalData');
+        if (!prev) return;
+        const prevData = JSON.parse(prev);
+        const r = getResult(ans);
+        const curSev = SEV_LABELS[r.resultType] || '中症';
+        const compEl = document.getElementById('m6-prev-comparison');
+        if (!compEl) return;
+        const prevLevel = SEV_ORDER[prevData.severity] !== undefined ? SEV_ORDER[prevData.severity] : 1;
+        const curLevel = SEV_ORDER[curSev] !== undefined ? SEV_ORDER[curSev] : 1;
+        const improved = curLevel < prevLevel;
+        const worsened = curLevel > prevLevel;
+        let goalMsg = '';
+        if (prevData.goalDate) {
+          const goalD = new Date(prevData.goalDate);
+          const today = new Date(); today.setHours(0,0,0,0);
+          const diff = Math.ceil((goalD - today) / 86400000);
+          if (diff > 0) goalMsg = '目標日まで残り<strong>' + diff + '日</strong>';
+          else if (diff === 0) goalMsg = '🎉 <strong>今日が目標日</strong>です！';
+          else goalMsg = '目標日から<strong>' + Math.abs(diff) + '日</strong>経過';
+        }
+        compEl.style.display = 'block';
+        compEl.innerHTML =
+          '<p style="font-size:12px;font-weight:700;color:#15803d;margin:0 0 6px">📊 前回比較 (' + prevData.diagDate + ')</p>' +
+          '<div style="font-size:12px;color:#374151;line-height:1.8">' +
+          '前回: <strong>' + prevData.severity + '</strong> (' + prevData.score + '点) → 今回: <strong>' + curSev + '</strong> (' + r.totalScore + '点) ' +
+          (improved ? '<span style="color:#16a34a;font-weight:700">▲改善</span>' : worsened ? '<span style="color:#dc2626;font-weight:700">▼悪化</span>' : '<span style="color:#6b7280">→変化なし</span>') +
+          (goalMsg ? '<br>' + goalMsg : '') +
+          '</div>';
+      } catch(e) {}
     }
     </script>
 
@@ -853,7 +933,7 @@
     })();
     </script>
 
-    <div style="background:#ecfeff;border-left:4px solid var(--primary);border-radius:.5rem;padding:1rem 1.25rem;margin:1.5rem auto;max-width:760px;font-size:.875rem">
+    <div style="background:#ecfeff;border-left:4px solid var(--primary);border-radius:.5rem;padding:1rem 1.25rem;margin:1.5rem auto;max-width:860px;font-size:.875rem">
       <p style="margin:0 0 .75rem;font-weight:700;color:var(--primary-dark)">💡 筋肉痛の回復を早める3つのポイント</p>
       <ul style="margin:0;padding-left:1.25rem;color:#374151;line-height:2.1">
         <li><strong>運動後30分以内にタンパク質を摂取</strong>：ホエイプロテインや鶏胸肉で筋修復を促進</li>

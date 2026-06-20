@@ -21,6 +21,14 @@
 
 ## 変更履歴
 
+### v1.4.3 (2026-06-20)
+- **UX改善【P1】**: モバイルで計算後に結果が画面外に隠れる問題を修正（V1対応）
+  - `main.js` の `calculateTime` 関数でボタン押下時（`showNotif=true`）のみ `resultCard.scrollIntoView({behavior:'smooth', block:'nearest'})` を実行
+  - リアルタイム計算（`showNotif=false`）では不要なスクロールを発生させない
+- **収益導線改善【P2】**: A8.netスポンサーセクションの視認性向上
+  - コンテナ背景を `#f8faff` に変更・上ボーダーをインジゴ系に改善
+  - リンクボタンのpadding・font-weight・color・borderを改善し視認性向上（リンク先・ビーコンimgは変更なし）
+
 ### v1.4.2 (2026-06-19)
 - **収益導線改善【P1】**: 計算結果直後にコンテキストCTAを追加（M1）
   - `resultCard` 内のグラフ下部に「最新の高ワット電子レンジをAmazonで探す」CTAボタンを追加

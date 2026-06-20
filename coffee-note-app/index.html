@@ -226,6 +226,16 @@ input.error:focus,select.error:focus,textarea.error:focus{ring-color:#dc2626!imp
 @media(max-width:1023px){
   .nav-text-hide{display:none;}
 }
+/* V2: ガイドセクションテキスト可読性向上 */
+#welcomeGuideBody p{font-size:0.9rem!important;color:#374151!important;line-height:1.65;}
+#welcomeGuideBody h4{font-size:0.9rem!important;font-weight:700!important;}
+#welcomeGuideBody .text-xs{font-size:0.82rem!important;line-height:1.5;}
+/* V3: モバイル記録フォーム余白最適化 */
+@media(max-width:640px){
+  #coffeeForm .grid{gap:1rem!important;}
+  #coffeeForm .mb-4{margin-bottom:0.75rem!important;}
+  #formProgressWrap{margin-bottom:0.75rem!important;}
+}
 </style>
 </head>
 
@@ -629,7 +639,7 @@ input.error:focus,select.error:focus,textarea.error:focus{ring-color:#dc2626!imp
                             </button>
                         </div>
                         <div id="welcomeGuideBody" class="mt-4">
-                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                                 <div class="flex flex-col items-center text-center p-3 bg-white rounded-lg border border-yellow-100">
                                     <div class="flex-shrink-0 w-9 h-9 bg-primary-brown rounded-full flex items-center justify-center text-white font-bold text-lg mb-2">1</div>
                                     <h4 class="font-semibold text-primary-brown text-sm mb-1">
@@ -678,7 +688,7 @@ input.error:focus,select.error:focus,textarea.error:focus{ring-color:#dc2626!imp
                         </div>
 
                         <div class="mt-4 flex justify-center">
-                            <button onclick="showSection('record')" class="btn-primary" aria-label="今すぐコーヒーを記録する">
+                            <button onclick="showSection('record')" class="btn-primary btn-cta-main text-lg px-8 py-3" aria-label="今すぐコーヒーを記録する">
                                 <span class="mr-2">+</span>
                                 <span class="lang-ja">今すぐコーヒーを記録する</span>
                                 <span class="lang-en hidden">Record Coffee Now</span>
@@ -868,6 +878,16 @@ input.error:focus,select.error:focus,textarea.error:focus{ring-color:#dc2626!imp
 
                     <div class="r34-reveal card p-6">
                         <form id="coffeeForm" class="space-y-6">
+                            <!-- M2: 必須項目入力進捗バー -->
+                            <div id="formProgressWrap" class="p-3 bg-amber-50 border border-amber-200 rounded-lg" aria-live="polite">
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-xs font-medium text-amber-800">📋 必須項目の入力進捗</span>
+                                    <span id="formProgressText" class="text-xs font-bold text-amber-800">0 / 10 項目</span>
+                                </div>
+                                <div class="w-full bg-amber-100 rounded-full" style="height:6px;" role="progressbar" aria-valuemin="0" aria-valuemax="10" aria-valuenow="0" id="formProgressBar" aria-label="フォーム入力進捗">
+                                    <div id="formProgressFill" class="rounded-full transition-all duration-300" style="width:0%;height:6px;background:linear-gradient(90deg,#92400e,#d97706);"></div>
+                                </div>
+                            </div>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <!-- Basic Information -->
                                 <div>
@@ -934,6 +954,8 @@ input.error:focus,select.error:focus,textarea.error:focus{ring-color:#dc2626!imp
                                             list="originList"
                                             autocomplete="off"
                                             required
+                                            oninput="clearOriginError()"
+                                            onblur="if(!this.value.trim()){const e=document.getElementById('originError');if(e){e.textContent='❌ 産地は必須です。コーヒー豆の産地（国・地域）を入力してください';e.classList.remove('hidden');}this.classList.add('error');}else{this.classList.remove('error');const e=document.getElementById('originError');if(e)e.classList.add('hidden');}"
                                         />
                                         <datalist id="originList"></datalist>
                                         <p id="originHelp" class="mt-1 text-xs text-gray-500 font-medium">💡 <span class="lang-ja">産地名（国・地域）を入力すると、味わいの傾向が分析しやすくなります</span></p>
@@ -951,7 +973,7 @@ input.error:focus,select.error:focus,textarea.error:focus{ring-color:#dc2626!imp
                                             aria-label="焙煎度を選択（必須）"
                                             aria-required="true"
                                             aria-describedby="roastLevelError roastLevelHelp"
-                                            onchange="updateWaterTempHint()"
+                                            onchange="updateWaterTempHint(); clearSelectError('roastLevelError', this)"
                                             required
                                         >
                                             <option value="" selected disabled hidden>焙煎度を選択（ライト・ミディアム・ダーク等）</option>
@@ -976,7 +998,7 @@ input.error:focus,select.error:focus,textarea.error:focus{ring-color:#dc2626!imp
                                             aria-label="抽出方法を選択（必須）"
                                             aria-required="true"
                                             aria-describedby="brewingMethodError brewingMethodHelp"
-                                            onchange="updateExtractionTimeHint()"
+                                            onchange="updateExtractionTimeHint(); clearSelectError('brewingMethodError', this)"
                                             required
                                         >
                                             <option value="" selected disabled hidden>抽出方法を選択（ドリップ・エスプレッソ・フレンチプレス等）</option>
@@ -1178,6 +1200,8 @@ input.error:focus,select.error:focus,textarea.error:focus{ring-color:#dc2626!imp
                                             class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-brown focus:border-transparent"
                                             aria-label="挽き具合を選択（必須）"
                                             aria-required="true"
+                                            aria-describedby="grindSizeError"
+                                            onchange="clearSelectError('grindSizeError', this); updateFormProgress()"
                                             required
                                         >
                                             <option value="" selected disabled hidden>挽き具合を選択（極細〜粗挽き）</option>
@@ -1526,7 +1550,7 @@ input.error:focus,select.error:focus,textarea.error:focus{ring-color:#dc2626!imp
 
                             <!-- Submit Button -->
                             <div class="text-center">
-                                <button type="submit" class="btn-primary text-lg px-8 py-3" data-ux="1" aria-label="コーヒー記録を保存" style="box-shadow:0 6px 20px rgba(111,74,44,0.5);font-size:1.1rem;letter-spacing:0.04em;border:2px solid rgba(255,255,255,0.3);background:linear-gradient(135deg,#6f4a2c 0%,#a0522d 50%,#c2945a 100%);">
+                                <button type="submit" class="btn-primary btn-cta-main text-lg px-8 py-3" data-ux="1" aria-label="コーヒー記録を保存" style="box-shadow:0 6px 20px rgba(111,74,44,0.5);font-size:1.1rem;letter-spacing:0.04em;border:2px solid rgba(255,255,255,0.3);background:linear-gradient(135deg,#6f4a2c 0%,#a0522d 50%,#c2945a 100%);min-width:200px;">
                                     <span class="mr-2">💾</span>
                                     <span class="lang-ja">記録を保存</span>
                                     <span class="lang-en hidden">Save Record</span>
@@ -2340,8 +2364,42 @@ input.error:focus,select.error:focus,textarea.error:focus{ring-color:#dc2626!imp
 
             // テキスト入力フィールドのエラークリア
             window.clearBeanNameError = () => {
+                const el = document.getElementById('beanName');
                 const errorEl = document.getElementById('beanNameError');
+                if (el) el.classList.remove('error');
                 if (errorEl) errorEl.classList.add('hidden');
+                updateFormProgress();
+            };
+            window.clearOriginError = () => {
+                const el = document.getElementById('origin');
+                const errorEl = document.getElementById('originError');
+                if (el) el.classList.remove('error');
+                if (errorEl) errorEl.classList.add('hidden');
+                updateFormProgress();
+            };
+            window.clearSelectError = (errorId, selectEl) => {
+                const errorEl = document.getElementById(errorId);
+                if (errorEl) errorEl.classList.add('hidden');
+                if (selectEl) selectEl.classList.remove('error');
+            };
+            // M2: 必須項目入力進捗バー更新
+            window.updateFormProgress = () => {
+                const fields = ['recordDate','beanName','origin','roastLevel','brewingMethod','beanAmount','waterAmount','waterTemp','extractionTime','grindSize'];
+                const filled = fields.filter(id => {
+                    const el = document.getElementById(id);
+                    return el && String(el.value || '').trim() !== '';
+                }).length;
+                const total = fields.length;
+                const pct = Math.round(filled / total * 100);
+                const fill = document.getElementById('formProgressFill');
+                const text = document.getElementById('formProgressText');
+                const bar = document.getElementById('formProgressBar');
+                if (fill) {
+                    fill.style.width = pct + '%';
+                    fill.style.background = pct === 100 ? 'linear-gradient(90deg,#166534,#22c55e)' : 'linear-gradient(90deg,#92400e,#d97706)';
+                }
+                if (text) text.textContent = filled + ' / ' + total + ' 項目' + (filled === total ? ' ✅' : '');
+                if (bar) bar.setAttribute('aria-valuenow', filled);
             };
 
             // 数値フィールド用バリデーション関数
@@ -2645,6 +2703,14 @@ input.error:focus,select.error:focus,textarea.error:focus{ring-color:#dc2626!imp
                 document
                     .getElementById('coffeeForm')
                     .addEventListener('submit', handleCoffeeSubmit);
+
+                // M2: 進捗バー初期化 & フォーム全体の入力/変更イベントで更新
+                const coffeeFormEl2 = document.getElementById('coffeeForm');
+                if (coffeeFormEl2) {
+                    coffeeFormEl2.addEventListener('input', updateFormProgress);
+                    coffeeFormEl2.addEventListener('change', updateFormProgress);
+                    updateFormProgress();
+                }
 
                 // Rating stars
                 document.querySelectorAll('.rating-star').forEach((star) => {

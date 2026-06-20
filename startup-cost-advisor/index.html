@@ -652,10 +652,10 @@ label:has(input[type="radio"]:checked) {
     if (q.id === 'savings' && answers.savings === undefined) {
       const budgetVal = parseInt(document.getElementById('budget-input').value, 10);
       if (!isNaN(budgetVal) && budgetVal > 0) {
-        if (budgetVal < 50) answers.savings = '💰 50万円未満';
-        else if (budgetVal < 100) answers.savings = '💵 50〜100万円';
-        else if (budgetVal < 300) answers.savings = '💴 100〜300万円';
-        else answers.savings = '💸 300万円以上';
+        if (budgetVal < 50) answers.savings = '50万円未満';
+        else if (budgetVal < 100) answers.savings = '50〜100万円';
+        else if (budgetVal < 300) answers.savings = '100〜300万円';
+        else answers.savings = '300万円以上';
       }
     }
     document.getElementById('prev-btn').classList.toggle('hidden', currentStep === 0);
@@ -711,6 +711,18 @@ label:has(input[type="radio"]:checked) {
     if (slider) slider.value = num;
   }
 
+  // M2: 選択肢の絵文字プレフィックスを除去（例: '🏢 株式会社を設立' → '株式会社を設立'）
+  function normalizeAnswer(str) {
+    if (!str) return str;
+    const first = str.codePointAt(0);
+    const isEmoji = first >= 0x1F000 || (first >= 0x2300 && first < 0x3000);
+    if (isEmoji) {
+      const spaceIdx = str.indexOf(' ');
+      if (spaceIdx > 0) return str.slice(spaceIdx + 1).trim();
+    }
+    return str;
+  }
+
   function clearValidationError(qId) {
     const el = document.getElementById(`error-${qId}`);
     if (el) el.innerHTML = '';
@@ -750,7 +762,7 @@ label:has(input[type="radio"]:checked) {
       showValidationError(q.id);
       return false;
     }
-    answers[q.id] = el.value;
+    answers[q.id] = normalizeAnswer(el.value);
     clearValidationError(q.id);
     return true;
   }
@@ -1354,6 +1366,14 @@ ${advice.join('\n')}`;
 
     const diffInitial = item2.initialCost - item1.initialCost;
     const diffMonthly = item2.monthlyCost - item1.monthlyCost;
+    // V3: 差分を人間が読みやすいテキストに変換
+    const fmtDiff = (val, unit) => {
+      if (val === 0) return `差なし（同額）`;
+      const sign = val > 0 ? '▲+' : '▼';
+      return `${sign}${Math.abs(val)}${unit}（パターン2が${Math.abs(val)}${unit}${val > 0 ? '多い' : '少ない'}）`;
+    };
+    const diffInitialText = fmtDiff(diffInitial, '万円');
+    const diffMonthlyText = fmtDiff(diffMonthly, '万円/月');
 
     const comparisonHtml = `
       <div style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;padding:16px;overflow-y:auto;">
@@ -1382,13 +1402,13 @@ ${advice.join('\n')}`;
             </div>
           </div>
           <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px;margin-bottom:16px;">
-            <p style="font-weight:bold;color:#92400e;margin-bottom:8px;">📊 差分分析</p>
-            <p style="margin:5px 0;font-size:13px;color:#78350f;">初期費用の差: ${diffInitial > 0 ? '+' : ''}${diffInitial}万円 (パターン2が${diffInitial > 0 ? '高' : '安'})</p>
-            <p style="margin:5px 0;font-size:13px;color:#78350f;">月間費用の差: ${diffMonthly > 0 ? '+' : ''}${diffMonthly}万円/月</p>
+            <p style="font-weight:bold;color:#92400e;margin-bottom:8px;">📊 比較結果（パターン1 → パターン2）</p>
+            <p style="margin:5px 0;font-size:13px;color:#78350f;">初期費用: ${diffInitialText}</p>
+            <p style="margin:5px 0;font-size:13px;color:#78350f;">月間費用: ${diffMonthlyText}</p>
           </div>
           <div style="display:flex;gap:8px;margin-top:16px;">
-            <button onclick="closeComparisonModal()" style="flex:1;padding:10px;background:#4b5563;color:white;border:none;border-radius:8px;font-weight:bold;cursor:pointer;">← 一覧に戻る</button>
-            <button onclick="closeAllModals()" style="flex:1;padding:10px;background:#4b5563;color:white;border:none;border-radius:8px;font-weight:bold;cursor:pointer;">すべて閉じる</button>
+            <button onclick="closeComparisonModal()" style="flex:1;padding:10px;background:#4f46e5;color:white;border:none;border-radius:8px;font-weight:bold;cursor:pointer;">← 一覧に戻る</button>
+            <button onclick="closeAllModals()" style="flex:1;padding:10px;background:#6b7280;color:white;border:none;border-radius:8px;font-weight:bold;cursor:pointer;">✕ 閉じる</button>
           </div>
         </div>
       </div>

@@ -23,6 +23,7 @@
 
 ## 更新履歴
 
+- v1.5.6 (2026-06-20): V1 Cookieバナー表示中のbody paddingBottom追加（CTA目的衝突解消）、V2 フッター文字色コントラスト改善（#9ca3af→#6b7280）、V3 #main pb削減（py-10→pt-10 pb-2）、M2 選択済みオプションにチェックマーク表示（flex + ::after CSS + span JS）
 - v1.5.5 (2026-06-20): V1+V2 重複CTA解消（上ボタン削除・下ボタンをgreen主CTAに統一）、V3 Cookieバナー改善（localStorage保存修正・safe-area対応・ボタン可視性向上）、M2 バリデーションshakeアニメーション追加・next-btnにtitle属性追加
 - v1.5.4 (2026-06-19): M2 入力UX改善（旅行目標カスタム数値入力+placeholder追加・旅行メモtextarea+placeholder追加・saveTravelGoalのカスタム入力対応バリデーション）
 - v1.5.3 (2026-06-19): M2 UX改善（「次へ」ボタン追加・選択ヒント表示・バリデーション改善）、V1 CTAボタンをトップに追加、V2 プライバシーポリシーリンク強調、V3 重複ナビゲーション削除、GSCキーワード追記

@@ -314,7 +314,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 <p class="hero-subtitle">あなたの耳を鍛える、音楽家のための聴覚トレーニングゲーム</p>
                 <div class="hero-buttons">
                     <button id="startTraining" class="btn btn-primary" aria-label="音感トレーニングを始める" style="font-size:1.1rem;padding:16px 36px;min-width:220px;animation:cta-pulse 2.5s ease-in-out infinite;">🎵 トレーニングを始める</button>
-                    <a href="how-to-use.html" class="btn btn-secondary" style="font-size:0.85rem;padding:9px 20px;opacity:0.75;">使い方を見る</a>
+                    <a href="how-to-use.html" class="btn btn-secondary" style="font-size:0.95rem;padding:12px 28px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;">使い方を見る</a>
                 </div>
             </div>
             <div class="hero-image">
@@ -326,6 +326,14 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 </svg>
             </div>
         </section>
+
+        <!-- V2: ヒーローとトレーニング間のユーザージャーニー誘導 -->
+        <div style="text-align:center;padding:6px 0 12px;cursor:pointer;" onclick="document.getElementById('trainingApp').scrollIntoView({behavior:'smooth'})">
+            <span style="font-size:0.82rem;color:#6b7280;display:inline-flex;align-items:center;gap:6px;">
+                <span>▼ スクロールしてトレーニングを開始</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+        </div>
 
         <section class="training-section" id="trainingApp">
             <h2>トレーニングモード</h2>
@@ -348,6 +356,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                                 <option value="rhythm" disabled>リズム模倣（近日公開）</option>
                             </select>
                             <div id="trainingModeError" class="form-error" style="color:#ef4444;font-size:0.85rem;margin-top:6px;display:none">トレーニングモードを選択してください</div>
+                            <!-- M2: モード説明パネル（選択時にインタラクティブ表示） -->
+                            <div id="modeDescription" style="margin-top:8px;padding:10px 12px;background:#f0f7ff;border:1px solid #bfdbfe;border-radius:6px;font-size:0.82rem;color:#1e40af;display:none;line-height:1.6"></div>
                         </div>
                         <div class="training-option-group">
                             <div style="display:flex;align-items:center;margin-bottom:8px">
@@ -1266,9 +1276,17 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
 })();
 </script>
 <!-- r31-cookie-banner -->
+<!-- V3: モバイルでのCookieバナーレイアウト崩れ防止 -->
+<style>
+@media(max-width:540px){
+  #cookie-banner{flex-direction:column;align-items:stretch;padding:.75rem 1rem;}
+  #cookie-banner>div:first-child{font-size:.8rem;line-height:1.6;}
+  #cookie-banner>button{width:100%;text-align:center;padding:.625rem 1rem;font-size:.9rem;}
+}
+</style>
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1');window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1');window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap;min-height:40px;">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 <!-- r46-org-footer -->
@@ -1312,12 +1330,29 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
         valEl.textContent=Math.round(pct)+'%';
         if(analysisEl&&pct>0)analysisEl.textContent=pct>=80?'素晴らしい！高い正答率です ✨':pct>=60?'いい調子！継続で上達します 📈':'練習を続けましょう 💪';
     }
-    /* M2: デフォルト値設定・バリデーション */
+    /* M2: デフォルト値設定・バリデーション・モード説明パネル */
     function initValidation(){
         var mSel=document.getElementById('trainingMode');
         var dSel=document.getElementById('difficultyLevel');
         if(mSel&&!mSel.value)mSel.value='single-note';
         if(dSel&&!dSel.value)dSel.value='beginner';
+
+        /* M2: モード説明マップ */
+        var MODE_DESC={
+            'single-note':'🎵 <strong>単音当て</strong>: 流れた1音を聴いてピアノキーで回答。初心者に最適なモードです。ドレミファソラシを聞き分ける基礎力を鍛えます。',
+            'interval':'🎶 <strong>音程当て</strong>: 2音の距離（インターバル）を聞き分けるモード。2度〜8度まで識別し、和声感を鍛えます。',
+            'chord':'🎸 <strong>和音判別</strong>: 複数音で構成される和音（メジャー・マイナー等）を聞き分けるモード。コード耳コピに必要な能力を育てます。',
+            'melody':'🎼 <strong>メロディ記憶</strong>: 短いメロディを聴いて順番通りにキーを押すモード。音楽的記憶力と音程感覚を同時に鍛えます。'
+        };
+        function showModeDesc(val){
+            var el=document.getElementById('modeDescription');
+            if(!el)return;
+            if(val&&MODE_DESC[val]){el.innerHTML=MODE_DESC[val];el.style.display='block';}
+            else{el.style.display='none';}
+        }
+        /* 初期表示 */
+        if(mSel)showModeDesc(mSel.value);
+
         var playBtn=document.getElementById('playSound');
         if(playBtn){
             playBtn.addEventListener('click',function(e){
@@ -1338,8 +1373,18 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
                 this.style.borderColor='';
                 var el=document.getElementById(i===0?'trainingModeError':'difficultyLevelError');
                 if(el)el.style.display='none';
+                if(i===0)showModeDesc(this.value);
             });
         });
+
+        /* V2: ヒーローCTAクリックでトレーニングセクションへスクロール */
+        var startBtn=document.getElementById('startTraining');
+        if(startBtn){
+            startBtn.addEventListener('click',function(){
+                var target=document.getElementById('trainingApp');
+                if(target)target.scrollIntoView({behavior:'smooth',block:'start'});
+            });
+        }
     }
     if(document.readyState==='loading'){
         document.addEventListener('DOMContentLoaded',function(){createAccuracyGauge();initValidation();});

@@ -120,18 +120,24 @@
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
         /* Toast通知 */
+        /* V1: 上部中央に配置して見落としを防ぐ */
         #toast-container {
             position: fixed;
             top: 70px;
-            right: 16px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 10000;
             display: flex;
             flex-direction: column;
+            align-items: center;
             gap: 8px;
+            width: calc(100% - 32px);
+            max-width: 440px;
+            pointer-events: none;
         }
         .toast {
-            min-width: 220px;
-            max-width: 320px;
+            pointer-events: auto;
+            width: 100%;
             padding: 12px 16px;
             border-radius: 10px;
             font-size: 0.875rem;
@@ -139,7 +145,7 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
             animation: toast-in 0.3s ease;
             color: #fff;
         }
@@ -154,20 +160,22 @@
             from { opacity: 1; transform: translateX(0); }
             to   { opacity: 0; transform: translateX(40px); }
         }
-        /* V1: スマホでトーストが画面外に切れないよう左右固定に */
+        /* V1: スマホ対応（中央配置を維持） */
         @media (max-width: 480px) {
             #toast-container {
-                left: 12px;
-                right: 12px;
                 top: 64px;
-            }
-            .toast {
-                min-width: unset;
-                max-width: none;
-                width: 100%;
-                box-sizing: border-box;
+                width: calc(100% - 24px);
             }
         }
+        /* M2: フォームエラー時シェイクアニメーション */
+        @keyframes form-shake {
+            0%, 100% { transform: translateX(0); }
+            20%       { transform: translateX(-6px); }
+            40%       { transform: translateX(6px); }
+            60%       { transform: translateX(-4px); }
+            80%       { transform: translateX(4px); }
+        }
+        .input-error-shake { animation: form-shake 0.4s ease; }
         /* グローバルローディングオーバーレイ */
         #global-loading {
             position: fixed; inset: 0;
@@ -340,7 +348,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             <div class="flex justify-center gap-4 text-xs text-gray-500 mb-3">
                 <span>✅ 登録不要</span><span>✅ 無料</span><span>✅ オフライン対応</span>
             </div>
-            <button onclick="showCreateDeckModal()" class="bg-indigo-600 text-white px-6 py-2 rounded-full text-sm font-bold hover:bg-indigo-700 transition" aria-label="新しいデッキを作成">今すぐ作成する →</button>
+            <!-- V2: ヒーローボタンはセカンダリ（アウトライン）、主要CTAはメインボタンに統一 -->
+            <button onclick="showCreateDeckModal()" class="bg-white border-2 border-indigo-600 text-indigo-700 px-6 py-2 rounded-full text-sm font-bold hover:bg-indigo-600 hover:text-white transition" aria-label="新しいデッキを作成する">まずは無料で試してみる →</button>
         </div>
 
         <!-- A3: 広告スロット（ヘッダー直下） -->
@@ -352,7 +361,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         <!-- Home Screen -->
         <div id="home-screen" class="space-y-6">
             <!-- Stats Dashboard V2: 小画面でも読みやすい文字サイズ -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div id="stats-grid" class="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div class="bg-white rounded-lg p-3 sm:p-4 text-center shadow-sm">
                     <span class="text-blue-500 text-xl sm:text-2xl mb-1 block">📖</span>
                     <p class="text-xl sm:text-2xl font-bold" id="total-decks">0</p>
@@ -373,6 +382,19 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     <p class="text-xl sm:text-2xl font-bold" id="badges-count">0</p>
                     <p class="text-xs sm:text-sm text-gray-600" data-lang-key="badges">バッジ</p>
                 </div>
+            </div>
+
+            <!-- V3: ゼロ状態オンボーディング（デッキ未作成時のみ表示） -->
+            <div id="zero-state-guide" class="hidden bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-100">
+                <p class="font-bold text-indigo-700 text-sm mb-2 text-center">🚀 3ステップで暗記学習をスタート！</p>
+                <div class="flex justify-around text-xs text-gray-600 mb-3">
+                    <div class="flex flex-col items-center gap-1"><span class="text-2xl">📁</span><span class="font-semibold">① デッキ作成</span></div>
+                    <span class="text-gray-300 self-center text-lg">→</span>
+                    <div class="flex flex-col items-center gap-1"><span class="text-2xl">✏️</span><span class="font-semibold">② カード追加</span></div>
+                    <span class="text-gray-300 self-center text-lg">→</span>
+                    <div class="flex flex-col items-center gap-1"><span class="text-2xl">🎯</span><span class="font-semibold">③ 学習開始</span></div>
+                </div>
+                <p class="text-xs text-gray-500 text-center">登録不要・無料・オフライン対応。下のボタンでさっそく始めましょう！</p>
             </div>
 
             <!-- Quick Actions V3: 主要CTAを明確に優先表示 -->
@@ -1033,7 +1055,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 const toast = document.createElement('div');
                 const icons = { success: '✅', error: '❌', info: 'ℹ️' };
                 toast.className = `toast toast-${type}`;
-                toast.innerHTML = `<span>${icons[type] || 'ℹ️'}</span><span>${message}</span>`;
+                // V1: 閉じるボタンを追加してユーザーが任意に閉じられるようにする
+                toast.innerHTML = `<span aria-hidden="true">${icons[type] || 'ℹ️'}</span><span style="flex:1">${message}</span><button onclick="try{this.closest('.toast').remove();}catch(e){}" style="background:none;border:none;color:rgba(255,255,255,0.9);font-size:1.3rem;line-height:1;cursor:pointer;padding:0 0 0 8px;min-height:auto;min-width:auto;" aria-label="閉じる">×</button>`;
                 container.appendChild(toast);
                 setTimeout(() => {
                     try {
@@ -1046,7 +1069,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             }
         }
         function showSuccess(message) { showToast(message, 'success'); }
-        function showError(message)   { showToast(message, 'error', 4000); }
+        function showError(message)   { showToast(message, 'error', 6000); }
         function showInfo(message)    { showToast(message, 'info'); }
 
         // ===== グローバルローディング =====
@@ -1212,6 +1235,11 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             err.classList.remove('hidden');
             field.classList.add('border-red-500', 'ring-2', 'ring-red-200');
             field.classList.remove('border-gray-300', 'border-indigo-500', 'ring-indigo-200');
+            // M2: シェイクアニメーションでエラーを視覚的に強調
+            field.classList.remove('input-error-shake');
+            void field.offsetWidth;
+            field.classList.add('input-error-shake');
+            field.addEventListener('animationend', () => field.classList.remove('input-error-shake'), { once: true });
             field.focus();
         }
 
@@ -1368,14 +1396,20 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
 
         function renderDashboard() {
             const totalCards = decks.reduce((sum, deck) => sum + deck.cards.length, 0);
-            const masteredCards = decks.reduce((sum, deck) => 
+            const masteredCards = decks.reduce((sum, deck) =>
                 sum + deck.cards.filter(card => card.mastered).length, 0);
-            
+
             document.getElementById('total-decks').textContent = decks.length;
             document.getElementById('total-cards').textContent = totalCards;
             document.getElementById('mastered-cards').textContent = masteredCards;
             document.getElementById('badges-count').textContent = badges.length;
-            
+
+            // V3: ゼロ状態ガイドをデッキが0件の時のみ表示
+            const zeroGuide = document.getElementById('zero-state-guide');
+            if (zeroGuide) {
+                zeroGuide.classList.toggle('hidden', decks.length > 0);
+            }
+
             renderDeckList();
         }
 
