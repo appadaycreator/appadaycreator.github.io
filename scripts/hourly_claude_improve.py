@@ -1033,7 +1033,7 @@ def _get_diff_summary(repo: str) -> dict:
 
 
 def _take_screenshot_sync(repo: str) -> str | None:
-    """index.htmlのローカルスクショをPlaywrightで撮る（Telegramファイル添付用）。"""
+    """index.htmlのローカルスクショをPlaywrightで撮る（Telegramファイル添付用・デスクトップ上部）。"""
     idx = WORKSPACE / repo / "index.html"
     if not idx.exists():
         return None
@@ -1053,36 +1053,111 @@ def _take_screenshot_sync(repo: str) -> str | None:
         return None
 
 
-def _visual_scan(repo: str) -> list[str]:
-    """スクショをClaude Haikuで分析し視覚的UI問題を[V1][V2][V3]形式で返す（最大3件）。"""
-    import time as _vt
-    _t0 = _vt.time()
-    shot_path = _take_screenshot_sync(repo)
-    if not shot_path:
-        log(f"  [visual_scan] スクショ取得失敗 → スキップ")
+def _take_multi_screenshots(repo: str) -> list[str]:
+    """3視点スクショを撮る: ①デスクトップ上部 ②デスクトップ中段スクロール ③モバイル幅。
+    撮れたもののみ返す（最低0〜3枚）。
+    """
+    idx = WORKSPACE / repo / "index.html"
+    if not idx.exists():
         return []
-    log(f"  [visual_scan] スクショ取得完了: {shot_path}")
+    paths = []
     try:
-        import re as _re_v
-        prompt = (
-            f"画像ファイル {shot_path} を読んで、このWebサービスのUIの視覚的問題点を\n"
-            "[V1] 問題の説明\n[V2] 問題の説明\n[V3] 問題の説明\n"
-            "という形式で最大3件、日本語で出力してください。\n"
-            "コードや解決策は不要。問題の説明のみ。\n"
-            "対象: CTAボタンの視認性・レイアウト崩れ・コントラスト・スマホ対応・広告配置など\n"
-            "例: [V1] CTAボタンが画面下部に埋もれており目立たない"
-        )
-        log(f"  [visual_scan] Claude Haiku 分析開始...")
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
+
+            # ① デスクトップ上部（ファーストビュー）
+            page = browser.new_page(viewport={"width": 1280, "height": 900})
+            page.goto(f"file://{idx}", wait_until="domcontentloaded", timeout=15000)
+            page.wait_for_timeout(1500)
+            p1 = f"/tmp/vshot_{repo}_1_top.png"
+            page.screenshot(path=p1, full_page=False)
+            paths.append(p1)
+
+            # ② デスクトップ中段（ツール/コンテンツエリア）
+            total_h = page.evaluate("document.body.scrollHeight")
+            scroll_to = min(int(total_h * 0.4), 1200)
+            page.evaluate(f"window.scrollTo(0, {scroll_to})")
+            page.wait_for_timeout(800)
+            p2 = f"/tmp/vshot_{repo}_2_mid.png"
+            page.screenshot(path=p2, full_page=False)
+            paths.append(p2)
+
+            page.close()
+
+            # ③ モバイル幅（375px）
+            page_m = browser.new_page(viewport={"width": 375, "height": 812})
+            page_m.goto(f"file://{idx}", wait_until="domcontentloaded", timeout=15000)
+            page_m.wait_for_timeout(1500)
+            p3 = f"/tmp/vshot_{repo}_3_mobile.png"
+            page_m.screenshot(path=p3, full_page=False)
+            paths.append(p3)
+            page_m.close()
+
+            browser.close()
+    except Exception as e:
+        log(f"  [multi_shot] 撮影エラー: {e}")
+    return paths
+
+
+def _visual_scan(repo: str) -> tuple[list[str], list[str]]:
+    """3視点スクショをClaude Haikuで厳格分析し必須改善項目を[V1]〜[V5]形式で返す。
+    「改善なし」を許容しない: 常に具体的な改善点を5件抽出させる。
+    Returns: (issues, shot_paths)
+    """
+    import time as _vt
+    import re as _re_v
+    _t0 = _vt.time()
+
+    shots = _take_multi_screenshots(repo)
+    if not shots:
+        # フォールバック: 従来の1枚スクショ
+        single = _take_screenshot_sync(repo)
+        shots = [single] if single else []
+    if not shots:
+        log(f"  [visual_scan] スクショ取得失敗 → スキップ")
+        return [], []
+
+    log(f"  [visual_scan] スクショ {len(shots)}枚取得: {shots}")
+
+    shot_list = "\n".join(f"- {p}" for p in shots)
+    labels = ["①デスクトップ上部", "②デスクトップ中段", "③モバイル"]
+    shot_desc = " / ".join(labels[:len(shots)])
+
+    prompt = (
+        f"以下の{len(shots)}枚の画像ファイルを読んでください（{shot_desc}）:\n"
+        f"{shot_list}\n\n"
+        "このWebサービスのUI・UX・コンバージョンの問題点を【必ず5件以上】指摘してください。\n"
+        "「問題なし」「良好」などの評価は禁止。必ず改善できる点を探してください。\n\n"
+        "出力形式（厳守）:\n"
+        "[V1] 問題の具体的な説明（何がどう悪いか）\n"
+        "[V2] 問題の具体的な説明\n"
+        "[V3] 問題の具体的な説明\n"
+        "[V4] 問題の具体的な説明\n"
+        "[V5] 問題の具体的な説明\n\n"
+        "チェック観点（モバイル・デスクトップ両方で確認）:\n"
+        "・CTAボタンの視認性・サイズ・配色・位置（ファーストビューに存在するか）\n"
+        "・アフィリエイトリンクの目立ち方・クリックしたくなる文言か\n"
+        "・フォント・行間・余白・コントラスト比（読みやすさ）\n"
+        "・モバイルでのレイアウト崩れ・タップしにくい要素\n"
+        "・信頼性要素（実績数値・レビュー・バッジ）の有無・目立ち方\n"
+        "・ページ離脱を防ぐ要素（FAQ・関連ツール・次のアクション）の配置\n"
+        "・ページ全体の密度（スカスカ or ごちゃごちゃ）\n"
+        "解決策は不要。問題の説明のみ1行で。"
+    )
+
+    log(f"  [visual_scan] Claude Haiku 分析開始（{len(shots)}枚）...")
+    try:
         r = subprocess.run(
             [str(CLAUDE_BIN), "-p", "--model", "haiku", "--allowedTools", "Read"],
             input=prompt,
             capture_output=True,
             text=True,
-            timeout=90,
+            timeout=120,
         )
         elapsed_v = _vt.time() - _t0
         raw_out = r.stdout.strip()
-        log(f"  [visual_scan] Haiku応答 ({elapsed_v:.1f}s): {raw_out[:300]}")
+        log(f"  [visual_scan] Haiku応答 ({elapsed_v:.1f}s): {raw_out[:400]}")
         if r.returncode != 0:
             log(f"  [visual_scan] Haiku終了コード={r.returncode}, stderr={r.stderr[:200]}")
         issues = []
@@ -1090,12 +1165,12 @@ def _visual_scan(repo: str) -> list[str]:
             m = _re_v.search(r'\[(V\d+)\]\s*(.+)', line.strip())
             if m:
                 issues.append(f"[{m.group(1)}] {m.group(2).strip()}")
-        issues = issues[:3]
+        issues = issues[:5]
         log(f"  [visual_scan] 抽出結果 {len(issues)}件: {issues}")
-        return issues
+        return issues, shots
     except Exception as e:
         log(f"  [visual_scan] 失敗: {e}")
-        return []
+        return [], shots
 
 
 def _send_telegram_photo(caption: str, photo_path: str) -> None:
@@ -1945,6 +2020,43 @@ def _git_commit_and_push(repo: str, s_delta: int) -> bool:
     service_dir = WORKSPACE / repo
     with _git_lock:
         try:
+            # 先行チェック: マージ競合ファイルがある場合は自動解決してから続行
+            unmerged_r = subprocess.run(
+                ["git", "ls-files", "--unmerged"],
+                cwd=str(WORKSPACE), capture_output=True, text=True, timeout=10
+            )
+            if unmerged_r.stdout.strip():
+                unmerged_files = list({
+                    line.split("\t")[-1] for line in unmerged_r.stdout.strip().splitlines() if "\t" in line
+                })
+                resolved = []
+                for cf in unmerged_files:
+                    # checkout --ours で我々の版を採用し git add で競合解決済みとしてマーク
+                    # ※ git restore --staged は解決をキャンセルしてしまうため呼ばない
+                    r1 = subprocess.run(["git", "checkout", "--ours", "--", cf],
+                                        cwd=str(WORKSPACE), capture_output=True, text=True, timeout=10)
+                    r2 = subprocess.run(["git", "add", "-f", cf],
+                                        cwd=str(WORKSPACE), capture_output=True, text=True, timeout=10)
+                    if r1.returncode == 0 and r2.returncode == 0:
+                        resolved.append(cf)
+                    else:
+                        log(f"  ㉘ 競合解決失敗 {cf}: checkout={r1.returncode} add={r2.returncode}")
+                if resolved:
+                    log(f"  ㉘ 先行: マージ競合を自動解決 ({len(resolved)}件): {', '.join(resolved[:3])}")
+                still_r = subprocess.run(
+                    ["git", "ls-files", "--unmerged"],
+                    cwd=str(WORKSPACE), capture_output=True, text=True, timeout=10
+                )
+                if still_r.stdout.strip():
+                    remaining = list({
+                        line.split("\t")[-1] for line in still_r.stdout.strip().splitlines() if "\t" in line
+                    })
+                    msg = (f"⚠️ マージ競合を自動解決できず ({repo}) → commitスキップ\n" +
+                           "\n".join(f"  {f}" for f in remaining[:5]))
+                    log(f"  ㉘ {msg}")
+                    send_telegram(msg)
+                    return False
+
             # ㉜ 安全ゲート①: 許可ファイルのみ個別にadd（ディレクトリ丸ごとadd廃止）
             _safe_files = [
                 service_dir / "index.html",
@@ -2025,8 +2137,9 @@ def _git_commit_and_push(repo: str, s_delta: int) -> bool:
                     send_telegram(msg)
                     return False
 
+            # 削除チェックはカレントサービスのディレクトリのみ（他サービスの残留ステージングを誤検知しない）
             deleted_r = subprocess.run(
-                ["git", "diff", "--cached", "--diff-filter=D", "--name-only"],
+                ["git", "diff", "--cached", "--diff-filter=D", "--name-only", "--", f"{repo}/"],
                 cwd=str(WORKSPACE), capture_output=True, text=True, timeout=30
             )
             if deleted_r.stdout.strip():
@@ -2045,7 +2158,11 @@ def _git_commit_and_push(repo: str, s_delta: int) -> bool:
             _func_added   = sum(1 for l in _added_js   if "function " in l)
             _evt_removed  = sum(1 for l in _removed_js if "onclick=" in l or "addEventListener" in l)
             _evt_added    = sum(1 for l in _added_js   if "onclick=" in l or "addEventListener" in l)
-            if (_func_removed - _func_added >= 3 or _evt_removed - _evt_added >= 5):
+            _net_func = _func_removed - _func_added   # 正=削除超過, 負=追加超過
+            _net_evt  = _evt_removed  - _evt_added
+            # 関数が増加している場合は大規模リファクタとみなし通過
+            # 両方とも正味削除が大きい場合のみブロック
+            if (_net_func >= 10 and _net_evt >= 10) or _net_func >= 20:
                 subprocess.run(["git", "restore", "--staged"] + [str(_f) for _f in _safe_files if _f.exists()],
                                 cwd=str(WORKSPACE), capture_output=True, timeout=30)
                 msg = (f"⚠️ ㊿ JS機能削除検出 ({repo}): "
@@ -2083,15 +2200,48 @@ def _git_commit_and_push(repo: str, s_delta: int) -> bool:
                         cwd=str(WORKSPACE), capture_output=True, text=True, timeout=30
                     )
                     stashed = stash_r.returncode == 0 and "No local changes" not in stash_r.stdout
-                    subprocess.run(
+                    rebase_r = subprocess.run(
                         ["git", "pull", "--rebase", "origin", "main"],
                         cwd=str(WORKSPACE), capture_output=True, text=True, timeout=60
                     )
+                    if rebase_r.returncode != 0:
+                        # rebase失敗 → abort して stash drop
+                        subprocess.run(["git", "rebase", "--abort"],
+                                       cwd=str(WORKSPACE), capture_output=True, text=True, timeout=30)
+                        if stashed:
+                            subprocess.run(["git", "stash", "drop"],
+                                           cwd=str(WORKSPACE), capture_output=True, text=True, timeout=10)
+                        log(f"  ㉘ pull --rebase失敗→abort: {rebase_r.stderr.strip()[:80]}")
+                        continue
                     if stashed:
-                        subprocess.run(
+                        pop_r = subprocess.run(
                             ["git", "stash", "pop"],
                             cwd=str(WORKSPACE), capture_output=True, text=True, timeout=30
                         )
+                        if pop_r.returncode != 0:
+                            # stash pop競合 → --ours（HEAD版）で自動解決
+                            conf_r = subprocess.run(
+                                ["git", "ls-files", "--unmerged"],
+                                cwd=str(WORKSPACE), capture_output=True, text=True, timeout=10
+                            )
+                            if conf_r.stdout.strip():
+                                conf_files = list({
+                                    line.split("\t")[-1]
+                                    for line in conf_r.stdout.strip().splitlines() if "\t" in line
+                                })
+                                for cf in conf_files:
+                                    # checkout --ours で HEAD版採用 → git add で競合解決済みとしてマーク
+                                    # ※ git restore --staged はステージを取り消すため呼ばない
+                                    subprocess.run(["git", "checkout", "--ours", cf],
+                                                   cwd=str(WORKSPACE), capture_output=True, text=True, timeout=10)
+                                    subprocess.run(["git", "add", "-f", cf],
+                                                   cwd=str(WORKSPACE), capture_output=True, text=True, timeout=10)
+                                log(f"  ㉘ stash pop競合を自動解決 ({len(conf_files)}件): "
+                                    f"{', '.join(conf_files[:3])}")
+                            else:
+                                subprocess.run(["git", "stash", "drop"],
+                                               cwd=str(WORKSPACE), capture_output=True, text=True, timeout=10)
+                                log(f"  ㉘ stash pop失敗→drop: {pop_r.stderr.strip()[:80]}")
             if not push_ok:
                 log(f"  ㉘ git push失敗(3回試行): {push_r.stderr.strip()[:100]}")
                 return False
@@ -2112,29 +2262,31 @@ def _select_model_and_turns(pending_ids: set, skip_phase1: bool) -> tuple[str, i
     ルーティングロジック:
       - CLAUDE_IMPROVE_MODEL が明示指定されている場合: そのまま使用（ルーティングしない）
       - フェーズ1を実施する場合（pending_idsが空 = quick_scanで何も検出なし）:
-            Sonnet / 25ターン（全コード分析が必要なため品質重視）
+            Sonnet / 35ターン（全コード分析が必要なため品質重視）
       - フェーズ1をスキップし複雑施策(M1/M3/M4等)が含まれる場合:
-            Sonnet / 20ターン（JS/ロジック実装が必要）
+            Sonnet / 25ターン（JS/ロジック実装が必要）
       - フェーズ1をスキップし単純施策(M14/M15/M18等)のみの場合:
             Haiku / 12ターン（HTML属性・メタデータ追加のみ）
+    ※ "Reached max turns" エラー検出時はリトライで turns×1.5+5（最大60）に自動拡張
     """
     if _MODEL_EXPLICITLY_SET:
         # 明示指定優先: max-turnsは複雑度に応じて調整するが、モデルは固定
         if not skip_phase1:
-            turns = 25
+            turns = 35  # 25→35: フェーズ1(全分析+実装)は25ターンで上限到達が多発していたため拡張
         elif pending_ids & _COMPLEX_M:
-            turns = 20
+            turns = 40  # 35→40: Haiku+複雑M(M2等)で35ターン使い切り失敗する問題を修正
         else:
             turns = 12
         return CLAUDE_MODEL, turns
 
     if not skip_phase1:
         # quick_scanで未実施施策なし → フェーズ1から全分析（Sonnet必須）
-        return _MODEL_ALIASES["sonnet"], 25
+        # 25ターンでは分析+計画+実装+検証がギリギリで上限到達が多発 → 35に拡張
+        return _MODEL_ALIASES["sonnet"], 35
 
     # フェーズ1スキップ: 複雑施策の有無で判定
     if pending_ids & _COMPLEX_M:
-        return _MODEL_ALIASES["sonnet"], 20
+        return _MODEL_ALIASES["sonnet"], 25  # 20→25: 複雑施策実装で20ターン上限到達が発生
     else:
         # 単純な HTML/メタデータ施策のみ → Haiku で十分
         turns = 6 if len(pending_ids) == 1 else 12
@@ -2142,7 +2294,7 @@ def _select_model_and_turns(pending_ids: set, skip_phase1: bool) -> tuple[str, i
 
 
 
-def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "", v_issues: list[str] | None = None) -> tuple[bool, str]:
+def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "", v_issues: list[str] | None = None, shot_paths: list[str] | None = None) -> tuple[bool, str]:
     """指定サービスに /improve_auto を実行。(成功フラグ, stdout) を返す。"""
     no = service["no"]
     repo = service["repo"]
@@ -2237,35 +2389,41 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "", v_is
         cmd += "\n".join(checklist_lines)
         cmd += "\n\n↑ ⬜未実施の施策を上位3件のみ実装してください（残りは次回の自動改善で対応）。"
     elif _deep_review_mode:
-        # 深層品質レビューモード: 定型施策は全て実装済み → 品質・訴求力・新収益機会を独自視点で改善
+        # 深層品質レビューモード: 定型施策は全て実装済み → 以下5択から1つ必ず実装
         cmd += """
 
-【深層品質レビューモード】
+【深層改善モード】
 定型チェックリスト（M1〜M20）は全て実装済みです。
-このサービスのindex.htmlを実際に読み込み、以下の観点で改善点を1〜2件発見・即実装してください。
-改善点が見つからない場合は「改善点なし」と述べて終了（ファイル変更不要）。
+index.htmlを Read で読み込んだ後、下記の「必ず実装できる改善5択」から最も効果が高いものを1つ選び、即座にindex.htmlをEditで実装してください。
 
-【優先度順の改善観点】
+⚠️ 絶対ルール: 分析・検討のみで終わらせてはいけません。必ずindex.htmlを実際に編集してください。
+⚠️ px.a8.net アフィリエイトリンク・ビーコンimgは絶対に削除・変更しないこと。
 
-① 収益導線の訴求力（最優先）
-  - CTAボタン文言が弱い → 強化（「こちら」→「無料で試す」「今すぐ確認する」等の行動語）
-  - A8アフィリエイトCTAが見えにくい位置・小さいサイズ → 改善
-  - CTAが1箇所のみ → コンテンツ中盤〜末尾にも自然な形で追加
-  - CTAボタンの色・コントラストが低い → 改善
+【必ず実装できる改善5択（1つ選んで即実装）】
 
-② コンテンツ深度・品質
-  - FAQが3問以下 → このサービス固有の具体的な質問・回答を追加（汎用文禁止）
-  - 解説セクションが薄い（数値・比較・具体例が少ない）→ 充実化
-  - HowToのステップが曖昧 → 具体的な数値・手順に改善
-  - 見出し(h2/h3)がサービス内容を正確に表現していない → 改善
+A. FAQ追加（確実に実装可能）
+   このサービス固有の具体的なQ&Aを1〜2問、既存FAQの末尾に追加する。
+   例: 「Q: {サービス名}を使うベストなタイミングは？ A: {具体的な状況と理由}」
+   既存のFAQのHTML構造を維持したまま<div>や<dt><dd>で末尾に追記するだけ。
 
-③ ユーザー体験の細部
-  - 入力フォームの例示・ヒントテキストが不足 → 追加
-  - 結果表示が分かりにくい（数値の意味・単位が不明）→ 説明追加
-  - エラー時のフィードバックがない → 追加
+B. CTA文言強化（確実に実装可能）
+   既存CTAボタンや誘導リンクを探し、文言を「行動語」に変更する。
+   「こちら」→「今すぐ無料で試す」、「詳しくはこちら」→「詳細を確認する」等。
+   1〜3箇所のテキスト変更のみ。
 
-⚠️ 見た目の微調整（テーマカラー変更等）は対象外。機能・コンテンツ品質の改善のみ。
-⚠️ px.a8.net アフィリエイトリンク・ビーコンimgは絶対に削除・変更しないこと。"""
+C. 使用例・活用シーン追記（確実に実装可能）
+   「こんな方におすすめ」や「活用シーン」セクションが薄い場合、具体例を2〜3件追加する。
+   箇条書き(<li>)で追記するだけ。
+
+D. 数値・根拠の追加（確実に実装可能）
+   説明文中で「適切な量」「効果的」等の曖昧な表現を、具体的な数値・根拠に置き換える。
+   例: 「効果的な量」→「体重1kgあたり1.2〜2.0gが推奨（厚生労働省ガイドライン）」
+
+E. h2/h3見出し改善（確実に実装可能）
+   既存の見出しで抽象的・汎用的なものを、サービス固有のキーワードを含む具体的な表現に変更する。
+   例: 「使い方」→「タンパク質摂取量の正しい計算方法」（サービス名に合わせて具体化）
+
+↑ A〜Eのうち1つを選んでindex.htmlを実際に編集してください（選択理由の説明は不要・即実装）。"""
     else:
         # フェーズ1実施モード: 全施策チェックリスト表示（初期整備）
         checklist_lines = []
@@ -2307,11 +2465,27 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "", v_is
         if _snippets:
             cmd += _snippets
 
+    # スクリーンショット直接参照（Claudeが実際の見た目を確認しながら改善）
+    _valid_shots = [p for p in (shot_paths or []) if Path(p).exists()]
+    if _valid_shots:
+        shot_list = "\n".join(f"  - {p}" for p in _valid_shots)
+        cmd += (
+            f"\n\n【📸 スクリーンショット確認】\n"
+            f"以下のスクリーンショット画像をReadツールで読み込み、実際のUI・UXを目視確認してから改善を実装してください:\n"
+            f"{shot_list}\n"
+            f"（①デスクトップ上部 ②デスクトップ中段 ③モバイル の3視点）\n"
+            f"スクショを見て気になる点を改善に活かすこと。"
+        )
+
     if v_issues:
-        cmd += "\n\n【🔴最優先: スクリーンショット解析による視覚的UI問題】\n"
+        cmd += "\n\n【🔴絶対実装: スクリーンショット解析による視覚的UI問題】\n"
         for vi in v_issues:
             cmd += f"  {vi}\n"
-        cmd += "↑ 上記の視覚的問題を最優先で修正してください。ユーザーが実際に目にする問題のため必ず実装すること。"
+        cmd += (
+            "↑ 上記は実際のスクリーンショットから発見された問題です。\n"
+            "これらは必ず全て実装してください。「改善点なし」「対応不要」は禁止。\n"
+            "改善できない問題は存在しません。index.htmlを直接編集して修正すること。"
+        )
 
     if retry_hint:
         cmd += f"\n\n【リトライ指示】前回の改善後チェックで以下が未反映でした。これらを最優先で実装してください:\n{retry_hint}"
@@ -2331,10 +2505,11 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "", v_is
     _simple_pending  = sorted(pending_ids & _SIMPLE_M,  key=lambda x: int(x[1:]))
 
     # タイムアウトをmax-turnsに連動（Haiku/単純施策は短く設定してタイムアウト待ち損失を最小化）
-    # ㊷ max-turns 6 → 180s / 12 → 300s / 20 → 600s / 25+ → 900s
+    # ㊷ max-turns 6 → 180s / 12 → 300s / 20 → 600s / 35 → 1050s / 25+ → 900s
     _timeout_sec = (180 if _max_turns <= 6 else
                     (300 if _max_turns <= 12 else
-                     (600 if _max_turns <= 20 else TIMEOUT_SEC)))
+                     (600 if _max_turns <= 20 else
+                      (1050 if _max_turns <= 35 else TIMEOUT_SEC))))
     # リトライ前の待機時間もタイムアウトに比例させる（短いタイムアウトに長い待機は不要）
     _retry_sleep = 20 if _timeout_sec <= 180 else (30 if _timeout_sec <= 300 else 60)
 
@@ -2366,10 +2541,33 @@ def run_improve(service: dict, pre_issues: list[str], retry_hint: str = "", v_is
                 return True, result.stdout
             else:
                 stderr_snippet = result.stderr.strip()[:200]
+                stdout_snippet = result.stdout.strip()[:300] if result.stdout else ""
                 log(f"✗ {repo}: 失敗 (code={result.returncode}, attempt={attempt}){' ' + stderr_snippet if stderr_snippet else ''}")
+                if stdout_snippet:
+                    log(f"  失敗stdout: {stdout_snippet}")
+                # 失敗stdoutをファイルに保存（デバッグ用）
+                try:
+                    Path(f"/tmp/fail_stdout_{repo}.txt").write_text(
+                        result.stdout or "", encoding="utf-8"
+                    )
+                except Exception:
+                    pass
                 if attempt < 2:
-                    log(f"  → {_retry_sleep}秒後にリトライします...")
-                    time.sleep(_retry_sleep)
+                    # "Reached max turns" エラーは同じターン数でリトライしても必ず失敗する
+                    # → ターン数を増やして即リトライ（待機不要）
+                    if "Reached max turns" in (result.stdout or ""):
+                        old_turns = _max_turns
+                        # 1.5倍 + 5ターン、最大60ターンまで拡張
+                        _max_turns = min(int(_max_turns * 1.5) + 5, 60)
+                        _cmd_args = [str(CLAUDE_BIN), "--dangerously-skip-permissions",
+                                     "-p", cmd,
+                                     "--model", _run_model,
+                                     "--output-format", "text",
+                                     "--max-turns", str(_max_turns)]
+                        log(f"  → ターン数上限到達を検出: {old_turns}→{_max_turns}ターンに拡張してリトライ")
+                    else:
+                        log(f"  → {_retry_sleep}秒後にリトライします...")
+                        time.sleep(_retry_sleep)
         except subprocess.TimeoutExpired:
             log(f"✗ {repo}: タイムアウト({_timeout_sec}s, attempt={attempt})")
             if attempt < 2:
@@ -2673,12 +2871,15 @@ def _worker(worker_id: int, stop_event, sheets_factory):
             # ビジュアルスキャン: スクショ→Claude Haikuで視覚的UI問題を検出
             # _visual_lock で直列化（Playwright競合防止）
             _v_issues: list[str] = []
+            _v_shots: list[str] = []
             with _visual_lock:
-                _v_issues = _visual_scan(svc["repo"])
+                _v_issues, _v_shots = _visual_scan(svc["repo"])
             if _v_issues:
                 log(f"[W{worker_id}]   ビジュアルスキャン: {_v_issues}")
             else:
                 log(f"[W{worker_id}]   ビジュアルスキャン: 問題なし or スキップ")
+            if _v_shots:
+                log(f"[W{worker_id}]   スクショ保存: {_v_shots}")
 
             # A) トラフィックゼロは改善しても効果薄→24hクールダウン
             zero_traffic = svc["combined"] == 0
@@ -2699,7 +2900,7 @@ def _worker(worker_id: int, stop_event, sheets_factory):
                     _bak_size = len(_bak_bytes)
 
                 t_start = time.time()
-                ok, stdout = run_improve(svc, pre_issues, v_issues=_v_issues)
+                ok, stdout = run_improve(svc, pre_issues, v_issues=_v_issues, shot_paths=_v_shots)
                 elapsed = int(time.time() - t_start)
 
                 # ⑪ 破損検知: ファイルサイズが60%未満またはHTMLタグ消失 → 自動ロールバック
@@ -2724,6 +2925,25 @@ def _worker(worker_id: int, stop_event, sheets_factory):
                             f"🔗 https://appadaycreator.com/{svc['repo']}/"
                         )
                         ok = False
+
+            # 無変化リトライ: Claudeが変更なしで完了した場合は強制リトライ
+            if ok and _bak_bytes:
+                _cur_idx_check = WORKSPACE / svc["repo"] / "index.html"
+                if _cur_idx_check.exists() and _cur_idx_check.read_bytes() == _bak_bytes:
+                    log(f"[W{worker_id}]   ⚠️ index.html無変化 → 強制リトライ（変更必須指示）")
+                    _no_change_hint = (
+                        "⚠️【重要・必須】直前の実行でindex.htmlに一切変更が加えられませんでした。\n"
+                        "今回は必ずindex.htmlをEditツールで実際に編集してください。\n"
+                        "以下のどれか1つを今すぐ実装すること（選択後に即Edit実行）:\n"
+                        "① index.htmlを Readで読み込み → FAQの末尾に具体的なQ&Aを1問追加してEdit\n"
+                        "② index.htmlを Readで読み込み → CTAボタンのテキストを行動語に変更してEdit\n"
+                        "③ index.htmlを Readで読み込み → h2見出しを1箇所具体的な表現に変更してEdit\n"
+                        "分析・検討のみで終わることは絶対に禁止。Edit toolを必ず使うこと。"
+                    )
+                    t_start_retry = time.time()
+                    ok, stdout = run_improve(svc, pre_issues, retry_hint=_no_change_hint, v_issues=_v_issues, shot_paths=_v_shots)
+                    elapsed += int(time.time() - t_start_retry)
+                    log(f"[W{worker_id}]   リトライ完了 ok={ok} elapsed+={int(time.time()-t_start_retry)}s")
 
             # 改善後確認: ローカルファイル基準でマーカー検査（㉟ HTTP検証廃止・CDN遅延で無意味）
             v_detail = ""
@@ -2856,14 +3076,18 @@ def _worker(worker_id: int, stop_event, sheets_factory):
                     write_update_log(sheets, svc, pre_issues, stdout, elapsed, _s_delta)
                     notify_indexnow(svc["repo"])
                     # ㉘ 改善後に自動git commit+push（GitHubPages自動デプロイ）
-                    _git_commit_and_push(svc["repo"], _s_delta)
-                    _send_improve_notify(
-                        svc, stdout, worker_id,
-                        verify_detail=v_detail, marker_results=v_markers,
-                        pre_issues=pre_issues, elapsed=elapsed,
-                        s_delta=_s_delta, asset_value=asset_value,
-                        v_issues=_v_issues,
-                    )
+                    _commit_ok = _git_commit_and_push(svc["repo"], _s_delta)
+                    if _commit_ok:
+                        _send_improve_notify(
+                            svc, stdout, worker_id,
+                            verify_detail=v_detail, marker_results=v_markers,
+                            pre_issues=pre_issues, elapsed=elapsed,
+                            s_delta=_s_delta, asset_value=asset_value,
+                            v_issues=_v_issues,
+                        )
+                    else:
+                        # commit失敗: 変更はあるが push できなかった旨を通知
+                        log(f"[W{worker_id}]   commit失敗のため通知スキップ（マージ競合通知済み）")
             else:
                 try:
                     update_spreadsheet(sheets, svc["row"], svc["s_val"], 0, cooldown_expiry, update_progress=False)
