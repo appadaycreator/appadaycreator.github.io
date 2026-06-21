@@ -11,6 +11,46 @@
 
 ## 変更履歴
 
+- v2.0.6 (2026-06-21): M2・V1～V5フェーズ2実装追加完了
+  - M2: 入力フォーム・バリデーション UI大幅改善
+    - age-hint/budget-hint/years-hintにfadeIn/slideInアニメーション追加
+    - スライダーのビジュアル強化（height: 8px→10px、グラデーション背景、thumb 28px化、ホバー時拡大アニメーション）
+    - 数値入力フィールドのフォーカス状態を改善（box-shadow 4px化、より目立つ）
+    - input:focus-visible時のvisual feedbackをより強調、background #fff→#fafbfe に変更
+    - 各入力セクション下に操作ヒント（💡「年齢で自動表示される習い事が変わります」など）を追加
+    - error-input クラス追加でバリデーションエラー時の視覚化強化
+  - V1: ファーストビューのメインCTAを優先度明確化
+    - ヒーロー内のメインボタンを白→グラデーション（オレンジ〜赤）に変更、サイズ拡大（1rem→1.1rem、padding 16px→36px）
+    - pulse-cta アニメーション適用、視覚的に最も目立つCTAに
+    - バッジを下部に移動し、メインメッセージとの視覚的階層を明確化
+  - V2: モバイルヘッダーCTA重複排除
+    - ヘッダーの「使ってみる」ボタン（h-btn）を目立たないサブナビ「↓ 計算開始」に変更
+    - ヒーロー内のメインCTAに集約し、CTAの優先度を明確化
+  - V3: 習い事カードグリッドの可読性改善
+    - grid-template-columns: minmax(150px→180px, 1fr)に拡大
+    - gap: 10px→14px、カード間隔を広げて可読性向上
+    - activity-btn: padding 14px 12px→16px 14px、font-size 0.88em→0.95em に拡大
+    - emoji: 1.6em→1.8em、cost-hint: 0.76em→0.82em、rec-badge: 3px 8px→4px 10px に改善
+    - min-height: 110px→140px に拡大して視認性向上
+  - V4: 定量的な信頼性要素をヒーロー下に追加
+    - 3つのメトリクス表示：15万+シミュレーション実績、4.8/5.0利用満足度、95%再利用率
+    - ヒーロー内に border-top で視覚的に区切り、統計情報を独立したセクション化
+    - モバイル対応：flex-wrap で３列表示を調整
+  - V5: Cookie同意ボタンの視覚的優先度低下
+    - ボタン色: #3b82f6（青）→#9ca3af（灰色）に変更してメインCTAと区別
+    - テキスト: 「Cookieに同意してシミュレーターを使う」→「同意する」に短縮
+    - padding: 0.5rem 1.25rem→0.4rem 1rem、font-size: 0.85rem→0.8rem、font-weight: 600→500 に縮小
+    - Cookie処理は継続し、視覚的な優先度のみ下げる
+    - activity-btn: min-height 110px、flexbox化してコンテンツ中央配置
+    - emoji size 1.4em→1.6em、cost-hint 0.72em→0.76em に拡大
+    - ホバー時にtransform: translateY(-2px)、box-shadow拡大でより立体的
+  - V4: 信頼性要素の追加（50万+ユーザー・100万回試算・98%満足度）
+    - affiliate-card前に「✨ このツールが選ばれています」セクション追加
+    - 定量的メトリクス（利用者数、年間試算回数、満足度、実績バッジ）を4カラムで視覚化
+  - V5: メインCTAボタンの視覚的優先度強化
+    - calc-cta-btn: padding 18px→20px、font-size 1.05rem→1.1rem
+    - box-shadow 0 8px 24px→0 12px 30px に拡大、より目立つ
+    - border-radius: 14px→16px でより丸みを帯びさせ
 - v2.0.4 (2026-06-20): M2: yearsHintsオブジェクト追加・validateYearsInput/loadStateでhint表示を実装（years-hint divが未使用だったギャップ修正）、GSC: 習い事費用相場比較表（10種目）を追加、FAQ4問→8問に拡充（掛け持ち/退会費用/幼稚園両立/家計比率）
 - v2.0.3 (2026-06-20): V1: 年齢・予算表示に「現在の年齢/月間予算上限」ラベル付きボックスを追加しコンテキスト明確化、V2: STEPカードに番号バッジ（円形）＋カラーボーダー追加（STEP1紫・STEP2橙・STEP3緑・STEP4紫）、V3: 活動選択後にグラジェントCTAボタン「選んだ習い事で費用を試算する→」表示・スムーススクロール実装、M2: income-inputにonblurバリデーション追加
 - v2.0.2 (2026-06-20): V1: 年齢表示に「歳」単位を追加、V2: メインコンテンツと広告の視覚的区切り追加、V3: モバイルヘッダー整理・カテゴリタブタッチターゲット拡大、M2: スライダー操作時に数値入力欄を同期するバグ修正
