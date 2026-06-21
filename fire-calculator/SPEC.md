@@ -7,6 +7,16 @@
 **更新日**: 2026-06-20
 **URL**: https://appadaycreator.com/fire-calculator/
 
+## 変更履歴（v2.9.3）
+- M2: コア機能のUX改善 Phase2 直接実装 - スクリーンショット解析による視覚的UI問題完全対応
+  - [V3] ラベル-入力フィールド距離最適化：form-group label margin-bottom 8px→6px で視覚的関連付けを強化
+  - [V3] ヘルプテキスト行間拡大：form-group small margin-top 5px→8px で読みやすさ向上
+  - [V4] 免責事項テキスト可読性向上：font-size 0.9em→1em、line-height 1.6→1.8 で読む気になるサイズに改善
+  - [V5] ステップ現在地強調：step.active .step-number に white border 3px 追加＆box-shadow 0.3→0.5opacity に強化して現在地を明確化
+  - [V5] ステップテキスト強調：progress-info を font-size 0.9em→1em、color #555→#333、font-weight 600→700 に変更して視認性向上
+  - [V1/V2] アフィリエイトカード説明文UX改善：各カード説明文を詳細化してクリック欲求を向上（FIRE加速効果を数値化）
+  - affiliate-section 説明文を「参考情報」から「計算結果に基づいた提案」へ改善
+
 ## 変更履歴（v2.9.2）
 - M2: コア機能のUX改善 - 入力フォーム最適化・バリデーション強化
   - [V2] デスクトップでの情報量削減：savingsCash/savingsInvest/savingsOther を @media (min-width: 769px) で非表示化、ステップ1の視認性向上
