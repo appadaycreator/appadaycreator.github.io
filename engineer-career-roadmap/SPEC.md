@@ -24,6 +24,7 @@
 
 ## 改善履歴
 
+- v1.7.0 (2026-06-21): 【M2完全実装】入力UI・バリデーション改善（select/input フォント拡大1rem・パディング14px 16px・min-height:48px・touch-action添付）、ボタン拡大（.btn-primary padding:16px 14px・min-height:56px・box-shadow強化・margin-top:22px）、V1フォーム送信ボタンUX改善・V2モバイルドロップダウン最適化（フォント拡大・パディング増加）、V3 Amazonセクション診断前配置（販売機会向上）、V4コンテンツ間隔調整（.card margin-bottom:20px）、V5モバイル視覚強調（.tab :first-child でプライマリ化・期間選択ボタン min-height:72px flex化・診断ボタン目立つ背景色）、モバイルメディアクエリ強化（@media 640px以上でタブ調整、480px以下で最適化）
 - v1.6.0 (2026-06-20): M2 ラベルfor属性追加（全入力フィールドとlabelを関連付け・アクセシビリティ改善）、aria-describedby IDミスマッチ修正、年収タブ空状態UX追加（職種未選択時の誘導メッセージ）、GSC対応meta description強化・WebApplicationスキーマにfeatureList/keywords追加
 - v1.4.0 (2026-06-20): M2 フォームUX強化（blur/changeイベントでリアルタイムバリデーション追加）、V1 セレクト/インプット枠線コントラスト改善（2px #94a3b8）、V2 モバイル用スティッキーCTAボタン追加、V3 パネル上余白拡大でナビとフォームの視覚的分離を改善
 - v1.3.0 (2026-06-19): M4 Chart.js互換ミニ実装（new Chart() API・外部CDN不要）で年収棒グラフ再実装、M10 印刷(window.print)/クリップボードコピー/CSVダウンロード機能追加
