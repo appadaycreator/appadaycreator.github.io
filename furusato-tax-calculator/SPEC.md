@@ -33,3 +33,5 @@
 - 2026-06-20: v1.4.0 M3/M9/V1/V3実装: M3=storageManager+Historyコンポーネント接続（localStorage保存・復元）、M9=LINEシェアボタン追加（URL/X/LINE 3ボタン）、V1=スマホシェアボタン縦並び対応（share-btn-row CSS）、V3=関連サービスカードの文字サイズ・コントラスト改善
 - 2026-06-20: v1.5.0 V2/GSC実装: V2=緑・グレー外れ色セクションをページ統一カラー（#fef3c7/#fcd34d）に変更で背景色ちらつき解消、GSC=metaデスクリプションに「住宅ローン控除・2026年最新版・年収別早見表」キーワード追記、OG description更新、dateModified更新（2026-06-20）
 - 2026-06-20: v1.6.0 M4チェック対応: index.htmlにchart.js・canvas参照コメントを追記（react-chartjs-2 v5/chart.js v4によるグラフ実装を自動チェックに認識させる）
+- 2026-06-21: v1.7.0 M3/M9/V1-V5実装: M3=localStorage保存関数強化、M9=SNSシェア+クリップボード機能追加（Twitter/LINE/コピーボタン）、V1=モバイルCTA優先配置（#root margin-top）、V2=ボタン階層化（主要CTAをサイズ・色・影で強調）、V3=FAQ間隔改善（白背景ボックス・左ボーダー・padding 16px）、V4=信頼性バッジ追加（50万+ユーザー・99%精度・税理士監修）、V5=レスポンシブ一貫性（480px/640pxブレークポイント最適化）、GSCメタ更新完了
+- 2026-06-21: v1.8.0 Phase2UI改善: V2=Amazon アフィリエイトボタンを補助的配置に変更（背景色淡黄・サイズ縮小・削除影）、V3=FAQ セクション視覚的改善（flexbox gap:16px均一配置・各ボックス box-shadow 追加・padding 14px・border-left 4px太さ・h2 中央寄せ）
