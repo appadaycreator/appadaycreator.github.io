@@ -747,3 +747,15 @@ This specification documents the current state before refactoring begins.
   - [V2] h1 line-height:1.2→1.35・フォントサイズ調整→テキスト密度改善・階層明確化
   - [V3] CTAボタン全幅・ヒーロー背景画像object-positionモバイル調整・横スクロール防止
   - [M2] age-error インラインエラーdiv追加・バリデーション失敗時にエラーサマリーへsmoothスクロール
+
+- **2026-06-22 V1/V2/V3/V4/V5 + M2: Hero UI&Form改善（Phase2直接実装）**
+  - [V1] ファーストビュー視線経路最適化: CTAボタンをテキスト直下に移動・flex-direction:column で縦積み → 左→右→左の視線ジグザグを改善
+  - [V2] CTAボタン色統一: 既存ゴールド色（#D4A017）をモバイル・デスクトップ全デバイスで統一・shadow 強化 → 背景混在防止・コントラスト確保
+  - [V3] デスクトップ信頼性要素強調: 「12,847人が診断済み」「111モデル」を hero-stats-row-top で lg 以上で非表示→表示・モバイルでは非表示・金色 #D4A017 で目立たせ
+  - [V4] ヒーロー説明文簡潔化: 字数削減（150→90字）・スクロール誘導矢印アニメーション追加・モバイルでは feature-badges を非表示化
+  - [V5] Cookie バナー改善: z-index 9998→40に低下（main content z-stack との競合回避）・padding 調整・button hover 遷移改善
+  - [M2] 入力フォーム UI 改善:
+    - Slider output 値の視認性向上: 背景色 rgba(5,150,105,0.08)・padding 2px 8px・border-radius 4px で強調
+    - aria-label 追加: 全スライダーに「身長スライダー（140～200cm）」形式で説明
+    - margin-top: 2px→6px でスライダーとラベルの間隔拡大
+    - aria-describedby 継続保持で画面リーダー対応維持
