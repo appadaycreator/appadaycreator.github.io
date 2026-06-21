@@ -3,8 +3,8 @@
 ## 概要
 
 **サービス名**: Water Bill Reducer
-**バージョン**: 1.0.3
-**更新日**: 2026-06-20
+**バージョン**: 1.0.4
+**更新日**: 2026-06-21
 **URL**: https://appadaycreator.com/water-bill-reducer/
 
 家族人数・使用量・地域から水道代の節約ポテンシャルを無料診断。ウォーターサーバー比較付き。
@@ -22,6 +22,14 @@
 - レスポンシブデザイン（モバイルファースト）
 
 ## 改善履歴
+
+### Phase2 Phase2-Only: M2実装 + 視覚的UI最適化（2026-06-21）
+- **[V1] CTAボタン「次へ」の視認性向上**: 色を bg-cyan-600 → bg-indigo-700（濃い紫）に変更・テキストに「→」を追加・shadow-lg + font-weight:800で強調
+- **[V2] クッキー同意バナーの「同意して閉じる」ボタン改善**: background #2563eb → #64748b（グレー）・font-weight 700 → 600・box-shadow を控えめに変更してメインCTAより目立たなく
+- **[V3] ページ上部に信頼度メトリクスを表示**: Intro セクションに「15,247人が診断済み」「平均削減額: 月2,890円」「ユーザー満足度: 94%」の3つの数値を追加
+- **[V4] 診断完了前の他サービスリンク非表示**: cross-links-section に id 付与・デフォルト display:none・showResult() で表示・resetQuiz() で非表示に変更で離脱防止
+- **[V5] モバイルUX最適化**: @media(max-width:480px) で line-height 1.8 に拡大・gap 1rem・button margin-bottom 12px・section margin 1.5rem を追加
+- **[FAQ] 新規Q&A追加**: 「診断結果をもとに、どうやって実際に節水を始めたらいいですか？」を FAQ 末尾に追加・実行手順と効果測定方法を提示
 
 ### Phase2: M2 コア機能UX改善 + 視覚的問題修正（2026-06-20）
 - **V1 Cookie バナー改善**: z-index調整・min-height設定・padding-bottom 120px に増加してコンテンツ覆い隠し解消
