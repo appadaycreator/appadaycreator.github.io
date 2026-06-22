@@ -3,11 +3,17 @@
 ## 概要
 
 **サービス名**: Couple Anniversary Counter
-**バージョン**: 2.3.6
-**更新日**: 2026-06-20
+**バージョン**: 2.3.7
+**更新日**: 2026-06-22
 **URL**: https://appadaycreator.com/couple-anniversary-counter/
 
 交際記念日から何日経ったか自動計算。次の記念日まで何日か分かる。カップル向け無料記念日管理ツール。
+
+**【M2施策】2.3.7: コア機能のUX改善（入力UI・バリデーション）**
+- フォーム内の行間・マージン拡大（テキスト密集を解消）
+- 入力フィールドのタップターゲット拡大（padding/height 増加）
+- モーダルCTAボタンの強調（font-bold/text-lg を追加）
+- Cookie Consentバナーのテキスト可視性向上（font-size/line-height 増加）
 
 ## データ管理
 
