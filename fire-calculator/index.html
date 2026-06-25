@@ -176,7 +176,9 @@
         .step-number {
             width: 40px;
             height: 40px;
-            background: #e0e0e0;
+            background: #f5f3ff;
+            border: 2px solid #c4b5fd;
+            color: #6d28d9;
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -189,7 +191,8 @@
 
         .step span {
             font-size: 0.8em;
-            color: #666;
+            color: #555;
+            font-weight: 600;
             white-space: nowrap;
         }
 
@@ -632,6 +635,15 @@
             .button-group {
                 flex-direction: column;
                 gap: 12px;
+                position: sticky;
+                bottom: 0;
+                background: rgba(255,255,255,0.97);
+                margin-left: -16px;
+                margin-right: -16px;
+                padding: 12px 16px 8px;
+                border-top: 1px solid #e5e7eb;
+                z-index: 20;
+                backdrop-filter: blur(6px);
             }
 
             #nextBtn {
@@ -823,10 +835,7 @@ input[type="range"] {
   background-color: #fafafa;
 }
 
-.form-group input:valid {
-  border-color: #16a34a;
-  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
-}
+/* 入力枠色統一: :valid による自動グリーン化を廃止しエラー時のみ色変化 */
 
 .form-group.is-warning {
   background: #fef2f2;
@@ -1081,10 +1090,11 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         <div class="error-message" id="savingsOther-error"></div>
                         <small>💡 不動産など評価額</small>
                     </div>
-                    <div class="form-group">
-                        <label for="currentSavings">総資産（万円）</label>
-                        <input type="number" id="currentSavings" value="750" min="0" max="100000" readonly placeholder="0" aria-label="総資産（万円）" aria-readonly="true">
-                        <small>現金・投資・その他資産の合計</small>
+                    <div class="form-group" id="currentSavings-group">
+                        <label for="currentSavings">総資産（万円）<span style="color:#dc2626;font-weight:700;">*</span></label>
+                        <input type="number" id="currentSavings" value="750" min="0" max="100000" placeholder="例: 750（現金＋投資の合計）" inputmode="decimal" aria-label="総資産（万円）" onchange="validateNumberInput('currentSavings', 0, 100000, '総資産は0〜100,000万円の範囲で入力してください')" onblur="validateNumberInput('currentSavings', 0, 100000, '総資産は0〜100,000万円の範囲で入力してください')">
+                        <div class="error-message" id="currentSavings-error"></div>
+                        <small>💡 PC: 現金・投資・その他の合計を入力 / スマホ: 上の内訳から自動計算</small>
                     </div>
                 </div>
                 
@@ -1495,8 +1505,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             </div>
         </div>
 
-        <!-- 関連サービス -->
-        <div style="background: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 8px; padding: 24px; margin-bottom: 24px;">
+        <!-- 関連サービス（計算完了後に表示） -->
+        <div id="relatedServicesSection" class="hidden" style="background: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 8px; padding: 24px; margin-bottom: 24px;">
             <h2 style="color: #15803d; font-size: 1.25rem; margin-bottom: 16px;">🔗 関連サービス - お金の悩みを解決</h2>
             <p style="color: #4b5563; margin-bottom: 20px;">FIRE達成に向けた他の課題解決ツールもご活用ください</p>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
@@ -2177,6 +2187,9 @@ function validateFireInputs(currentAge, annualIncome, targetExpense, desiredFire
             // 結果表示
             document.getElementById('results').classList.remove('hidden');
             document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+            // 関連サービスを計算完了後に表示
+            var rel = document.getElementById('relatedServicesSection');
+            if (rel) rel.classList.remove('hidden');
         }
         
         // 成功確率計算
