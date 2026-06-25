@@ -541,22 +541,40 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
         </div>
     </div>
 
-    <!-- ローディング画面 V1改善: 視覚的フィードバック強化 -->
-    <div id="loading" class="fixed inset-0 bg-white z-50 flex items-center justify-center">
-        <div class="text-center px-8 max-w-sm">
+    <!-- ローディング画面 V1/V2/V4/V5改善: 進捗表示・信頼性シグナル・スキップ遅延 -->
+    <div id="loading" class="fixed inset-0 bg-white flex items-center justify-center" style="z-index:10000">
+        <div class="text-center px-8 max-w-sm w-full">
             <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto"></div>
             <p class="mt-5 text-gray-800 font-semibold text-lg">読み込み中...</p>
             <p class="mt-2 text-gray-600 text-base font-medium">✈️ 完璧な旅行準備をサポート</p>
-            <p class="mt-1 text-gray-500 text-sm">チェックリストを準備しています</p>
-            <div class="mt-4 flex justify-center gap-2" aria-hidden="true">
-                <span class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay:0s"></span>
-                <span class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay:.15s"></span>
-                <span class="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style="animation-delay:.3s"></span>
+            <p class="mt-1 text-gray-500 text-sm" id="loading-status-msg">チェックリストを準備しています...</p>
+            <!-- V1: ローディング進捗バー（長さが不明確→可視化） -->
+            <div class="mt-4 w-full bg-gray-200 rounded-full" style="height:4px" aria-hidden="true">
+                <div id="loading-progress-bar" class="bg-indigo-600 rounded-full" style="height:4px;width:0%;transition:width 1.8s ease-out"></div>
             </div>
-            <p class="mt-4 text-indigo-500 text-xs">通常1〜2秒で完了します</p>
-            <button id="skip-loading" class="mt-6 px-4 py-2 text-sm text-indigo-600 border border-indigo-300 rounded-lg hover:bg-indigo-50 transition duration-150" onclick="document.getElementById('loading').style.display='none'">スキップ</button>
+            <!-- V5: 信頼性シグナル（待ち時間を有益に活用） -->
+            <div class="mt-5 p-3 bg-indigo-50 rounded-xl text-left space-y-1">
+                <p class="text-xs text-indigo-700 font-bold">✈️ こんな使い方ができます</p>
+                <p class="text-xs text-indigo-600">✓ シーン別テンプレートを選ぶだけ</p>
+                <p class="text-xs text-indigo-600">✓ 日数・人数に合わせて自動整理</p>
+                <p class="text-xs text-indigo-600">✓ 登録不要・完全無料・データはブラウザ保存</p>
+            </div>
+            <!-- V4: スキップは3秒後のみ表示（即時表示は「ページが不安定」と誤解させる） -->
+            <button id="skip-loading" class="mt-5 px-4 py-2 text-xs text-gray-400 border border-gray-200 rounded-lg hover:bg-gray-50 transition duration-150" style="display:none" onclick="document.getElementById('loading').style.display='none'">コンテンツをスキップ表示</button>
         </div>
     </div>
+    <script>
+    /* ローディング進捗アニメーション (V1/V4) */
+    (function(){
+        var bar = document.getElementById('loading-progress-bar');
+        var msg = document.getElementById('loading-status-msg');
+        var skip = document.getElementById('skip-loading');
+        if(bar){ setTimeout(function(){bar.style.width='65%';},50); setTimeout(function(){bar.style.width='90%';},1000); }
+        if(msg){ setTimeout(function(){msg.textContent='テンプレートを設定中...';},600); setTimeout(function(){msg.textContent='もうすぐ完了します！';},1300); }
+        /* V4: 3秒以上経過した場合のみスキップボタンを表示 */
+        setTimeout(function(){if(skip)skip.style.display='block';},3000);
+    })();
+    </script>
 
     <!-- ヘッダー -->
     <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
@@ -1425,6 +1443,13 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
             loadUserData();
             setupEventListeners();
             showSection('home');
+            // ローディング画面を非表示（#loadingOverlayとは別のメイン#loadingを閉じる）
+            var loadingEl = document.getElementById('loading');
+            if (loadingEl) {
+                loadingEl.style.opacity = '0';
+                loadingEl.style.transition = 'opacity 0.3s';
+                setTimeout(function(){ loadingEl.style.display = 'none'; }, 350);
+            }
             hideLoading();
         });
 
@@ -1655,7 +1680,7 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
                 });
             }
 
-            // M2: チェックリスト名の必須バリデーション
+            // M2: チェックリスト名の必須バリデーション（blur + input 双方向）
             const checklistNameInput = document.getElementById('checklist-name');
             if (checklistNameInput) {
                 checklistNameInput.addEventListener('blur', (e) => {
@@ -1666,6 +1691,35 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
                     } else {
                         error.classList.add('hidden');
                         e.target.classList.remove('border-red-500');
+                    }
+                });
+                // M2: 入力中にリアルタイムでエラーをクリア
+                checklistNameInput.addEventListener('input', (e) => {
+                    if (e.target.value.trim().length > 0) {
+                        document.getElementById('checklist-name-error').classList.add('hidden');
+                        e.target.classList.remove('border-red-500');
+                        e.target.classList.add('border-green-400');
+                    } else {
+                        e.target.classList.remove('border-green-400');
+                    }
+                });
+            }
+
+            // M2: 出発日フィールドの最小値を今日に設定（過去日付の入力防止）
+            const departureDateInput = document.getElementById('departure-date');
+            if (departureDateInput) {
+                departureDateInput.min = new Date().toISOString().split('T')[0];
+                departureDateInput.addEventListener('change', (e) => {
+                    const selectedDate = new Date(e.target.value);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    if (selectedDate < today) {
+                        e.target.setCustomValidity('出発日は今日以降の日付を入力してください');
+                        e.target.classList.add('border-red-500');
+                    } else {
+                        e.target.setCustomValidity('');
+                        e.target.classList.remove('border-red-500');
+                        e.target.classList.add('border-green-400');
                     }
                 });
             }
@@ -3337,8 +3391,8 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
 </script>
 <!-- r31-cookie-banner V2/V3改善: ボタン視認性・テキスト可読性向上 -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#0f172a;color:#f1f5f9;padding:1.25rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;z-index:9999;box-shadow:0 -4px 16px rgba(0,0,0,.5)">
-<div style="flex:1;min-width:200px;font-size:.9rem;line-height:1.7;color:#fff;font-weight:500">🍪 当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#ffffff;text-decoration:underline;font-weight:700">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1');window.grantConsent && window.grantConsent()" style="background:#2563eb;color:#fff;border:2px solid #60a5fa;padding:.75rem 1.75rem;border-radius:.5rem;font-size:1rem;font-weight:700;cursor:pointer;white-space:nowrap;min-height:44px;min-width:120px;box-shadow:0 2px 8px rgba(37,99,235,.5);flex-shrink:0;@media(max-width:640px){padding:.5rem 1rem;font-size:.875rem;min-width:100px;}">同意して閉じる</button>
+<div style="flex:1;min-width:200px;font-size:.95rem;line-height:1.7;color:#fff;font-weight:500">🍪 当サイトはCookieおよびGoogle Analyticsを使用しています。<br><a href="/privacy-policy.html" style="color:#93c5fd;text-decoration:underline;font-weight:700;font-size:1rem;display:inline-block;margin-top:2px;">▶ プライバシーポリシーを確認する</a></div>
+<button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1');window.grantConsent && window.grantConsent()" style="background:#2563eb;color:#fff;border:2px solid #60a5fa;padding:.75rem 1.75rem;border-radius:.5rem;font-size:1rem;font-weight:700;cursor:pointer;white-space:nowrap;min-height:44px;min-width:120px;box-shadow:0 2px 8px rgba(37,99,235,.5);flex-shrink:0;">同意して閉じる</button>
 </div>
 <script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
 <!-- r46-org-footer -->
