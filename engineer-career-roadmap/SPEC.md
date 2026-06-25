@@ -3,8 +3,8 @@
 ## 概要
 
 **サービス名**: Engineer Career Roadmap
-**バージョン**: 1.8.0
-**更新日**: 2026-06-22
+**バージョン**: 1.9.0
+**更新日**: 2026-06-25
 **URL**: https://appadaycreator.com/engineer-career-roadmap/
 
 現職・ITスキル・転職目標期間を入力するだけで、未経験からエンジニア転職への最短ロードマップを無料生成。職種別の学習スケジュール・年収シミュレーション・転職エージェント比較も対応。
@@ -24,6 +24,7 @@
 
 ## 改善履歴
 
+- v1.9.0 (2026-06-25): M2 UX改善（selectプレースホルダー文言を「▼ タップして選択」形式に変更・視認性向上）、V1 ヒーロー下部に「↓ 下のフォームに入力して無料診断スタート」アニメーション矢印追加、V2 ステップフロー数字円を32px→40pxに拡大・矢印を93c5fdで太く・ラベルフォント拡大、V3 フォームlabelに緑✓成功アイコン追加（入力完了後にフェードイン）・select背景色を入力前#fef2f2→入力後#f0fdf4で即時フィードバック、V4 診断タブAmazonカードを黄色枠→青枠に統一（#f0f7ff/#bfdbfe）、V5 mainトップに信頼バッジバー追加（無料・30秒・8職種・★4.8）
 - v1.8.0 (2026-06-22): M2 フォームUX改善（各selectフィールド下にhintテキスト追加・ユーザー選択支援）、V1 CTAボタンにパルスアニメーション（cta-glow 2.8s）で行動促進、V2 モバイルタブCSSオーバーライド（font-size 0.76em→0.63em@400px以下・padding縮小でテキスト圧縮解消）、V3 ヒーローh1フォント拡大（clamp 1.35rem〜2rem）とpタグ視認性向上（opacity:1・font-weight:700・text-shadow）、V4 Amazonリンクコピー変更（クリック誘因強化）、V5 3ステップフロー ガイド追加（入力→確認→行動）＋全入力完了でStep2が青く変化するJS対応
 - v1.7.0 (2026-06-21): 【M2完全実装】入力UI・バリデーション改善（select/input フォント拡大1rem・パディング14px 16px・min-height:48px・touch-action添付）、ボタン拡大（.btn-primary padding:16px 14px・min-height:56px・box-shadow強化・margin-top:22px）、V1フォーム送信ボタンUX改善・V2モバイルドロップダウン最適化（フォント拡大・パディング増加）、V3 Amazonセクション診断前配置（販売機会向上）、V4コンテンツ間隔調整（.card margin-bottom:20px）、V5モバイル視覚強調（.tab :first-child でプライマリ化・期間選択ボタン min-height:72px flex化・診断ボタン目立つ背景色）、モバイルメディアクエリ強化（@media 640px以上でタブ調整、480px以下で最適化）
 - v1.6.0 (2026-06-20): M2 ラベルfor属性追加（全入力フィールドとlabelを関連付け・アクセシビリティ改善）、aria-describedby IDミスマッチ修正、年収タブ空状態UX追加（職種未選択時の誘導メッセージ）、GSC対応meta description強化・WebApplicationスキーマにfeatureList/keywords追加
