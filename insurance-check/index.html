@@ -192,17 +192,18 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         保険見直しチェック診断ツール
     </div>
     <h1 class="text-3xl font-extrabold mb-3 leading-tight" style="text-shadow:0 2px 8px rgba(0,0,0,0.8);">今の<span style="color:#6ee7b7">保険</span>、<br>あなたの生活に合っていますか？</h1>
-    <!-- V3: 全体ボリューム告知を目立たせ・ユーザーの時間投資判断を支援 -->
-    <div style="background:rgba(255,255,255,0.15);border:2px solid rgba(110,231,183,0.4);border-radius:12px;padding:8px 16px;margin-bottom:12px;display:inline-block;font-weight:700;letter-spacing:0.05em;text-shadow:0 1px 4px rgba(0,0,0,0.8);">⏱️ わずか3分・全10問</div>
-    <!-- V1: h1含む全テキストにtext-shadow強化・p背景overlay追加でコントラスト確保 -->
-    <p class="text-sm mb-4" style="text-shadow:0 2px 6px rgba(0,0,0,0.9);background:rgba(0,0,0,0.3);border-radius:10px;padding:10px 16px;display:inline-block;line-height:1.8;">結婚・出産・住宅購入後に<strong>3人に2人が保険の見直しが必要</strong>な状態です。<br>10問の診断で今すぐチェックしましょう。</p>
-    <div class="flex justify-center gap-5 text-sm opacity-80 mb-6">
+    <!-- V1: 特典バッジをh1直下、CTAより前に配置してファーストビューを強化 -->
+    <div class="flex justify-center gap-5 text-sm opacity-90 mb-5">
         <span>✅ 完全無料</span><span>✅ 登録不要</span><span>✅ 3分で診断</span>
     </div>
-    <!-- V2: CTAボタン大型化・パルスアニメで視認性向上 -->
-    <a href="#app" class="cta-hero" style="display:inline-block;background:#16a34a;color:white;font-weight:800;font-size:1.2rem;padding:20px 48px;border-radius:16px;text-decoration:none;min-height:60px;letter-spacing:0.04em;" onclick="document.getElementById('app').scrollIntoView({behavior:'smooth'});return false;">
+    <!-- V1: CTAボタンをヒーロー上部に移動・パルスアニメで即クリックを促進 -->
+    <a href="#app" class="cta-hero" style="display:inline-block;background:#16a34a;color:white;font-weight:800;font-size:1.2rem;padding:20px 48px;border-radius:16px;text-decoration:none;min-height:60px;letter-spacing:0.04em;margin-bottom:18px;" onclick="document.getElementById('app').scrollIntoView({behavior:'smooth'});return false;">
         🛡️ 今すぐ無料で診断する →
     </a>
+    <!-- V3: 全体ボリューム告知（CTAの下に補足情報として配置） -->
+    <div style="background:rgba(255,255,255,0.15);border:2px solid rgba(110,231,183,0.4);border-radius:12px;padding:8px 16px;margin-bottom:12px;display:inline-block;font-weight:700;letter-spacing:0.05em;text-shadow:0 1px 4px rgba(0,0,0,0.8);">⏱️ わずか3分・全10問で完了</div>
+    <!-- V2: 説明文フォントサイズ・行間を改善（text-smから0.95remへ・line-height 2.0） -->
+    <p class="mb-2" style="font-size:0.95rem;text-shadow:0 2px 6px rgba(0,0,0,0.9);background:rgba(0,0,0,0.3);border-radius:10px;padding:10px 16px;display:inline-block;line-height:2.0;">結婚・出産・住宅購入後に<strong>3人に2人が保険の見直しが必要</strong>な状態です。<br>10問の診断で今すぐチェックしましょう。</p>
 </div>
 
 <!-- V2: 免責表示をCTAと混在しないよう分離・コンテンツ下部に移動済み。ここでは目立たないstrip形式で保持 -->
@@ -473,7 +474,9 @@ let st = {q:0, ans:[], scores:{urgent:0,partial:0,ok:0}};
 function render() {
     const q = Q[st.q], total=Q.length, pct=Math.round(((st.q+1)/total)*100);
     document.getElementById('progress-label').textContent=`質問 ${st.q+1}/${total}`;
-    document.getElementById('progress-pct').textContent=pct+'%';
+    // V3: 残り問数を表示してゴールの近さを意識させ離脱防止
+    const remaining=total-(st.q+1);
+    document.getElementById('progress-pct').textContent=remaining>0?'あと'+remaining+'問':'最後の1問！';
     document.getElementById('progress-fill').style.width=pct+'%';
     // V4: 動的進捗メッセージでモチベーション喚起
     const msgEl=document.getElementById('progress-msg');
@@ -506,12 +509,20 @@ function render() {
     nb.setAttribute('aria-label',has?btnLabel:`質問に回答してから${btnLabel.toLowerCase()}できます`);
     pb.classList.toggle('hidden',st.q===0);
     pb.setAttribute('aria-label',`前の質問に戻る（質問${Math.max(1,st.q)}/10）`);
-    // M2: 未選択時の選択促進ヒントを表示/非表示
+    // M2/V4: 選択促進ヒントは常に非表示（next()押下時のみ表示するため）
     const selHint=document.getElementById('select-hint');
-    if(selHint) selHint.style.display=has?'none':'block';
+    if(selHint) selHint.style.display='none';
 }
 
-function next(){if(st.ans[st.q]===undefined)return; if(st.q<Q.length-1){st.q++;render();}else showResult();}
+function next(){
+  // M2/V4: 未選択時は選択促進ヒントをシェイク表示してユーザーを誘導
+  if(st.ans[st.q]===undefined){
+    var hint=document.getElementById('select-hint');
+    if(hint){hint.style.display='block';hint.classList.remove('shake-anim');void hint.offsetWidth;hint.classList.add('shake-anim');setTimeout(function(){hint.classList.remove('shake-anim');},450);}
+    return;
+  }
+  if(st.q<Q.length-1){st.q++;render();}else showResult();
+}
 function prev(){if(st.q>0){st.q--;render();}}
 
 function calcScores(){
@@ -533,6 +544,8 @@ function showResult(){
         document.getElementById('loading-screen').classList.add('hidden');
         renderResult();
         document.getElementById('result-screen').classList.remove('hidden');
+        // V5: 診断完了後に書籍セクションを表示（コンバージョンフローを保護）
+        var bk=document.getElementById('book-recommend-section');if(bk)bk.style.display='block';
         if(window.dataLayer) window.dataLayer.push({event:'insurance_check_complete',result:getTop()});
     },1500);
 }
@@ -666,6 +679,8 @@ function restart(){
     st={q:0,ans:[],scores:{urgent:0,partial:0,ok:0}};
     document.getElementById('result-screen').classList.add('hidden');
     document.getElementById('quiz-screen').classList.remove('hidden');
+    // V5: 再診断時は書籍セクションを非表示に戻す
+    var bk=document.getElementById('book-recommend-section');if(bk)bk.style.display='none';
     render();
 }
 
@@ -716,8 +731,8 @@ render();
       console.error("[PromiseError]", e.reason);
     });
     </script>
-<!-- V4: 関連商品リンク（Amazon・FP資格テキスト）のCTA意図を明確化・セクション分離 -->
-<div style="margin:32px auto;max-width:800px;padding:20px;background:#fdf4ff;border:2px solid #f0abfc;border-radius:12px;">
+<!-- V5: 書籍・FP資格テキストセクションは診断結果表示後のみ表示（初期状態は非表示） -->
+<div id="book-recommend-section" style="display:none;margin:32px auto;max-width:800px;padding:20px;background:#fdf4ff;border:2px solid #f0abfc;border-radius:12px;">
 <p style="font-size:0.95rem;font-weight:bold;color:#86198f;margin-bottom:4px;">📚 さらに詳しく学びたい方へ</p>
 <p style="font-size:0.8rem;color:#86198f;margin-bottom:14px;">診断結果に加えて、自分のペースで保険知識を深めたい方向けです</p>
 <div style="display:flex;flex-wrap:wrap;gap:12px;">
