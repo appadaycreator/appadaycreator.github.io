@@ -194,6 +194,11 @@ html{overflow-x:hidden}
 .btn:active{transform:scale(0.98)}
 .btn[style*="background:#3b82f6"]{background:#2563eb !important;border:2px solid #1d4ed8 !important;color:#fff !important}
 .btn[style*="background:#3b82f6"]:hover{background:#1d4ed8 !important;box-shadow:0 8px 20px rgba(37,99,235,0.4) !important}
+/* M2/V2: スクロール促進・フォーム状態 */
+@keyframes bounce-down{0%,100%{transform:translateY(0)}50%{transform:translateY(5px)}}
+#scroll-hint{animation:bounce-down 1.5s infinite;}
+@media(min-width:981px){#scroll-hint{display:none!important}}
+#submit-btn:disabled{opacity:0.75;cursor:not-allowed;transform:none!important}
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"ホーム","item":"https://appadaycreator.com/"},{"@type":"ListItem","position":2,"name":"生産性","item":"https://appadaycreator.com/category/productivity/"},{"@type":"ListItem","position":3,"name":"週末まとめ調理プランナー自動作成ツール","item":"https://appadaycreator.com/meal-prep-planner/"}]}</script>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"「週末まとめ調理プランナー」は無料で使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、完全無料・登録不要です。"}},{"@type":"Question","name":"スマートフォンでも使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい、モバイル対応済みです。"}}]}</script>
@@ -265,14 +270,19 @@ html{overflow-x:hidden}
                 <h2>今週のプラン</h2>
                 <p class="date">6月16日（月）〜 6月22日（日）</p>
               </div>
-              <button class="recreate" type="button" onclick="var t=document.getElementById('val1');t.scrollIntoView({behavior:'smooth',block:'center'});t.focus();" style="background:#10B981;padding:14px 28px;font-size:15px;font-weight:700;box-shadow:0 6px 20px rgba(16,185,129,0.4);border:2px solid #047857;">+ 新しくレシピを作り直す</button>
+              <div style="text-align:right;">
+                <button class="recreate" type="button" onclick="var t=document.getElementById('val1');t.scrollIntoView({behavior:'smooth',block:'center'});t.focus();" style="background:#10B981;padding:14px 28px;font-size:15px;font-weight:700;box-shadow:0 6px 20px rgba(16,185,129,0.4);border:2px solid #047857;">+ 新しくレシピを作り直す</button>
+                <small style="display:block;font-size:10px;color:#6b7280;margin-top:4px;">↓ 下のフォームで条件を変えて更新</small>
+              </div>
             </div>
             <div class="topstats">
               <div class="topstat"><div class="v">3時間40分</div><div class="l">⏱ 調理時間</div></div>
               <div class="topstat"><div class="v">12品</div><div class="l">🍱 作り置き</div></div>
-              <div class="topstat amber"><div class="v">¥3,320</div><div class="l">🛒 今週の食費</div></div>
+              <div class="topstat amber"><div class="v">¥3,320</div><div class="l">🛒 今週の食費<a href="#shopping" style="display:block;font-size:10px;color:#10B981;font-weight:700;margin-top:4px;text-decoration:none;">今すぐ買い物リストを確認 →</a></div></div>
             </div>
           </div>
+          <!-- V2: モバイルスクロール促進 -->
+          <p id="scroll-hint" style="text-align:center;padding:6px 0;color:#10B981;font-size:12px;font-weight:600;margin-bottom:4px;" aria-hidden="true">↓ 下にスクロールしてプランを作成・詳細を確認</p>
           <div class="two-col">
            <div>
             <div class="card">
@@ -330,7 +340,8 @@ html{overflow-x:hidden}
             <p id="hint-val3" style="font-size:12px;color:#888;margin:0;">💡 どの優先順位でプランを立てるかお選びください</p>
           </div>
 
-          <button class="btn" style="margin-top:20px;" onclick="calculate()">週末の調理計画を作成</button>
+          <button class="btn" id="submit-btn" style="margin-top:20px;" onclick="calculate()">🍱 週末の調理計画を作成</button>
+          <div id="form-error-summary" role="alert" aria-live="polite" style="display:none;margin-top:8px;padding:10px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;font-size:13px;color:#dc2626;font-weight:600;"></div>
           <div id="history-section" style="margin-top:16px;padding:12px;background:#f0f9ff;border:1px solid #bfdbfe;border-radius:8px;display:none;">
             <p style="font-size:12px;font-weight:600;color:#0c4a6e;margin-bottom:8px;">📚 計算履歴</p>
             <div id="history-list" style="display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto;"></div>
@@ -401,7 +412,12 @@ html{overflow-x:hidden}
               <label class="ci"><input type="checkbox"> 味噌</label>
               <label class="ci"><input type="checkbox"> 卵（10個）</label>
               <label class="ci"><input type="checkbox"> 塩麹・調味料</label>
-              <p style="font-size:11px;color:#9ca3af;margin:12px 0 0;">プラン作成後はリストを自動生成し、楽天・Amazon検索リンクも表示されます。</p>
+              <!-- V4: 買い物リスト二次アクション -->
+              <div style="display:flex;gap:8px;margin-top:12px;margin-bottom:8px;">
+                <button onclick="copyStaticShoppingList()" style="flex:1;padding:8px;background:#10B981;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;min-height:36px;">📋 リストをコピー</button>
+                <button onclick="window.print()" class="no-print" style="flex:1;padding:8px;background:#6b7280;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;min-height:36px;">🖨️ 印刷</button>
+              </div>
+              <p style="font-size:11px;color:#9ca3af;margin:0;">プラン作成後はリストを自動生成し、楽天・Amazon検索リンクも表示されます。</p>
             </div>
             <div class="panel">
               <div class="panel-h"><span class="bar"></span><h3>栄養・健康管理</h3></div>
@@ -905,28 +921,49 @@ html{overflow-x:hidden}
       return !val1Inv && !val2Inv && !val3Inv;
     }
 
-    function calculate(){
-      // フォームバリデーション
-      if(!validateForm()){
-        alert('すべての必須項目を正しく入力してください');
-        return;
-      }
+    function copyStaticShoppingList() {
+      const items = [...document.querySelectorAll('.checklist .ci')].map(el => el.textContent.trim()).filter(Boolean).join('\n');
+      if(!items){ alert('買い物リストが見つかりません'); return; }
+      navigator.clipboard.writeText('【買い物リスト】\n' + items).then(() => {
+        alert('買い物リストをコピーしました！');
+      }).catch(() => {
+        alert('コピーに失敗しました。手動でコピーしてください。');
+      });
+    }
 
-      const vals=CFG.inputs.map(id=>parseFloat(document.getElementById(id)?.value)||0);
-      if(!vals[0]){ alert(CFG.error); return; }
-      const data=calcLogic(vals);
-      if(typeof data.result === 'string' && !data.recipes) {
-        document.getElementById('output').innerHTML = data.result;
-        const d=document.getElementById('detail'); if(d) d.textContent=data.detail||'';
-        document.getElementById('result').classList.add('show');
+    function calculate(){
+      const errDiv = document.getElementById('form-error-summary');
+      // フォームバリデーション（インラインエラー表示）
+      if(!validateForm()){
+        if(errDiv){ errDiv.textContent = '⚠️ すべての必須項目を正しく入力してください'; errDiv.style.display='block'; }
         return;
       }
-      document.getElementById('output').innerHTML=typeof data.result==='number'?data.result.toLocaleString():data.result;
-      const d=document.getElementById('detail'); if(d) d.textContent=data.detail||'';
-      document.getElementById('result').classList.add('show');
-      renderCharts(data);
-      generateShoppingLinks();
-      saveToLocalStorage({people: data.people, minutes: data.minutes, style: data.style});
+      if(errDiv) errDiv.style.display='none';
+
+      const btn = document.getElementById('submit-btn');
+      const origText = btn ? btn.textContent : '';
+      if(btn){ btn.textContent = '⏳ 作成中...'; btn.disabled = true; }
+
+      setTimeout(()=>{
+        const vals=CFG.inputs.map(id=>parseFloat(document.getElementById(id)?.value)||0);
+        if(!vals[0]){ if(btn){btn.textContent=origText;btn.disabled=false;} return; }
+        const data=calcLogic(vals);
+        if(typeof data.result === 'string' && !data.recipes) {
+          document.getElementById('output').innerHTML = data.result;
+          const d=document.getElementById('detail'); if(d) d.textContent=data.detail||'';
+          document.getElementById('result').classList.add('show');
+        } else {
+          document.getElementById('output').innerHTML=typeof data.result==='number'?data.result.toLocaleString():data.result;
+          const d=document.getElementById('detail'); if(d) d.textContent=data.detail||'';
+          document.getElementById('result').classList.add('show');
+          renderCharts(data);
+          generateShoppingLinks();
+          saveToLocalStorage({people: data.people, minutes: data.minutes, style: data.style});
+        }
+        if(btn){ btn.textContent='✅ 作成完了 — 再作成はこちら'; btn.disabled=false; }
+        const resultEl = document.getElementById('result');
+        if(resultEl) resultEl.scrollIntoView({behavior:'smooth',block:'start'});
+      }, 500);
     }
     </script>
 <!-- A8アフィリエイト: RIZAP COOK -->
