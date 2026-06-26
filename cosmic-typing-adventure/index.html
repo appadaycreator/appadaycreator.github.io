@@ -369,6 +369,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);overflow-x:h
 .time-btn:focus{outline:2px solid var(--accent);outline-offset:2px}
 /* M2: 入力フィールドのラベル関連性を視覚的に強調 */
 input#typing-input-preview{transition:border-color .2s,background .2s}
+/* M2: スライダー入力エラー状態の視覚フィードバック */
+input[type=range][aria-invalid="true"]{accent-color:#EF4444;filter:drop-shadow(0 0 5px rgba(239,68,68,.55));outline:2px solid rgba(239,68,68,.4);outline-offset:2px;border-radius:4px}
+/* M2: クリック時ヒントアニメーション */
+@keyframes inputHint{0%{border-color:var(--accent)}50%{border-color:#06B6D4}100%{border-color:rgba(139,92,246,.25)}}
+input#typing-input-preview.hinting{animation:inputHint 1s ease-out forwards}
 /* V4: フッター信頼バッジスタイル */
 .trust-badge-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;justify-content:center}
 .trust-badge{display:inline-flex;align-items:center;gap:4px;font-size:.66rem;color:rgba(226,224,240,.6);border:1px solid rgba(139,92,246,.18);padding:3px 9px;border-radius:100px}
@@ -1169,12 +1174,40 @@ function selectTime(seconds, btnElement){
 
 // M2: aria-pressedをトグルしてスクリーンリーダーに選択状態を伝える
 (function(){
-  var timeBtns = document.querySelectorAll('.time-btn');
-  timeBtns.forEach(function(btn){
+  var timeBtns = Array.from(document.querySelectorAll('.time-btn'));
+  timeBtns.forEach(function(btn, idx){
     btn.addEventListener('click',function(){
       var seconds = parseInt(btn.getAttribute('data-time'),10);
       selectTime(seconds, btn);
     });
+    // M2: 矢印キーで時間ボタンをナビゲーション（ラジオグループ相当のキーボード操作）
+    btn.addEventListener('keydown', function(e){
+      var next = null;
+      if(e.key === 'ArrowRight' || e.key === 'ArrowDown'){
+        e.preventDefault();
+        next = timeBtns[(idx + 1) % timeBtns.length];
+      } else if(e.key === 'ArrowLeft' || e.key === 'ArrowUp'){
+        e.preventDefault();
+        next = timeBtns[(idx - 1 + timeBtns.length) % timeBtns.length];
+      }
+      if(next){ next.focus(); next.click(); }
+    });
+  });
+})();
+
+// M2: readonlyタイピング入力クリック時にゲーム開始へのガイダンス表示
+(function(){
+  var inp = document.getElementById('typing-input-preview');
+  if(!inp) return;
+  var origPH = inp.placeholder;
+  inp.addEventListener('click', function(){
+    inp.placeholder = '🚀 下の「フルゲーム」ボタンをクリックして本格的なタイピング練習を開始！';
+    inp.classList.add('hinting');
+    if(window.gtag) gtag('event','typing_preview_click',{action:'guidance_shown'});
+    setTimeout(function(){
+      inp.placeholder = origPH;
+      inp.classList.remove('hinting');
+    }, 3500);
   });
 })();
 </script>
