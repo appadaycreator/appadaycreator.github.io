@@ -365,6 +365,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);overflow-x:h
 /* V3: 未選択テスト時間ボタンの視認性・デザイン統一性向上 */
 .time-btn:not(.active){background:rgba(30,27,58,.85);border:2px solid rgba(139,92,246,.45);color:var(--text)}
 .time-btn:not(.active):hover{background:rgba(139,92,246,.18);border-color:rgba(139,92,246,.7);color:var(--white)}
+/* M2: 時間ボタンのフォーカス状態を強化（キーボード操作対応） */
+.time-btn:focus{outline:2px solid var(--accent);outline-offset:2px}
+/* M2: 入力フィールドのラベル関連性を視覚的に強調 */
+input#typing-input-preview{transition:border-color .2s,background .2s}
 /* V4: フッター信頼バッジスタイル */
 .trust-badge-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;justify-content:center}
 .trust-badge{display:inline-flex;align-items:center;gap:4px;font-size:.66rem;color:rgba(226,224,240,.6);border:1px solid rgba(139,92,246,.18);padding:3px 9px;border-radius:100px}
@@ -544,12 +548,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);overflow-x:h
   <div class="time-inner">
     <div class="sec-tag">テスト時間を選択</div>
     <p style="font-size:.78rem;color:var(--text-dim);margin-bottom:12px">下のボタンで練習時間を選んでから、プレビューで試してみてください。</p>
-    <!-- M2: 時間セレクターにrole=groupとaria-pressedを付与（キーボード・スクリーンリーダー対応） -->
+    <!-- M2: 時間セレクターを改善。data-time属性でJSでの値取得をサポート、aria-labelを強化 -->
     <div class="time-row" role="group" aria-label="テスト時間を選択">
       <span class="time-label" id="time-group-label">⏱ テスト時間：</span>
-      <button class="time-btn active" title="30秒間の集中タイピングテスト（初心者・短時間練習に最適）" aria-label="テスト時間: 30秒" aria-pressed="true">30秒</button>
-      <button class="time-btn" title="1分間の標準タイピングテスト（最もポピュラーな設定）" aria-label="テスト時間: 1分" aria-pressed="false">1分</button>
-      <button class="time-btn" title="3分間の持続力タイピングテスト（速度の安定性を測定）" aria-label="テスト時間: 3分" aria-pressed="false">3分</button>
+      <button class="time-btn active" title="30秒間の集中タイピングテスト（初心者・短時間練習に最適）" aria-label="テスト時間: 30秒（現在選択中）" aria-pressed="true" data-time="30" onclick="selectTime(30,this)">30秒</button>
+      <button class="time-btn" title="1分間の標準タイピングテスト（最もポピュラーな設定）" aria-label="テスト時間: 1分" aria-pressed="false" data-time="60" onclick="selectTime(60,this)">1分</button>
+      <button class="time-btn" title="3分間の持続力タイピングテスト（速度の安定性を測定）" aria-label="テスト時間: 3分" aria-pressed="false" data-time="180" onclick="selectTime(180,this)">3分</button>
     </div>
     <div class="typing-ui">
       <div class="typing-stats-row">
@@ -573,8 +577,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);overflow-x:h
         <span style="background:rgba(6,182,212,.12);border:1px solid rgba(6,182,212,.25);color:var(--accent);font-size:.6rem;font-weight:700;padding:2px 8px;border-radius:100px;flex-shrink:0">📺 PREVIEW</span>
         <span style="font-size:.7rem;color:var(--text-dim)">これはデモ表示です。「🚀 フルゲーム」でリアルなWPM計測を開始できます</span>
       </div>
-      <div class="typing-input-row">
-        <input class="typing-input" type="text" placeholder="↑ 上のテキストをタイピング練習（デモ表示）" title="プレビュー表示です。実際のゲームは「今すぐ無料で遊ぶ」をクリックして開始してください。" aria-label="タイピング入力プレビュー（デモ表示のみ・読み取り専用）" readonly>
+      <!-- M2: 入力フィールドにラベルを追加、補助テキストで使用方法を明確化 -->
+      <div class="typing-input-row" style="flex-wrap:wrap;align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:240px;display:flex;flex-direction:column">
+          <label for="typing-input-preview" style="font-size:.68rem;color:var(--text-dim);margin-bottom:4px;font-weight:600;display:block">📝 タイピング入力（デモプレビュー）</label>
+          <input id="typing-input-preview" class="typing-input" type="text" placeholder="↑ 上のテキストをタイピング練習（デモ表示）" title="プレビュー表示です。実際のゲームは「今すぐ無料で遊ぶ」をクリックして開始してください。" aria-label="タイピング入力プレビュー（デモ表示のみ・読み取り専用）" readonly style="flex:1">
+          <span style="font-size:.6rem;color:var(--text-dim);margin-top:3px;opacity:.8">💡 このフィールドは読み取り専用です。フルゲームで実際のバリデーション・リアルタイム入力が体験できます。</span>
+        </div>
         <a class="btn-retry" href="./app.html" title="フルゲーム版を起動します" aria-label="フルゲームで本格的なタイピング練習を開始" onclick="if(window.gtag)gtag('event','game_start',{entry_point:'typing_ui'})">🚀 フルゲーム</a>
       </div>
       <div class="keyboard-vis">
@@ -1143,13 +1152,28 @@ function downloadCSV(){
   }, {passive:true});
 })();
 
+// M2: テスト時間選択用ハンドラ - aria-label更新も含む
+function selectTime(seconds, btnElement){
+  var timeBtns = document.querySelectorAll('.time-btn');
+  var timeLabels = {30:'30秒',60:'1分',180:'3分'};
+  timeBtns.forEach(function(b){
+    b.classList.remove('active');
+    b.setAttribute('aria-pressed','false');
+    var t = b.getAttribute('data-time');
+    b.setAttribute('aria-label','テスト時間: ' + (timeLabels[t] || t));
+  });
+  btnElement.classList.add('active');
+  btnElement.setAttribute('aria-pressed','true');
+  btnElement.setAttribute('aria-label','テスト時間: ' + (timeLabels[seconds] || seconds) + '（現在選択中）');
+}
+
 // M2: aria-pressedをトグルしてスクリーンリーダーに選択状態を伝える
 (function(){
   var timeBtns = document.querySelectorAll('.time-btn');
   timeBtns.forEach(function(btn){
     btn.addEventListener('click',function(){
-      timeBtns.forEach(function(b){ b.classList.remove('active'); b.setAttribute('aria-pressed','false'); });
-      btn.classList.add('active'); btn.setAttribute('aria-pressed','true');
+      var seconds = parseInt(btn.getAttribute('data-time'),10);
+      selectTime(seconds, btn);
     });
   });
 })();
