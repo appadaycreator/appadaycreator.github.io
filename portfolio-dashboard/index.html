@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Portfolio Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --card: #1a1d27;
+      --border: #2a2d3e;
+      --text: #e2e8f0;
+      --muted: #8892a4;
+      --accent: #6366f1;
+      --green: #10b981;
+      --red: #ef4444;
+      --yellow: #f59e0b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* Login */
+    #login { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .login-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 48px 40px;
+      width: 340px;
+      text-align: center;
+    }
+    .login-icon { font-size: 40px; margin-bottom: 16px; }
+    .login-box h2 { font-size: 20px; margin-bottom: 6px; }
+    .login-box p { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+    .login-box input {
+      width: 100%;
+      padding: 12px 16px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 15px;
+      margin-bottom: 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .login-box input:focus { border-color: var(--accent); }
+    .login-box button {
+      width: 100%;
+      padding: 12px;
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .login-error { color: var(--red); font-size: 13px; margin-top: 10px; min-height: 18px; }
+
+    /* Dashboard */
+    #dashboard { display: none; }
+    header {
+      padding: 18px 28px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 10;
+    }
+    header h1 { font-size: 17px; font-weight: 700; }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .header-badge { font-size: 12px; color: var(--muted); background: var(--card); padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border); }
+    .logout-btn { font-size: 12px; color: var(--muted); background: none; border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+
+    main { padding: 24px 28px; max-width: 1440px; margin: 0 auto; }
+
+    /* KPI Cards */
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; }
+    .kpi-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+    .kpi-card .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 8px; }
+    .kpi-card .value { font-size: 22px; font-weight: 700; line-height: 1.2; }
+    .kpi-card .value-sub { font-size: 12px; color: var(--muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
+    .kpi-card .change { font-size: 13px; margin-top: 6px; font-weight: 500; }
+    .positive { color: var(--green); }
+    .negative { color: var(--red); }
+    .neutral { color: var(--muted); }
+
+    /* AI Diagnostics */
+    .ai-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 22px; margin-bottom: 16px; }
+    .ai-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .ai-header .card-title { margin-bottom: 0; }
+    .ai-body { display: grid; grid-template-columns: 160px 1fr 200px; gap: 24px; align-items: start; }
+
+    /* Score circle */
+    .score-wrap { text-align: center; }
+    .score-circle-svg { width: 120px; height: 120px; transform: rotate(-90deg); }
+    .score-track { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 10; }
+    .score-fill { fill: none; stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset 1s ease; }
+    .score-center { position: relative; margin-top: -90px; margin-bottom: 8px; }
+    .score-num { font-size: 32px; font-weight: 800; display: block; }
+    .score-label { font-size: 11px; color: var(--muted); }
+    .score-grade { display: inline-block; margin-top: 8px; font-size: 13px; font-weight: 700; padding: 3px 12px; border-radius: 20px; }
+
+    /* Insights */
+    .insight-item { display: flex; gap: 10px; margin-bottom: 12px; align-items: flex-start; }
+    .insight-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+    .insight-text { font-size: 13px; line-height: 1.5; color: var(--text); }
+    .insight-text strong { color: white; }
+
+    /* Prediction */
+    .pred-card { background: var(--bg); border-radius: 10px; padding: 16px; border: 1px solid var(--border); }
+    .pred-title { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+    .pred-value { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .pred-sub { font-size: 12px; color: var(--muted); }
+    .pred-divider { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+
+    /* Claude section */
+    .claude-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+    .claude-input-row { display: flex; gap: 10px; }
+    .claude-input-row input {
+      flex: 1;
+      padding: 9px 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+    }
+    .claude-input-row input:focus { border-color: var(--accent); }
+    .claude-btn {
+      padding: 9px 18px;
+      background: linear-gradient(135deg, #7c3aed, #6366f1);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .claude-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .claude-result {
+      margin-top: 14px;
+      padding: 16px;
+      background: var(--bg);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 13px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+    }
+    .claude-loading { color: var(--muted); font-size: 13px; margin-top: 10px; }
+
+    /* Section layout */
+    .row { display: grid; gap: 16px; margin-bottom: 16px; }
+    .row-2 { grid-template-columns: 2fr 1fr; }
+    .row-2eq { grid-template-columns: 1fr 1fr; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 22px; }
+    .card-title { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 18px; font-weight: 600; }
+
+    /* Progress bars */
+    .progress-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+    .progress-label { font-size: 13px; min-width: 52px; font-weight: 500; }
+    .progress-bar-bg { flex: 1; height: 7px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; border-radius: 4px; }
+    .progress-pct { font-size: 13px; min-width: 54px; text-align: right; font-weight: 600; }
+
+    /* Annual table */
+    .annual-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .annual-table th { color: var(--muted); text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+    .annual-table td { padding: 11px 10px; border-bottom: 1px solid rgba(42,45,62,0.6); }
+    .annual-table tr:last-child td { border-bottom: none; }
+    .annual-table .year-col { font-weight: 700; }
+    .annual-table .current-row td { background: rgba(99,102,241,0.06); }
+
+    /* Subscriptions */
+    .subs-summary { display: flex; gap: 12px; margin-bottom: 16px; }
+    .subs-stat { background: var(--bg); border-radius: 8px; padding: 10px 14px; font-size: 13px; flex: 1; text-align: center; }
+    .subs-stat .sv { font-size: 17px; font-weight: 700; margin-bottom: 2px; }
+    .subs-stat .sl { font-size: 11px; color: var(--muted); }
+    .subs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .sub-item { display: flex; justify-content: space-between; align-items: center; padding: 9px 12px; background: var(--bg); border-radius: 8px; font-size: 13px; }
+    .sub-left { display: flex; align-items: center; gap: 8px; }
+    .sub-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+    .tag-corp { background: rgba(96,165,250,0.15); color: #60a5fa; }
+    .tag-person { background: rgba(134,239,172,0.1); color: #86efac; }
+    .sub-amount { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+    @media (max-width: 1024px) {
+      .ai-body { grid-template-columns: 140px 1fr; }
+      .pred-card { display: none; }
+    }
+    @media (max-width: 900px) {
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .row-2, .row-2eq { grid-template-columns: 1fr; }
+      .subs-grid { grid-template-columns: repeat(2, 1fr); }
+      .ai-body { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 600px) {
+      main { padding: 16px; }
+      .kpi-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+      .kpi-card .value { font-size: 18px; }
+      .subs-grid { grid-template-columns: 1fr; }
+      .claude-input-row { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div id="login">
+  <div class="login-box">
+    <div class="login-icon">📊</div>
+    <h2>Portfolio Dashboard</h2>
+    <p>徳永将之 個人資産ダッシュボード</p>
+    <input type="password" id="pw-input" placeholder="パスワードを入力"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()">ログイン</button>
+    <div class="login-error" id="login-err"></div>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboard">
+  <header>
+    <h1>📊 資産ダッシュボード</h1>
+    <div class="header-right">
+      <span class="header-badge">最終更新: 2026年6月</span>
+      <button class="logout-btn" onclick="doLogout()">ログアウト</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="label">総資産（2026年6月）</div>
+        <div class="value">4,404万円</div>
+        <div class="value-sub">¥44,047,221</div>
+        <div class="change negative">▼ 80万円 前月比</div>
+      </div>
+      <div class="kpi-card">
+        <div class="label">2026年目標達成率</div>
+        <div class="value positive">113.6%</div>
+        <div class="value-sub">目標 3,878万円</div>
+        <div class="change positive">+526万円 超過</div>
+      </div>
+      <div class="kpi-card">
+        <div class="label">年初来増加（YTD）</div>
+        <div class="value positive">+999万円</div>
+        <div class="value-sub">vs 2025年12月末</div>
+        <div class="change positive">+29.3%</div>
+      </div>
+      <div class="kpi-card">
+        <div class="label">月次サブスク合計</div>
+        <div class="value">146,787円</div>
+        <div class="value-sub">年換算 176万円</div>
+        <div class="change neutral">法人 4.5万 / 個人 10.1万</div>
+      </div>
+    </div>
+
+    <!-- AI Diagnostics -->
+    <div class="ai-card">
+      <div class="ai-header">
+        <div class="card-title">🤖 AI資産診断</div>
+      </div>
+      <div class="ai-body">
+        <!-- Score -->
+        <div class="score-wrap">
+          <svg class="score-circle-svg" viewBox="0 0 120 120">
+            <circle class="score-track" cx="60" cy="60" r="50"/>
+            <circle class="score-fill" id="score-arc" cx="60" cy="60" r="50"
+              stroke-dasharray="314" stroke-dashoffset="314"/>
+          </svg>
+          <div class="score-center">
+            <span class="score-num" id="score-num">—</span>
+          </div>
+          <div class="score-label">総合スコア</div>
+          <div class="score-grade" id="score-grade">—</div>
+        </div>
+        <!-- Insights -->
+        <div id="insights-list"></div>
+        <!-- Prediction -->
+        <div class="pred-card">
+          <div class="pred-title">📈 来月予測（7月）</div>
+          <div class="pred-value" id="pred-value">—</div>
+          <div class="pred-sub" id="pred-sub">—</div>
+          <hr class="pred-divider">
+          <div class="pred-title">📅 年末予測（12月）</div>
+          <div class="pred-value" id="pred-year-value">—</div>
+          <div class="pred-sub" id="pred-year-sub">—</div>
+        </div>
+      </div>
+      <!-- Claude AI section -->
+      <div class="claude-section">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">
+          🧠 Claude APIキーを入力するとAIが詳細分析します（<a href="https://console.anthropic.com" target="_blank" style="color:var(--accent)">取得はこちら</a>）
+        </div>
+        <div class="claude-input-row">
+          <input type="password" id="claude-key" placeholder="sk-ant-..." />
+          <button class="claude-btn" id="claude-btn" onclick="runClaudeAnalysis()">✨ Claude AIで詳しく分析</button>
+        </div>
+        <div id="claude-loading" class="claude-loading" style="display:none">分析中... ⏳</div>
+        <div id="claude-result" class="claude-result" style="display:none"></div>
+      </div>
+    </div>
+
+    <!-- Trend chart + Annual progress -->
+    <div class="row row-2">
+      <div class="card">
+        <div class="card-title">総資産推移（月次 2021〜2026）</div>
+        <canvas id="assetChart"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-title">年間目標達成率</div>
+        <div id="annual-progress"></div>
+      </div>
+    </div>
+
+    <!-- 2026 Monthly + Annual table -->
+    <div class="row row-2eq">
+      <div class="card">
+        <div class="card-title">2026年 月次実績 vs 目標</div>
+        <canvas id="monthly2026Chart"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-title">年次サマリー</div>
+        <table class="annual-table">
+          <thead>
+            <tr>
+              <th>年</th>
+              <th>目標</th>
+              <th>実績</th>
+              <th>達成率</th>
+            </tr>
+          </thead>
+          <tbody id="annual-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Subscriptions -->
+    <div class="card" style="margin-bottom:0">
+      <div class="card-title">月次サブスク一覧</div>
+      <div class="subs-summary" id="subs-summary"></div>
+      <div class="subs-grid" id="subs-grid"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ──────────────────────────────────────────────
+// Auth
+// ──────────────────────────────────────────────
+const PASSWORD = 'assets2026';
+
+function checkAuth() {
+  const p = new URLSearchParams(location.search).get('p');
+  if (p === PASSWORD || sessionStorage.getItem('__auth') === '1') {
+    sessionStorage.setItem('__auth', '1');
+    showDashboard();
+  }
+}
+function doLogin() {
+  if (document.getElementById('pw-input').value === PASSWORD) {
+    sessionStorage.setItem('__auth', '1');
+    showDashboard();
+  } else {
+    document.getElementById('login-err').textContent = 'パスワードが違います';
+    document.getElementById('pw-input').value = '';
+    document.getElementById('pw-input').focus();
+  }
+}
+function doLogout() {
+  sessionStorage.clear();
+  location.href = location.pathname;
+}
+function showDashboard() {
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  renderAll();
+}
+
+// ──────────────────────────────────────────────
+// Data
+// ──────────────────────────────────────────────
+const monthlyData = [
+  { l:'2021/3', v:8191217 }, { l:'2021/4', v:7256018 }, { l:'2021/5', v:8304893 },
+  { l:'2021/6', v:8890326 }, { l:'2021/7', v:9291739 }, { l:'2021/8', v:8897931 },
+  { l:'2021/9', v:9400866 }, { l:'2021/10', v:9671230 }, { l:'2021/12', v:10131314 },
+  { l:'2022/1', v:10573684 }, { l:'2022/2', v:10822576 }, { l:'2022/3', v:11623729 },
+  { l:'2022/4', v:13018647 }, { l:'2022/5', v:12402264 }, { l:'2022/6', v:12720182 },
+  { l:'2022/7', v:13035175 }, { l:'2022/8', v:13193580 }, { l:'2022/9', v:13137742 },
+  { l:'2022/10', v:14522188 }, { l:'2022/11', v:14522188 }, { l:'2022/12', v:13755069 },
+  { l:'2023/1', v:15075781 }, { l:'2023/2', v:16013543 }, { l:'2023/3', v:16496338 },
+  { l:'2023/4', v:18506208 }, { l:'2023/5', v:17775638 }, { l:'2023/6', v:20572319 },
+  { l:'2023/7', v:19845896 }, { l:'2023/8', v:19452948 }, { l:'2023/9', v:20337539 },
+  { l:'2023/10', v:22453401 }, { l:'2023/11', v:21886722 }, { l:'2023/12', v:22847204 },
+  { l:'2024/1', v:22565218 }, { l:'2024/2', v:22659278 }, { l:'2024/3', v:23584151 },
+  { l:'2024/4', v:25488510 }, { l:'2024/5', v:24776342 }, { l:'2024/6', v:25419012 },
+  { l:'2024/7', v:25980996 }, { l:'2024/8', v:25706796 }, { l:'2024/9', v:26211441 },
+  { l:'2024/10', v:25721878 }, { l:'2024/11', v:27208089 }, { l:'2024/12', v:28078694 },
+  { l:'2025/1', v:29608018 }, { l:'2025/2', v:27171909 }, { l:'2025/3', v:26558699 },
+  { l:'2025/4', v:26329798 }, { l:'2025/5', v:27435180 }, { l:'2025/6', v:28222517 },
+  { l:'2025/7', v:28926227 }, { l:'2025/8', v:32805885 }, { l:'2025/9', v:32712183 },
+  { l:'2025/10', v:32671926 }, { l:'2025/11', v:34441104 }, { l:'2025/12', v:34061393 },
+  { l:'2026/1', v:34372769 }, { l:'2026/2', v:37868760 }, { l:'2026/3', v:38791574 },
+  { l:'2026/4', v:43721017 }, { l:'2026/5', v:44847779 }, { l:'2026/6', v:44047221 },
+];
+
+const annualData = [
+  { year:2021, target:10687680, actual:10131314, rate:94.79 },
+  { year:2022, target:15238077, actual:13755069, rate:90.27 },
+  { year:2023, target:21725853, actual:22847204, rate:105.16 },
+  { year:2024, target:26749257, actual:28078694, rate:104.97 },
+  { year:2025, target:32987053, actual:34061393, rate:103.26 },
+  { year:2026, target:38780536, actual:44047221, rate:113.58 },
+];
+
+const data2026 = [
+  { m:'1月', target:33462067, actual:34372769 },
+  { m:'2月', target:33930536, actual:37868760 },
+  { m:'3月', target:34402170, actual:38791574 },
+  { m:'4月', target:34876920, actual:43721017 },
+  { m:'5月', target:35354734, actual:44847779 },
+  { m:'6月', target:35835558, actual:44047221 },
+];
+
+const subscriptions = [
+  { name:'Claude.ai',         amount:37042, type:'corp'   },
+  { name:'オクトパスエナジー', amount:33200, type:'person' },
+  { name:'Amazon',            amount:18000, type:'person' },
+  { name:'三ツ星ファーム',    amount:12028, type:'person' },
+  { name:'CLOUD PASS',        amount:11000, type:'person' },
+  { name:'東京ガス',          amount:9696,  type:'person' },
+  { name:'Google AI Pro',     amount:2900,  type:'corp'   },
+  { name:'AWS',               amount:2700,  type:'corp'   },
+  { name:'東京都水道局',      amount:4400,  type:'person' },
+  { name:'LINEMO',            amount:3809,  type:'person' },
+  { name:'楽天モバイル',      amount:2887,  type:'person' },
+  { name:'freee',             amount:1958,  type:'corp'   },
+  { name:'iCloud+ 2TB',       amount:1500,  type:'person' },
+  { name:'Amexグリーン',      amount:1100,  type:'person' },
+  { name:'みてね',            amount:1090,  type:'person' },
+  { name:'YouTube/Google',    amount:1280,  type:'person' },
+  { name:'GitHub',            amount:699,   type:'corp'   },
+  { name:'マネーフォワード',  amount:540,   type:'person' },
+  { name:'Patreon',           amount:492,   type:'person' },
+  { name:'minikura',          amount:300,   type:'person' },
+  { name:'GMO',               amount:138,   type:'corp'   },
+  { name:'povo',              amount:28,    type:'person' },
+];
+
+// ──────────────────────────────────────────────
+// Helpers
+// ──────────────────────────────────────────────
+function fmt(n) {
+  return '¥' + Math.round(n).toLocaleString('ja-JP');
+}
+function fmtMan(n) {
+  return Math.round(n / 10000).toLocaleString('ja-JP') + '万円';
+}
+function fmtAxis(v) {
+  if (v >= 10000000) return (v / 10000000).toFixed(1) + '千万';
+  if (v >= 1000000)  return (v / 10000).toFixed(0) + '万';
+  return (v / 10000).toFixed(0) + '万';
+}
+
+// ──────────────────────────────────────────────
+// AI Diagnostics
+// ──────────────────────────────────────────────
+function computeDiagnostics() {
+  const latest = monthlyData[monthlyData.length - 1].v;  // 44,047,221
+  const prev   = monthlyData[monthlyData.length - 2].v;  // 44,847,779
+  const dec25  = monthlyData.find(d => d.l === '2025/12').v; // 34,061,393
+  const dec24  = monthlyData.find(d => d.l === '2024/12').v; // 28,078,694
+
+  const momChange = latest - prev;
+  const momPct    = (momChange / prev) * 100;
+  const ytdPct    = ((latest - dec25) / dec25) * 100;
+  const yoyPct    = ((latest - dec24) / dec24) * 100;
+
+  const curYear26  = annualData.find(d => d.year === 2026);
+  const surplus    = latest - curYear26.target;
+
+  const totalSubs  = subscriptions.reduce((s, x) => s + x.amount, 0);
+  const subsRatio  = (totalSubs * 12) / latest * 100;
+
+  // Achievement streak
+  const streak = annualData.filter(d => d.rate >= 100).length;
+
+  // Linear regression (last 12 months)
+  const recent = monthlyData.slice(-12);
+  const n = recent.length;
+  const xm = (n - 1) / 2;
+  const ym = recent.reduce((s, d) => s + d.v, 0) / n;
+  let num = 0, den = 0;
+  recent.forEach((d, i) => { num += (i - xm) * (d.v - ym); den += (i - xm) ** 2; });
+  const slope = num / den;
+  const nextMonthPred = latest + slope;
+  const yearEndPred   = latest + slope * 6; // 6 months to Dec
+
+  // Score (0-100)
+  let score = 55;
+  if (ytdPct > 25) score += 20; else if (ytdPct > 10) score += 12; else if (ytdPct < 0) score -= 15;
+  if (curYear26.rate > 110) score += 12; else if (curYear26.rate < 95) score -= 10;
+  if (streak >= 4) score += 8; else if (streak >= 2) score += 4;
+  if (subsRatio < 3) score += 5; else if (subsRatio > 6) score -= 5;
+  if (slope > 0) score += 5; else score -= 5;
+  score = Math.max(10, Math.min(100, score));
+
+  return { score, momChange, momPct, ytdPct, yoyPct, surplus, subsRatio, streak, slope, nextMonthPred, yearEndPred, totalSubs };
+}
+
+function renderDiagnostics() {
+  const d = computeDiagnostics();
+
+  // Score circle
+  const CIRC = 314;
+  const fill = Math.round((d.score / 100) * CIRC);
+  const arc = document.getElementById('score-arc');
+  const color = d.score >= 80 ? '#10b981' : d.score >= 60 ? '#6366f1' : '#f59e0b';
+  arc.style.stroke = color;
+  arc.style.strokeDashoffset = CIRC - fill;
+  document.getElementById('score-num').textContent = d.score;
+  document.getElementById('score-num').style.color = color;
+
+  const grade = d.score >= 85 ? 'S  最優秀' : d.score >= 70 ? 'A  優秀' : d.score >= 55 ? 'B  良好' : 'C  要改善';
+  const gradeEl = document.getElementById('score-grade');
+  gradeEl.textContent = grade;
+  gradeEl.style.background = color + '22';
+  gradeEl.style.color = color;
+
+  // Insights
+  const insights = [];
+
+  if (d.ytdPct > 20)
+    insights.push({ icon:'🚀', text:`<strong>年初来+${d.ytdPct.toFixed(1)}%</strong>の高成長を達成。2021年からの5年間で資産が5.4倍に拡大しています。` });
+  else if (d.ytdPct > 0)
+    insights.push({ icon:'📈', text:`年初来<strong>+${d.ytdPct.toFixed(1)}%</strong>成長中。2025年末比で${fmtMan(d.ytdPct / 100 * 34061393)}増加しています。` });
+
+  if (d.momChange < 0)
+    insights.push({ icon:'⚠️', text:`前月比<strong>${fmtMan(Math.abs(d.momChange))}減少</strong>（${d.momPct.toFixed(1)}%）。5月ピーク（4,484万円）から調整中。` });
+
+  insights.push({ icon:'🎯', text:`2026年目標に対して<strong>+${fmtMan(d.surplus)}超過</strong>（達成率113.6%）。6年中4年連続で目標超過。` });
+
+  if (d.subsRatio < 5)
+    insights.push({ icon:'✅', text:`サブスク支出は資産の<strong>${d.subsRatio.toFixed(1)}%</strong>（年${fmtMan(d.totalSubs * 12)}）。資産規模に対し許容範囲内。` });
+  else
+    insights.push({ icon:'💡', text:`サブスク支出が年間<strong>${fmtMan(d.totalSubs * 12)}</strong>と高め。電気代・食事系の見直し余地あり。` });
+
+  if (d.slope > 0)
+    insights.push({ icon:'📊', text:`直近12ヶ月の回帰トレンドは<strong>月平均+${fmtMan(d.slope)}</strong>の上昇傾向。` });
+
+  document.getElementById('insights-list').innerHTML = insights.map(i =>
+    `<div class="insight-item"><span class="insight-icon">${i.icon}</span><span class="insight-text">${i.text}</span></div>`
+  ).join('');
+
+  // Prediction
+  const predEl = document.getElementById('pred-value');
+  predEl.textContent = fmtMan(d.nextMonthPred);
+  predEl.style.color = d.nextMonthPred > 44047221 ? 'var(--green)' : 'var(--yellow)';
+  const delta = d.nextMonthPred - 44047221;
+  document.getElementById('pred-sub').textContent = (delta >= 0 ? '+' : '') + fmtMan(delta) + ' vs 現在';
+
+  const yearEl = document.getElementById('pred-year-value');
+  yearEl.textContent = fmtMan(d.yearEndPred);
+  yearEl.style.color = 'var(--green)';
+  document.getElementById('pred-year-sub').textContent = '目標 3,878万円を大幅超過見込み';
+}
+
+// ──────────────────────────────────────────────
+// Claude API Analysis
+// ──────────────────────────────────────────────
+async function runClaudeAnalysis() {
+  const key = document.getElementById('claude-key').value.trim();
+  if (!key) { alert('APIキーを入力してください'); return; }
+
+  const btn = document.getElementById('claude-btn');
+  btn.disabled = true;
+  btn.textContent = '分析中...';
+  document.getElementById('claude-loading').style.display = 'block';
+  document.getElementById('claude-result').style.display = 'none';
+
+  const d = computeDiagnostics();
+  const summary = `
+【個人資産ダッシュボード データ】
+- 総資産（2026年6月）: ¥44,047,221（4,404万円）
+- 前月比: ${fmtMan(d.momChange)}（${d.momPct.toFixed(1)}%）
+- 年初来増加: +${d.ytdPct.toFixed(1)}%（+999万円）
+- 2026年目標: 3,878万円 → 実績113.6%達成
+- 年別実績: 2021(94.8%)→2022(90.3%)→2023(105.2%)→2024(105.0%)→2025(103.3%)→2026(113.6%)
+- 月次推移（万円）: ${monthlyData.slice(-6).map(d => `${d.l}:${Math.round(d.v/10000)}万`).join(', ')}
+- 月次サブスク合計: 146,787円/月（年間176万円）
+  - 大口: Claude.ai 3.7万, 電気代 3.3万, Amazon 1.8万
+- 資産の主な内訳: 銀行（楽天・三井住友・SBI）、証券（SBI証券・楽天証券）、仮想通貨（bitFlyer・OKX）、保険（変額・米ドル終身）
+- 2027年目標: 4,493万円（+2.0%/月ペース必要）
+  `.trim();
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+        'anthropic-dangerous-allow-browser': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 800,
+        messages: [{
+          role: 'user',
+          content: `あなたは個人資産管理の専門アドバイザーです。以下の資産データを分析し、日本語で具体的な診断と今後3〜6ヶ月のアドバイスを提供してください。箇条書きで5〜7点、簡潔かつ実践的に。\n\n${summary}`,
+        }],
+      }),
+    });
+    const json = await resp.json();
+    if (json.error) throw new Error(json.error.message);
+    const result = json.content[0].text;
+    document.getElementById('claude-result').textContent = result;
+    document.getElementById('claude-result').style.display = 'block';
+    sessionStorage.setItem('claude-key', key);
+  } catch (e) {
+    document.getElementById('claude-result').textContent = 'エラー: ' + e.message;
+    document.getElementById('claude-result').style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✨ Claude AIで詳しく分析';
+    document.getElementById('claude-loading').style.display = 'none';
+  }
+}
+
+// ──────────────────────────────────────────────
+// Charts & Tables
+// ──────────────────────────────────────────────
+function renderAll() {
+  renderDiagnostics();
+  renderTrendChart();
+  renderMonthly2026Chart();
+  renderAnnualProgress();
+  renderAnnualTable();
+  renderSubscriptions();
+
+  // Restore API key from session
+  const saved = sessionStorage.getItem('claude-key');
+  if (saved) document.getElementById('claude-key').value = saved;
+}
+
+function renderTrendChart() {
+  const ctx = document.getElementById('assetChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: monthlyData.map(d => d.l),
+      datasets: [{
+        data: monthlyData.map(d => d.v),
+        borderColor: '#6366f1',
+        backgroundColor: (context) => {
+          const { ctx: c, chartArea } = context.chart;
+          if (!chartArea) return 'rgba(99,102,241,0.05)';
+          const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+          g.addColorStop(0, 'rgba(99,102,241,0.25)');
+          g.addColorStop(1, 'rgba(99,102,241,0.01)');
+          return g;
+        },
+        fill: true, tension: 0.35, pointRadius: 0, pointHoverRadius: 4, borderWidth: 2,
+      }],
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a1d27', borderColor: '#2a2d3e', borderWidth: 1,
+          callbacks: { label: c => fmtMan(c.parsed.y) + ' (' + fmt(c.parsed.y) + ')' },
+        },
+      },
+      scales: {
+        x: { grid: { color: 'rgba(42,45,62,0.6)' }, ticks: { color: '#8892a4', font: { size: 10 }, maxTicksLimit: 14 } },
+        y: { grid: { color: 'rgba(42,45,62,0.6)' }, ticks: { color: '#8892a4', font: { size: 10 }, callback: fmtAxis } },
+      },
+    },
+  });
+}
+
+function renderMonthly2026Chart() {
+  const ctx = document.getElementById('monthly2026Chart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: data2026.map(d => d.m),
+      datasets: [
+        { label: '目標', data: data2026.map(d => d.target), backgroundColor: 'rgba(99,102,241,0.25)', borderColor: '#6366f1', borderWidth: 1, borderRadius: 4 },
+        { label: '実績', data: data2026.map(d => d.actual), backgroundColor: 'rgba(16,185,129,0.35)', borderColor: '#10b981', borderWidth: 1, borderRadius: 4 },
+      ],
+    },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: true, labels: { color: '#8892a4', font: { size: 12 }, boxWidth: 12 } },
+        tooltip: {
+          backgroundColor: '#1a1d27', borderColor: '#2a2d3e', borderWidth: 1,
+          callbacks: { label: c => c.dataset.label + ': ' + fmtMan(c.parsed.y) },
+        },
+      },
+      scales: {
+        x: { grid: { color: 'rgba(42,45,62,0.6)' }, ticks: { color: '#8892a4', font: { size: 12 } } },
+        y: { grid: { color: 'rgba(42,45,62,0.6)' }, ticks: { color: '#8892a4', font: { size: 10 }, callback: fmtAxis } },
+      },
+    },
+  });
+}
+
+function renderAnnualProgress() {
+  document.getElementById('annual-progress').innerHTML = annualData.map(d => {
+    const color = d.rate >= 100 ? '#10b981' : '#f59e0b';
+    const fillPct = Math.min((d.rate / 130) * 100, 100);
+    return `<div class="progress-row">
+      <span class="progress-label">${d.year}</span>
+      <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${fillPct}%;background:${color}"></div></div>
+      <span class="progress-pct" style="color:${color}">${d.rate.toFixed(1)}%</span>
+    </div>`;
+  }).join('');
+}
+
+function renderAnnualTable() {
+  document.getElementById('annual-tbody').innerHTML = annualData.map(d => {
+    const color = d.rate >= 100 ? 'var(--green)' : 'var(--yellow)';
+    return `<tr${d.year === 2026 ? ' class="current-row"' : ''}>
+      <td class="year-col">${d.year}${d.year === 2026 ? ' 🔵' : ''}</td>
+      <td>${fmtMan(d.target)}</td>
+      <td>${d.actual ? fmtMan(d.actual) : '—'}</td>
+      <td style="color:${color};font-weight:700">${d.actual ? d.rate.toFixed(1)+'%' : '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderSubscriptions() {
+  const sorted = [...subscriptions].sort((a, b) => b.amount - a.amount);
+  const total   = sorted.reduce((s, x) => s + x.amount, 0);
+  const corp    = sorted.filter(x => x.type === 'corp').reduce((s, x) => s + x.amount, 0);
+  const person  = sorted.filter(x => x.type === 'person').reduce((s, x) => s + x.amount, 0);
+
+  document.getElementById('subs-summary').innerHTML = `
+    <div class="subs-stat"><div class="sv">${fmt(total)}</div><div class="sl">合計/月</div></div>
+    <div class="subs-stat"><div class="sv" style="color:#60a5fa">${fmt(corp)}</div><div class="sl">法人/月</div></div>
+    <div class="subs-stat"><div class="sv" style="color:#86efac">${fmt(person)}</div><div class="sl">個人/月</div></div>
+    <div class="subs-stat"><div class="sv">${fmt(total * 12)}</div><div class="sl">年間換算</div></div>
+  `;
+  document.getElementById('subs-grid').innerHTML = sorted.map(s => `
+    <div class="sub-item">
+      <div class="sub-left">
+        <span class="sub-name">${s.name}</span>
+        <span class="sub-tag ${s.type === 'corp' ? 'tag-corp' : 'tag-person'}">${s.type === 'corp' ? '法人' : '個人'}</span>
+      </div>
+      <span class="sub-amount">${fmt(s.amount)}/月</span>
+    </div>`).join('');
+}
+
+// Init
+checkAuth();
+</script>
+</body>
+</html>
