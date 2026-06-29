@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>健康習慣トラッカー</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0c1220;
+  --card: #1a2840;
+  --border: #3a5070;
+  --text: #e8edf5;
+  --muted: #8a9fbf;
+  --teal: #2dd4bf;
+  --orange: #fb923c;
+  --purple: #a78bfa;
+  --green: #4ade80;
+  --blue: #60a5fa;
+  --red: #f87171;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+  min-height: 100vh;
+  padding-bottom: 40px;
+}
+
+/* Login */
+#login-screen {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; padding: 24px;
+}
+.login-box {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 20px; padding: 36px 28px;
+  width: 100%; max-width: 340px; text-align: center;
+}
+.login-box h1 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+.login-box p { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+.login-box input {
+  width: 100%; padding: 12px 16px;
+  background: #0f1623; border: 1px solid var(--border);
+  border-radius: 10px; color: var(--text); font-size: 15px;
+  outline: none; margin-bottom: 12px;
+}
+.login-box input:focus { border-color: var(--teal); }
+.login-box button {
+  width: 100%; padding: 13px;
+  background: var(--teal); color: #0f2825;
+  border: none; border-radius: 10px;
+  font-size: 15px; font-weight: 700; cursor: pointer;
+}
+.login-err { font-size: 13px; color: var(--red); margin-top: 10px; display: none; }
+
+/* App */
+#app { display: none; max-width: 600px; margin: 0 auto; padding: 16px; }
+
+/* Header */
+.app-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px; padding-top: 4px;
+}
+.app-header h1 { font-size: 18px; font-weight: 700; }
+.header-btns { display: flex; gap: 8px; align-items: center; }
+.hub-btn {
+  font-size: 12px; color: var(--muted);
+  background: none; border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 10px; text-decoration: none;
+}
+.logout-btn {
+  font-size: 12px; color: var(--muted);
+  background: none; border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 10px; cursor: pointer;
+}
+
+/* Tabs */
+.tabs {
+  display: flex; gap: 4px; margin-bottom: 20px;
+  background: #0f1623; border-radius: 12px; padding: 4px;
+}
+.tab {
+  flex: 1; padding: 8px; border: none; border-radius: 8px;
+  background: none; color: var(--muted); font-size: 13px;
+  font-weight: 600; cursor: pointer; transition: all 0.15s;
+}
+.tab.active { background: var(--card); color: var(--text); }
+
+/* Date selector */
+.date-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
+}
+.date-nav {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 14px;
+}
+.date-nav:hover { color: var(--text); }
+.date-label {
+  flex: 1; text-align: center; font-size: 14px; font-weight: 600; color: var(--text);
+}
+
+/* Card */
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 16px; padding: 16px 18px; margin-bottom: 12px;
+}
+.card-title {
+  font-size: 13px; color: var(--muted); font-weight: 600;
+  margin-bottom: 14px; display: flex; align-items: center; gap: 6px;
+}
+
+/* Input row */
+.input-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+.input-row:last-child { margin-bottom: 0; }
+.input-label { font-size: 13px; color: var(--muted); min-width: 80px; }
+.num-input {
+  background: #0f1623; border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); font-size: 15px; font-weight: 600;
+  padding: 6px 10px; width: 90px; outline: none; text-align: right;
+}
+.num-input:focus { border-color: var(--teal); }
+.unit { font-size: 12px; color: var(--muted); }
+
+/* Water counter */
+.water-counter {
+  display: flex; align-items: center; gap: 12px;
+}
+.water-btn {
+  width: 34px; height: 34px; border-radius: 50%; border: none;
+  background: var(--border); color: var(--text); font-size: 18px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  line-height: 1;
+}
+.water-val { font-size: 22px; font-weight: 700; min-width: 32px; text-align: center; }
+
+/* Glasses display */
+.glasses { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+.glass {
+  font-size: 18px; cursor: pointer; opacity: 0.25; transition: opacity 0.15s;
+}
+.glass.filled { opacity: 1; }
+
+/* Checkbox items */
+.check-items { display: flex; flex-direction: column; gap: 8px; }
+.check-item {
+  display: flex; align-items: center; gap: 10px; cursor: pointer;
+}
+.check-item input[type=checkbox] { display: none; }
+.check-box {
+  width: 22px; height: 22px; border-radius: 6px;
+  border: 2px solid var(--border); background: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; flex-shrink: 0; transition: all 0.15s;
+}
+.check-item input:checked + .check-box {
+  background: var(--teal); border-color: var(--teal); color: #0f2825;
+}
+.check-text { font-size: 14px; }
+
+/* Training type chips */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.chip {
+  padding: 4px 12px; border-radius: 20px;
+  border: 1px solid var(--border); background: none;
+  color: var(--muted); font-size: 12px; cursor: pointer; transition: all 0.15s;
+}
+.chip.active { background: var(--purple); border-color: var(--purple); color: #fff; }
+
+/* Memo */
+.memo-input {
+  width: 100%; background: #0f1623; border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); font-size: 13px;
+  padding: 8px 10px; outline: none; resize: none; font-family: inherit;
+  margin-top: 8px;
+}
+.memo-input:focus { border-color: var(--teal); }
+
+/* Save button */
+.save-btn {
+  width: 100%; padding: 14px; background: var(--teal);
+  color: #0f2825; border: none; border-radius: 12px;
+  font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 4px;
+  transition: opacity 0.15s;
+}
+.save-btn:hover { opacity: 0.87; }
+.save-msg { text-align: center; font-size: 13px; color: var(--green); margin-top: 8px; display: none; }
+
+/* History tab */
+.history-section { margin-bottom: 20px; }
+.history-title { font-size: 14px; font-weight: 700; margin-bottom: 12px; }
+
+/* Sparkline */
+.sparkline-wrap { margin-bottom: 20px; }
+canvas#weight-chart {
+  width: 100%; height: 80px; border-radius: 8px;
+}
+
+/* History table */
+.hist-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.hist-table th {
+  color: var(--muted); padding: 6px 8px; text-align: right;
+  border-bottom: 1px solid var(--border); font-weight: 600;
+}
+.hist-table th:first-child { text-align: left; }
+.hist-table td {
+  padding: 8px 8px; text-align: right;
+  border-bottom: 1px solid #1e3050;
+}
+.hist-table td:first-child { text-align: left; color: var(--muted); }
+.hist-table tr:last-child td { border-bottom: none; }
+.hist-val { font-weight: 600; }
+.hist-empty { color: var(--border); }
+
+/* Trend arrow */
+.up { color: var(--red); }
+.down { color: var(--green); }
+.flat { color: var(--muted); }
+
+@media (max-width: 480px) {
+  .app-header h1 { font-size: 15px; }
+  .hub-btn, .logout-btn { font-size: 11px; padding: 4px 8px; }
+}
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-box">
+    <h1>💪 健康習慣</h1>
+    <p>パスワードを入力してください</p>
+    <input type="password" id="pw" placeholder="パスワード" onkeydown="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()">ログイン</button>
+    <div class="login-err" id="login-err">パスワードが違います</div>
+  </div>
+</div>
+
+<div id="app">
+  <div class="app-header">
+    <h1>💪 健康習慣</h1>
+    <div class="header-btns">
+      <a class="hub-btn" href="https://appadaycreator.com/my-hub/?p=techbrace2026">🏠 マイツール</a>
+      <button class="logout-btn" onclick="doLogout()">ログアウト</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('record')">📝 記録</button>
+    <button class="tab" onclick="showTab('history')">📊 履歴</button>
+  </div>
+
+  <!-- Record tab -->
+  <div id="tab-record">
+    <div class="date-row">
+      <button class="date-nav" onclick="changeDay(-1)">＜</button>
+      <div class="date-label" id="date-label"></div>
+      <button class="date-nav" onclick="changeDay(1)" id="next-btn">＞</button>
+    </div>
+
+    <!-- 体重・体脂肪率 -->
+    <div class="card">
+      <div class="card-title">⚖️ 体重・体脂肪率</div>
+      <div class="input-row">
+        <span class="input-label">体重</span>
+        <input type="number" class="num-input" id="weight" placeholder="--" step="0.1" min="30" max="200">
+        <span class="unit">kg</span>
+      </div>
+      <div class="input-row">
+        <span class="input-label">体脂肪率</span>
+        <input type="number" class="num-input" id="fat" placeholder="--" step="0.1" min="3" max="60">
+        <span class="unit">%</span>
+      </div>
+    </div>
+
+    <!-- 睡眠 -->
+    <div class="card">
+      <div class="card-title">🌙 睡眠</div>
+      <div class="input-row">
+        <span class="input-label">睡眠時間</span>
+        <input type="number" class="num-input" id="sleep" placeholder="--" step="0.5" min="0" max="24">
+        <span class="unit">時間</span>
+      </div>
+      <div class="input-row">
+        <span class="input-label">就寝時刻</span>
+        <input type="time" class="num-input" id="bedtime" style="width:110px;text-align:left">
+      </div>
+    </div>
+
+    <!-- 水分 -->
+    <div class="card">
+      <div class="card-title">💧 水分摂取</div>
+      <div class="water-counter">
+        <button class="water-btn" onclick="adjustWater(-1)">－</button>
+        <div class="water-val" id="water-val">0</div>
+        <button class="water-btn" onclick="adjustWater(1)">＋</button>
+        <span class="unit">杯（約200ml）</span>
+      </div>
+      <div class="glasses" id="glasses-display"></div>
+    </div>
+
+    <!-- 運動 -->
+    <div class="card">
+      <div class="card-title">🏃 運動</div>
+      <div class="input-row">
+        <span class="input-label">歩数</span>
+        <input type="number" class="num-input" id="steps" placeholder="--" step="100" min="0" style="width:110px">
+        <span class="unit">歩</span>
+      </div>
+      <div style="margin-top:10px">
+        <div style="font-size:13px;color:var(--muted);margin-bottom:8px">トレーニング</div>
+        <div class="chips" id="training-chips">
+          <button class="chip" onclick="toggleChip(this,'筋トレ')">筋トレ</button>
+          <button class="chip" onclick="toggleChip(this,'有酸素')">有酸素</button>
+          <button class="chip" onclick="toggleChip(this,'ヨガ')">ヨガ</button>
+          <button class="chip" onclick="toggleChip(this,'ストレッチ')">ストレッチ</button>
+          <button class="chip" onclick="toggleChip(this,'ウォーキング')">ウォーキング</button>
+          <button class="chip" onclick="toggleChip(this,'水泳')">水泳</button>
+          <button class="chip" onclick="toggleChip(this,'なし')">なし</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- アルコール -->
+    <div class="card">
+      <div class="card-title">🍺 アルコール</div>
+      <div class="input-row">
+        <span class="input-label">飲酒</span>
+        <div class="check-items">
+          <label class="check-item">
+            <input type="checkbox" id="alcohol-none" onchange="onAlcoholNone(this)">
+            <div class="check-box">✓</div>
+            <span class="check-text">飲まなかった</span>
+          </label>
+        </div>
+      </div>
+      <div id="alcohol-detail" style="margin-top:10px">
+        <div class="input-row">
+          <span class="input-label">量</span>
+          <input type="number" class="num-input" id="alcohol-amount" placeholder="--" step="0.5" min="0">
+          <span class="unit">合 / 杯</span>
+        </div>
+        <div style="margin-top:8px">
+          <div class="chips" id="alcohol-chips">
+            <button class="chip" onclick="toggleAlcChip(this,'ビール')">ビール</button>
+            <button class="chip" onclick="toggleAlcChip(this,'日本酒')">日本酒</button>
+            <button class="chip" onclick="toggleAlcChip(this,'ワイン')">ワイン</button>
+            <button class="chip" onclick="toggleAlcChip(this,'ハイボール')">ハイボール</button>
+            <button class="chip" onclick="toggleAlcChip(this,'焼酎')">焼酎</button>
+            <button class="chip" onclick="toggleAlcChip(this,'その他')">その他</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- サプリ・薬 -->
+    <div class="card">
+      <div class="card-title">💊 サプリ・薬</div>
+      <div class="check-items" id="supplement-list"></div>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <input type="text" class="num-input" id="supp-new" placeholder="追加..." style="width:auto;flex:1;text-align:left">
+        <button class="water-btn" onclick="addSupplement()" style="width:auto;padding:0 14px;border-radius:8px;font-size:13px">追加</button>
+      </div>
+    </div>
+
+    <!-- メモ -->
+    <div class="card">
+      <div class="card-title">📝 メモ</div>
+      <textarea class="memo-input" id="memo" rows="3" placeholder="今日の体調・気づきなど"></textarea>
+    </div>
+
+    <button class="save-btn" onclick="saveRecord()">保存する</button>
+    <div class="save-msg" id="save-msg">✅ 保存しました</div>
+  </div>
+
+  <!-- History tab -->
+  <div id="tab-history" style="display:none">
+    <div class="card">
+      <div class="card-title">⚖️ 体重推移（直近14日）</div>
+      <canvas id="weight-chart" height="80"></canvas>
+    </div>
+    <div class="card">
+      <div class="hist-title" style="font-size:13px;color:var(--muted);font-weight:600;margin-bottom:12px">直近7日のサマリー</div>
+      <table class="hist-table" id="hist-table">
+        <thead>
+          <tr>
+            <th>日付</th>
+            <th>体重</th>
+            <th>体脂肪</th>
+            <th>睡眠</th>
+            <th>水分</th>
+            <th>歩数</th>
+          </tr>
+        </thead>
+        <tbody id="hist-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const PASSWORD = 'techbrace2026';
+const SESSION_KEY = 'health_auth';
+const DATA_KEY    = 'health_data';
+const SUPP_KEY    = 'health_supps';
+
+// ─── Auth ───────────────────────────────────────────────────────────────────
+
+(function() {
+  const p = new URLSearchParams(location.search).get('p');
+  if (p === PASSWORD) {
+    sessionStorage.setItem(SESSION_KEY, '1');
+    history.replaceState({}, '', location.pathname);
+  }
+})();
+
+if (sessionStorage.getItem(SESSION_KEY)) showApp();
+
+function doLogin() {
+  const pw = document.getElementById('pw').value;
+  if (pw === PASSWORD) {
+    sessionStorage.setItem(SESSION_KEY, '1');
+    showApp();
+  } else {
+    document.getElementById('login-err').style.display = 'block';
+    document.getElementById('pw').value = '';
+    document.getElementById('pw').focus();
+  }
+}
+
+function doLogout() {
+  sessionStorage.removeItem(SESSION_KEY);
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  initApp();
+}
+
+// ─── State ──────────────────────────────────────────────────────────────────
+
+let currentDate = todayStr();
+let supplements = JSON.parse(localStorage.getItem(SUPP_KEY) || '["プロテイン","ビタミンD","亜鉛","マグネシウム"]');
+let selectedTraining = new Set();
+let selectedAlcType  = new Set();
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function allData() {
+  return JSON.parse(localStorage.getItem(DATA_KEY) || '{}');
+}
+
+function getRecord(dateStr) {
+  return allData()[dateStr] || {};
+}
+
+function saveData(dateStr, rec) {
+  const all = allData();
+  all[dateStr] = rec;
+  localStorage.setItem(DATA_KEY, JSON.stringify(all));
+}
+
+// ─── Init ────────────────────────────────────────────────────────────────────
+
+function initApp() {
+  renderDateLabel();
+  renderSupplementList();
+  loadRecord();
+}
+
+function renderDateLabel() {
+  const d = new Date(currentDate + 'T00:00:00');
+  const days = ['日','月','火','水','木','金','土'];
+  const isToday = currentDate === todayStr();
+  const label = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} (${days[d.getDay()]})${isToday ? ' 今日' : ''}`;
+  document.getElementById('date-label').textContent = label;
+  document.getElementById('next-btn').disabled = currentDate >= todayStr();
+  document.getElementById('next-btn').style.opacity = currentDate >= todayStr() ? '0.3' : '1';
+}
+
+function changeDay(delta) {
+  const d = new Date(currentDate + 'T00:00:00');
+  d.setDate(d.getDate() + delta);
+  const newDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  if (newDate > todayStr()) return;
+  currentDate = newDate;
+  renderDateLabel();
+  loadRecord();
+}
+
+// ─── Record form ─────────────────────────────────────────────────────────────
+
+function loadRecord() {
+  const rec = getRecord(currentDate);
+
+  document.getElementById('weight').value  = rec.weight  ?? '';
+  document.getElementById('fat').value     = rec.fat     ?? '';
+  document.getElementById('sleep').value   = rec.sleep   ?? '';
+  document.getElementById('bedtime').value = rec.bedtime ?? '';
+  document.getElementById('steps').value   = rec.steps   ?? '';
+  document.getElementById('memo').value    = rec.memo    ?? '';
+
+  // Water
+  const water = rec.water ?? 0;
+  document.getElementById('water-val').textContent = water;
+  renderGlasses(water);
+
+  // Training
+  selectedTraining = new Set(rec.training || []);
+  document.querySelectorAll('#training-chips .chip').forEach(btn => {
+    btn.classList.toggle('active', selectedTraining.has(btn.textContent));
+  });
+
+  // Alcohol
+  const alcoholNone = rec.alcoholNone ?? false;
+  document.getElementById('alcohol-none').checked = alcoholNone;
+  document.getElementById('alcohol-detail').style.display = alcoholNone ? 'none' : 'block';
+  document.getElementById('alcohol-amount').value = rec.alcoholAmount ?? '';
+  selectedAlcType = new Set(rec.alcoholType || []);
+  document.querySelectorAll('#alcohol-chips .chip').forEach(btn => {
+    btn.classList.toggle('active', selectedAlcType.has(btn.textContent));
+  });
+
+  // Supplements
+  renderSupplementList(rec.supplements || {});
+
+  document.getElementById('save-msg').style.display = 'none';
+}
+
+function renderGlasses(n) {
+  const el = document.getElementById('glasses-display');
+  el.innerHTML = '';
+  const max = Math.max(n, 8);
+  for (let i = 1; i <= max; i++) {
+    const g = document.createElement('span');
+    g.className = 'glass' + (i <= n ? ' filled' : '');
+    g.textContent = '💧';
+    g.onclick = () => setWater(i);
+    el.appendChild(g);
+  }
+}
+
+function adjustWater(delta) {
+  const cur = parseInt(document.getElementById('water-val').textContent) || 0;
+  const next = Math.max(0, cur + delta);
+  document.getElementById('water-val').textContent = next;
+  renderGlasses(next);
+}
+
+function setWater(n) {
+  document.getElementById('water-val').textContent = n;
+  renderGlasses(n);
+}
+
+function toggleChip(btn, val) {
+  if (selectedTraining.has(val)) selectedTraining.delete(val);
+  else selectedTraining.add(val);
+  btn.classList.toggle('active', selectedTraining.has(val));
+}
+
+function toggleAlcChip(btn, val) {
+  if (selectedAlcType.has(val)) selectedAlcType.delete(val);
+  else selectedAlcType.add(val);
+  btn.classList.toggle('active', selectedAlcType.has(val));
+}
+
+function onAlcoholNone(cb) {
+  document.getElementById('alcohol-detail').style.display = cb.checked ? 'none' : 'block';
+}
+
+function renderSupplementList(checked = {}) {
+  const el = document.getElementById('supplement-list');
+  if (!el) return;
+  el.innerHTML = '';
+  supplements.forEach((s, i) => {
+    const label = document.createElement('label');
+    label.className = 'check-item';
+    label.innerHTML = `
+      <input type="checkbox" id="supp-${i}" ${checked[s] ? 'checked' : ''}>
+      <div class="check-box">✓</div>
+      <span class="check-text">${s}</span>
+    `;
+    el.appendChild(label);
+  });
+}
+
+function addSupplement() {
+  const input = document.getElementById('supp-new');
+  const val = input.value.trim();
+  if (!val || supplements.includes(val)) return;
+  supplements.push(val);
+  localStorage.setItem(SUPP_KEY, JSON.stringify(supplements));
+  const curRec = getRecord(currentDate);
+  renderSupplementList(curRec.supplements || {});
+  input.value = '';
+}
+
+function saveRecord() {
+  const suppChecked = {};
+  supplements.forEach((s, i) => {
+    suppChecked[s] = document.getElementById(`supp-${i}`)?.checked ?? false;
+  });
+
+  const rec = {
+    weight:       parseFloat(document.getElementById('weight').value)  || null,
+    fat:          parseFloat(document.getElementById('fat').value)     || null,
+    sleep:        parseFloat(document.getElementById('sleep').value)   || null,
+    bedtime:      document.getElementById('bedtime').value             || null,
+    water:        parseInt(document.getElementById('water-val').textContent) || 0,
+    steps:        parseInt(document.getElementById('steps').value)     || null,
+    training:     [...selectedTraining],
+    alcoholNone:  document.getElementById('alcohol-none').checked,
+    alcoholAmount:parseFloat(document.getElementById('alcohol-amount').value) || null,
+    alcoholType:  [...selectedAlcType],
+    supplements:  suppChecked,
+    memo:         document.getElementById('memo').value.trim()         || null,
+    updatedAt:    new Date().toISOString(),
+  };
+
+  saveData(currentDate, rec);
+  const msg = document.getElementById('save-msg');
+  msg.style.display = 'block';
+  setTimeout(() => msg.style.display = 'none', 2000);
+}
+
+// ─── Tabs ────────────────────────────────────────────────────────────────────
+
+function showTab(name) {
+  document.getElementById('tab-record').style.display  = name === 'record'  ? '' : 'none';
+  document.getElementById('tab-history').style.display = name === 'history' ? '' : 'none';
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.classList.toggle('active', (i === 0 && name === 'record') || (i === 1 && name === 'history'));
+  });
+  if (name === 'history') renderHistory();
+}
+
+// ─── History ─────────────────────────────────────────────────────────────────
+
+function renderHistory() {
+  const all = allData();
+  const dates = Object.keys(all).sort().reverse();
+
+  // Table (7 days)
+  const tbody = document.getElementById('hist-body');
+  tbody.innerHTML = '';
+  const last7 = dates.slice(0, 7);
+  last7.forEach((dateStr, idx) => {
+    const rec = all[dateStr];
+    const d = new Date(dateStr + 'T00:00:00');
+    const days = ['日','月','火','水','木','金','土'];
+    const label = `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}(${days[d.getDay()]})`;
+
+    let weightTrend = '';
+    if (idx < last7.length - 1) {
+      const prev = all[last7[idx + 1]];
+      if (prev?.weight && rec.weight) {
+        const diff = rec.weight - prev.weight;
+        if (diff > 0.05) weightTrend = '<span class="up">↑</span>';
+        else if (diff < -0.05) weightTrend = '<span class="down">↓</span>';
+        else weightTrend = '<span class="flat">→</span>';
+      }
+    }
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${label}</td>
+      <td class="hist-val">${rec.weight != null ? rec.weight + weightTrend : '<span class="hist-empty">-</span>'}</td>
+      <td class="hist-val">${rec.fat    != null ? rec.fat + '%'           : '<span class="hist-empty">-</span>'}</td>
+      <td class="hist-val">${rec.sleep  != null ? rec.sleep + 'h'        : '<span class="hist-empty">-</span>'}</td>
+      <td class="hist-val">${rec.water  != null ? rec.water + '💧'       : '<span class="hist-empty">-</span>'}</td>
+      <td class="hist-val">${rec.steps  != null ? (rec.steps >= 10000 ? '✅' : '') + rec.steps.toLocaleString() : '<span class="hist-empty">-</span>'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // Chart (14 days)
+  const last14 = dates.slice(0, 14).reverse();
+  drawWeightChart(last14, all);
+}
+
+function drawWeightChart(dates, all) {
+  const canvas = document.getElementById('weight-chart');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.offsetWidth || 560;
+  const h = 80;
+  canvas.width  = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width  = w + 'px';
+  canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+
+  const points = dates.map(d => all[d]?.weight ?? null).filter(v => v !== null);
+  if (points.length < 2) {
+    ctx.fillStyle = '#8a9fbf';
+    ctx.font = '13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('データが2件以上になるとグラフが表示されます', w / 2, h / 2 + 5);
+    return;
+  }
+
+  const weights = dates.map(d => all[d]?.weight ?? null);
+  const valid   = weights.filter(v => v !== null);
+  const minW = Math.min(...valid) - 1;
+  const maxW = Math.max(...valid) + 1;
+  const pad  = { l: 36, r: 12, t: 10, b: 20 };
+  const aw   = w - pad.l - pad.r;
+  const ah   = h - pad.t - pad.b;
+
+  const toX = i => pad.l + (i / (dates.length - 1)) * aw;
+  const toY = v => pad.t + (1 - (v - minW) / (maxW - minW)) * ah;
+
+  // Grid lines
+  ctx.strokeStyle = '#1e3050';
+  ctx.lineWidth = 1;
+  [minW, (minW + maxW) / 2, maxW].forEach(y => {
+    const py = toY(y);
+    ctx.beginPath(); ctx.moveTo(pad.l, py); ctx.lineTo(w - pad.r, py); ctx.stroke();
+    ctx.fillStyle = '#8a9fbf';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(y.toFixed(1), pad.l - 4, py + 3);
+  });
+
+  // Line
+  ctx.strokeStyle = '#2dd4bf';
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  let first = true;
+  weights.forEach((v, i) => {
+    if (v === null) { first = true; return; }
+    const x = toX(i), y = toY(v);
+    if (first) { ctx.moveTo(x, y); first = false; }
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Dots
+  weights.forEach((v, i) => {
+    if (v === null) return;
+    ctx.beginPath();
+    ctx.arc(toX(i), toY(v), 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#2dd4bf';
+    ctx.fill();
+  });
+}
+</script>
+</body>
+</html>
