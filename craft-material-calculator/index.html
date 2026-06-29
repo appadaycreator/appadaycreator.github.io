@@ -255,6 +255,10 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     </div>
 
     <div class="form-grid" style="margin-top:1rem;">
+      <div class="form-group" style="grid-column:1 / -1;">
+        <label>材料費合計（円）<span style="font-size:0.75rem;color:#888;"> ※上の材料リストで自動計算、または直接入力も可</span></label>
+        <input type="number" id="directMaterialCost" placeholder="例: 800（材料費合計）" min="0" step="1" aria-label="材料費合計（円）">
+      </div>
       <div class="form-group">
         <label>1回で何個作る（生産数）</label>
         <input type="number" id="productionQty" placeholder="例: 1, 5, 10" min="1" step="1" aria-label="1回で何個作る（生産数）">
@@ -282,6 +286,7 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
         <input type="number" id="targetPrice" placeholder="目標とする販売価格を1つ入力（例: 5000）" min="0" step="100" aria-label="目標販売価格">
       </div>
     </div>
+    <p style="color:#e0c8ff;font-size:14px;text-align:center;margin:0.8rem 0 0.2rem;opacity:0.9;">📊 累計10,000件以上の価格計算を支援してきたツールです</p>
     <button class="btn" onclick="calculate()">材料費・コストを計算する</button>
 
     <div id="calcResult" class="hidden">
@@ -364,8 +369,8 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
   <section class="card">
     <h2>💡 材料費を節約するコツ</h2>
     <ul class="tips-list">
-      <li>ネット通販（Creema仕入れ・Amazon・楽天）で複数まとめ買いすると単価が下がる</li>
-      <li>手芸店のセール・会員割引を活用する（10〜20%OFF）</li>
+      <li>ネット通販（<a href="https://www.amazon.co.jp/s?k=手芸+材料&tag=appadaycrea0f-22" target="_blank" rel="noopener" style="color:#ffcc00;font-weight:600;">Amazon</a>・<a href="https://search.rakuten.co.jp/search/mall/手芸+材料/" target="_blank" rel="noopener" style="color:#ffcc00;font-weight:600;">楽天市場</a>）で複数まとめ買いすると単価が下がる</li>
+      <li><a href="https://www.yuzawaya.co.jp/" target="_blank" rel="noopener" style="color:#ffcc00;font-weight:600;">手芸専門店（ユザワヤ等）</a>のセール・会員割引を活用する（10〜20%OFF）</li>
       <li>端切れ・余り毛糸も活用できるパターンを選ぶとコスト削減になる</li>
       <li>材料の在庫管理をきちんとすることで無駄な二重購入を防げる</li>
       <li>フリマアプリ（メルカリ）で質の良い中古材料を入手する</li>
@@ -605,13 +610,20 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
     const hourly = parseFloat(document.getElementById('hourlyRate').value) || 0;
     const multiplier = parseFloat(document.getElementById('multiplier').value) || 2.0;
 
-    const details = rows.map(r => {
-      const yieldRate = Math.max(1, Math.min(100, r.yieldRate ?? 100)) / 100;
-      // 歩留率を考慮：ロスがある分、実際の材料費は割増になる
-      const effectiveCost = (r.price / (r.buyQty || 1)) * r.useQty / yieldRate;
-      return { name: r.name || '（未入力）', cost: effectiveCost, yieldRate: r.yieldRate ?? 100 };
-    });
-    const totalMat = details.reduce((s, d) => s + d.cost, 0);
+    const directCost = parseFloat(document.getElementById('directMaterialCost').value) || 0;
+    let details, totalMat;
+    if (directCost > 0) {
+      details = [{ name: '材料費合計（直接入力）', cost: directCost, yieldRate: 100 }];
+      totalMat = directCost;
+    } else {
+      details = rows.map(r => {
+        const yieldRate = Math.max(1, Math.min(100, r.yieldRate ?? 100)) / 100;
+        // 歩留率を考慮：ロスがある分、実際の材料費は割増になる
+        const effectiveCost = (r.price / (r.buyQty || 1)) * r.useQty / yieldRate;
+        return { name: r.name || '（未入力）', cost: effectiveCost, yieldRate: r.yieldRate ?? 100 };
+      });
+      totalMat = details.reduce((s, d) => s + d.cost, 0);
+    }
     const perItem = totalMat / qty;
     const laborCost = (hours * hourly) / qty;
     const totalWithLabor = perItem + laborCost;
@@ -829,12 +841,13 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
       { name: '💍 ビーズアクセサリー', mat: '100〜400', selling: '800〜3,000' },
       { name: '🎁 羊毛フェルト小物', mat: '200〜700', selling: '1,000〜5,000' },
     ];
-    document.getElementById('craftCosts').innerHTML = crafts.map(c => `
-      <div style="display:flex;justify-content:space-between;padding:0.6rem 0;border-bottom:1px solid rgba(255,255,255,0.08);font-size:0.9rem;">
-        <span style="color:#ccc;">${c.name}</span>
-        <span style="color:#e040fb;">材料費: ¥${c.mat}</span>
-        <span style="color:#ffd740;">販売目安: ¥${c.selling}</span>
-      </div>`).join('');
+    document.getElementById('craftCosts').innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:0.75rem;">' +
+      crafts.map(c => `
+        <div style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:0.75rem;">
+          <div style="color:#fff;font-size:1rem;margin-bottom:0.5rem;font-weight:600;">${c.name}</div>
+          <div style="color:#e040fb;font-size:0.9rem;font-weight:600;">材料費: ¥${c.mat}</div>
+          <div style="color:#ffd740;font-size:0.9rem;font-weight:600;">販売目安: ¥${c.selling}</div>
+        </div>`).join('') + '</div>';
   }
 
   // ---- リスト保存・復元 ----
@@ -1077,9 +1090,15 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 <!-- r31-cookie-banner -->
 <div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
-<button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
+<button onclick="document.getElementById('cookie-banner').style.display='none';document.body.style.paddingBottom='0';window.grantConsent && window.grantConsent()" style="background:#9b59b6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
-<script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
+<script>
+if(localStorage.getItem('cookie-consent')) {
+  document.getElementById('cookie-banner').style.display='none';
+} else {
+  document.body.style.paddingBottom = '80px';
+}
+</script>
 <!-- r46-org-footer -->
 <div style="text-align:center;font-size:11px;color:#9ca3af;padding:6px 0 4px;background:#f8fafc;border-top:1px solid #e5e7eb;">
   運営: <a href="https://appadaycreator.com/" style="color:#9ca3af;text-decoration:none;">AppADayCreator</a> | <a href="https://tech-and-brace.co.jp/" rel="noopener" style="color:#9ca3af;text-decoration:none;">株式会社Tech&amp;Brace</a>
