@@ -1,5 +1,12 @@
 # 仕様書
 
+## v2.5.0 (2026-06-29) — V1-V5視覚的UI改善・M2/M8入力UX補完・モバイルカルーセル
+- [V1] Cookieバナー: max-height:80px・padding:8px 16px・flex-wrap:nowrap に変更し、モバイルで画面占有を防止。同意ボタン押下時にmainのpadding-bottomをリセット
+- [V2] ヒーロー見出し: 初回訪問時（rooms=0・items=0）に「断捨離した物の数・節約金額・スッキリ度をリアルタイム可視化」の価値提案見出しを28px/bold表示。データあり時は既存ウェルカムメッセージを維持
+- [V3] KPIカード: 初回訪問時はKPIカード（0値）を非表示にし、代わりに「1週間で平均32個手放した実績あり・平均節約額¥8,500」のサンプル実績バッジ（#e8f5e9 背景・#4caf50 枠）を表示
+- [V4] ステップガイド: モバイルをswipe carousel（overflow-x:auto・scroll-snap-type:x mandatory・各カード80%幅）に変更。ステップ3〜5が発見可能に。ステップ2ボタンをbackground:#81c784（薄緑塗りつぶし）に変更してステップ順序を色で表現
+- [V5] AppADayCreator告知リンクをボタン形式（display:inline-block・padding:10px 20px・background:#1976d2・color:#fff・border-radius:6px・font-weight:bold）に変更
+
 ## v2.4.1 (2026-06-22) — V4 Cookie同意バナー改善（Cookie同意とサービス開始の明確分離）
 - [V4] Cookie同意バナーのテキスト・ボタン・スタイル改善: 「同意して閉じる」→「✓ 同意して続行」に変更、新規セクション「📊 データ取得について」を追加、モバイル表示時の視認性向上
 
