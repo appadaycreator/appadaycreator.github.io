@@ -1,5 +1,14 @@
 # FlashCard Master 仕様書
 
+## v2.4 (2026-06-29) - V1〜V5 コンバージョン直結UI修正 + M2 Ctrl+Enter / aria-invalid対応
+**実装内容**:
+1. **[V1] CTAボタンをソリッド化**：ゴーストボタン廃止→`background:#5b4dd3;color:#fff;font-size:18px;padding:16px 36px`のソリッドボタンに変更。ファーストビューでのクリック認識率向上。
+2. **[V2] 全0スタッツ非表示**：デッキ未作成時に`stats-grid`を`display:none`にして「誰も使っていない」印象を排除。
+3. **[V3] モバイルヘッダー1行化**：`@media(max-width:640px){#app-title{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}`で4行折り返しを解消。
+4. **[V4] 未取得バッジ非表示**：取得済みバッジのみ表示、未取得はレンダリングしない。未取得0件時は誘導メッセージを表示。
+5. **[V5] 社会的証明テキスト追加**：CTAボタン直下に「完全ブラウザ動作 · データはあなたの端末にのみ保存 · 英検・TOEIC・資格試験対応」を追記。
+6. **[M2] Ctrl+Enter ショートカット**：問題・答えのtextareaからCtrl+Enter(⌘+Enter)でカード追加可能に。aria-invalid属性をshowFieldError/clearFieldErrorで管理。
+
 ## v2.3 (2026-06-25) - V1/V2/V3/V5 視覚的UI問題修正 + M2 フォームヒント追加
 **実装内容**:
 1. **[V1/V4] グローバルエラーハンドラ改善**：外部CDN・広告・ServiceWorkerの unhandledrejection をフィルタリングして非表示化。SW登録に`.catch()`追加。初期表示エラーバナー解消。

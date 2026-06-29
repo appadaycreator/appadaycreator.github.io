@@ -301,6 +301,8 @@ button:active,[class*=btn]:active{opacity:.75;transform:scale(.98);}
 select,input[type=text],input[type=number],input[type=email],textarea{min-height:44px;font-size:16px;}
 [id*=result]:not(style):not(script),[id*=output]:not(style):not(script){border-left:4px solid #7c3aed;padding-left:16px;margin-top:16px;}
 @media(max-width:640px){[class*=max-w],[class*=container],[class*=wrapper]{padding:12px 16px!important;}button,[class*=btn]{width:100%;font-size:15px;}}
+/* V3: モバイルヘッダーロゴ折り返し防止（4行→1行） */
+@media(max-width:640px){#app-title{font-size:12px!important;line-height:1.2;max-width:calc(100vw - 170px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:inline-block;}header .container{flex-wrap:nowrap;}}
 </style>
 </head>
 <body class=" min-h-screen" style="background:#f8fafc;"><a href="#main" class="sr-only">本文へスキップ</a>
@@ -358,8 +360,10 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             <div class="flex justify-center gap-4 text-xs text-gray-500 mb-3">
                 <span>✅ 登録不要</span><span>✅ 無料</span><span>✅ オフライン対応</span>
             </div>
-            <!-- V2: ヒーローボタンはセカンダリ（アウトライン）、主要CTAはメインボタンに統一 -->
-            <button onclick="showCreateDeckModal()" class="bg-white border-2 border-indigo-600 text-indigo-700 px-6 py-2 rounded-full text-sm font-bold hover:bg-indigo-600 hover:text-white transition" aria-label="新しいデッキを作成する">まずは無料で試してみる →</button>
+            <!-- V1: ゴーストボタン廃止→ソリッド塗りつぶしに変更（コンバージョン改善） -->
+            <button onclick="showCreateDeckModal()" style="background-color:#5b4dd3;color:#ffffff;font-size:18px;font-weight:700;padding:16px 36px;border:none;border-radius:8px;cursor:pointer;box-shadow:0 4px 14px rgba(91,77,211,0.45);display:inline-block;transition:opacity 0.18s,transform 0.1s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'" onmousedown="this.style.transform='scale(0.97)'" onmouseup="this.style.transform='scale(1)'" aria-label="新しいデッキを作成する">まずは無料で試してみる →</button>
+            <!-- V5: 社会的証明テキスト（CTAボタン直下） -->
+            <p style="font-size:13px;color:#6b7280;text-align:center;margin-top:10px;">完全ブラウザ動作 · データはあなたの端末にのみ保存 · 英検・TOEIC・資格試験対応</p>
         </div>
 
         <!-- A3: 広告スロット（ヘッダー直下） -->
@@ -551,6 +555,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                         <span class="text-lg">＋</span>
                         <span data-lang-key="add-card-btn">カードを追加</span>
                     </button>
+                    <!-- M2: キーボードショートカットヒント -->
+                    <p class="text-xs text-gray-400 text-center -mt-1">Ctrl+Enter（Mac: ⌘+Enter）でも追加できます</p>
                     <div class="flex gap-2 mt-1">
                         <button id="import-cards-btn" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-2 rounded-lg text-sm flex items-center justify-center gap-1" aria-label="カードをインポート">
                             <span>📄</span>
@@ -1283,6 +1289,19 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                     }
                 });
             }
+
+            // M2: Ctrl+Enter または Cmd+Enter でカード追加フォームを送信
+            ['new-question', 'new-answer'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener('keydown', function(e) {
+                        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                            e.preventDefault();
+                            addCard();
+                        }
+                    });
+                }
+            });
         }
 
         // フィールドにインラインエラーを表示し、フォーカスも移す
@@ -1295,6 +1314,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             err.classList.remove('hidden');
             field.classList.add('border-red-500', 'ring-2', 'ring-red-200');
             field.classList.remove('border-gray-300', 'border-indigo-500', 'ring-indigo-200');
+            // M2: aria-invalid でスクリーンリーダーにもエラーを伝える
+            field.setAttribute('aria-invalid', 'true');
             // M2: シェイクアニメーションでエラーを視覚的に強調
             field.classList.remove('input-error-shake');
             void field.offsetWidth;
@@ -1310,6 +1331,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             if (field) {
                 field.classList.remove('border-red-500', 'ring-2', 'ring-red-200');
                 field.classList.add('border-gray-300');
+                field.setAttribute('aria-invalid', 'false');
             }
             if (err) err.classList.add('hidden');
         }
@@ -1464,7 +1486,13 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             document.getElementById('mastered-cards').textContent = masteredCards;
             document.getElementById('badges-count').textContent = badges.length;
 
-            // V3: ゼロ状態ガイドをデッキが0件の時のみ表示
+            // V2: デッキ未作成時はスタッツグリッドを非表示（全0表示のゴーストタウン感を避ける）
+            const statsGrid = document.getElementById('stats-grid');
+            if (statsGrid) {
+                statsGrid.classList.toggle('hidden', decks.length === 0);
+            }
+
+            // V3（既存）: ゼロ状態ガイドをデッキが0件の時のみ表示
             const zeroGuide = document.getElementById('zero-state-guide');
             if (zeroGuide) {
                 zeroGuide.classList.toggle('hidden', decks.length > 0);
@@ -1530,17 +1558,20 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 { id: 'speed-learner', name: '速習者', icon: '⚡', condition: () => badges.some(b => b.id === 'speed-learner') }
             ];
 
-            badgesContainer.innerHTML = allBadges.map(badge => {
-                const earned = badge.condition();
-                return `
-                    <div class="text-center ${earned ? '' : 'opacity-50'}">
-                        <div class="w-12 h-12 mx-auto mb-2 rounded-full ${earned ? 'bg-yellow-100' : 'bg-gray-100'} flex items-center justify-center">
+            // V4: 未取得バッジは非表示（グレーアウト表示のゴーストタウン感を解消）
+            const earnedBadges = allBadges.filter(badge => badge.condition());
+            if (earnedBadges.length === 0) {
+                badgesContainer.innerHTML = `<p class="text-sm text-gray-400 col-span-3 md:col-span-6 text-center py-4">🎯 学習を進めるとバッジを獲得できます！まずはデッキを作成してみましょう。</p>`;
+            } else {
+                badgesContainer.innerHTML = earnedBadges.map(badge => `
+                    <div class="text-center">
+                        <div class="w-12 h-12 mx-auto mb-2 rounded-full bg-yellow-100 flex items-center justify-center">
                             <span class="text-xl">${badge.icon}</span>
                         </div>
-                        <p class="text-xs ${earned ? 'text-gray-800' : 'text-gray-400'}">${badge.name}</p>
+                        <p class="text-xs text-gray-800">${badge.name}</p>
                     </div>
-                `;
-            }).join('');
+                `).join('');
+            }
             
             // Check and award new badges
             allBadges.forEach(badge => {
