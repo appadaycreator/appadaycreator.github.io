@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>マイツール</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0c1220;
+    --card: #1a2840;
+    --border: #3a5070;
+    --text: #e8edf5;
+    --muted: #8a9fbf;
+    --teal: #2dd4bf;
+    --orange: #fb923c;
+    --purple: #a78bfa;
+    --green: #4ade80;
+    --blue: #60a5fa;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ── Login screen ── */
+  #login-screen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 24px;
+  }
+  .login-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 36px 28px;
+    width: 100%;
+    max-width: 340px;
+    text-align: center;
+  }
+  .login-box h1 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+  .login-box p { font-size: 13px; color: var(--muted); margin-bottom: 28px; }
+  .login-box input {
+    width: 100%;
+    padding: 12px 16px;
+    background: #0f1623;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 15px;
+    outline: none;
+    margin-bottom: 12px;
+    transition: border-color 0.2s;
+  }
+  .login-box input:focus { border-color: var(--teal); }
+  .login-box button {
+    width: 100%;
+    padding: 13px;
+    background: var(--teal);
+    color: #0f2825;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .login-box button:hover { opacity: 0.87; }
+  .login-err { font-size: 13px; color: #f87171; margin-top: 10px; display: none; }
+
+  /* ── Hub ── */
+  #hub-screen { display: none; padding: 24px 16px 48px; }
+  .header { text-align: center; margin-bottom: 28px; padding-top: 8px; }
+  .header h1 { font-size: 22px; font-weight: 700; }
+  .header p { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .logout-btn {
+    position: absolute;
+    top: 16px; right: 16px;
+    font-size: 12px;
+    color: var(--muted);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 12px;
+    cursor: pointer;
+  }
+  .logout-btn:hover { color: var(--text); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+    max-width: 680px;
+    margin: 0 auto;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--border);
+    border-radius: 16px;
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    text-decoration: none;
+    color: inherit;
+    transition: border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.35);
+  }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(0,0,0,0.45); }
+  .card[data-accent="teal"]  { border-left-color: var(--teal); }
+  .card[data-accent="orange"]{ border-left-color: var(--orange); }
+  .card[data-accent="purple"]{ border-left-color: var(--purple); }
+  .card[data-accent="blue"]  { border-left-color: var(--blue); }
+  .card[data-accent="green"] { border-left-color: var(--green); }
+  .card[data-accent="teal"]:hover  { border-color: var(--teal); }
+  .card[data-accent="orange"]:hover{ border-color: var(--orange); }
+  .card[data-accent="purple"]:hover{ border-color: var(--purple); }
+  .card[data-accent="blue"]:hover  { border-color: var(--blue); }
+  .card[data-accent="green"]:hover { border-color: var(--green); }
+  .card-header { display: flex; align-items: center; gap: 12px; }
+  .icon {
+    width: 42px; height: 42px;
+    border-radius: 11px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+  }
+  .icon-teal   { background: rgba(45,212,191,0.22); }
+  .icon-orange { background: rgba(251,146,60,0.22); }
+  .icon-purple { background: rgba(167,139,250,0.22); }
+  .icon-blue   { background: rgba(96,165,250,0.22); }
+  .icon-green  { background: rgba(74,222,128,0.22); }
+  .card-title { font-size: 15px; font-weight: 700; }
+  .card-desc { font-size: 12px; color: var(--muted); line-height: 1.55; }
+  .card-footer {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-top: 10px; border-top: 1px solid var(--border); margin-top: auto;
+  }
+  .url { font-size: 11px; color: var(--muted); font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; }
+  .open-btn {
+    font-size: 12px; font-weight: 600;
+    padding: 5px 14px; border-radius: 20px; border: none;
+    cursor: pointer; white-space: nowrap; flex-shrink: 0;
+    transition: opacity 0.15s;
+  }
+  .open-btn:hover { opacity: 0.85; }
+  .btn-teal   { background: var(--teal);   color: #0f2825; }
+  .btn-orange { background: var(--orange); color: #2a1000; }
+  .btn-purple { background: var(--purple); color: #1a0a3a; }
+  .btn-blue   { background: var(--blue);   color: #0a1f3a; }
+  .btn-green  { background: var(--green);  color: #0a2a14; }
+  .btn-muted  { background: #2a3a55; color: #6b7fa3; cursor: default; }
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>🔐 マイツール</h1>
+    <p>パスワードを入力してください</p>
+    <input type="password" id="pw" placeholder="パスワード" onkeydown="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()">ログイン</button>
+    <div class="login-err" id="login-err">パスワードが違います</div>
+  </div>
+</div>
+
+<!-- Hub -->
+<div id="hub-screen">
+  <button class="logout-btn" onclick="doLogout()">ログアウト</button>
+  <div class="header">
+    <h1>マイツール</h1>
+    <p>個人サービス一覧</p>
+  </div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<script>
+const PASSWORD = 'techbrace2026';
+const HASH = 'd3181221273116724610ab097de7a446f466917d532e694a3f666e5bf6cd83c2';
+const SESSION_KEY = 'hub_auth';
+
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function doLogin() {
+  const pw = document.getElementById('pw').value;
+  const h = await sha256(pw);
+  if (h === HASH) {
+    sessionStorage.setItem(SESSION_KEY, '1');
+    showHub();
+  } else {
+    document.getElementById('login-err').style.display = 'block';
+    document.getElementById('pw').value = '';
+    document.getElementById('pw').focus();
+  }
+}
+
+function doLogout() {
+  sessionStorage.removeItem(SESSION_KEY);
+  document.getElementById('hub-screen').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+function showHub() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('hub-screen').style.display = 'block';
+}
+
+// URL param auto-auth: ?p=<password>
+(function() {
+  const p = new URLSearchParams(location.search).get('p');
+  if (p === PASSWORD) {
+    sessionStorage.setItem(SESSION_KEY, '1');
+    history.replaceState({}, '', location.pathname);
+  }
+})();
+
+// Check session
+if (sessionStorage.getItem(SESSION_KEY)) showHub();
+
+// ── Tools ──
+const TOOLS = [
+  {
+    icon: '🔄', iconClass: 'icon-teal', accent: 'teal', btnClass: 'btn-teal',
+    title: 'ルーティン管理',
+    desc: '毎日のルーティンタスクを管理。完了・スキップ・統計を記録。',
+    url: 'https://appadaycreator.com/routine-tracker-static/?p=techbrace2026',
+    label: 'appadaycreator.com',
+  },
+  {
+    icon: '📊', iconClass: 'icon-orange', accent: 'orange', btnClass: 'btn-orange',
+    title: '資産管理',
+    desc: '家計・資産の状況を可視化・管理。',
+    url: 'https://appadaycreator.com/portfolio-dashboard/?p=assets2026',
+    label: 'appadaycreator.com',
+  },
+  {
+    icon: '✅', iconClass: 'icon-purple', accent: 'purple', btnClass: 'btn-purple',
+    title: 'タスク管理',
+    desc: 'Tech&Brace のプロジェクトタスクをカンバン形式で管理。',
+    url: 'https://appadaycreator.com/task-board-static/?p=tasks2026',
+    label: 'appadaycreator.com',
+  },
+  {
+    icon: '🤖', iconClass: 'icon-blue', accent: 'blue', btnClass: 'btn-blue',
+    title: 'Claude消費量管理',
+    desc: 'Claude API のトークン消費量・コストをモニタリング。',
+    url: 'https://appadaycreator.com/claude-usage/',
+    label: 'appadaycreator.com',
+  },
+  {
+    icon: '📓', iconClass: 'icon-green', accent: 'green', btnClass: 'btn-green',
+    title: '作業日記',
+    desc: 'Claude との作業ログを毎日記録するGoogle Doc。',
+    url: 'https://docs.google.com/document/d/1-b76ImCCehdLXva066ovYw8Vx_dqhHTAhZ8n8qKsUfo/edit?tab=t.0',
+    label: 'docs.google.com',
+  },
+  {
+    icon: '✂️', iconClass: 'icon-blue', accent: 'blue', btnClass: 'btn-blue',
+    title: 'YouTube切り抜き',
+    desc: 'YouTubeを自動解析してAIが切り抜き箇所を提案・動画をクリップ。',
+    url: 'https://jeremy-nominations-treasures-tumor.trycloudflare.com/quick-login?key=clipper2026',
+    label: 'trycloudflare.com',
+  },
+  {
+    icon: '💪', iconClass: 'icon-green', accent: 'green', btnClass: 'btn-green',
+    title: '健康習慣',
+    desc: '体重・体脂肪・睡眠・水分・運動・アルコール・サプリを毎日記録。',
+    url: 'https://appadaycreator.com/health-habits/?p=techbrace2026',
+    label: 'appadaycreator.com',
+  },
+  {
+    icon: '🌐', iconClass: 'icon-teal', accent: 'teal', btnClass: 'btn-teal',
+    title: 'AppADay ポートフォリオ',
+    desc: '公開中のWebサービス一覧サイト。',
+    url: 'https://appadaycreator.com/',
+    label: 'appadaycreator.com',
+  },
+];
+
+const grid = document.getElementById('grid');
+TOOLS.forEach(t => {
+  const card = document.createElement(t.url ? 'a' : 'div');
+  card.className = 'card';
+  card.dataset.accent = t.accent;
+  if (t.url) { card.href = t.url; card.target = '_blank'; }
+  card.innerHTML = `
+    <div class="card-header">
+      <div class="icon ${t.iconClass}">${t.icon}</div>
+      <div class="card-title">${t.title}</div>
+    </div>
+    <div class="card-desc">${t.desc}</div>
+    <div class="card-footer">
+      <span class="url">${t.label}</span>
+      ${t.url
+        ? `<button class="open-btn ${t.btnClass}" onclick="event.preventDefault();window.open('${t.url}','_blank')">開く →</button>`
+        : `<button class="open-btn btn-muted" disabled>設定待ち</button>`
+      }
+    </div>
+  `;
+  grid.appendChild(card);
+});
+</script>
+</body>
+</html>
