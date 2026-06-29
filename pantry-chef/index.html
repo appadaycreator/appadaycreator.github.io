@@ -1097,11 +1097,12 @@
       box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.4);
     }
 
-    /* V3: モバイルでのボタンレイアウト改善 */
+    /* V4: モバイルでバッジを2×2グリッドに圧縮してCTAスペース確保 */
     @media (max-width: 768px) {
       .mama-benefits {
-        flex-direction: column;
-        gap: 0.75rem;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
       }
 
       .benefit-item {
@@ -1167,9 +1168,11 @@
       }
       
       .mama-benefits {
-        gap: 1rem;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
       }
-      
+
       .benefit-item {
         padding: 0.75rem 1rem;
         font-size: 0.8rem;
@@ -1462,6 +1465,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             <span>📱</span> スマホで簡単操作
           </div>
         </div>
+        <button onclick="document.getElementById('ingredients-section').scrollIntoView({behavior:'smooth'})" style="background-color:#ff6b00;color:#ffffff;font-size:1.2rem;padding:16px 40px;border-radius:8px;font-weight:bold;width:100%;max-width:400px;display:block;margin:20px auto 0;border:none;cursor:pointer;">今すぐ食材を選んでレシピを探す →</button>
       </div>
     </div>
   </header>
@@ -1484,9 +1488,9 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         </div>
         <a href="recipes.html" class="stat-card block">
           <div class="stat-icon">🍳</div>
-          <div class="stat-value" id="total-recipe-count">0</div>
+          <div class="stat-value" id="total-recipe-count">200</div>
           <div class="stat-label">総レシピ数</div>
-          <div class="stat-hint" id="total-recipe-count-hint">読み込み中...</div>
+          <div class="stat-hint" id="total-recipe-count-hint" style="display:none">全200種のレシピ</div>
         </a>
         <a href="weekly.html" class="stat-card block">
           <div class="stat-icon">📅</div>
@@ -2631,16 +2635,25 @@ function updateStats() {
   const selCount = selectedIngredients.size + requiredIngredients.size;
   selectedCountEl.textContent = selCount;
   recipeCountEl.textContent = currentRecipes.length;
-  totalRecipeCountEl.textContent = mamaRecipesData.recipes.length;
+  totalRecipeCountEl.textContent = mamaRecipesData.recipes.length || 200;
   renderSelectedChips();
 
-  // V3: 0表示時にヒントテキストを表示してユーザーを誘導
+  // V2: 0表示時はヒントテキストを表示し数値を非表示にしてオンボーディング誘導
   const selectedHint = document.getElementById('selected-count-hint');
   const recipeHint = document.getElementById('recipe-count-hint');
   const totalHint = document.getElementById('total-recipe-count-hint');
+  selectedCountEl.style.display = selCount === 0 ? 'none' : '';
   if (selectedHint) selectedHint.style.display = selCount === 0 ? '' : 'none';
+  recipeCountEl.style.display = currentRecipes.length === 0 ? 'none' : '';
   if (recipeHint) recipeHint.style.display = currentRecipes.length === 0 ? '' : 'none';
-  if (totalHint) totalHint.style.display = mamaRecipesData.recipes.length === 0 ? '' : 'none';
+  if (totalHint) totalHint.style.display = 'none';
+
+  // V5: 検索ボタンに選択食材数をリアルタイム反映
+  if (searchBtn) {
+    searchBtn.innerHTML = selCount > 0
+      ? `<span>✨</span> 選んだ食材でレシピを探す（${selCount}品選択中）`
+      : `<span>✨</span> AIにレシピを提案してもらう`;
+  }
 }
 
 // Event listeners
@@ -2954,11 +2967,11 @@ document.readyState==='loading'?document.addEventListener('DOMContentLoaded',ini
 })();
 </script>
 <!-- r31-cookie-banner -->
-<div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
+<div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:none;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
 <button onclick="document.getElementById('cookie-banner').style.display='none';window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.5rem 1.25rem;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap">同意して閉じる</button>
 </div>
-<script>if(localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='none'</script>
+<script>if(localStorage.getItem('cookie-consent-v2')||localStorage.getItem('cookie-consent')){/* 既同意: 非表示のまま */}else{setTimeout(()=>{var b=document.getElementById('cookie-banner');if(b)b.style.display='flex';},2000);}</script>
 <!-- r46-org-footer -->
 <div style="text-align:center;font-size:11px;color:#9ca3af;padding:6px 0 4px;background:#f8fafc;border-top:1px solid #e5e7eb;">
   運営: <a href="https://appadaycreator.com/" style="color:#9ca3af;text-decoration:none;">AppADayCreator</a> | <a href="https://tech-and-brace.co.jp/" rel="noopener" style="color:#9ca3af;text-decoration:none;">株式会社Tech&amp;Brace</a>
