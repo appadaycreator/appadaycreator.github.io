@@ -1,5 +1,15 @@
 # 仕様書
 
+## v2.5.0（2026-06-29）
+- **【M8強化】ステップ進捗インジケーター動的更新 + モバイルタップ対応ツールチップ**
+  - updateStepProgress()メソッド追加: 気分→時間→目的の選択順にstep-dotがdone/activeへ動的変化
+  - ガイドテキスト(stepGuideText)を選択タイプに応じて「ステップ2へ」等にリアルタイム更新
+  - モバイルタップでtoolhintをオンオフするJS追加（.cursor-help.mobile-tt-open）
+  - モバイルでツールチップが右端overflowしないようCSS修正（left:autoに上書き）
+- **【V2強化】CookieバナーのlocalStorage保存追加**: 「同意」クリック時にcookie-consentキー保存、再訪問時バナー非表示
+- **【V4】関連サービスリンクをボタン化**: .related-linkにグリーンボーダー・hover時グリーン背景・ボールドフォントを適用してCTR改善
+- **【V1強化】body overflow-x:hidden + containerの最大幅明示**で横スクロールや左余白を排除
+
 ## v2.4.0（2026-06-21）
 - **【Phase2実装】UI/UX視覚的問題を全て解決**
   - [V1] Cookie/Google Analytics同意バナーをモバイルで目立たなくスタイル調整
