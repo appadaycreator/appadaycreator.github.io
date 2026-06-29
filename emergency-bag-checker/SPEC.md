@@ -3,8 +3,8 @@
 ## 概要
 
 **サービス名**: Emergency Bag Checker
-**バージョン**: 1.2.0
-**更新日**: 2026-06-20
+**バージョン**: 1.3.0
+**更新日**: 2026-06-30
 **URL**: https://appadaycreator.com/emergency-bag-checker/
 
 防災グッズの準備状況をチェックリストで確認。家族構成別の必要アイテムを自動提案。
@@ -59,6 +59,13 @@
 - [家計簿診断](https://appadaycreator.com/household-budget-analyzer/)
 
 ## 変更履歴
+
+### v1.3.0 (2026-06-30) ← SPEC.md バージョンと統一
+- **V1**: h1 font-sizeをclamp(1.2rem, 5vw, 2rem)に変更、モバイルでタイトルが切れる問題を修正
+- **V2+V3**: スコアエリアをチェック前は非表示にし、初回チェック時にfadeIn表示。警告ボックスも同様に制御
+- **V4**: Cookieバナーをモバイルで12px/コンパクト表示に最適化
+- **V5**: Amazonボタンを全幅・太字表示に変更、アフィリエイトセクションをチェックリスト直後に移動
+- **GSC対策**: WebApplication schema追加、metadescriptionを主要キーワード入りに改善
 
 ### v1.7.0 (2026-06-22)
 - **M2実装: コア機能のUX改善（入力UI・バリデーション強化）**
