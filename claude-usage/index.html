@@ -14,10 +14,34 @@ body {
   min-height: 100vh;
   padding: 20px;
 }
+
+/* Login */
+#login-screen {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; padding: 24px;
+}
+.login-box {
+  background: #1e293b; border: 1px solid #334155; border-radius: 20px;
+  padding: 36px 28px; width: 100%; max-width: 320px; text-align: center;
+}
+.login-box h1 { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+.login-box p { font-size: 13px; color: #64748b; margin-bottom: 24px; }
+.login-box input {
+  width: 100%; padding: 12px 16px; background: #0f172a;
+  border: 1px solid #334155; border-radius: 10px; color: #e2e8f0;
+  font-size: 15px; outline: none; margin-bottom: 12px;
+}
+.login-box input:focus { border-color: #f97316; }
+.login-box button {
+  width: 100%; padding: 12px; background: #f97316; color: #fff;
+  border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer;
+}
+.login-err { font-size: 13px; color: #f87171; margin-top: 8px; display: none; }
+
+/* Main */
+#main-screen { display: none; }
 header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 24px;
 }
 header h1 { font-size: 18px; font-weight: 700; }
@@ -26,22 +50,19 @@ header h1 span { color: #f97316; }
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 12px;
-  margin-bottom: 28px;
+  gap: 12px; margin-bottom: 28px;
 }
 .card {
-  background: #1e293b;
-  border: 1px solid #334155;
-  border-radius: 12px;
-  padding: 16px;
+  background: #1e293b; border: 1px solid #334155;
+  border-radius: 12px; padding: 16px;
 }
 .card-label { font-size: 11px; color: #94a3b8; margin-bottom: 6px; }
 .card-value { font-size: 32px; font-weight: 700; line-height: 1; }
 .card-sub { font-size: 11px; color: #64748b; margin-top: 4px; }
-.ok    { color: #4ade80; }
-.warn  { color: #facc15; }
-.crit  { color: #f87171; }
-.na    { color: #475569; }
+.ok   { color: #4ade80; }
+.warn { color: #facc15; }
+.crit { color: #f87171; }
+.na   { color: #475569; }
 
 .section { margin-bottom: 28px; }
 .section h2 { font-size: 13px; color: #94a3b8; margin-bottom: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
@@ -57,6 +78,20 @@ canvas { width: 100% !important; display: block; }
 </style>
 </head>
 <body>
+
+<!-- Login -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>🤖 Claude消費量管理</h1>
+    <p>パスワードを入力してください</p>
+    <input type="password" id="pw" placeholder="パスワード" onkeydown="if(event.key==='Enter')doLogin()">
+    <button onclick="doLogin()">ログイン</button>
+    <div class="login-err" id="login-err">パスワードが違います</div>
+  </div>
+</div>
+
+<!-- Main -->
+<div id="main-screen">
 <header>
   <h1>🤖 <span>Claude</span>消費量管理</h1>
   <span class="updated" id="updatedAt">読み込み中...</span>
@@ -79,8 +114,39 @@ canvas { width: 100% !important; display: block; }
 <div class="back">
   <a href="https://appadaycreator.com/my-hub/?p=techbrace2026">← マイツールに戻る</a>
 </div>
+</div>
 
 <script>
+const PASSWORD = 'techbrace2026';
+const SESSION_KEY = 'claude_usage_auth';
+
+function doLogin() {
+  const pw = document.getElementById('pw').value;
+  if (pw === PASSWORD) {
+    sessionStorage.setItem(SESSION_KEY, '1');
+    showMain();
+  } else {
+    document.getElementById('login-err').style.display = 'block';
+    document.getElementById('pw').value = '';
+    document.getElementById('pw').focus();
+  }
+}
+
+function showMain() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('main-screen').style.display = 'block';
+  load();
+}
+
+(function() {
+  const p = new URLSearchParams(location.search).get('p');
+  if (p === PASSWORD) {
+    sessionStorage.setItem(SESSION_KEY, '1');
+    history.replaceState({}, '', location.pathname);
+  }
+  if (sessionStorage.getItem(SESSION_KEY)) showMain();
+})();
+
 const DATA_URL = './data.json?_=' + Date.now();
 
 function color(v) {
@@ -135,7 +201,6 @@ function drawChart(history) {
   const iW = W - PAD.left - PAD.right;
   const iH = H - PAD.top - PAD.bottom;
 
-  // grid
   ctx.strokeStyle = '#1e3a5f';
   ctx.lineWidth = 1;
   [0, 25, 50, 75, 100].forEach(y => {
@@ -145,7 +210,6 @@ function drawChart(history) {
     ctx.fillText(y + '%', PAD.left - 4, py + 3);
   });
 
-  // lines
   const lines = [
     { key: 'seven_day',       color: '#3b82f6', label: '週間全体' },
     { key: 'seven_day_sonnet', color: '#f97316', label: 'Sonnet' },
@@ -165,7 +229,6 @@ function drawChart(history) {
     ctx.stroke();
   });
 
-  // legend
   let lx = PAD.left;
   lines.forEach(({ label, color: lc }) => {
     ctx.fillStyle = lc; ctx.fillRect(lx, H - 12, 12, 3);
@@ -174,8 +237,6 @@ function drawChart(history) {
     lx += 70;
   });
 }
-
-load();
 </script>
 </body>
 </html>
