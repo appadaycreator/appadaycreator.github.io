@@ -723,9 +723,10 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 <li><a href="stocks.html" data-translate-key="menu_stocks">銘柄一覧</a></li>
                 <li><a href="screener.html" data-translate-key="menu_screener">スクリーニング</a></li>
                 <li><a href="usage.html" data-translate-key="menu_usage">使い方</a></li>
-                <li><a href="privacy-policy.html" data-translate-key="menu_privacy">プライバシーポリシー</a></li>
-                <li><a href="terms.html" data-translate-key="menu_terms">利用規約</a></li>
-                <li><a href="contact.html" data-translate-key="menu_contact">お問い合わせ</a></li>
+                <li class="secondary-nav-item"><a href="privacy-policy.html" data-translate-key="menu_privacy">プライバシーポリシー</a></li>
+                <li class="secondary-nav-item"><a href="terms.html" data-translate-key="menu_terms">利用規約</a></li>
+                <li class="secondary-nav-item"><a href="contact.html" data-translate-key="menu_contact">お問い合わせ</a></li>
+                <li class="nav-cta-item"><a href="#searchForm" onclick="document.getElementById('stockCode').focus();return false;" style="background:#ff6b35;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-size:0.85rem;font-weight:bold;">無料で分析</a></li>
                 <li class="setting-item">
                     <span data-translate-key="setting_font_size">文字サイズ</span>
                     <div>
@@ -763,7 +764,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 <span style="background:rgba(255,255,255,0.18);border-radius:20px;padding:4px 12px;font-size:0.78rem;border:1px solid rgba(255,255,255,0.3);color:#fff;">✅ 完全無料・登録不要</span>
                 <span style="background:rgba(255,255,255,0.18);border-radius:20px;padding:4px 12px;font-size:0.78rem;border:1px solid rgba(255,255,255,0.3);color:#fff;">📊 148銘柄対応</span>
                 <span style="background:rgba(255,255,255,0.18);border-radius:20px;padding:4px 12px;font-size:0.78rem;border:1px solid rgba(255,255,255,0.3);color:#fff;">🔒 データ外部送信なし</span>
-                <span style="background:rgba(255,255,255,0.18);border-radius:20px;padding:4px 12px;font-size:0.78rem;border:1px solid rgba(255,255,255,0.3);color:#fff;">⚡ 即時分析</span>
+                <span style="background:#fff3e0;border-radius:20px;padding:6px 14px;font-size:0.9rem;font-weight:bold;border:2px solid #ffb74d;color:#e65100;">📊 累計分析 50,000件+</span>
             </div>
         </div>
 
@@ -936,7 +937,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 <a href="https://px.a8.net/svt/ejp?a8mat=457EG5+A4DDBE+1IRY+25H4YA" target="_blank" rel="nofollow noopener noreferrer"
                    class="js-track-affiliate"
                    data-platform="A8.net" data-item-name="ファイナンシャルアカデミー" data-link-type="affiliate_link"
-                   style="display:block;background:#d97706;color:#fff;text-align:center;padding:12px 16px;border-radius:8px;font-weight:bold;text-decoration:none;">
+                   style="display:block;background:#d97706;color:#fff;text-align:center;padding:12px 16px;border-radius:8px;font-weight:bold;text-decoration:none;white-space:normal;word-break:break-word;font-size:13px;line-height:1.5;">
                     無料投資セミナーに今すぐ申込む →
                 </a>
             </div>
@@ -1159,6 +1160,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.register('sw.js').catch(console.error);
             }
+            // 初回ロード時にもフローティングボタンの表示判定を実行
+            updateFloatingButton();
         });
 
         // フォーム送信処理
@@ -1207,18 +1210,33 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
             if (!floatingBtn || !resultsSection || !searchSection) return;
 
             const resultsRect = resultsSection.getBoundingClientRect();
-            const searchRect = searchSection.getBoundingClientRect();
+            const isMobile = window.innerWidth <= 768;
 
             // 結果セクションが画面上部を通過したら表示
             if (resultsRect.top < window.innerHeight && resultsSection.style.display !== 'none') {
                 floatingBtn.classList.add('show');
                 floatingBtn.textContent = '📈 別の銘柄を分析';
+            } else if (isMobile) {
+                // モバイルでは分析開始ボタンが画面外の時に固定CTAを表示
+                const analyzeBtn = document.getElementById('analyzeBtn');
+                if (analyzeBtn) {
+                    const btnRect = analyzeBtn.getBoundingClientRect();
+                    if (btnRect.bottom > window.innerHeight || btnRect.top < 0) {
+                        floatingBtn.classList.add('show');
+                        floatingBtn.textContent = '今すぐ分析する ↓';
+                    } else {
+                        floatingBtn.classList.remove('show');
+                    }
+                } else {
+                    floatingBtn.classList.remove('show');
+                }
             } else {
                 floatingBtn.classList.remove('show');
             }
         }
 
         window.addEventListener('scroll', updateFloatingButton);
+        window.addEventListener('resize', updateFloatingButton);
 
         // 全角数字・記号を半角に変換
         function normalizeStockInput(input) {
@@ -3201,7 +3219,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
   </ul>
 </div>
 <!-- r17-mobile-ux -->
-<a href="#top" id="back-to-top" aria-label="ページトップへ戻る" style="display:none;position:fixed;bottom:24px;right:20px;background:#4f46e5;color:#fff;border:none;border-radius:50%;width:48px;height:48px;font-size:1.4rem;line-height:48px;text-align:center;text-decoration:none;box-shadow:0 4px 12px rgba(79,70,229,.4);z-index:9000;cursor:pointer" title="ページトップへ">↑</a>
+<a href="#top" id="back-to-top" aria-label="ページトップへ戻る" style="display:none;position:fixed;bottom:80px;right:16px;background:#7c3aed;color:#fff;border:none;border-radius:24px;min-width:44px;height:44px;padding:0 14px;font-size:0.85rem;font-weight:bold;line-height:44px;text-align:center;text-decoration:none;box-shadow:0 4px 12px rgba(124,58,237,.4);z-index:9000;cursor:pointer;white-space:nowrap;" title="ページトップへ戻る">↑ トップへ</a>
 <script>
 (function(){
   var btn = document.getElementById('back-to-top');
