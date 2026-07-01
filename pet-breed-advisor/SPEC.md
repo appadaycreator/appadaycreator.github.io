@@ -60,6 +60,11 @@
 
 ## 変更履歴
 
+### v1.3.1（2026-07-02）
+- V1:HIGH修正: 診断結果下の費用データテーブル直下に強調CTA「おすすめペット保険を比較する」セクション追加（background-color:#ff6b35、padding:14px 24px、幅100%）
+- V2:HIGH修正: Cookie同意バナー追加。ボタンカラーをgreen → gray (#6c757d) に統一。バナーをposition:fixed;bottom:0;max-height:80pxに制限し、height:40pxに縮小。ユーザーが診断CTAと誤認識する二重CTA状態を解消
+- V3:MED修正: プログレスバーの色を#ff6b35に統一、背景を#e5e7ebに変更して視認性向上。初期widthを12.5%、height:8pxで表示し、完了への心理的サンクコストを強化
+
 ### v1.3.0（2026-06-20）
 - V1修正: Cookie同意ボタンのサイズを拡大（padding 1rem 2rem、min-height 56px、font-size 1rem）し、CTAの視認性向上
 - V2修正: フッターテキストカラーを amber-100 → white に変更し、WCAG AAコントラスト比対応
