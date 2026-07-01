@@ -3,9 +3,17 @@
 ## 概要
 
 **サービス名**: Fire Calculator
-**バージョン**: 2.9.5
-**更新日**: 2026-06-26
+**バージョン**: 2.9.6
+**更新日**: 2026-07-01
 **URL**: https://appadaycreator.com/fire-calculator/
+
+## 変更履歴（v2.9.6）
+- M2 Phase2: コア機能のUX改善・スクリーンショット解析による視覚的UI問題全対応（V1-V5）
+  - [V1] FAQ内のテキストリンクをボタン型CTAに変更：background #7c3aed、color #fff、padding 12px 24px、border-radius 8px、display inline-block で視覚的重量を強化・クリック率向上
+  - [V2] 免責事項をフッター内に折りたたみ式（details/summary）で移動：メインコンテンツ上から除去、font-size 11px、color #999 で法的情報を背景化・信頼感を最優先に
+  - [V3] 利用者の声（1件）をヒーロー直下に移動：max-width 600px、center配置で視認性向上・計算前に信頼根拠を提示
+  - [V4] モバイルでのform-grid を明示的に1列化：@media (max-width: 768px) { grid-template-columns: 1fr } 追加・総資産フィールド表示漏れ対策
+  - [V5] ヒーローセクションのサブタイトル変更：「あなたは何歳でFIREできる？ 平均3分で早期退職プランを計算」に変更、font-size 1.1rem、color #4b5563 で行動動機を強化
 
 ## 変更履歴（v2.9.5）
 - M2: コア機能のUX改善 - 入力フォーム全体のアクセシビリティ＆バリデーション強化
