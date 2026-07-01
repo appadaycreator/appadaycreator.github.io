@@ -3,263 +3,82 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="refresh" content="300">
 <title>Claude消費量管理</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #0f172a;
-  color: #e2e8f0;
-  min-height: 100vh;
-  padding: 20px;
-}
+html, body { width: 100%; height: 100%; overflow: hidden; background: #0f172a; }
 
-/* Login */
-#login-screen {
-  display: flex; align-items: center; justify-content: center;
-  min-height: 100vh; padding: 24px;
+#loading {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  height: 100vh; color: #e2e8f0; font-family: -apple-system, sans-serif;
 }
-.login-box {
-  background: #1e293b; border: 1px solid #334155; border-radius: 20px;
-  padding: 36px 28px; width: 100%; max-width: 320px; text-align: center;
+#loading h1 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+#loading h1 span { color: #f97316; }
+#loading p { font-size: 13px; color: #64748b; margin-bottom: 20px; }
+.spinner {
+  width: 36px; height: 36px; border: 3px solid #334155;
+  border-top-color: #f97316; border-radius: 50%; animation: spin .8s linear infinite;
 }
-.login-box h1 { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
-.login-box p { font-size: 13px; color: #64748b; margin-bottom: 24px; }
-.login-box input {
-  width: 100%; padding: 12px 16px; background: #0f172a;
-  border: 1px solid #334155; border-radius: 10px; color: #e2e8f0;
-  font-size: 15px; outline: none; margin-bottom: 12px;
-}
-.login-box input:focus { border-color: #f97316; }
-.login-box button {
-  width: 100%; padding: 12px; background: #f97316; color: #fff;
-  border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer;
-}
-.login-err { font-size: 13px; color: #f87171; margin-top: 8px; display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
-/* Main */
-#main-screen { display: none; }
-header {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 24px;
+#offline {
+  display: none; flex-direction: column; align-items: center; justify-content: center;
+  height: 100vh; color: #e2e8f0; font-family: -apple-system, sans-serif; padding: 24px; text-align: center;
 }
-header h1 { font-size: 18px; font-weight: 700; }
-header h1 span { color: #f97316; }
-.updated { font-size: 12px; color: #64748b; }
-.cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 12px; margin-bottom: 28px;
+#offline h2 { font-size: 16px; font-weight: 700; margin-bottom: 8px; color: #f87171; }
+#offline p { font-size: 13px; color: #94a3b8; margin-bottom: 16px; line-height: 1.6; }
+#offline .btn {
+  display: inline-block; background: #3b82f6; color: #fff; text-decoration: none;
+  padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;
 }
-.card {
-  background: #1e293b; border: 1px solid #334155;
-  border-radius: 12px; padding: 16px;
-}
-.card-label { font-size: 11px; color: #94a3b8; margin-bottom: 6px; }
-.card-value { font-size: 32px; font-weight: 700; line-height: 1; }
-.card-sub { font-size: 11px; color: #64748b; margin-top: 4px; }
-.ok   { color: #4ade80; }
-.warn { color: #facc15; }
-.crit { color: #f87171; }
-.na   { color: #475569; }
+#offline .url-note { font-size: 11px; color: #475569; margin-top: 12px; }
 
-.section { margin-bottom: 28px; }
-.section h2 { font-size: 13px; color: #94a3b8; margin-bottom: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
-
-.chart-wrap { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 16px; overflow: hidden; }
-canvas { width: 100% !important; display: block; }
-
-.full-dash {
-  margin-bottom: 20px;
-  background: #1e293b; border: 1px solid #334155;
-  border-radius: 12px; padding: 16px;
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-}
-.full-dash .desc { font-size: 12px; color: #94a3b8; }
-.full-dash .desc strong { color: #e2e8f0; font-size: 13px; display: block; margin-bottom: 2px; }
-.full-dash a.btn {
-  background: #3b82f6; color: #fff; text-decoration: none;
-  padding: 8px 18px; border-radius: 8px; font-size: 13px; font-weight: 600;
-  white-space: nowrap; flex-shrink: 0;
-}
-.full-dash a.btn:hover { background: #2563eb; }
-.back { margin-top: 24px; }
-.back a { color: #64748b; font-size: 13px; text-decoration: none; }
-.back a:hover { color: #94a3b8; }
-
-.err { color: #f87171; font-size: 13px; padding: 20px; text-align: center; }
+iframe#dash { display: none; width: 100%; height: 100%; border: none; }
 </style>
 </head>
 <body>
 
-<!-- Login -->
-<div id="login-screen">
-  <div class="login-box">
-    <h1>🤖 Claude消費量管理</h1>
-    <p>パスワードを入力してください</p>
-    <input type="password" id="pw" placeholder="パスワード" onkeydown="if(event.key==='Enter')doLogin()">
-    <button onclick="doLogin()">ログイン</button>
-    <div class="login-err" id="login-err">パスワードが違います</div>
-  </div>
-</div>
-
-<!-- Main -->
-<div id="main-screen">
-<header>
+<div id="loading">
   <h1>🤖 <span>Claude</span>消費量管理</h1>
-  <span class="updated" id="updatedAt">読み込み中...</span>
-</header>
-
-<div class="cards" id="cards">
-  <div class="card"><div class="card-label">5時間枠</div><div class="card-value na" id="v5h">--</div><div class="card-sub">%</div></div>
-  <div class="card"><div class="card-label">週間（全体）</div><div class="card-value na" id="v7d">--</div><div class="card-sub">%</div></div>
-  <div class="card"><div class="card-label">週間 Sonnet</div><div class="card-value na" id="v7s">--</div><div class="card-sub">%</div></div>
-  <div class="card"><div class="card-label">週間 Opus</div><div class="card-value na" id="v7o">--</div><div class="card-sub">%</div></div>
+  <p>ダッシュボードに接続中...</p>
+  <div class="spinner"></div>
 </div>
 
-<div class="full-dash">
-  <div class="desc">
-    <strong>🖥 フルダッシュボード</strong>
-    auto_improve管理・ログ・LaunchAgent設定など詳細機能
-  </div>
+<div id="offline">
+  <h2>⚠️ ダッシュボードに接続できません</h2>
+  <p>ローカルダッシュボードが起動していないか、トンネルURLが変わった可能性があります。</p>
   <!-- DASHBOARD_URL_START -->
-  <a class="btn" id="dashBtn" href="https://inserted-luis-skirts-theology.trycloudflare.com/?pw=30service" target="_blank" rel="noopener">開く →</a>
+  <a class="btn" id="dashBtn" href="https://inserted-luis-skirts-theology.trycloudflare.com/?pw=30service" target="_blank" rel="noopener">直接開く →</a>
   <!-- DASHBOARD_URL_END -->
+  <p class="url-note">URL: <code id="urlDisplay">https://inserted-luis-skirts-theology.trycloudflare.com</code></p>
 </div>
 
-<div class="section">
-  <h2>推移（直近24時間）</h2>
-  <div class="chart-wrap">
-    <canvas id="chart" height="140"></canvas>
-  </div>
-</div>
-
-<div class="back">
-  <a href="https://appadaycreator.com/my-hub/?p=techbrace2026">← マイツールに戻る</a>
-</div>
-</div>
+<iframe id="dash"></iframe>
 
 <script>
-const PASSWORD = 'techbrace2026';
-const SESSION_KEY = 'claude_usage_auth';
+const DASH_URL = 'https://inserted-luis-skirts-theology.trycloudflare.com/?pw=30service';
+const iframe = document.getElementById('dash');
+const loading = document.getElementById('loading');
+const offline = document.getElementById('offline');
 
-function doLogin() {
-  const pw = document.getElementById('pw').value;
-  if (pw === PASSWORD) {
-    sessionStorage.setItem(SESSION_KEY, '1');
-    showMain();
-  } else {
-    document.getElementById('login-err').style.display = 'block';
-    document.getElementById('pw').value = '';
-    document.getElementById('pw').focus();
-  }
-}
+iframe.src = DASH_URL;
 
-function showMain() {
-  document.getElementById('login-screen').style.display = 'none';
-  document.getElementById('main-screen').style.display = 'block';
-  load();
-}
+const timer = setTimeout(() => {
+  loading.style.display = 'none';
+  offline.style.display = 'flex';
+}, 10000);
 
-(function() {
-  const p = new URLSearchParams(location.search).get('p');
-  if (p === PASSWORD) {
-    sessionStorage.setItem(SESSION_KEY, '1');
-    history.replaceState({}, '', location.pathname);
-  }
-  if (sessionStorage.getItem(SESSION_KEY)) showMain();
-})();
+iframe.onload = () => {
+  clearTimeout(timer);
+  loading.style.display = 'none';
+  iframe.style.display = 'block';
+};
 
-function color(v) {
-  if (v == null) return 'na';
-  if (v >= 85) return 'crit';
-  if (v >= 70) return 'warn';
-  return 'ok';
-}
-
-function fmt(v) { return v == null ? '--' : Math.round(v) + ''; }
-
-async function load() {
-  try {
-    const res = await fetch('./data.json?_=' + Date.now(), { cache: 'no-store' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const d = await res.json();
-
-    document.getElementById('updatedAt').textContent = '更新: ' + d.updated_at;
-
-    const l = d.latest || {};
-    const set = (id, v) => {
-      const el = document.getElementById(id);
-      el.textContent = fmt(v);
-      el.className = 'card-value ' + color(v);
-    };
-    set('v5h', l.five_hour);
-    set('v7d', l.seven_day);
-    set('v7s', l.seven_day_sonnet);
-    set('v7o', l.seven_day_opus);
-
-    drawChart(d.history || []);
-  } catch(e) {
-    document.getElementById('cards').innerHTML =
-      '<p class="err">データを読み込めませんでした (' + e.message + ')<br><button onclick="load()" style="margin-top:8px;padding:6px 16px;background:#f97316;color:#fff;border:none;border-radius:8px;cursor:pointer;">再試行</button></p>';
-  }
-}
-
-function drawChart(history) {
-  const canvas = document.getElementById('chart');
-  const dpr = window.devicePixelRatio || 1;
-  const W = canvas.parentElement.clientWidth - 32;
-  const H = 140;
-  canvas.width  = W * dpr;
-  canvas.height = H * dpr;
-  canvas.style.width  = W + 'px';
-  canvas.style.height = H + 'px';
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-
-  if (!history.length) return;
-
-  const PAD = { top: 8, right: 8, bottom: 24, left: 30 };
-  const iW = W - PAD.left - PAD.right;
-  const iH = H - PAD.top - PAD.bottom;
-
-  ctx.strokeStyle = '#1e3a5f';
-  ctx.lineWidth = 1;
-  [0, 25, 50, 75, 100].forEach(y => {
-    const py = PAD.top + iH - (y / 100 * iH);
-    ctx.beginPath(); ctx.moveTo(PAD.left, py); ctx.lineTo(PAD.left + iW, py); ctx.stroke();
-    ctx.fillStyle = '#475569'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
-    ctx.fillText(y + '%', PAD.left - 4, py + 3);
-  });
-
-  const lines = [
-    { key: 'seven_day',       color: '#3b82f6', label: '週間全体' },
-    { key: 'seven_day_sonnet', color: '#f97316', label: 'Sonnet' },
-    { key: 'five_hour',       color: '#a78bfa', label: '5時間' },
-  ];
-
-  lines.forEach(({ key, color: lc }) => {
-    const pts = history.map((e, i) => ({
-      x: PAD.left + (i / (history.length - 1)) * iW,
-      y: PAD.top + iH - ((e[key] ?? 0) / 100 * iH),
-      v: e[key],
-    }));
-    ctx.beginPath();
-    ctx.strokeStyle = lc;
-    ctx.lineWidth = 1.5;
-    pts.forEach((p, i) => { if (p.v != null) { i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y); } });
-    ctx.stroke();
-  });
-
-  let lx = PAD.left;
-  lines.forEach(({ label, color: lc }) => {
-    ctx.fillStyle = lc; ctx.fillRect(lx, H - 12, 12, 3);
-    ctx.fillStyle = '#94a3b8'; ctx.font = '10px sans-serif'; ctx.textAlign = 'left';
-    ctx.fillText(label, lx + 15, H - 8);
-    lx += 70;
-  });
-}
+iframe.onerror = () => {
+  clearTimeout(timer);
+  loading.style.display = 'none';
+  offline.style.display = 'flex';
+};
 </script>
 </body>
 </html>
