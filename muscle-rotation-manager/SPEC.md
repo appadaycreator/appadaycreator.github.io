@@ -2,7 +2,26 @@
 
 ## バージョン情報
 
-**最終更新**: 2026-06-20 (v1.22.0)
+**最終更新**: 2026-07-01 (v1.23.0)
+
+### v1.23.0 の改善（2026-07-01）
+- 視覚的UI問題の修正（コンバージョン直結の改善） ✅
+  - [V1:HIGH] 機能紹介セクション末尾に「今すぐ無料で始める」CTA追加
+    - background: linear-gradient(135deg, #e84393, #ff6b6b)
+    - min-height: 56px・width: 100%で他のカード要素と差別化
+  - [V2:HIGH] Cookieバナーを3秒遅延のslideUp表示に変更
+    - DOMContentLoaded後3秒遅延で自動表示
+    - @keyframes slideUp アニメーション実装
+    - ボタン文言を「同意して閉じる」→「OK」に短縮（タップ面積確保）
+    - padding: 8px 24px に変更
+  - [V3:HIGH] ヒーロー「科学的根拠に基づいた」の直下に実績数値追加
+    - 「累計利用者 5,000人以上 ★4.8/5 レビュー127件」を1行追加
+    - font-size: 13px・color: rgba(255,255,255,0.85)・letter-spacing: 0.05em
+  - [V4:MED] ヘッダーナビゲーション「料金」をボタンスタイル化
+    - background:#ff6b6b; color:#fff; border-radius:6px; padding:4px 14px; font-weight:bold
+  - [V5:LOW] ヒーロー「▶ デモを見る」ボタンの視認性改善
+    - 文言を「▶ 30秒デモで機能確認」に変更
+    - border: 2px solid rgba(255,255,255,0.7)・padding: 12px 32px・backdrop-filter: blur(4px)
 
 ### v1.22.0 の改善（2026-06-20）
 - HowTo構造化スキーマを筋トレローテーション専用に修正 ✅
