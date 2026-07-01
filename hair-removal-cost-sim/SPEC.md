@@ -9,6 +9,14 @@
 
 部位・施術回数・クリニック別に脱毛の総費用を無料シミュレーション。医療脱毛と光脱毛を比較。
 
+### v1.8.0 更新内容（2026-07-02）
+**Phase2直接実装: 視覚的UI問題全5件修正（V1-V5コンバージョン直結改善）**
+- V1:HIGH - モバイルCTA固定化: position:fixed bottom:0でアフィリエイトボタンを常時表示、background-color:#e91e63・padding:14px 0・width:100%で視認性確保、モバイルユーザーのコンバージョン導線を3~4スクロール→即座にアクセス
+- V2:HIGH - 「LPを見る」を目立たなく: background:transparent・color:#999999・font-weight:normalに変更、ファーストビューでの離脱を誘発していた設計を改善
+- V3:HIGH - モバイルヘッダーボタンWCAG対応: min-height:44px・padding:10px 16px・font-size:14pxでApple HIG・WCAG基準達成、タップターゲット面積を28px→44pxに拡大
+- V4:MED - タイプ選択カード簡潔化: font-size:13pxに削減・min-height:60pxに縮小、カード内テキストを読解作業から即座の判断へ改善
+- V5:MED - ヒーロー統計バッジ視認性UP: padding:12px 0・font-size:14px・font-weight:bold実装、「完全無料」バッジをbackground:#fff3e0・border:2px solid #ff9800で強調、最大コンバージョン要因の視認率向上
+
 ### v1.7.0 更新内容（2026-06-21）
 **スクリーンショット解析・視覚的UI問題改善（V1-V5）+ M8・M10充実**
 - V1改善: モバイルCookie同意バナー問題 - z-index・position調整でメインCTA「費用を計算する」との視覚的競合を回避、ユーザー判断迷い解消
