@@ -413,6 +413,12 @@
                 opacity: 0;
             }
         }
+
+        @keyframes pseudo-progress {
+            0% { width: 0%; }
+            50% { width: 85%; }
+            100% { width: 100%; }
+        }
     
 /* Phase 8: Mobile Optimization */
 input, select, textarea { font-size: 16px !important; }
@@ -542,22 +548,29 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
     </div>
 
     <!-- ローディング画面 V1/V2/V4/V5改善: 進捗表示・信頼性シグナル・スキップ遅延 -->
-    <div id="loading" class="fixed inset-0 bg-white flex items-center justify-center" style="z-index:10000">
+    <div id="loading" class="fixed inset-0 bg-white" style="z-index:10000;min-height:100vh;display:flex;align-items:center;justify-content:center">
         <div class="text-center px-8 max-w-sm w-full">
             <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto"></div>
             <p class="mt-5 text-gray-800 font-semibold text-lg">読み込み中...</p>
             <p class="mt-2 text-gray-600 text-base font-medium">✈️ 完璧な旅行準備をサポート</p>
             <p class="mt-1 text-gray-500 text-sm" id="loading-status-msg">チェックリストを準備しています...</p>
-            <!-- V1: ローディング進捗バー（長さが不明確→可視化） -->
-            <div class="mt-4 w-full bg-gray-200 rounded-full" style="height:4px" aria-hidden="true">
-                <div id="loading-progress-bar" class="bg-indigo-600 rounded-full" style="height:4px;width:0%;transition:width 1.8s ease-out"></div>
+            <!-- V1/V4: ローディング進捗バー（8pxに太くし、疑似プログレスアニメーション） -->
+            <div class="mt-4 w-full bg-gray-200 rounded-full" style="height:8px" aria-hidden="true">
+                <div id="loading-progress-bar" class="bg-indigo-600 rounded-full" style="height:8px;width:0%;animation:pseudo-progress 3s ease-in-out infinite"></div>
             </div>
-            <!-- V5: 信頼性シグナル（待ち時間を有益に活用） -->
-            <div class="mt-5 p-3 bg-indigo-50 rounded-xl text-left space-y-1">
-                <p class="text-xs text-indigo-700 font-bold">✈️ こんな使い方ができます</p>
-                <p class="text-xs text-indigo-600">✓ シーン別テンプレートを選ぶだけ</p>
-                <p class="text-xs text-indigo-600">✓ 日数・人数に合わせて自動整理</p>
-                <p class="text-xs text-indigo-600">✓ 登録不要・完全無料・データはブラウザ保存</p>
+            <!-- V3/V5: 信頼性シグナル（背景を白、テキスト黒、チェック青、シャドウ追加） -->
+            <div class="mt-5 p-3 rounded-xl text-left space-y-1" style="background-color:#ffffff;box-shadow:0 2px 8px rgba(0,0,0,0.1)">
+                <p style="color:#1a1a1a;font-weight:bold;font-size:0.75rem">✈️ こんな使い方ができます</p>
+                <p style="color:#1a1a1a;font-size:0.75rem"><span style="color:#2563eb;font-weight:600">✓</span> シーン別テンプレートを選ぶだけ</p>
+                <p style="color:#1a1a1a;font-size:0.75rem"><span style="color:#2563eb;font-weight:600">✓</span> 日数・人数に合わせて自動整理</p>
+                <p style="color:#1a1a1a;font-size:0.75rem"><span style="color:#2563eb;font-weight:600">✓</span> 登録不要・完全無料・データはブラウザ保存</p>
+            </div>
+            <!-- V5: アフィリエイトバナー（待機中の収益化機会） -->
+            <div class="mt-5 space-y-3">
+                <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ5+C2OQY2+14CS+68EPE" rel="nofollow" target="_blank" style="display:block;min-height:60px;padding:12px 14px;background:#fff8e1;border:1px solid #f59e0b;border-radius:6px;text-decoration:none;transition:background 0.15s">
+                    <p style="font-size:13px;font-weight:700;color:#d97706;margin:0 0 4px">🧳 旅行グッズを事前にチェック</p>
+                    <p style="font-size:12px;color:#6b7280;margin:0">おすすめスーツケース・旅行用品をご紹介</p>
+                </a>
             </div>
             <!-- V4: スキップは3秒後のみ表示（即時表示は「ページが不安定」と誤解させる） -->
             <button id="skip-loading" class="mt-5 px-4 py-2 text-xs text-gray-400 border border-gray-200 rounded-lg hover:bg-gray-50 transition duration-150" style="display:none" onclick="document.getElementById('loading').style.display='none'">コンテンツをスキップ表示</button>
@@ -569,10 +582,16 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
         var bar = document.getElementById('loading-progress-bar');
         var msg = document.getElementById('loading-status-msg');
         var skip = document.getElementById('skip-loading');
-        if(bar){ setTimeout(function(){bar.style.width='65%';},50); setTimeout(function(){bar.style.width='90%';},1000); }
+        var loading = document.getElementById('loading');
         if(msg){ setTimeout(function(){msg.textContent='テンプレートを設定中...';},600); setTimeout(function(){msg.textContent='もうすぐ完了します！';},1300); }
         /* V4: 3秒以上経過した場合のみスキップボタンを表示 */
         setTimeout(function(){if(skip)skip.style.display='block';},3000);
+        /* DOMContentLoaded後にローディング画面を非表示にしてチェックリストをフェードイン */
+        document.addEventListener('DOMContentLoaded',function(){
+            setTimeout(function(){
+                if(loading) loading.style.display='none';
+            },3500);
+        });
     })();
     </script>
 
