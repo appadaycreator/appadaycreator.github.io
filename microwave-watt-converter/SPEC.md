@@ -21,6 +21,13 @@
 
 ## 変更履歴
 
+### v1.4.4 (2026-07-01)
+- **UI/UX最適化【P1】**: モバイル・デスクトップの視覚的問題を集中修正（V1-V5）
+  - **V1**: Cookie バーの高さを 40px に圧縮、position を fixed → sticky に変更（モバイルで計算ボタンが隠れる問題を解決）
+  - **V3**: Download ボタンの背景を #2ecc71 (鮮やかな緑) → #ccc (グレー) に変更、視覚的ヒエラルキーを調整（収益CTAを優先度アップ）
+  - **V4**: 信頼バッジ（秒単位計算・25万+利用・100%安全・2026年6月更新）を font-size 14px・background #fff3e0・border-radius 20px のタグ型に強調（モバイルでの初見信頼構築向上）
+  - **V5**: クイック変換ボタン（×1.5・×2・×3・÷2）の背景を #f0f4ff・枠線を #7c6af7 に変更、padding 12px 16px で 44px 以上のタップターゲット確保（モバイルクリック性向上）
+
 ### v1.4.3 (2026-06-20)
 - **UX改善【P1】**: モバイルで計算後に結果が画面外に隠れる問題を修正（V1対応）
   - `main.js` の `calculateTime` 関数でボタン押下時（`showNotif=true`）のみ `resultCard.scrollIntoView({behavior:'smooth', block:'nearest'})` を実行
