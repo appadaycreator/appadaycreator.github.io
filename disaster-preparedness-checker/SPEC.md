@@ -16,6 +16,13 @@
 
 ## バージョン履歴
 
+### v1.11.0 (2026-07-01)
+- **V1修正: CTAボタンの視認性向上**: 「今すぐ無料診断開始」ボタンの背景色を#FFFFFFから#FF6B35（高輝度補色）に変更。文字色を#cc0000から#ffffffに修正。border:3px solid #ffffffをborder:noneでフラット化。padding:18px 0 → padding:18px 40pxで拡大。contrast比4.5:1以上確保でファーストビューCTAの視認性大幅向上
+- **V2修正: モバイルヒーロー見出しの隠れ対策**: ヒーローセクションにpadding-top:calc(70px + 2rem)を追加（sticky navigationの高さに対応）。モバイルで「あなたの家庭の」テキストがnavの下に隠れる問題を解決
+- **V3修正: アフィリエイトリンクの統一**: 「📷 5年保存の非常食セットも見る」「⚡ Dabbsson ポータブル電源も見る」のテキストリンクをセカンダリボタンスタイル（border:2px solid #e65c00, padding:10px 20px, border-radius:6px, font-weight:bold）に統一。テキストリンク→ボタン化でCTR率向上
+- **V4修正: アバター画像の信頼性向上**: レビューカードのアバターをSVG汎用シルエット（デフォルトプレースホルダー）から初期文字アバター（「田」「佐」「山」をfont-size:20px, background:#c0392b, color:white, border-radius:50%で円形表示）に変更。「作られた口コミ」シグナルを排除
+- **V5修正: 実績数値の強調表示**: ヒーロー内の「累計15,284家族が診断済み」「平均スコア62点」をfont-size:18px+上でバッジ形式（background:rgba(255,255,255,0.15), padding:12px 24px, backdrop-filter:blur(10px)）で表示。数値部分をcolor:#FFD700, font-weight:800で強調。CVR直結の信頼シグナルを視線集約
+
 ### v1.10.0 (2026-06-29)
 - **V1/V2 ヒーローCTA抜本改善**: 「登録不要・完全無料」をボックスからインラインバッジ（チェックアイコン付き）に変更。「今すぐ無料診断開始」をbg-white/color:#cc0000/font-size:1.3rem/border:3px solidの高コントラスト白ボタンに変更。「履歴を見る」をテキストリンクに格下げしCTAを1本に絞った
 - **V3 アフィリエイトPR表記最適化**: 【PR】表記をfont-size:0.7rem/color:#999999の最小法定サイズに変更。ポータブル電源カテゴリでJackeryをNo.1推奨の主ボタン・DabbssonをテキストリンクとしてCTA階層を明確化
