@@ -68,6 +68,23 @@ button, .btn, .btn-primary, .option-btn, [role="button"] { min-height: 48px; min
 .related-link{padding:10px;text-align:center;border:1px solid #ddd;border-radius:4px;text-decoration:none;color:#333;display:block;transition:background 0.15s;}
 .related-link:hover{background:#f5f5f5;}
 
+/* V2: Cookie banner styling - override dynamic banners */
+[role="dialog"][aria-label*="cookie" i],
+[role="dialog"][aria-label*="Cookie" i],
+[id*="cookie" i],
+[class*="cookie" i]{
+  background:#f5f5f5!important;
+  min-height:60px!important;
+}
+[role="dialog"][aria-label*="cookie" i] button,
+[role="dialog"][aria-label*="Cookie" i] button,
+[id*="cookie" i] button,
+[class*="cookie" i] button{
+  background:#888888!important;
+  color:#fff!important;
+  border:none!important;
+}
+
 /* AdSense unfilled: collapse empty ad slots */
 ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!important;height:0!important}
 </style>
@@ -596,7 +613,7 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
     <!-- メインコンテンツ -->
     <div class="flex min-h-screen">
         <!-- デスクトップ左サイドバー -->
-        <aside id="desktopSidebar" class="hidden lg:block w-80 bg-white shadow-lg overflow-y-auto">
+        <aside id="desktopSidebar" class="hidden lg:block w-80 bg-white shadow-lg overflow-y-auto" style="display:var(--sidebar-visible, none)">
             <div class="p-6">
                 <!-- ダッシュボードヘッダー -->
                 <div class="mb-6">
@@ -813,27 +830,41 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
         <main id="main" role="main" class="flex-1 p-4 lg:p-8">
             <!-- ツールバー -->
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
-                <div class="flex flex-wrap gap-2 mb-4 sm:mb-0">
+                <div class="flex flex-wrap gap-2 mb-4 sm:mb-0 flex-col sm:flex-row w-full sm:w-auto">
+                    <button id="addGoalBtn" class="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors" style="min-height:44px;order:-1;">
+                        <span class="mr-2">✨</span><span data-i18n="add-goal">新しい目標</span>
+                    </button>
                     <button id="roadmapViewBtn" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors">
                         <span class="mr-2">🛣️</span><span data-i18n="roadmap-view">ロードマップ</span>
                     </button>
-                    <button id="calendarViewBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors">
+                    <button id="calendarViewBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors v3-conditional-btn">
                         <span class="mr-2">📅</span><span data-i18n="calendar-view">カレンダー</span>
                     </button>
-                    <button id="dailyViewBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors">
+                    <button id="dailyViewBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors v3-conditional-btn">
                         <span class="mr-2">✅</span><span data-i18n="daily-view">今日のタスク</span>
                     </button>
                 </div>
-                
+
                 <div class="flex flex-wrap gap-2">
-                    <button id="addGoalBtn" class="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors" style="min-height:44px;">
-                        <span class="mr-2">✨</span><span data-i18n="add-goal">目標を作成（1分）</span>
-                    </button>
                     <button class="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 transition-colors" style="min-height:44px;">
                         <span class="mr-2">📤</span><span data-i18n="share">シェア</span>
                     </button>
                 </div>
             </div>
+            <script>
+            // V3: モバイル・新規ユーザー向けナビゲーション制御
+            (function(){
+                function updateButtonVisibility(){
+                    var hasGoals=false;
+                    try{var g=localStorage.getItem('goals');if(g){var a=JSON.parse(g);hasGoals=Array.isArray(a)&&a.length>0;}}catch(e){}
+                    var btns=document.querySelectorAll('.v3-conditional-btn');
+                    btns.forEach(function(b){b.style.display=hasGoals?'':'none';});
+                }
+                updateButtonVisibility();
+                var c=document.getElementById('roadmapContainer');
+                if(c)new MutationObserver(updateButtonVisibility).observe(c,{childList:true});
+            })();
+            </script>
             
             <!-- ビューコンテンツ -->
             <!-- ロードマップビュー -->
@@ -843,13 +874,15 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 <div id="emptyStateCta" style="display:none;text-align:center;padding:40px 16px 32px">
                     <div style="font-size:3.5rem;margin-bottom:12px">🎯</div>
                     <h3 style="font-size:1.35rem;font-weight:700;color:#fff;margin-bottom:8px">あなたの夢を実行計画に変えよう</h3>
-                    <p style="color:rgba(255,255,255,0.88);margin-bottom:16px;font-size:0.95rem"><strong>大きな目標を自動分解</strong><br>→ 年間・月次・週次のロードマップに</p>
+                    <p style="color:rgba(255,255,255,0.88);margin-bottom:16px;font-size:0.85rem"><strong>大きな目標を自動分解</strong><br>→ 年間・月次・週次のロードマップに</p>
                     <div style="background:rgba(255,255,255,0.1);border-left:4px solid #fbbf24;padding:12px 16px;margin-bottom:24px;text-align:left;border-radius:8px;">
                         <p style="color:rgba(255,255,255,0.9);margin:0;font-size:0.9rem;">📌 <strong>こんな目標に最適:</strong> 資格取得・転職・貯金・ダイエット・副業・スキルアップ・英語学習</p>
                     </div>
-                    <button onclick="document.getElementById('addGoalBtn').click()" data-ux="1" style="background:#fff;color:#7c3aed;padding:14px 36px;border:none;border-radius:12px;font-size:1.05rem;font-weight:700;cursor:pointer;box-shadow:0 4px 24px rgba(0,0,0,0.2);min-height:52px;transition:transform 0.1s,box-shadow 0.1s;" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 28px rgba(0,0,0,0.28)'" onmouseout="this.style.transform='';this.style.boxShadow='0 4px 24px rgba(0,0,0,0.2)'">
-                        ＋ 今すぐ無料で最初の目標を作成する（1分で完成）
-                    </button>
+                    <div style="background:rgba(255,255,255,0.95);padding:24px;border-radius:16px;display:inline-block;margin:0 auto;">
+                        <button onclick="document.getElementById('addGoalBtn').click()" data-ux="1" style="background:#ff6b35;color:#fff;padding:14px 36px;border:none;border-radius:12px;font-size:1.05rem;font-weight:700;cursor:pointer;box-shadow:0 4px 24px rgba(0,0,0,0.2);min-height:52px;transition:transform 0.1s,box-shadow 0.1s;" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 28px rgba(0,0,0,0.28)'" onmouseout="this.style.transform='';this.style.boxShadow='0 4px 24px rgba(0,0,0,0.2)'">
+                            ＋ 今すぐ無料で最初の目標を作成する（1分で完成）
+                        </button>
+                    </div>
                     <div style="margin-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:16px;">
                         <div style="background:rgba(255,255,255,0.08);padding:12px;border-radius:8px;">
                             <div style="font-size:1.8rem;">⭐</div>
@@ -877,6 +910,19 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
                 cta.style.display=hasGoals?'none':'block';
                 new MutationObserver(function(){
                     cta.style.display=c.children.length>0?'none':'block';
+                }).observe(c,{childList:true});
+            })();
+            </script>
+            <script>
+            // V1: デスクトップサイドバー表示制御（新規訪問者向け非表示）
+            (function(){
+                var hasGoals=false;
+                try{var g=localStorage.getItem('goals');if(g){var a=JSON.parse(g);hasGoals=Array.isArray(a)&&a.length>0;}}catch(e){}
+                var root=document.documentElement;
+                root.style.setProperty('--sidebar-visible', hasGoals?'block':'none');
+                var c=document.getElementById('roadmapContainer');
+                if(c)new MutationObserver(function(){
+                    root.style.setProperty('--sidebar-visible', c.children.length>0?'block':'none');
                 }).observe(c,{childList:true});
             })();
             </script>
@@ -945,10 +991,6 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
   <h3 style="font-size:1.1rem;font-weight:800;color:#1b5e20">活用シーン・使い方</h3>
   <p style="margin:8px 0 0;line-height:1.7;color:#1a1a2e">資格取得・転職・ダイエットなど中長期の目標達成を目指す方に最適です。OKR（目標と主要な結果）形式での目標管理や、チームの目標共有にも活用できます。</p>
 </div>
-<div style="background:#fff8e1;border-left:4px solid #f57c00;padding:20px 24px;margin:24px 0;border-radius:0 8px 8px 0">
-  <h3 style="font-size:1.1rem;font-weight:800;color:#e65100">注意点・補足</h3>
-  <p style="margin:8px 0 0;line-height:1.7;color:#1a1a2e">ロードマップはあくまで目標達成の指針です。進捗に応じて定期的に見直し、現実に合わせて調整することが重要です。</p>
-</div>
 <!-- r22-editorial -->
 <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:.75rem;padding:1.5rem;margin:1.5rem 0">
   <h2 style="font-size:1.05rem;font-weight:800;color:#14532d;margin:0 0 1rem;border-left:4px solid #16a34a;padding-left:.75rem">ウェルネス・生活習慣改善の効果データ</h2>
@@ -1011,6 +1053,8 @@ select,input[type=text],input[type=number],input[type=email],textarea{min-height
     <dd style="font-size:.875rem;color:#475569;margin:0 0 12px;padding-left:12px;line-height:1.8">進捗率は「完了済みステップ数 ÷ 総ステップ数 × 100%」で自動計算されます。各ステップのチェックボックスをクリックするだけでリアルタイムに更新され、ダッシュボードのプログレスバー・円形グラフに即時反映されます。ステップに優先度（高・中・低）を設定しておくと、今日最優先で取り組むべきタスクが「今日のタスク」ビューに表示されるので、毎日の行動管理がより明確になります。</dd>
     <dt style="font-weight:600;color:#1e293b;padding:8px 0 4px">Q. ロードマップを修正・更新する際のコツは？</dt>
     <dd style="font-size:.875rem;color:#475569;margin:0 0 12px;padding-left:12px;line-height:1.8">ロードマップは固定的なものではなく、進捗に応じて常にアップデートすべきです。毎週1回のレビュー時に「①完了したステップをチェック」「②予定より遅れているステップの原因を分析」「③次週以降のスケジュール調整」をまとめて行うことが推奨されます。また大きな環境変化（転職・引っ越し・プロジェクト方針変更等）が生じた場合は、該当する目標全体を見直すタイミングです。修正の際は「完璧を目指さない」マインドセットが重要で、80%達成で上出来と考える現実的な目標設定が、長期継続を可能にします。</dd>
+    <dt style="font-weight:600;color:#1e293b;padding:8px 0 4px">Q. このツール使用時の注意点は？</dt>
+    <dd style="font-size:.875rem;color:#475569;margin:0 0 12px;padding-left:12px;line-height:1.8">ロードマップはあくまで目標達成の指針であり、現実の状況に合わせて定期的に見直し・調整することが重要です。予想外の環境変化や優先度の変化に柔軟に対応し、状況に合わせてスケジュールを修正してください。完璧な計画を目指すのではなく「80%達成で成功」という視点で、継続可能な目標管理を心がけましょう。</dd>
   </dl>
 </section>
 <!-- r30-tool-guide -->
