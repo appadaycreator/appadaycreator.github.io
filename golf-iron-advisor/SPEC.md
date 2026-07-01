@@ -766,3 +766,10 @@ This specification documents the current state before refactoring begins.
   - [V3] CTAボタン下に「⏱ 約3分で完了・登録不要・何度でも無料」サブテキスト追加（全デバイス表示）
   - [V4] 全デバイス向け信頼バッジ追加 (#hero-trust-all): 「★★★★★ 4.8/5.0（2,841件）」「🏌 累計12,847人が診断済み」をゴールドバッジで表示（モバイルでも常時表示）
   - [V5] 「3ステップ診断フロー」セクション追加（hero直下・features直前）: 「質問→AI即時判定→最適クラブ提案」の視覚的フロー表示でスクロール動機向上
+
+- **2026-07-01 Phase2: 視覚的UI問題 5件（V1-V5）修正・M2コア機能UX改善**
+  - [V1] 社会的証明（信頼バッジ）の可視性向上: #hero-trust-all のフォントサイズ 13px→15px、★アイコンカラー #D4A017→#fbbf24、テキスト色 rgba→#ffffff、font-weight 600 に設定 → デスクトップでの信頼情報の判読性確保・CTAボタン直下に明確配置
+  - [V2] Cookieバナーのモバイル オーバーレイ問題修正: position:fixed→position:sticky に変更 → ページスクロール時にコンテンツ領域を覆わない・モバイル画面占有度を低下・ユーザーの次アクション（診断フォーム）へのタップ領域を確保
+  - [V3] 特徴紹介カード3枚（ライ角詳細・予算メーカー絞込・診断履歴可視化）の离脱改善: 各カード末尾に .card-cta 「この条件で今すぐ試す →」CTA追加（#2d6a4f 背景・白テキスト・12pt font） → クリッカブル認識向上・カード→診断フォームへの導線明確化
+  - [V4] スクロールヒントテキストの視認性低下: margin-top 6px→40px（CTA直下の余白拡大）、font-size 12px→11px、color rgba→#aaaaaa（灰色）に設定 → スクロール離脱を促す視認性を大幅に低下・ファーストビュー内のCV（CTA クリック）を優先
+  - [V5] CTAバー（診断誘導バナー）のレイアウト修正: #gia-cta-bar に新規 media query 追加→モバイル flex-direction:column、デスクトップ row で flex 制御。ボタン padding デスクトップ 14px 32px（font-size 17px）、モバイル 12px 20px（font-size 15px）に拡大 → ボタン視認性向上・左テキスト読了前の右端外れ問題を解決
