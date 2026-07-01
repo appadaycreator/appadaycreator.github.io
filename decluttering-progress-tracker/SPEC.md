@@ -1,5 +1,12 @@
 # 仕様書
 
+## v2.6.0 (2026-07-01) — Phase2直接実装: V1-V5ビジュアル問題修正・モバイルFAB調整
+- [V1:HIGH] フォントサイズボタン（固定表示）: 「hidden md:block」を追加してモバイル（md未満）では非表示に。デスクトップのみ右上fixed表示。z-indexは40に調整。モバイルではヘッダーメニュー内から言語同様に選択可能
+- [V2:HIGH] ヒーロー直下プライマリCTA: 初回訪問時（rooms=0・items=0）のキャッチコピー直下に「🚀 今すぐ断捨離を記録する」ボタンを追加。背景#22c55e・padding:16px 40px・font-size:18px・border-radius:8px・ホバー時#16a34a。部屋追加モーダルにアンカー
+- [V3:HIGH] グラフ空状態の価値伝達: chart-container に min-height:300px・gradient背景（from-gray-50 to-gray-100）・border-2 border-dashed border-gray-300 を適用。中央に「📊 部屋別の進捗がグラフで見える」「記録開始後、棒グラフで進捗が可視化されます」とメッセージ表示。同様に categoryChart にも説明文を追加
+- [V4:MED] CTA配置変更: グラフセクション直後にblueカード（background:#eff6ff・padding:2rem・border-left:4px solid #2563eb）で「💡 他の無料ツール180種類以上」セクション新設。ボタン（background:#2563eb・padding:14px 32px・font-size:16px・font-weight:bold・border-radius:8px）で AppADayCreator へのリンク配置。元の下部埋没位置から移動
+- [V5:MED] Cookieバナン・FAB重複排除: バナーの z-index を9999→9998に下げ、flex-wrap:nowrap→wrap に変更。min-height:48px を設定して「✓ 同意」ボタンのタップ領域を確保。overflow:hidden を削除して複数行対応。FAB（floating-btn）は z-index40のまま。同意ボタンのmin-width:80px・min-height:48pxを明示
+
 ## v2.5.0 (2026-06-29) — V1-V5視覚的UI改善・M2/M8入力UX補完・モバイルカルーセル
 - [V1] Cookieバナー: max-height:80px・padding:8px 16px・flex-wrap:nowrap に変更し、モバイルで画面占有を防止。同意ボタン押下時にmainのpadding-bottomをリセット
 - [V2] ヒーロー見出し: 初回訪問時（rooms=0・items=0）に「断捨離した物の数・節約金額・スッキリ度をリアルタイム可視化」の価値提案見出しを28px/bold表示。データあり時は既存ウェルカムメッセージを維持
