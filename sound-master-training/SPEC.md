@@ -3,13 +3,14 @@
 ## 概要
 
 **サービス名**: Sound Master Training
-**バージョン**: 2.1.0
-**更新日**: 2026-06-20
+**バージョン**: 2.4.0
+**更新日**: 2026-07-01
 **URL**: https://appadaycreator.com/sound-master-training/
 
 音を聞いて音名を当てる音感トレーニングアプリ。絶対音感・相対音感を楽しく鍛えられる無料の音楽学習ツール。
 
 ## 更新履歴
+- v2.4.0 (2026-07-01): **Phase2直接実装完了**: V1:HIGH - ピアノ鍵盤直下に「▶ 音を再生」ボタン常時表示（background-color: #3d5af1、color: #ffffff、font-size: 18px、padding: 14px 40px、border-radius: 8px）。V2:HIGH - ヒーロセクションpadding-bottom削減（12px以下）でモバイル余白問題解決・社会的証明テキスト（毎月5000+）は既に配置済み。V3:MED - セカンダリCTA「使い方を見る」のゴーストボタンを薄塗りボタンに変更（background-color: #f0f4ff、color: #3d5af1、border: 2px solid #3d5af1）でクリッカブル性向上。GSCインデックス流入対策としてHowTo/FAQ/WebApplication schemas・メタタイトル・description最適化は既に実装済み。
 - v2.3.0 (2026-06-22): M2: モード説明パネル(modeDescription)をtraining.jsで動的表示・各モードの説明文追加。V1: メインCTA（トレーニングを始める）にbox-shadow追加・セカンダリボタンのopacity低減（0.8）で優先度強化。V2: 信頼性表示をグラデーション背景・フォント太字に変更・「毎月5000+」「完全無料」等の表現で説得力向上。V3: スクロール促進指示行を削除。V4: モバイル版ヘッダーの言語・フォントサイズボタンを非表示化（display:none）。V5: スコア表示にセクション背景・左境界線追加・scoreHintを動的更新（0回:「最初の問題を始めましょう」→連続5+ or 正答率70%+:「いい調子です」）。統計タイトルを「📊 あなたの成長記録」に変更・各statカードにグラデーション背景追加。
 - v2.2.0 (2026-06-21): M2: 入力UI・バリデーション実装完了（必須バッジ・ラベル・説明文・エラーメッセージ・モード説明パネル）。V1: セカンダリボタン（使い方を見る）をアウトラインスタイル（透明背景・境界線）に変更してメインCTAとの視覚階層を明確化。V5: Cookie同意バナーを追加（固定フッター・白背景・グレー境界・localStorage記憶）。
 - v2.1.0 (2026-06-20): V1: セカンダリボタン（使い方を見る）のサイズ修正（min-height:44px / font-size:0.95rem）でヒエラルキー明確化。V2: ヒーローCTAのスクロール誘導追加（スクロールヒント表示 + startTraining クリックでtrainingAppへスムーズスクロール）。V3: Cookieバナーのモバイルレイアウト修正（@media flex-direction:column / button width:100%）。M2: モード選択時にインタラクティブ説明パネル表示（MODE_DESC マップ）。
