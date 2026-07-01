@@ -161,7 +161,8 @@ j=d.createElement(s),dl=l!="dataLayer"?"&l="+l:"";j.async=true;j.src=
         /* Category filter */
         .category-tabs { display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; margin-bottom: 12px; padding-bottom: 4px; }
         .category-tabs::-webkit-scrollbar { display: none; }
-        .cat-tab { border: 1px solid #e2e8f0; border-radius: 20px; padding: 4px 12px; font-size: 0.78em; cursor: pointer; background: #fff; color: #64748b; white-space: nowrap; flex-shrink: 0; }
+        /* V4: カテゴリタブのタッチターゲット確保（最小44px高さ） */
+        .cat-tab { border: 1px solid #e2e8f0; border-radius: 20px; padding: 10px 16px; font-size: 0.78em; cursor: pointer; background: #fff; color: #64748b; white-space: nowrap; flex-shrink: 0; min-height: 44px; display: flex; align-items: center; justify-content: center; }
         .cat-tab.active { background: #7c3aed; color: #fff; border-color: #7c3aed; }
 
         /* P2: result-card ホバーエフェクト（PC） */
@@ -321,6 +322,9 @@ ins.adsbygoogle[data-ad-status="unfilled"]{display:none!important;margin:0!impor
 /* V3: CTAボタンのパルスアニメーション */
 @keyframes pulse-cta { 0%,100% { box-shadow: 0 8px 24px rgba(245,158,11,0.4); } 50% { box-shadow: 0 8px 32px rgba(245,158,11,0.65); transform: translateY(-1px); } }
 #calc-cta-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 30px rgba(245,158,11,0.55) !important; }
+
+/* V1: 予算表示ボックスのレンダリング破損対処（暫定） */
+#budget-status { display: none !important; }
 </style>
 <script type="application/ld+json">
 {
@@ -426,9 +430,10 @@ body{background:var(--bg-soft)}
   <div class="bar">
     <a href="/kids-activity-cost-simulator/lp/" class="brand"><span class="avatar">🎒</span><span class="brand-txt">子供の習い事費用シミュレーター</span></a>
     <div style="display:flex;align-items:center;gap:10px">
-      <a href="/kids-activity-cost-simulator/lp/" class="h-back">← 紹介ページ</a>
-      <!-- V3: ヘッダーCTA文言をヒーローCTAと統一（「計算を始める」に揃える） -->
-      <a href="#main" class="h-back" style="background:#f0f9ff;border-radius:10px;color:#0369a1;font-weight:600;padding:8px 12px;">↓ 計算を始める</a>
+      <!-- V3: 「← 紹介ページ」をヘッダーから削除（誤クリック離脱対策） -->
+      <!-- <a href="/kids-activity-cost-simulator/lp/" class="h-back">← 紹介ページ</a> -->
+      <!-- V3: ヘッダーCTA「計算を始める」をオレンジ化 -->
+      <a href="#main" class="h-back" style="background:#ff6b35;color:#ffffff;font-weight:600;padding:8px 20px;border-radius:6px;">↓ 計算を始める</a>
     </div>
   </div>
 </header>
@@ -441,7 +446,8 @@ body{background:var(--bg-soft)}
 </nav>
 
 
-<div class="hero">
+<!-- V2: モバイル時Cookie バナーと重ならないように padding-bottom確保 -->
+<div class="hero" style="padding-bottom:70px;">
     <h1>🎯 子供の習い事<br>費用シミュレーター</h1>
     <p>月謝・入会金・年間費用をかんたん計算。<br>複数の習い事を組み合わせた合計費用もわかります。</p>
     <!-- V1: メインCTAを強調（パルスアニメーション付きで優先度を明確化） -->
@@ -468,8 +474,8 @@ body{background:var(--bg-soft)}
             <div style="font-size:0.85em;color:rgba(255,255,255,0.85);margin-top:4px;">再利用率</div>
         </div>
     </div>
-    <!-- V2: 信頼性数値の出典を明示してクレジビリティを確保 -->
-    <div style="font-size:0.68em;color:rgba(255,255,255,0.55);margin-top:8px;line-height:1.5;">※ 2025年1〜12月の利用データ・アンケート調査（n=1,200）より算出</div>
+    <!-- V5: 信頼性数値の出典を明示、コントラスト改善（font-size:11px, color:#555） -->
+    <div style="font-size:11px;color:#555555;margin-top:8px;line-height:1.5;">※ 2025年1〜12月の利用データ・アンケート調査（<span style="font-weight:bold;">n=1,200人調査</span>）より算出</div>
 </div>
 
 <div class="container" id="main">
@@ -1048,7 +1054,8 @@ function renderGrid() {
             onclick="showActivityModal('${a.id}')" data-cat="${a.cat}" style="${bgStyle}" title="詳細情報を表示">
             <span class="emoji">${a.emoji}</span>
             ${a.name}${isRec ? `<span class="rec-badge">⭐推奨（${a.ageMin}-${a.ageMax}歳）</span>` : '<span style="font-size:0.65em;color:#94a3b8;display:block;margin-top:2px;">${ageRange}</span>'}
-            <span class="cost-hint" style="${costColor}">月${fmtYen(a.min)}〜${fmtYen(a.max)}${isOverBudget ? ' 💸' : ''}</span>
+            <!-- V4: カード内に月額目安料金を常時表示 -->
+            <span class="cost-hint" style="${costColor}">月${fmtYen(a.min)}〜${fmtYen(a.max)}${isOverBudget ? ' 💸' : ''}<br><span style="font-size:0.75em;color:#666;">目安: 月${fmtYen(Math.round((a.min+a.max)/2))}</span></span>
         </button>`;
     }).join("");
 }
@@ -2444,7 +2451,8 @@ function updateCharts() {
 </div>
 <!-- r49-activity-guide -->
 <!-- r31-cookie-banner -->
-<div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:1rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:.85rem;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
+<!-- V2: Cookieバナーの高さ圧縮（モバイル時60px以内） -->
+<div id="cookie-banner" style="position:fixed;bottom:0;left:0;right:0;background:#1e293b;color:#f1f5f9;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.75rem;z-index:9999;font-size:12px;box-shadow:0 -2px 10px rgba(0,0,0,.3)">
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#60a5fa;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
 <!-- V3: 青いCTAボタンのテキストを明確化（何をするボタンかを明示） -->
 <button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1');window.grantConsent && window.grantConsent()" style="background:#9ca3af;color:#fff;border:none;padding:.4rem 1rem;border-radius:.375rem;font-size:0.8rem;font-weight:500;cursor:pointer;white-space:nowrap">同意する</button>
