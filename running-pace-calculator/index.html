@@ -119,6 +119,10 @@ svg.gauge { width:140px; height:140px; }
 .tooltip-icon:hover::after { content:attr(data-tooltip); position:absolute; bottom:125%; left:-80px; background:rgba(0,0,0,0.9); color:#fff; padding:0.6rem 0.8rem; border-radius:6px; white-space:nowrap; font-size:0.75rem; z-index:100; width:160px; text-align:center; box-shadow:0 2px 8px rgba(0,0,0,0.3); }
 .form-group.with-tooltip label { display:flex; align-items:center; position:relative; }
 .input-hint { font-size:0.75rem; color:#9d7cbd; margin-top:0.2rem; font-style:italic; }
+/* M2: バリデーション */
+.input-error { font-size:0.8rem; color:#f87171; margin-top:0.3rem; display:none; }
+.input-error.show { display:block; }
+.form-group input.error { border-color:#f87171 !important; background:rgba(248,113,113,0.08) !important; }
 </style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"フルマラソンをサブ4（4時間以内）で完走するには1kmペースをいくつにすればいい？","acceptedAnswer":{"@type":"Answer","text":"フルマラソン42.195kmを4時間（14400秒）以内で完走するには、1kmあたり5分41秒（5:41/km）のペースを維持する必要があります。このペース計算ツールで「距離：42.195km」「目標タイム：4時間0分0秒」と入力すれば自動計算できます。"}},{"@type":"Question","name":"ランニングの消費カロリーはどうやって計算しますか？","acceptedAnswer":{"@type":"Answer","text":"消費カロリーの計算式は「MET値 × 体重(kg) × 時間(h)」です。ランニングのMET値は速度により異なり、6km/h（10分/km）で6.0、8km/h（7.5分/km）で8.3、10km/h（6分/km）で9.8、12km/h以上で11.0〜14.0となります。このツールの消費カロリー計算機能で体重・距離・ペースを入力すると自動で算出できます。"}},{"@type":"Question","name":"1kmペースと時速（km/h）はどう換算しますか？","acceptedAnswer":{"@type":"Answer","text":"ペース（分/km）と時速の換算は「時速(km/h) = 60 ÷ ペース(分/km)」です。例えばペース6分/kmなら時速10km/h、ペース5分/kmなら時速12km/hです。逆に時速からペースへは「ペース(分/km) = 60 ÷ 時速」で換算できます。"}},{"@type":"Question","name":"ハーフマラソン（21.0975km）の完走タイムをペースから計算するには？","acceptedAnswer":{"@type":"Answer","text":"ハーフマラソンの完走タイムは「ペース(秒/km) × 21.0975km」で計算できます。例えばペース6分（360秒）/kmなら360×21.0975≒7595秒＝2時間6分35秒です。このツールの「タイム計算（ペース→タイム）」でハーフマラソンを選んでペースを入力すると自動計算できます。"}},{"@type":"Question","name":"マラソントレーニングに必要な月間走行距離の目安は？","acceptedAnswer":{"@type":"Answer","text":"フルマラソン完走を目指す場合、月間走行距離の目安はサブ5（5時間以内）で80〜100km、サブ4（4時間以内）で150〜200km、サブ3.5（3時間30分以内）で200〜250km以上が推奨されます。週3〜4回のランニングを継続し、長距離走（ロング走）を週1回組み込むと効率的に距離を積み上げられます。"}}]}</script>
 
@@ -246,8 +250,9 @@ svg.gauge { width:140px; height:140px; }
     <div class="form-grid">
       <div class="form-group with-tooltip">
         <label>距離 (km)<span class="tooltip-icon" data-tooltip="42.195 = フルマラソン、21.0975 = ハーフ">?</span></label>
-        <input type="number" id="distanceKm" value="42.195" min="0.1" step="0.001" placeholder="42.195" title="ランニング距離を入力（例：42.195 = フルマラソン）" oninput="calcPace(); saveSettings();">
+        <input type="number" id="distanceKm" value="42.195" min="0.1" step="0.001" placeholder="42.195" title="ランニング距離を入力（例：42.195 = フルマラソン）" aria-required="true" oninput="calcPace(); saveSettings();">
         <div class="input-hint">例：42.195km（フルマラソン）、21.0975km（ハーフ）、10km、5km</div>
+        <div class="input-error" id="errDistance" role="alert">距離を正しく入力してください（0より大きい数値）</div>
       </div>
       <div class="form-group with-tooltip">
         <label>目標タイム<span class="tooltip-icon" data-tooltip="完走までの時間を時：分：秒で入力">?</span></label>
@@ -260,6 +265,7 @@ svg.gauge { width:140px; height:140px; }
           <span>秒</span>
         </div>
         <div class="input-hint">例：4時間0分0秒（フルマラソン目標）</div>
+        <div class="input-error" id="errTime" role="alert">目標タイムを入力してください（1秒以上）</div>
       </div>
     </div>
     <button class="btn" aria-label="ペース計算実行" onclick="calcPace(); saveSettings();">ペースを計算する</button>
@@ -271,14 +277,14 @@ svg.gauge { width:140px; height:140px; }
           <div class="unit">分/km</div>
         </div>
         <div class="result-item">
-          <div class="label">時速</div>
+          <div class="label">速度（km/h）</div>
           <div class="value" id="kmPerHour">-</div>
           <div class="unit">km/h</div>
         </div>
         <div class="result-item">
           <div class="label">1マイルペース</div>
           <div class="value" id="pacePerMile">-</div>
-          <div class="unit">分/mile</div>
+          <div class="unit">分/マイル</div>
         </div>
       </div>
       <!-- V3: 計算直後の最高コンバージョンポイントにアフィリエイトCTA -->
@@ -304,6 +310,10 @@ svg.gauge { width:140px; height:140px; }
         <div style="font-size:0.85rem;color:#b39ddb;margin-bottom:1rem;text-align:center;font-weight:600;">📊 目標タイム別ペース比較</div>
         <canvas id="paceComparisonChart" style="max-height:300px;"></canvas>
       </div>
+      <!-- V4: チャート後のシューズCTA（離脱防止） -->
+      <div style="text-align:center;margin:8px 0;font-size:14px;color:#f5a623;font-weight:600;">
+        <a href="javascript:void(0)" onclick="document.querySelector('.p2-cta-section').scrollIntoView({behavior:'smooth'})" style="color:#f5a623;text-decoration:none;cursor:pointer;">あなたのペースに合ったシューズを今すぐチェック ↓</a>
+      </div>
       <!-- P1: Training volume guidance -->
       <div style="margin-top:1rem;padding:0.8rem;background:rgba(255,255,255,0.04);border-left:3px solid #9575cd;border-radius:6px;font-size:0.8rem;color:#b39ddb;line-height:1.7;">
         <div style="font-weight:600;color:#e8dcff;margin-bottom:0.4rem;">🎯 このペースでの月間走行距離の目安</div>
@@ -312,13 +322,13 @@ svg.gauge { width:140px; height:140px; }
       <button class="copy-btn" onclick="copyResult('pace')" aria-label="ペース計算結果をクリップボードにコピー">📋 結果をコピー</button>
       <button class="copy-btn" onclick="printResult()" aria-label="ペース計算結果を印刷" style="margin-left:0.5rem">🖨️ 印刷</button>
       <!-- P2: Context CTA after results -->
-      <div style="margin-top:1.5rem;padding:1rem;background:rgba(98,0,234,0.15);border-radius:10px;border-left:4px solid #7c4dff;">
+      <div class="p2-cta-section" style="margin-top:1.5rem;padding:1rem;background:rgba(98,0,234,0.15);border-radius:10px;border-left:4px solid #7c4dff;">
         <div style="font-size:0.9rem;font-weight:600;color:#fff;margin-bottom:0.8rem;">🏃 このペースに合わせたランニングシューズを選ぶ</div>
         <p style="font-size:0.85rem;color:#d4b8f0;margin:0 0 1rem;line-height:1.6;">あなたが設定したペースを実現するには、体重と走行ペースに合ったシューズ選びが重要です。<span id="paceAdvice" style="font-weight:600;color:#fff;">-</span></p>
         <!-- V2: シューズを主CTA（全幅）に、スポーツウェアを副テキストリンクに -->
         <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ7+9PJRFU+4ABU+6CP0X" rel="nofollow noopener noreferrer" target="_blank" style="display:block;width:100%;background:#ff9900;color:#fff;padding:16px 24px;border-radius:8px;font-size:1.1rem;font-weight:700;text-decoration:none;text-align:center;box-shadow:0 4px 12px rgba(255,153,0,0.4);">🏃 スーパースポーツゼビオで探す →</a>
-        <div style="text-align:center;margin-top:0.6rem;">
-          <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ7+A2NAQY+3OSK+5YJRM" rel="nofollow noopener noreferrer" target="_blank" style="font-size:0.85rem;color:#b39ddb;text-decoration:underline;">スポーツデポで探す（シューズ・ウェア）</a>
+        <div style="margin-top:0.6rem;">
+          <a href="https://px.a8.net/svt/ejp?a8mat=4B3WJ7+A2NAQY+3OSK+5YJRM" rel="nofollow noopener noreferrer" target="_blank" style="display:block;width:100%;border:2px solid #f5a623;color:#f5a623;background:transparent;padding:14px 24px;border-radius:8px;font-size:16px;font-weight:700;text-decoration:none;text-align:center;box-sizing:border-box;">🏪 スポーツデポで探す（シューズ・ウェア）</a>
         </div>
       </div>
       <img border="0" width="1" height="1" src="https://www18.a8.net/0.gif?a8mat=4B3WJ7+9PJRFU+4ABU+6CP0X" alt="" loading="lazy" style="display:none;">
@@ -353,8 +363,9 @@ svg.gauge { width:140px; height:140px; }
     <div class="form-grid">
       <div class="form-group with-tooltip">
         <label>距離 (km)<span class="tooltip-icon" data-tooltip="走る予定の距離">?</span></label>
-        <input type="number" id="distKm2" value="42.195" min="0.1" step="0.001" placeholder="42.195" title="走行距離を入力（例：42.195 = フルマラソン）" oninput="calcTime(); saveSettings();">
+        <input type="number" id="distKm2" value="42.195" min="0.1" step="0.001" placeholder="42.195" title="走行距離を入力（例：42.195 = フルマラソン）" aria-required="true" oninput="calcTime(); saveSettings();">
         <div class="input-hint">例：42.195（フル）、21.0975（ハーフ）、10、5</div>
+        <div class="input-error" id="errDist2" role="alert">距離を正しく入力してください（0より大きい数値）</div>
       </div>
       <div class="form-group with-tooltip">
         <label>1kmペース<span class="tooltip-icon" data-tooltip="1km走るのにかかる時間">?</span></label>
@@ -365,6 +376,7 @@ svg.gauge { width:140px; height:140px; }
           <span>秒</span>
         </div>
         <div class="input-hint">例：5分42秒/km（サブ4ペース）、6分0秒/km</div>
+        <div class="input-error" id="errPace" role="alert">1kmペースを入力してください（1分以上）</div>
       </div>
     </div>
     <button class="btn" aria-label="タイム計算実行" onclick="calcTime(); saveSettings();">タイムを計算する</button>
@@ -822,13 +834,25 @@ svg.gauge { width:140px; height:140px; }
     });
   }
 
+  function showError(id, inputId, show) {
+    const el = document.getElementById(id);
+    const inp = document.getElementById(inputId);
+    if (el) { el.classList.toggle('show', show); }
+    if (inp) { inp.classList.toggle('error', show); }
+  }
+
   function calcPace() {
     const dist = parseFloat(document.getElementById('distanceKm').value) || 0;
     const h = parseInt(document.getElementById('targetHour').value) || 0;
     const m = parseInt(document.getElementById('targetMin').value) || 0;
     const s = parseInt(document.getElementById('targetSec').value) || 0;
     const totalSec = h * 3600 + m * 60 + s;
-    if (!dist || !totalSec) return;
+    /* M2: バリデーション */
+    const distOk = dist > 0;
+    const timeOk = totalSec > 0;
+    showError('errDistance', 'distanceKm', !distOk);
+    showError('errTime', 'targetSec', !timeOk);
+    if (!distOk || !timeOk) return;
     const paceSecPerKm = totalSec / dist;
     const kmph = dist / (totalSec / 3600);
     const paceSecPerMile = paceSecPerKm * 1.60934;
@@ -863,7 +887,12 @@ svg.gauge { width:140px; height:140px; }
     const pm = parseInt(document.getElementById('paceMin').value) || 0;
     const ps = parseInt(document.getElementById('paceSec').value) || 0;
     const paceSecPerKm = pm * 60 + ps;
-    if (!dist || !paceSecPerKm) return;
+    /* M2: バリデーション */
+    const distOk = dist > 0;
+    const paceOk = paceSecPerKm >= 60;
+    showError('errDist2', 'distKm2', !distOk);
+    showError('errPace', 'paceMin', !paceOk && (pm > 0 || ps > 0));
+    if (!distOk || !paceOk) return;
     const totalSec = paceSecPerKm * dist;
     const kmph = 60 / (pm + ps / 60);
     document.getElementById('finishTime').textContent = secToHMS(totalSec);
@@ -1347,7 +1376,19 @@ svg.gauge { width:140px; height:140px; }
 <div>当サイトはCookieおよびGoogle Analyticsを使用しています。<a href="/privacy-policy.html" style="color:#93c5fd;text-decoration:underline">プライバシーポリシー</a>をご確認ください。</div>
 <button onclick="document.getElementById('cookie-banner').style.display='none';localStorage.setItem('cookie-consent','1');window.grantConsent && window.grantConsent()" style="background:#3b82f6;color:#fff;border:none;padding:.6rem 1.4rem;min-height:44px;border-radius:.375rem;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0">同意して閉じる</button>
 </div>
-<script>if(!localStorage.getItem('cookie-consent'))document.getElementById('cookie-banner').style.display='flex'</script>
+<script>
+(function(){
+  if(!localStorage.getItem('cookie-consent')){
+    var banner = document.getElementById('cookie-banner');
+    banner.style.display = 'flex';
+    /* V1: バナー高さ分だけコンテンツに余白を追加してボタンが隠れないようにする */
+    document.body.style.paddingBottom = '100px';
+  }
+  /* 同意後は余白を解除 */
+  var btn = document.querySelector('#cookie-banner button');
+  if(btn) btn.addEventListener('click', function(){ document.body.style.paddingBottom = ''; });
+})();
+</script>
 <!-- r46-org-footer -->
 <div style="text-align:center;font-size:11px;color:#9ca3af;padding:6px 0 4px;background:#f8fafc;border-top:1px solid #e5e7eb;">
   運営: <a href="https://appadaycreator.com/" style="color:#9ca3af;text-decoration:none;">AppADayCreator</a> | <a href="https://tech-and-brace.co.jp/" rel="noopener" style="color:#9ca3af;text-decoration:none;">株式会社Tech&amp;Brace</a>
