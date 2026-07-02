@@ -7,6 +7,14 @@
 **更新日**: 2026-07-01
 **URL**: https://appadaycreator.com/fire-calculator/
 
+## 変更履歴（v2.9.7 - Phase2直接実装版）
+- M2 コア機能のUX改善 - 入力UI・バリデーション強化（スクリーンショット解析 V1-V5全対応）
+  - [V3] 「最短30秒」メッセージをステップ1冒頭に追加：緑背景 #ecfdf5、border #6ee7b7、padding 14px 16px で早期段階での価値提示・心理的障壁を軽減
+  - [V1] 「次へ→」ボタンのモバイル露出強化：sticky bottom 0 で常表示、min-height 60px、box-shadow 強化で視認性UP・クリック率向上
+  - [V4] モバイル form-grid を強制1列化：#step1/2/3 各フォームに grid-template-columns: 1fr !important で入力フィールド見切れを完全排除
+  - Placeholder「例: 」記号を全フォームに統一追加：ユーザーが入力値の形式を瞬時に認識・入力エラー削減
+  - ヘルプテキスト簡潔化：冗長な範囲説明を削減（例「0〜100,000万円の範囲で入力してください」→「0〜100,000万円」に統一）して視認性向上
+
 ## 変更履歴（v2.9.6）
 - M2 Phase2: コア機能のUX改善・スクリーンショット解析による視覚的UI問題全対応（V1-V5）
   - [V1] FAQ内のテキストリンクをボタン型CTAに変更：background #7c3aed、color #fff、padding 12px 24px、border-radius 8px、display inline-block で視覚的重量を強化・クリック率向上
